@@ -103,3 +103,6 @@ ENV/
 # OS X 
 .DS_Store
 
+# Saved Images Cache
+saved_images
+
