@@ -661,7 +661,8 @@ class VolumeCutout(np.ndarray):
           img2d[:,:] |= 0xff000000 # for little endian abgr
           img2d = Image.fromarray(img2d, 'RGBA')
 
-        filename = '{}.{}'.format(level, image_format.lower())
+        file_index = str(level).zfill(2)
+        filename = '{}.{}'.format(file_index, image_format.lower())
         if num_channels > 1:
           filename = '{}-{}'.format(channel_index, filename)
 
