@@ -1,13 +1,19 @@
 language: python
 python:
-  - "2.6"
-  - "2.7"
+- '2.6'
+- '2.7'
 dist: trusty
 before_install:
-- mkdir .neuroglancer
+- mkdir -p ~/.neuroglancer/secrets/
+- openssl aes-256-cbc -K $encrypted_1f1d44165f5b_key -iv $encrypted_1f1d44165f5b_iv -in credentials.tar.enc -out credentials.tar -d
+- tar -xvf credentials.tar
+- mv google-secret.json ~/.neuroglancer/secrets/
+- mv aws-secret.json ~/.neuroglancer/secrets/
+- mv project_name ~/.neuroglancer/
+- rm credentials.tar
 install:
 - virtualenv venv
 - source venv/bin/activate
 - pip install -e .
 script:
-- py.test -v test
+- py.test -v -x test/
