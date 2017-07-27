@@ -15,7 +15,7 @@ Supported URLs are of the forms:
 
 $PROTOCOL://$BUCKET/$DATASET/$LAYER  
 
-Supported Protocols:
+Supported Protocols:  
 	- gs:   Google Storage
 	- s3:   Amazon S3
 	- file: Local File System (absolute path)
@@ -29,12 +29,30 @@ vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 
 ## Setup
 
+You'll need to set up your cloud credentials as well as the main install.
+
+### Credentials
+
+```
+mkdir -p ~/.neuroglancer/secrets/
+echo $GOOGLE_STORAGE_PROJECT > ~/.neuroglancer/project_name # needed for Google
+mv aws-secret.json ~/.neuroglancer/secrets/ # needed for Google
+mv google-secret.json ~/.neuroglancer/secrets/ # needed for Amazon
+```
+
+### pip
+
+```
+pip install cloud-volume
+```
+
+### Manual
 ```
 git clone git@github.com:seung-lab/cloud-volume.git
 cd cloud-volume
 virtualenv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
 
