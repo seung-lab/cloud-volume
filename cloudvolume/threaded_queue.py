@@ -164,10 +164,9 @@ class ThreadedQueue(object):
     try:
       fn()
     finally:
-      self._queue.task_done()
-
       with self._processed_lock:
         self.processed += 1
+        self._queue.task_done()
 
   def wait(self):
     """
