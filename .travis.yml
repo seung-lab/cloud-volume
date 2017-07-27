@@ -1,0 +1,13 @@
+language: python
+python:
+  - "2.6"
+  - "2.7"
+dist: trusty
+before_install:
+- mkdir .neuroglancer
+install:
+- virtualenv venv
+- source venv/bin/activate
+- pip install -e .
+script:
+- py.test -v test
