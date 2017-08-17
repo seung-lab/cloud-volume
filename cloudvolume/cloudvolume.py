@@ -13,6 +13,7 @@ import chunks
 import lib
 from lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
 from storage import Storage
+import mesh2obj
 
 __all__ = [ 'CloudVolume', 'EmptyVolumeException' ]
 
@@ -522,6 +523,40 @@ class CloudVolume(object):
       ept = (endpt + bounds.minpt).astype(int)
     
       yield chunkimg, spt, ept 
+
+  def get_mesh(self, segid):
+    mesh_dir = self.info['mesh']
+
+    mesh_json_file_name = str(segid) + ':0'
+
+    download_path = os.path.join(mesh_dir, mesh_json_file_name)
+
+    with Storage(self.layer_cloudpath) as stor:
+      fragments = json.loads(stor.get_file(download_path))['fragments']
+      
+      # Older mesh manifest generation tasks had a bug where they
+      # accidently included the manifest file in the list of mesh
+      # fragments. Exclude these accidental files, no harm done.
+      fragments = [ f for f in fragments if f != mesh_json_file_name ] 
+
+      paths = [ os.path.join(mesh_dir, fragment) for fragment in fragments ]
+      frag_datas = stor.get_files(paths)  
+    return frag_datas
+
+  def save_mesh(self, segid, file_format='obj'):
+    meshdata = self.get_mesh(segid)
+    meshdata = mesh2obj.decode_downloaded_data(meshdata)
+
+    if file_format != 'obj':
+      raise NotImplementedError('Only .obj is currently supported.')
+
+    num_vertices = 0
+    with open('./{}.obj'.format(segid), 'wb') as f:
+      for name, fragment in meshdata.items():
+        mesh_data = mesh2obj.mesh_to_obj(fragment, num_vertices)
+        f.write('\n'.join(mesh_data) + '\n')
+        num_vertices += fragment['num_vertices']
+
 
   def __chunknames(self, bbox, volume_bbox, key, chunk_size):
     paths = []
