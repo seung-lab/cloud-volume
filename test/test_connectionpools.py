@@ -24,7 +24,7 @@ def test_gc_stresstest():
     GC_POOL.release_connection(conn)
     pbar.update()
 
-  with ThreadedQueue(n_threads=40) as tq:
+  with ThreadedQueue(n_threads=20) as tq:
     for _ in xrange(n_trials):
       tq.put(create_conn)
 
@@ -47,7 +47,7 @@ def test_s3_stresstest():
     S3_POOL.release_connection(conn)
     pbar.update()
 
-  with ThreadedQueue(n_threads=40) as tq:
+  with ThreadedQueue(n_threads=20) as tq:
     for _ in xrange(n_trials):
       tq.put(create_conn)
 
