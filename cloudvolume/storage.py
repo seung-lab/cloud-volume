@@ -13,8 +13,11 @@ from boto.s3.connection import S3Connection
 import gzip
 
 from lib import mkdir
-from secrets import PROJECT_NAME, google_credentials, aws_credentials
 from threaded_queue import ThreadedQueue
+from connectionpools import S3ConnectionPool, GCloudConnectionPool
+
+S3_POOL = S3ConnectionPool()
+GC_POOL = GCloudConnectionPool()
 
 class Storage(ThreadedQueue):
     """
@@ -50,6 +53,13 @@ class Storage(ThreadedQueue):
 
     def _initialize_interface(self):
         return self._interface_cls(self._path)
+
+    def _close_interface(self, interface):
+        interface.release_connection()
+
+    def _consume_queue(self, terminate_evt):
+        super(Storage, self)._consume_queue(terminate_evt)
+        self._interface.release_connection()
 
     @property
     def layer_path(self):
@@ -209,6 +219,14 @@ class Storage(ThreadedQueue):
         for f in self._interface.list_files(prefix, flat):
             yield f
 
+    def __del__(self):
+        super(Storage, self).__del__()
+        self._interface.release_connection()
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        super(Storage, self).__exit__(exception_type, exception_value, traceback)
+        self._interface.release_connection()
+
 class FileInterface(object):
     def __init__(self, path):
         self._path = path
@@ -305,12 +323,16 @@ class FileInterface(object):
 
         return _radix_sort(filenames).__iter__()
 
+    def release_connection(self):
+        pass
+
+
 class GoogleCloudStorageInterface(object):
     def __init__(self, path):
+        global GC_POOL
         self._path = path
-        client = Client(credentials=google_credentials,
-            project=PROJECT_NAME)
-        self._bucket = client.get_bucket(self._path.bucket_name)
+        self._client = GC_POOL.get_connection()
+        self._bucket = self._client.get_bucket(self._path.bucket_name)
 
     def get_path_to_file(self, file_path):
         clean = filter(None,[self._path.dataset_path,
@@ -366,13 +388,17 @@ class GoogleCloudStorageInterface(object):
             elif flat and '/' not in blob.name.replace(path, ''):
                 yield filename
 
+    def release_connection(self):
+        global GC_POOL
+        GC_POOL.release_connection(self._client)
+
 class S3Interface(object):
 
     def __init__(self, path):
+        global S3_POOL
         self._path = path
-        conn = S3Connection(aws_credentials['AWS_ACCESS_KEY_ID'],
-                            aws_credentials['AWS_SECRET_ACCESS_KEY'])
-        self._bucket = conn.get_bucket(self._path.bucket_name)
+        self._conn = S3_POOL.get_connection()
+        self._bucket = self._conn.get_bucket(self._path.bucket_name)
 
     def get_path_to_file(self, file_path):
         clean = filter(None,[self._path.dataset_path,
@@ -441,6 +467,10 @@ class S3Interface(object):
                 yield filename
             elif flat and '/' not in blob.name.replace(path, ''):
                 yield filename
+
+    def release_connection(self):
+        global S3_POOL
+        S3_POOL.release_connection(self._conn)
 
 def _radix_sort(L, i=0):
     """

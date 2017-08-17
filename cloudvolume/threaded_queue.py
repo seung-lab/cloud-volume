@@ -113,6 +113,10 @@ class ThreadedQueue(object):
     """
     return None
 
+  def _close_interface(self, interface):
+    """Allows derived classes to clean up after a thread finishes."""
+    pass
+
   def _consume_queue(self, terminate_evt):
     """
     This is the main thread function that consumes functions that are
@@ -140,6 +144,8 @@ class ThreadedQueue(object):
         self._consume_queue_execution(fn)
       except Exception as err:
         self._error_queue.put(err)
+
+    self._close_interface(interface)
 
   def _consume_queue_execution(self, fn):
     """
