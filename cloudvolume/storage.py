@@ -13,7 +13,7 @@ from boto.s3.connection import S3Connection
 import gzip
 
 from lib import mkdir
-from secrets import PROJECT_NAME, google_credentials_path, aws_credentials
+from secrets import PROJECT_NAME, google_credentials, aws_credentials
 from threaded_queue import ThreadedQueue
 
 class Storage(ThreadedQueue):
@@ -308,8 +308,7 @@ class FileInterface(object):
 class GoogleCloudStorageInterface(object):
     def __init__(self, path):
         self._path = path
-        client = Client.from_service_account_json(
-            google_credentials_path,
+        client = Client(credentials=google_credentials,
             project=PROJECT_NAME)
         self._bucket = client.get_bucket(self._path.bucket_name)
 
