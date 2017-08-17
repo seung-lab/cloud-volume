@@ -525,6 +525,7 @@ class CloudVolume(object):
       yield chunkimg, spt, ept 
 
   def get_mesh(self, segid):
+    """Download the raw mesh fragments for this seg ID."""
     mesh_dir = self.info['mesh']
 
     mesh_json_file_name = str(segid) + ':0'
@@ -543,15 +544,32 @@ class CloudVolume(object):
       frag_datas = stor.get_files(paths)  
     return frag_datas
 
-  def save_mesh(self, segid, file_format='obj'):
-    meshdata = self.get_mesh(segid)
-    meshdata = mesh2obj.decode_downloaded_data(meshdata)
+  def save_mesh(self, segids, file_format='obj'):
+    """
+    Save one or more segids into a common mesh format as a single file.
+
+    segids: int, string, or list thereof
+
+    Supported Formats: 'obj'
+    """
+    if type(segids) != list:
+      segids = [ segids ]
+
+    fragments = []
+    for segid in segids:
+      fragments.extend( self.get_mesh(segid) )
+
+    meshdata = mesh2obj.decode_downloaded_data(fragments)
 
     if file_format != 'obj':
       raise NotImplementedError('Only .obj is currently supported.')
 
+    filename = str(segids[0])
+    if len(segids) > 1:
+      filename = "{}_{}".format(segids[0], segids[-1])
+
     num_vertices = 0
-    with open('./{}.obj'.format(segid), 'wb') as f:
+    with open('./{}.obj'.format(filename), 'wb') as f:
       for name, fragment in meshdata.items():
         mesh_data = mesh2obj.mesh_to_obj(fragment, num_vertices)
         f.write('\n'.join(mesh_data) + '\n')
