@@ -1,7 +1,7 @@
 import os
 import json
 
-from oauth2client import service_account
+from google.oauth2 import service_account
 
 from lib import mkdir
 
@@ -16,8 +16,8 @@ if os.path.exists(project_name_path):
 
 google_credentials_path = os.path.join(secret_path, 'google-secret.json')
 if os.path.exists(google_credentials_path):
-  google_credentials = service_account.ServiceAccountCredentials \
-    .from_json_keyfile_name(google_credentials_path)
+  google_credentials = service_account.Credentials \
+    .from_service_account_file(google_credentials_path)
 else:
   google_credentials = None
 
