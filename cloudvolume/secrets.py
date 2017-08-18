@@ -28,3 +28,9 @@ if os.path.exists(aws_credentials_path):
 else:
   aws_credentials = None
 
+boss_credentials_path = os.path.join(secret_path, 'boss-secret.json')
+if os.path.exists(boss_credentials_path):
+  with open(boss_credentials_path, 'rb') as f:
+    boss_credentials = json.loads(f.read())
+else:
+  boss_credentials = None
