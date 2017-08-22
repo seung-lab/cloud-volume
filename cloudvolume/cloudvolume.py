@@ -620,7 +620,7 @@ class CloudVolume(object):
     if self.encoding == 'jpeg':
       content_type == 'image/jpeg'
 
-    compress = (self.layer_type in ('segmentation'))
+    compress = (self.encoding in ('raw', 'compressed_segmentation'))
 
     with Storage(self.layer_cloudpath) as storage:
       storage.put_files(uploads, content_type=content_type, compress=compress)
