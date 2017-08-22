@@ -16,15 +16,17 @@ Supported URLs are of the forms:
 $PROTOCOL://$BUCKET/$DATASET/$LAYER  
 
 Supported Protocols:  
-	- gs:   Google Storage
-	- s3:   Amazon S3
-	- file: Local File System (absolute path)
+	* gs:   Google Storage
+	* s3:   Amazon S3
+	* file: Local File System (absolute path)
 
 
 ```
 vol = CloudVolume('gs://mybucket/retina/image') # Basic Example
 image = vol[:,:,:] # Download the entire image stack into a numpy array
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
+vol.save_mesh(12345) # save 12345 as ./12345.obj
+vol.save_mesh([12345, 12346, 12347]) # merge three segments into one obj
 ```
 
 ## Setup
