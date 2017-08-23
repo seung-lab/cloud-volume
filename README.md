@@ -15,12 +15,13 @@ Supported URLs are of the forms:
 
 $PROTOCOL://$BUCKET/$DATASET/$LAYER  
 
-Supported Protocols:  
-	* gs:   Google Storage
-	* s3:   Amazon S3
-	* boss: The BOSS (https://docs.theboss.io/docs)
-	* file: Local File System (absolute path)
+### Supported Protocols 
+* gs:   Google Storage
+* s3:   Amazon S3
+* boss: The BOSS (https://docs.theboss.io/docs)
+* file: Local File System (absolute path)
 
+### Examples
 
 ```
 vol = CloudVolume('gs://mybucket/retina/image') # Basic Example
