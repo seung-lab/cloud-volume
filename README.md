@@ -18,6 +18,7 @@ $PROTOCOL://$BUCKET/$DATASET/$LAYER
 Supported Protocols:  
 	* gs:   Google Storage
 	* s3:   Amazon S3
+	* boss: The BOSS (https://docs.theboss.io/docs)
 	* file: Local File System (absolute path)
 
 
@@ -52,8 +53,8 @@ pip install cloud-volume
 ```
 git clone git@github.com:seung-lab/cloud-volume.git
 cd cloud-volume
-virtualenv venv
-source venv/bin/activate
+mkvirtualenv cloud-volume
+workon cloud-volume
 pip install -e .
 ```
 
