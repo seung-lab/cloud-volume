@@ -9,7 +9,6 @@ pytest==3.0.7
 Pillow==4.2.1
 protobuf==3.3.0
 requests==2.18.4
-scipy==0.18.1
 six==1.10.0
 tqdm==4.7.6
 urllib3[secure]
