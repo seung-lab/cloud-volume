@@ -1,15 +1,16 @@
 from collections import namedtuple
-from cStringIO import StringIO
-from Queue import Queue
+import six
+from six import StringIO, BytesIO
+from six.moves import queue as Queue
 import os.path
 import re
 from functools import partial
 
+import boto3
+import botocore
 from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Client
-import boto
-from boto.s3.connection import S3Connection
 import gzip
 
 from lib import mkdir
@@ -31,7 +32,7 @@ class Storage(ThreadedQueue):
 
     This should be the only way to interact with files for any of the protocols.
     """
-    gzip_magic_numbers = [0x1f,0x8b]
+    gzip_magic_numbers = [ 0x1f, 0x8b ]
     path_regex = re.compile(r'^(gs|file|s3)://(/?.*?)/(.*/)?([^//]+)/([^//]+)/?$')
     ExtractedPath = namedtuple('ExtractedPath',
         ['protocol','bucket_name','dataset_path','dataset_name','layer_name'])
@@ -177,13 +178,14 @@ class Storage(ThreadedQueue):
             be ungzipped. That's why is better to set uncompress to False in
             get file.
         """
-        if [ord(byte) for byte in content[:2]] == self.gzip_magic_numbers:
+        first_two_bytes = [ byte for byte in bytearray(content)[:2] ]
+        if first_two_bytes == self.gzip_magic_numbers:
             return self._uncompress(content)
         return content
 
     @staticmethod
     def _compress(content):
-        stringio = StringIO()
+        stringio = BytesIO()
         gzip_obj = gzip.GzipFile(mode='wb', fileobj=stringio)
         gzip_obj.write(content)
         gzip_obj.close()
@@ -191,7 +193,7 @@ class Storage(ThreadedQueue):
 
     @staticmethod
     def _uncompress(content):
-        stringio = StringIO(content)
+        stringio = BytesIO(content)
         with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
             return gfile.read()
 
@@ -247,10 +249,16 @@ class FileInterface(object):
         if compress:
             path += '.gz'
 
+        if content \
+            and content_type \
+            and re.search('json|te?xt', content_type) \
+            and type(content) is str:
+
+            content = content.encode('utf-8')
+
         try:
             with open(path, 'wb') as f:
                 f.write(content)
-                f.flush()
         except IOError as err:
             with open(path, 'wb') as f:
                 f.write(content)
@@ -319,8 +327,7 @@ class FileInterface(object):
             else:
                 return fname
 
-        filenames = map(stripgz, filenames)
-
+        filenames = list(map(stripgz, filenames))
         return _radix_sort(filenames).__iter__()
 
     def release_connection(self):
@@ -398,7 +405,6 @@ class S3Interface(object):
         global S3_POOL
         self._path = path
         self._conn = S3_POOL.get_connection()
-        self._bucket = self._conn.get_bucket(self._path.bucket_name)
 
     def get_path_to_file(self, file_path):
         clean = filter(None,[self._path.dataset_path,
@@ -408,47 +414,67 @@ class S3Interface(object):
         return  os.path.join(*clean)
 
     def put_file(self, file_path, content, content_type, compress):
-        k = boto.s3.key.Key(self._bucket)
-        k.key = self.get_path_to_file(file_path)
+        key = self.get_path_to_file(file_path)
         if compress:
-            k.set_contents_from_string(
-                content,
-                headers={
-                    "Content-Type": content_type or 'application/octet-stream',
-                    "Content-Encoding": "gzip",
-                })
+            self._conn.put_object(
+                Bucket=self._path.bucket_name,
+                Body=content,
+                Key=key,
+                ContentType=(content_type or 'application/octet-stream'),
+                ContentEncoding='gzip',
+            )
         else:
-            k.set_contents_from_string(content, headers={
-                "Content-Type": content_type or 'application/octet-stream',
-            })
+            self._conn.put_object(
+                Bucket=self._path.bucket_name,
+                Body=content,
+                Key=key,
+                ContentType=(content_type or 'application/octet-stream'),
+            )
             
     def get_file(self, file_path):
         """
             There are many types of execptions which can get raised
             from this method. We want to make sure we only return
             None when the file doesn't exist.
-
-            TODO maybe implement retry in case of timeouts. 
         """
-        k = boto.s3.key.Key(self._bucket)
-        k.key = self.get_path_to_file(file_path)
+
         try:
-            return k.get_contents_as_string(), k.content_encoding == "gzip"
-        except boto.exception.S3ResponseError as e:
-            if e.error_code == 'NoSuchKey':
+            resp = self._conn.get_object(
+                Bucket=self._path.bucket_name,
+                Key=self.get_path_to_file(file_path),
+            )
+
+            encoding = ''
+            if 'ContentEncoding' in resp:
+                encoding = resp['ContentEncoding']
+
+            return resp['Body'].read(), encoding == "gzip"
+        except botocore.exceptions.ClientError as err: 
+            if err.response['Error']['Code'] == 'NoSuchKey':
                 return None, False
             else:
-                raise e
+                raise
 
     def exists(self, file_path):
-        k = boto.s3.key.Key(self._bucket)
-        k.key = self.get_path_to_file(file_path)
-        return k.exists()
+        exists = True
+        try:
+            self._conn.head_object(
+                Bucket=self._path.bucket_name,
+                Key=self.get_path_to_file(file_path),
+            )
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == "404":
+                exists = False
+            else:
+                raise
+        
+        return exists
 
     def delete_file(self, file_path):
-        k = boto.s3.key.Key(self._bucket)
-        k.key = self.get_path_to_file(file_path)
-        self._bucket.delete_key(k)
+        self._conn.delete_object(
+            Bucket=self._path.bucket_name,
+            Key=self.get_path_to_file(file_path),
+        )
 
     def list_files(self, prefix, flat=False):
         """
@@ -461,11 +487,20 @@ class S3Interface(object):
 
         layer_path = self.get_path_to_file("")        
         path = os.path.join(layer_path, prefix)
-        for blob in self._bucket.list(prefix=path):
-            filename = blob.name.replace(layer_path + '/', '')
+        resp = self._conn.list_objects_v2(
+            Bucket=self._path.bucket_name,
+            Prefix=path,
+        )
+
+        if 'Contents' not in resp.keys():
+            resp['Contents'] = []
+
+        for item in resp['Contents']:
+            key = item['Key']
+            filename = key.replace(layer_path + '/', '')
             if not flat and filename[-1] != '/':
                 yield filename
-            elif flat and '/' not in blob.name.replace(path, ''):
+            elif flat and '/' not in key.replace(path, ''):
                 yield filename
 
     def release_connection(self):

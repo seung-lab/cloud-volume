@@ -1,4 +1,5 @@
 from __future__ import print_function
+from six.moves import range
 
 import os
 import io
@@ -44,7 +45,7 @@ def list_shape(shape, elem=None):
     def helper(elem, shape, i):
         if len(shape) - 1 == i:
             return [elem] * shape[i]
-        return [ helper(elem, shape, i+1) for _ in xrange(shape[i]) ]
+        return [ helper(elem, shape, i+1) for _ in range(shape[i]) ]
 
     return helper(elem, shape, 0)
 
@@ -78,7 +79,7 @@ def find_closest_divisor(to_divide, closest_to):
 
 def divisors(n):
   """Generate the divisors of n"""
-  for i in xrange(1, int(math.sqrt(n) + 1)):
+  for i in range(1, int(math.sqrt(n) + 1)):
     if n % i == 0:
       yield i
       if i*i != n:
@@ -93,7 +94,7 @@ def xyzrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
   end_vec = np.array(end_vec, dtype=int)
 
   rangeargs = ( (start, end, stride) for start, end, stride in zip(start_vec, end_vec, stride_vec) )
-  xyzranges = [ xrange(*arg) for arg in rangeargs ]
+  xyzranges = [ range(*arg) for arg in rangeargs ]
   
   # iterate then x first, then y, then z
   # this way you process in the xy plane slice by slice
@@ -114,7 +115,7 @@ def map2(fn, a, b):
 
   result = np.empty(len(a))
 
-  for i in xrange(len(result)):
+  for i in range(len(result)):
     result[i] = fn(a[i], b[i])
 
   if isinstance(a, Vec) or isinstance(b, Vec):
