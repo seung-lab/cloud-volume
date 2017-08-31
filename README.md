@@ -59,7 +59,9 @@ workon cloud-volume
 pip install -e .
 ```
 
+## Other Languages
 
+Julia - https://github.com/seung-lab/CloudVolume.jl
 
 
 
