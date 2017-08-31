@@ -1,11 +1,11 @@
-import Queue
+from six.moves import queue as Queue
 import threading
 import time
 import signal
 from functools import partial
 
 from google.cloud.storage import Client
-from boto.s3.connection import S3Connection
+import boto3 
 
 from secrets import PROJECT_NAME, google_credentials, aws_credentials
 
@@ -88,11 +88,13 @@ class ConnectionPool(object):
 
 class S3ConnectionPool(ConnectionPool):
     def _create_connection(self):
-        return S3Connection(
-            aws_credentials['AWS_ACCESS_KEY_ID'],
-            aws_credentials['AWS_SECRET_ACCESS_KEY']
+        return boto3.client(
+            's3',
+            aws_access_key_id=aws_credentials['AWS_ACCESS_KEY_ID'],
+            aws_secret_access_key=aws_credentials['AWS_SECRET_ACCESS_KEY'],
+            region_name='us-east-1',
         )
-
+        
     def _close_function(self):
         return lambda conn: conn.close()
 

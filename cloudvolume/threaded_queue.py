@@ -1,6 +1,7 @@
 from __future__ import print_function
 
-import Queue
+from six.moves import queue as Queue
+from six.moves import range
 from functools import partial
 import threading
 import time
@@ -67,7 +68,7 @@ class ThreadedQueue(object):
 
     threads = []
 
-    for _ in xrange(n_threads):
+    for _ in range(n_threads):
       worker = threading.Thread(
         target=self._consume_queue, 
         args=(self._terminate,)

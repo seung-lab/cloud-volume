@@ -19,18 +19,18 @@ if os.path.exists(google_credentials_path):
   google_credentials = service_account.Credentials \
     .from_service_account_file(google_credentials_path)
 else:
-  google_credentials = None
+  google_credentials = ''
 
 aws_credentials_path = os.path.join(secret_path, 'aws-secret.json')
 if os.path.exists(aws_credentials_path):
   with open(aws_credentials_path, 'rb') as f:
     aws_credentials = json.loads(f.read())
 else:
-  aws_credentials = None
+  aws_credentials = ''
 
 boss_credentials_path = os.path.join(secret_path, 'boss-secret.json')
 if os.path.exists(boss_credentials_path):
   with open(boss_credentials_path, 'rb') as f:
     boss_credentials = json.loads(f.read())
 else:
-  boss_credentials = None
+  boss_credentials = ''

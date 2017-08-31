@@ -1,3 +1,4 @@
+from six.moves import range
 from cloudvolume.threaded_queue import ThreadedQueue
 from functools import partial
 
@@ -7,7 +8,7 @@ def test_threading():
 
 
   def reset_executions():
-    return [ False for _ in xrange(execution_count) ]
+    return [ False for _ in range(execution_count) ]
 
   def addone(idnum, should_be_none):
     executions[idnum] = True    
@@ -16,14 +17,14 @@ def test_threading():
   executions = reset_executions()
 
   with ThreadedQueue(n_threads=1) as tq:
-    for idnum in xrange(execution_count):
+    for idnum in range(execution_count):
       fn = partial(addone, idnum)
       tq._queue.put(fn)
   assert all(executions)
 
   executions = reset_executions()
   tq = ThreadedQueue(n_threads=40)
-  for idnum in xrange(execution_count):
+  for idnum in range(execution_count):
     fn = partial(addone, idnum)
     tq._queue.put(fn)
   tq.wait().kill_threads()
@@ -49,7 +50,7 @@ def test_derived_class():
       return 'fun'
 
   with DerivedThreadedQueue(n_threads=1) as tq:
-    for _ in xrange(1000):
+    for _ in range(1000):
       tq._queue.put(what_fun)
 
     tq.wait()
@@ -79,7 +80,7 @@ def test_thread_exceptions():
     raise NotImplementedError("Not implemented at all.")
 
   tq = ThreadedQueue(n_threads=40)
-  for _ in xrange(1000):
+  for _ in range(1000):
     tq.put(diediedie)
 
   try:
