@@ -10,5 +10,6 @@ Pillow==4.2.1
 protobuf==3.3.0
 requests==2.18.4
 six==1.10.0
+tenacity==4.4.0
 tqdm==4.7.6
 urllib3[secure]
