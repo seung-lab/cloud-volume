@@ -1,9 +1,12 @@
+from __future__ import print_function
+from six.moves import range
+
 import pytest
 import re
-import shutil
 import time
 
 from cloudvolume.storage import Storage
+from layer_harness import delete_layer
 
 def test_path_extraction():
     assert (Storage.extract_path('s3://bucket_name/dataset_name/layer_name') 
@@ -31,14 +34,16 @@ def test_path_extraction():
 
 #TODO delete files created by tests
 def test_read_write():
-    urls = ["file:///tmp/removeme/read_write",
-            "gs://neuroglancer/removeme/read_write",
-            "s3://neuroglancer/removeme/read_write"]
+    urls = [
+        "file:///tmp/removeme/read_write",
+        "gs://neuroglancer/removeme/read_write",
+        "s3://neuroglancer/removeme/read_write"
+    ]
 
-    for num_threads in xrange(0,11,5):
+    for num_threads in range(0,11,5):
         for url in urls:
             with Storage(url, n_threads=num_threads) as s:
-                content = 'some_string'
+                content = b'some_string'
                 s.put_file('info', content, compress=False)
                 s.wait()
                 assert s.get_file('info') == content
@@ -46,7 +51,7 @@ def test_read_write():
 
                 num_infos = max(num_threads, 1)
 
-                results = s.get_files([ 'info' for i in xrange(num_infos) ])
+                results = s.get_files([ 'info' for i in range(num_infos) ])
 
                 assert len(results) == num_infos
                 assert results[0]['filename'] == 'info'
@@ -54,7 +59,7 @@ def test_read_write():
                 assert all(map(lambda x: x['error'] is None, results))
                 assert s.get_files([ 'nonexistentfile' ])[0]['content'] is None
 
-    shutil.rmtree("/tmp/removeme/read_write")
+    delete_layer("/tmp/removeme/read_write")
 
 def test_delete():
     urls = [
@@ -65,7 +70,7 @@ def test_delete():
 
     for url in urls:
         with Storage(url, n_threads=1) as s:
-            content = 'some_string'
+            content = b'some_string'
             s.put_file('delete-test', content, compress=False).wait()
             s.put_file('delete-test-compressed', content, compress=True).wait()
             assert s.get_file('delete-test') == content
@@ -77,20 +82,22 @@ def test_delete():
             assert s.get_file('delete-test-compressed') is None
 
 def test_compression():
-    urls = ["file:///tmp/removeme/compression",
-            "gs://neuroglancer/removeme/compression",
-            "s3://neuroglancer/removeme/compression"]
+    urls = [
+        "file:///tmp/removeme/compression",
+        "gs://neuroglancer/removeme/compression",
+        "s3://neuroglancer/removeme/compression"
+    ]
 
     for url in urls:
         with Storage(url, n_threads=5) as s:
-            content = 'some_string'
+            content = b'some_string'
             s.put_file('info', content, compress=True)
             s.wait()
             assert s.get_file('info') == content
             assert s.get_file('nonexistentfile') is None
             s.delete_file('info')
 
-    shutil.rmtree("/tmp/removeme/compression")
+    delete_layer("/tmp/removeme/compression")
 
 def test_list():  
     urls = [
@@ -101,8 +108,8 @@ def test_list():
 
     for url in urls:
         with Storage(url, n_threads=5) as s:
-            print 'testing service:', url
-            content = 'some_string'
+            print('testing service:', url)
+            content = b'some_string'
             s.put_file('info1', content, compress=False)
             s.put_file('info2', content, compress=False)
             s.put_file('build/info3', content, compress=False)
@@ -134,19 +141,19 @@ def test_list():
             for file_path in ('info1', 'info2', 'build/info3', 'level1/level2/info4', 'info5', 'info.txt'):
                 s.delete_file(file_path)
     
-    shutil.rmtree("/tmp/removeme/list")
+    delete_layer("/tmp/removeme/list")
 
 
 def test_exists():
     urls = [
-        "file:///tmp/removeme/exists",
-        "gs://neuroglancer/removeme/exists",
+        # "file:///tmp/removeme/exists",
+        # "gs://neuroglancer/removeme/exists",
         "s3://neuroglancer/removeme/exists"
     ]
 
     for url in urls:
         with Storage(url, n_threads=5) as s:
-            content = 'some_string'
+            content = b'some_string'
             s.put_file('info', content, compress=False)
             s.wait()
             time.sleep(1) # sometimes it takes a moment for google to update the list

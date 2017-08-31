@@ -4,6 +4,7 @@ from collections import namedtuple
 import json
 import os
 import re
+import sys
 
 import numpy as np
 from PIL import Image
@@ -18,6 +19,11 @@ import lib
 from lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
 from storage import Storage
 import mesh2obj
+
+if sys.version_info < (3,):
+    integer_types = (int, long,)
+else:
+    integer_types = (int,)
 
 __all__ = [ 'CloudVolume', 'EmptyVolumeException' ]
 
@@ -120,9 +126,9 @@ class CloudVolume(object):
         "encoding": encoding,
         "chunk_sizes": [chunk_size],
         "key": "_".join(map(str, resolution)),
-        "resolution": list(resolution),
-        "voxel_offset": list(voxel_offset),
-        "size": list(volume_size),
+        "resolution": list(map(int, resolution)),
+        "voxel_offset": list(map(int, voxel_offset)),
+        "size": list(map(int, volume_size)),
       }],
     }
 
@@ -728,7 +734,7 @@ class CloudVolume(object):
 def generate_slices(slices, minsize, maxsize, bounded=True):
   """Assisting function for __getitem__. e.g. vol[:,:,:,:]"""
 
-  if isinstance(slices, int) or isinstance(slices, float) or isinstance(slices, long):
+  if isinstance(slices, integer_types) or isinstance(slices, float):
     slices = [ slice(int(slices), int(slices)+1, 1) ]
   if type(slices) == slice:
     slices = [ slices ]
@@ -741,7 +747,7 @@ def generate_slices(slices, minsize, maxsize, bounded=True):
   # First three slices are x,y,z, last is channel. 
   # Handle only x,y,z here, channel seperately
   for index, slc in enumerate(slices):
-    if isinstance(slc, int) or isinstance(slc, float) or isinstance(slc, long):
+    if isinstance(slc, integer_types) or isinstance(slc, float):
       slices[index] = slice(int(slc), int(slc)+1, 1)
     else:
       start = minsize[index] if slc.start is None else slc.start
@@ -773,7 +779,7 @@ class VolumeCutout(np.ndarray):
     return super(VolumeCutout, cls).__new__(cls, shape=buf.shape, buffer=np.ascontiguousarray(buf), dtype=buf.dtype)
 
   def __init__(self, buf, dataset_name, layer, mip, layer_type, bounds, *args, **kwargs):
-    super(VolumeCutout, self).__init__(self, shape=buf.shape, buffer=buf, dtype=buf.dtype)
+    super(VolumeCutout, self).__init__()
     
     self.dataset_name = dataset_name
     self.layer = layer

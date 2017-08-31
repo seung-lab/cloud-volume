@@ -1,5 +1,7 @@
+from __future__ import print_function
+from six.moves import range
+
 from tqdm import tqdm
-import boto.s3.key
 
 from cloudvolume.connectionpools import S3ConnectionPool, GCloudConnectionPool
 from cloudvolume.threaded_queue import ThreadedQueue
@@ -25,7 +27,7 @@ def test_gc_stresstest():
     pbar.update()
 
   with ThreadedQueue(n_threads=20) as tq:
-    for _ in xrange(n_trials):
+    for _ in range(n_trials):
       tq.put(create_conn)
 
   pbar.close()
@@ -40,15 +42,15 @@ def test_s3_stresstest():
   def create_conn(interface):
     conn = S3_POOL.get_connection()  
     # assert S3_POOL.total_connections() <= S3_POOL.max_connections * 5
-    bucket = conn.get_bucket('neuroglancer')
-    k = boto.s3.key.Key(bucket)
-    k.key = 'removeme/connection_pool/test'
-    k.get_contents_as_string()
+    bucket = conn.get_object(
+      Bucket='neuroglancer',
+      Key='removeme/connection_pool/test',
+    )
     S3_POOL.release_connection(conn)
     pbar.update()
 
   with ThreadedQueue(n_threads=20) as tq:
-    for _ in xrange(n_trials):
+    for _ in range(n_trials):
       tq.put(create_conn)
 
   pbar.close()
