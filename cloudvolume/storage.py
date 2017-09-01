@@ -12,6 +12,7 @@ from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Client
 import gzip
+import tenacity
 
 from lib import mkdir
 from threaded_queue import ThreadedQueue
@@ -19,6 +20,12 @@ from connectionpools import S3ConnectionPool, GCloudConnectionPool
 
 S3_POOL = S3ConnectionPool()
 GC_POOL = GCloudConnectionPool()
+
+retry = tenacity.retry(
+    reraise=True, 
+    stop=tenacity.stop_after_attempt(7), 
+    wait=tenacity.wait_full_jitter(0.5, 60.0),
+)
 
 class Storage(ThreadedQueue):
     """
@@ -348,7 +355,7 @@ class GoogleCloudStorageInterface(object):
                              file_path])
         return  os.path.join(*clean)
 
-
+    @retry
     def put_file(self, file_path, content, content_type, compress):
         key = self.get_path_to_file(file_path)
         blob = self._bucket.blob( key )
@@ -356,6 +363,7 @@ class GoogleCloudStorageInterface(object):
             blob.content_encoding = "gzip"
         blob.upload_from_string(content, content_type)
 
+    @retry
     def get_file(self, file_path):
         key = self.get_path_to_file(file_path)
         blob = self._bucket.get_blob( key )
@@ -370,6 +378,7 @@ class GoogleCloudStorageInterface(object):
         blob = self._bucket.get_blob(key)
         return blob is not None
 
+    @retry
     def delete_file(self, file_path):
         key = self.get_path_to_file(file_path)
         
@@ -413,6 +422,7 @@ class S3Interface(object):
                              file_path])
         return  os.path.join(*clean)
 
+    @retry
     def put_file(self, file_path, content, content_type, compress):
         key = self.get_path_to_file(file_path)
         if compress:
@@ -431,6 +441,7 @@ class S3Interface(object):
                 ContentType=(content_type or 'application/octet-stream'),
             )
             
+    @retry
     def get_file(self, file_path):
         """
             There are many types of execptions which can get raised
@@ -470,6 +481,7 @@ class S3Interface(object):
         
         return exists
 
+    @retry
     def delete_file(self, file_path):
         self._conn.delete_object(
             Bucket=self._path.bucket_name,
