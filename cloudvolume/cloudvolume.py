@@ -17,8 +17,10 @@ from secrets import boss_credentials
 import chunks
 import lib
 from lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
-from storage import Storage
 import mesh2obj
+from provenance import DataLayerProvenance
+from storage import Storage
+
 
 if sys.version_info < (3,):
     integer_types = (int, long,)
@@ -89,9 +91,12 @@ class CloudVolume(object):
       self._storage = Storage(self.layer_cloudpath, n_threads=0)
 
     if info is None:
-      self.refreshInfo()
+      self.refresh_info()
     else:
       self.info = info
+
+    self.provenance = None
+    self.refresh_provenance()
 
     try:
       self.mip = self.available_mips[self.mip]
@@ -143,15 +148,19 @@ class CloudVolume(object):
     match = re.match(r'^(gs|file|s3|boss)://(/?[\d\w_\.\-]+)/([\d\w_\.\-]+)/([\d\w_\.\-]+)/?', cloudpath)
     return ExtractedPath(*match.groups())
 
-  def refreshInfo(self):
+  def refresh_info(self):
     if self._protocol != "boss":
       infojson = self._storage.get_file('info')
       self.info = json.loads(infojson)
     else:
-      self.info = self.fetchBossInfo()
+      self.info = self.fetch_boss_info()
     return self.info
 
-  def fetchBossInfo(self):
+  def refreshInfo(self):
+    print("WARNING: refreshInfo is deprecated. Use refresh_info instead.")
+    return self.refresh_info()
+
+  def fetch_boss_info(self):
     experiment = ExperimentResource(
       name=self._dataset_name, 
       collection_name=self._bucket
@@ -199,11 +208,40 @@ class CloudVolume(object):
     )
 
   def commitInfo(self):
+    print("WARNING: commitInfo is deprecated use commit_info instead.")
+    return self.commit_info()
+
+  def commit_info(self):
     if self._protocol == 'boss':
       return self 
 
     infojson = json.dumps(self.info)
     self._storage.put_file('info', infojson, 'application/json').wait()
+    return self
+
+  def refresh_provenance(self):
+    if self._protocol == 'boss':
+      return self
+
+    if self._storage.exists('provenance'):
+      provfile = self._storage.get_file('provenance')
+      provfile = json.loads(provfile)
+    else:
+      provfile = {
+        "sources": [],
+        "owners": [],
+        "processing": [],
+        "description": "",
+      }
+
+    self.provenance = DataLayerProvenance(**provfile)
+    return self
+
+  def commit_provenance(self):
+    if self._protocol == 'boss':
+      return self
+
+    self._storage.put_file('provenance', self.provenance.serialize())
     return self
 
   @property
@@ -214,7 +252,7 @@ class CloudVolume(object):
   def dataset_name(self, name):
     if name != self._dataset_name:
       self._dataset_name = name
-      self.refreshInfo()
+      self.refresh_info()
   
   @property
   def layer(self):
@@ -224,7 +262,7 @@ class CloudVolume(object):
   def layer(self, name):
     if name != self._layer:
       self._layer = name
-      self.refreshInfo()
+      self.refresh_info()
 
   @property
   def scales(self):
@@ -375,12 +413,12 @@ class CloudVolume(object):
   def reset_scales(self):
     """Used for manually resetting downsamples if something messed up."""
     self.info['scales'] = self.info['scales'][0:1]
-    return self.commitInfo()
+    return self.commit_info()
 
   def add_scale(self, factor):
     """
     Generate a new downsample scale to for the info file and return an updated dictionary.
-    You'll still need to call self.commitInfo() to make it permenant.
+    You'll still need to call self.commit_info() to make it permenant.
 
     Required:
       factor: int (x,y,z), e.g. (2,2,1) would represent a reduction of 2x in x and y

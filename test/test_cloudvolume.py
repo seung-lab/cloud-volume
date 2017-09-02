@@ -186,3 +186,20 @@ def test_extract_path():
     assert path.bucket_name == '/tmp'
     assert path.dataset_name == 'removeme'
     assert path.layer_name == 'layer'
+
+def test_provenance():
+    delete_layer()
+    cv, data = create_layer(size=(64,64,64,1), offset=(0,0,0))
+
+    assert cv.provenance.serialize() == r'{"sources": [], "owners": [], "processing": [], "description": ""}'
+
+    cv.provenance.sources.append('cooldude24@princeton.edu')
+    cv.commit_provenance()
+    cv.refresh_provenance()
+
+    assert cv.provenance.sources == [ 'cooldude24@princeton.edu' ]
+
+
+
+
+
