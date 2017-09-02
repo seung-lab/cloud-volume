@@ -4,8 +4,10 @@ chardet==3.0.4
 google-auth==1.0.2
 google-cloud==0.27
 intern==0.9.4
+jsonschema==2.6.0
 numpy==1.13.1
 pytest==3.0.7 
+python-jsonschema-objects==0.2.1
 Pillow==4.2.1
 protobuf==3.3.0
 requests==2.18.4
