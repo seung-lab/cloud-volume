@@ -17,6 +17,7 @@ mkdir -p ~/.neuroglancer/secrets/
 echo $GOOGLE_STORAGE_PROJECT > ~/.neuroglancer/project_name # needed for Google
 mv aws-secret.json ~/.neuroglancer/secrets/ # needed for Google
 mv google-secret.json ~/.neuroglancer/secrets/ # needed for Amazon
+mv boss-secret.json ~/.neuroglancer/secrets/ # needed for the BOSS
 ```
 
 ### pip
