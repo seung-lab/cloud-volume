@@ -301,7 +301,7 @@ class FileInterface(object):
             
         if compressed:
             path += '.gz'
-
+        
         try:
             with open(path, 'rb') as f:
                 data = f.read()

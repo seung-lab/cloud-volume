@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import shutil
 
 import numpy as np
 from PIL import Image
@@ -15,7 +16,7 @@ from intern.resource.boss.resource import ChannelResource, ExperimentResource, C
 from .secrets import boss_credentials
 
 from . import lib, chunks, mesh2obj
-from .lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
+from .lib import toabs, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
 from .provenance import DataLayerProvenance
 from .storage import Storage
 
@@ -68,7 +69,9 @@ class CloudVolume(object):
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
   """
-  def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, info=None):
+  def __init__(self, cloudpath, mip=0, bounded=True, 
+      fill_missing=False, info=None, cache=False):
+
     super(self.__class__, self).__init__()
 
     extract = CloudVolume.extract_path(cloudpath)
@@ -83,6 +86,7 @@ class CloudVolume(object):
     self.mip = mip
     self.bounded = bounded
     self.fill_missing = fill_missing
+    self.cache = cache
 
     self._storage = None
     if self._protocol != 'boss':
@@ -286,6 +290,13 @@ class CloudVolume(object):
   @property
   def info_cloudpath(self):
     return os.path.join(self.layer_cloudpath, 'info')
+
+  @property
+  def cache_path(self):
+    return toabs(os.path.join('~/.neuroglancer/cache/', 
+      self._protocol, self._bucket, 
+      self._dataset_name, self._layer
+    ))
 
   @property
   def shape(self):
@@ -545,6 +556,49 @@ class CloudVolume(object):
     renderbuffer[ lp.x:hp.x, lp.y:hp.y, lp.z:hp.z, : ] = cutout 
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
+  def flush_cache(self):
+    if os.path.exists(self.cache_path):
+        shutil.rmtree(self.cache_path) 
+
+  def _fetch_data(self, cloudpaths):
+    if not self.cache or self._protocol == 'file':
+      with Storage(self.layer_cloudpath) as storage:
+        files = storage.get_files(cloudpaths)
+      return files
+
+    def noextensions(fnames):
+      return [ os.path.splitext(fname)[0] for fname in fnames ]
+
+    list_dir = mkdir(os.path.join(self.cache_path, self.key))
+    filenames = noextensions(os.listdir(list_dir))
+
+    basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }
+
+    # check which files are already cached, we only want to download ones not in cache
+    requested = set([ os.path.basename(path) for path in cloudpaths ])
+    already_have = requested.intersection(set(filenames))
+    to_download = requested.difference(already_have)
+
+    download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]
+
+    with Storage('file://' + list_dir) as storage:
+      local_files = storage.get_files(already_have)
+
+    cloud_files = []
+
+    if len(download_paths):
+      with Storage(self.layer_cloudpath) as storage:
+        cloud_files = storage.get_files(download_paths)
+
+      with Storage('file://' + self.cache_path) as storage:
+        paths = []
+        for item in cloud_files:
+          if item['error'] is None:
+            paths.append( (item['filename'], item['content']) )
+        storage.put_files(paths)
+
+    return local_files + cloud_files
+
   def _cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     realized_bbox = self.__realized_bbox(requested_bbox)
     
@@ -555,8 +609,7 @@ class CloudVolume(object):
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
     renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
 
-    with Storage(self.layer_cloudpath) as storage:
-      files = storage.get_files(cloudpaths)
+    files = self._fetch_data(cloudpaths)
 
     for fileinfo in tqdm(files, total=len(cloudpaths), desc="Rendering Image"):
       if fileinfo['error'] is not None:
@@ -710,6 +763,11 @@ class CloudVolume(object):
 
     with Storage(self.layer_cloudpath) as storage:
       storage.put_files(uploads, content_type=content_type, compress=compress)
+
+    if self.cache:
+      mkdir(self.cache_path)
+      with Storage('file://' + self.cache_path) as storage:
+        storage.put_files(uploads, content_type=content_type, compress=compress)
 
   def _generate_chunks(self, img, offset):
     shape = Vec(*img.shape)[:3]

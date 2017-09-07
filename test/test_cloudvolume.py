@@ -3,11 +3,16 @@ import pytest
 import json
 import os
 import numpy as np
+import shutil
 
 from cloudvolume import CloudVolume
-from cloudvolume.lib import Bbox
-from layer_harness import delete_layer, create_layer
-    
+from cloudvolume.lib import mkdir, Bbox
+from layer_harness import (
+    TEST_NUMBER, create_image, 
+    delete_layer, create_layer,
+    create_volume_from_image
+)
+
 def test_aligned_read():
     delete_layer()
     cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
@@ -203,6 +208,53 @@ def test_provenance():
 
     assert cv.provenance.sources == [ 'cooldude24@princeton.edu' ]
 
+
+def test_caching():
+    image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
+    for z in range(128):
+        image[:,:,z] = z
+
+    vol = create_volume_from_image(
+        image=image, 
+        offset=(0,0,0), 
+        layer_path='gs://neuroglancer/removeme/caching', 
+        layer_type='image', 
+        resolution=(1,1,1), 
+        encoding='raw'
+    )
+
+    vol.cache = True
+    vol.flush_cache()
+
+    # Test that reading populates the cache
+    read1 = vol[:,:,:]
+    assert np.all(read1 == image)
+
+    read2 = vol[:,:,:]
+    assert np.all(read2 == image)
+
+    assert len(os.listdir(os.path.join(vol.cache_path, vol.key))) > 0
+
+    vol.flush_cache()
+    assert not os.path.exists(vol.cache_path)
+
+    # Test that writing populates the cache
+    vol[:,:,:] = image
+
+    assert os.path.exists(vol.cache_path)
+    assert np.all(vol[:,:,:] == image)
+
+    vol.flush_cache()
+
+    # Test that partial reads work too
+    result = vol[0:64,0:64,:]
+    assert np.all(result == image[0:64,0:64,:])
+    result = vol[:,:,:]
+    assert np.all(result == image)
+
+    vol.flush_cache()
+
+
 def test_exists():
 
     # Bbox version
@@ -243,8 +295,4 @@ def test_exists():
     assert len(results) == 2
     assert results['1_1_1/0-64_0-64_0-64'] == True
     assert results['1_1_1/64-128_0-64_0-64'] == False
-
-
-
-
 

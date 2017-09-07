@@ -14,11 +14,12 @@ from itertools import product
 import numpy as np
 from tqdm import tqdm
 
+def toabs(path):
+  home = os.path.join(os.environ['HOME'], '')
+  return re.sub('^~/?', home, path)
 
 def mkdir(path):
-
-  home = os.path.join(os.environ['HOME'], '')
-  path = re.sub('^~/?', home, path)
+  path = toabs(path)
 
   try:
     if path != '' and not os.path.exists(path):
