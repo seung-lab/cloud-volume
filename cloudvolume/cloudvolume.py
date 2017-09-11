@@ -560,6 +560,14 @@ class CloudVolume(object):
     if os.path.exists(self.cache_path):
         shutil.rmtree(self.cache_path) 
 
+  def _content_type(self):
+    if self.encoding == 'jpeg':
+      return 'image/jpeg'
+    return 'application/octet-stream'
+
+  def _should_compress(self):
+    return self.encoding in ('raw', 'compressed_segmentation')
+
   def _fetch_data(self, cloudpaths):
     if not self.cache:
       with Storage(self.layer_cloudpath) as storage:
@@ -595,7 +603,11 @@ class CloudVolume(object):
         for item in cloud_files:
           if item['error'] is None:
             paths.append( (item['filename'], item['content']) )
-        storage.put_files(paths)
+
+        storage.put_files(paths, 
+          content_type=self._content_type(), 
+          compress=self._should_compress()
+        )
 
     return local_files + cloud_files
 
@@ -755,19 +767,19 @@ class CloudVolume(object):
       encoded = chunks.encode(imgchunk, self.encoding)
       uploads.append( (cloudpath, encoded) )
 
-    content_type = 'application/octet-stream'
-    if self.encoding == 'jpeg':
-      content_type == 'image/jpeg'
-
-    compress = (self.encoding in ('raw', 'compressed_segmentation'))
-
     with Storage(self.layer_cloudpath) as storage:
-      storage.put_files(uploads, content_type=content_type, compress=compress)
+      storage.put_files(uploads, 
+        content_type=self._content_type(), 
+        compress=self._should_compress()
+      )
 
     if self.cache:
       mkdir(self.cache_path)
       with Storage('file://' + self.cache_path) as storage:
-        storage.put_files(uploads, content_type=content_type, compress=compress)
+        storage.put_files(uploads, 
+          content_type=self._content_type(), 
+          compress=self._should_compress()
+        )
 
   def _generate_chunks(self, img, offset):
     shape = Vec(*img.shape)[:3]

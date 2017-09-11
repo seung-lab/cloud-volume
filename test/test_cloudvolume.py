@@ -4,9 +4,11 @@ import json
 import os
 import numpy as np
 import shutil
+import gzip
 
 from cloudvolume import CloudVolume
 from cloudvolume.lib import mkdir, Bbox
+from cloudvolume import chunks
 from layer_harness import (
     TEST_NUMBER, create_image, 
     delete_layer, create_layer,
@@ -211,8 +213,14 @@ def test_provenance():
 
 def test_caching():
     image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
-    for z in range(128):
-        image[:,:,z] = z
+    image[0:64,0:64,0:64] = 1
+    image[64:128,0:64,0:64] = 2
+    image[0:64,64:128,0:64] = 3
+    image[0:64,0:64,64:128] = 4
+    image[64:128,64:128,0:64] = 5
+    image[64:128,0:64,64:128] = 6
+    image[0:64,64:128,64:128] = 7
+    image[64:128,64:128,64:128] = 8
 
     vol = create_volume_from_image(
         image=image, 
@@ -235,6 +243,28 @@ def test_caching():
 
     assert len(os.listdir(os.path.join(vol.cache_path, vol.key))) > 0
 
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    validation_set = [
+        '0-64_0-64_0-64',
+        '64-128_0-64_0-64',
+        '0-64_64-128_0-64',
+        '0-64_0-64_64-128',
+        '64-128_64-128_0-64',
+        '64-128_0-64_64-128',
+        '0-64_64-128_64-128',
+        '64-128_64-128_64-128'
+    ]
+    assert set([ os.path.splitext(fname)[0] for fname in files ]) == set(validation_set)
+
+    for i in range(8):
+        fname = os.path.join(vol.cache_path, vol.key, validation_set[i]) + '.gz'
+        with gzip.GzipFile(fname, mode='rb') as gfile:
+            chunk = gfile.read()
+        img3d = chunks.decode(
+          chunk, 'raw', (64,64,64,1), np.uint8
+        )
+        assert np.all(img3d == (i+1))
+
     vol.flush_cache()
     assert not os.path.exists(vol.cache_path)
 
@@ -249,8 +279,12 @@ def test_caching():
     # Test that partial reads work too
     result = vol[0:64,0:64,:]
     assert np.all(result == image[0:64,0:64,:])
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 2
     result = vol[:,:,:]
     assert np.all(result == image)
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 8
 
     vol.flush_cache()
 
