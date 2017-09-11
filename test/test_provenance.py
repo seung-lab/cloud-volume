@@ -59,7 +59,7 @@ def test_data_layer_provenance():
   prov = DataLayerProvenance()
 
   prov.description = 'example dataset'
-  prov.sources = [ 'gs://neuroglancer/example/image' ]
+  prov.sources = [ 'gs://seunglab-test/example/image' ]
   prov.processing = [ 
     { 'method': 'convnet', 'by': 'gradstudent@princeton.edu' },
   ]
@@ -75,7 +75,7 @@ def test_data_layer_provenance():
 
   assert data == { 
     'description': 'example dataset', 
-    'sources': [ 'gs://neuroglancer/example/image' ],
+    'sources': [ 'gs://seunglab-test/example/image' ],
     'processing': [
       { 'method': 'convnet', 'by': 'gradstudent@princeton.edu' },
     ],
@@ -88,7 +88,7 @@ def test_data_layer_provenance():
     prov = DataLayerProvenance().from_json(provjson)
 
   assert prov.description == 'example dataset'
-  assert prov.sources == [ 'gs://neuroglancer/example/image' ]
+  assert prov.sources == [ 'gs://seunglab-test/example/image' ]
   assert prov.processing == [ { 'method': 'convnet', 'by': 'gradstudent@princeton.edu' } ]
   assert prov.owners == [ 'gradstudent@princeton.edu' ]
 

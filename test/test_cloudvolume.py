@@ -187,7 +187,7 @@ def test_extract_path():
 
     shoulderror('lucifer://bucket/dataset/layer/')
     shoulderror('gs://///')
-    shoulderror('gs://neuroglancer//segmentation')
+    shoulderror('gs://seunglab-test//segmentation')
 
     path = CloudVolume.extract_path('file:///tmp/removeme/layer/')
     assert path.protocol == 'file'
@@ -217,7 +217,7 @@ def test_caching():
     vol = create_volume_from_image(
         image=image, 
         offset=(0,0,0), 
-        layer_path='gs://neuroglancer/removeme/caching', 
+        layer_path='gs://seunglab-test/cloudvolume/caching', 
         layer_type='image', 
         resolution=(1,1,1), 
         encoding='raw'

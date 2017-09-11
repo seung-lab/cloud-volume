@@ -18,17 +18,17 @@ def test_path_extraction():
 
     assert Storage.extract_path('s3://dataset_name') is None
 
-    assert (Storage.extract_path('s3://neuroglancer/intermediate/path/dataset_name/layer_name') 
-        == Storage.ExtractedPath('s3', 'neuroglancer', 'intermediate/path/','dataset_name', 'layer_name'))
+    assert (Storage.extract_path('s3://seunglab-test/intermediate/path/dataset_name/layer_name') 
+        == Storage.ExtractedPath('s3', 'seunglab-test', 'intermediate/path/','dataset_name', 'layer_name'))
 
     assert (Storage.extract_path('file:///tmp/dataset_name/layer_name') 
         == Storage.ExtractedPath('file', "/tmp",  None, 'dataset_name', 'layer_name'))
 
-    assert (Storage.extract_path('file://neuroglancer/intermediate/path/dataset_name/layer_name') 
-        == Storage.ExtractedPath('file', 'neuroglancer','intermediate/path/','dataset_name', 'layer_name'))
+    assert (Storage.extract_path('file://seunglab-test/intermediate/path/dataset_name/layer_name') 
+        == Storage.ExtractedPath('file', 'seunglab-test','intermediate/path/','dataset_name', 'layer_name'))
 
-    assert (Storage.extract_path('gs://neuroglancer/intermediate/path/dataset_name/layer_name') 
-        == Storage.ExtractedPath('gs', 'neuroglancer', 'intermediate/path/','dataset_name', 'layer_name'))
+    assert (Storage.extract_path('gs://seunglab-test/intermediate/path/dataset_name/layer_name') 
+        == Storage.ExtractedPath('gs', 'seunglab-test', 'intermediate/path/','dataset_name', 'layer_name'))
 
     assert Storage.extract_path('s3://dataset_name/layer_name/') is None
 
@@ -36,8 +36,8 @@ def test_path_extraction():
 def test_read_write():
     urls = [
         "file:///tmp/removeme/read_write",
-        "gs://neuroglancer/removeme/read_write",
-        "s3://neuroglancer/removeme/read_write"
+        "gs://seunglab-test/cloudvolume/read_write",
+        "s3://seunglab-test/cloudvolume/read_write"
     ]
 
     for num_threads in range(0,11,5):
@@ -67,8 +67,8 @@ def test_read_write():
 def test_delete():
     urls = [
         "file:///tmp/removeme/delete",
-        "gs://neuroglancer/removeme/delete",
-        "s3://neuroglancer/removeme/delete"
+        "gs://seunglab-test/cloudvolume/delete",
+        "s3://seunglab-test/cloudvolume/delete"
     ]
 
     for url in urls:
@@ -88,8 +88,8 @@ def test_delete():
 def test_compression():
     urls = [
         "file:///tmp/removeme/compression",
-        "gs://neuroglancer/removeme/compression",
-        "s3://neuroglancer/removeme/compression"
+        "gs://seunglab-test/cloudvolume/compression",
+        "s3://seunglab-test/cloudvolume/compression"
     ]
 
     for url in urls:
@@ -107,8 +107,8 @@ def test_compression():
 def test_list():  
     urls = [
         "file:///tmp/removeme/list",
-        "gs://neuroglancer/removeme/list",
-        "s3://neuroglancer/removeme/list"
+        "gs://seunglab-test/cloudvolume/list",
+        "s3://seunglab-test/cloudvolume/list"
     ]
 
     for url in urls:
@@ -153,8 +153,8 @@ def test_list():
 def test_exists():
     urls = [
         "file:///tmp/removeme/exists",
-        "gs://neuroglancer/removeme/exists",
-        "s3://neuroglancer/removeme/exists"
+        "gs://seunglab-test/cloudvolume/exists",
+        "s3://seunglab-test/cloudvolume/exists"
     ]
 
     for url in urls:

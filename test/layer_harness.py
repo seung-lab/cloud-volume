@@ -9,6 +9,7 @@ from cloudvolume import Storage, CloudVolume
 from cloudvolume.lib import Bbox, Vec, min2, max2, find_closest_divisor
 
 TEST_NUMBER = np.random.randint(0, 999999)
+CLOUD_BUCKET = 'seunglab-test'
 
 layer_path = '/tmp/removeme/'
 
