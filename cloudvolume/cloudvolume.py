@@ -66,13 +66,13 @@ class CloudVolume(object):
     fill_missing: (bool) If a file inside volume bounds is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
+    cache: (bool) Store downloaded and uploaded files in a cache on disk 
+      and preferentially read from it before redownloading.
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
   """
   def __init__(self, cloudpath, mip=0, bounded=True, 
-      fill_missing=False, info=None, cache=False):
-
-    super(self.__class__, self).__init__()
+      fill_missing=False, cache=False, info=None):
 
     extract = CloudVolume.extract_path(cloudpath)
 
@@ -104,6 +104,13 @@ class CloudVolume(object):
       self.mip = self.available_mips[self.mip]
     except:
       raise Exception("MIP {} has not been generated.".format(self.mip))
+
+  @property
+  def _storage(self):
+    if self._protocol != 'boss':
+      return Storage(self.layer_cloudpath, n_threads=0)
+    else:
+      return None
 
   @classmethod
   def create_new_info(cls, num_channels, layer_type, data_type, encoding, resolution, voxel_offset, volume_size, mesh=None, chunk_size=DEFAULT_CHUNK_SIZE):
@@ -151,12 +158,21 @@ class CloudVolume(object):
     return ExtractedPath(*match.groups())
 
   def refresh_info(self):
+    if self.cache:
+      info = self._read_cached_json('info')
+      if info:
+        self.info = info
+        return self.info
+
     if self._protocol != "boss":
       infojson = self._storage.get_file('info')
       infojson = infojson.decode('utf-8')
       self.info = json.loads(infojson)
     else:
       self.info = self.fetch_boss_info()
+
+    self._maybe_cache_info()
+
     return self.info
 
   def refreshInfo(self):
@@ -220,11 +236,32 @@ class CloudVolume(object):
 
     infojson = json.dumps(self.info)
     self._storage.put_file('info', infojson, 'application/json').wait()
+    self._maybe_cache_info()
     return self
 
+  def _read_cached_json(self, filename):
+      with Storage('file://' + self.cache_path, n_threads=0) as storage:
+        jsonfile = storage.get_file(filename)
+
+      if jsonfile:
+        return json.loads(jsonfile)
+      else:
+        return None
+
+  def _maybe_cache_info(self):
+    if self.cache:
+      with Storage('file://' + self.cache_path, n_threads=0) as storage:
+        storage.put_file('info', json.dumps(self.info), 'application/json')
+
   def refresh_provenance(self):
+    if self.cache:
+      prov = self._read_cached_json('provenance')
+      if prov:
+        self.provenance = DataLayerProvenance(**prov)
+        return self.provenance
+
     if self._protocol == 'boss':
-      return self
+      return self.provenance
 
     if self._storage.exists('provenance'):
       provfile = self._storage.get_file('provenance')
@@ -239,13 +276,21 @@ class CloudVolume(object):
       }
 
     self.provenance = DataLayerProvenance(**provfile)
-    return self
+    self._maybe_cache_provenance()
+    return self.provenance
 
   def commit_provenance(self):
     if self._protocol == 'boss':
-      return self
+      return self.provenance
 
-    self._storage.put_file('provenance', self.provenance.serialize(), content_type='application/json')
+    self._storage.put_file('provenance', self.provenance.serialize())
+    self._maybe_cache_provenance()
+    return self.provenance
+
+  def _maybe_cache_provenance(self):
+    if self.cache and self.provenance:
+      with Storage('file://' + self.cache_path, n_threads=0) as storage:
+        storage.put_file('provenance', self.provenance.serialize(), 'application/json')
     return self
 
   @property
@@ -876,10 +921,7 @@ class CloudVolume(object):
       paths.append( os.path.join(key, filename) )
 
     return paths
-
-  def __del__(self):
-    if self._storage:
-      self._storage.kill_threads()
+    
 
 def generate_slices(slices, minsize, maxsize, bounded=True):
   """Assisting function for __getitem__. e.g. vol[:,:,:,:]"""

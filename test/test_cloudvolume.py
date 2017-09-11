@@ -5,6 +5,7 @@ import os
 import numpy as np
 import shutil
 import gzip
+import json
 
 from cloudvolume import CloudVolume
 from cloudvolume.lib import mkdir, Bbox
@@ -209,6 +210,56 @@ def test_provenance():
     cv.refresh_provenance()
 
     assert cv.provenance.sources == [ 'cooldude24@princeton.edu' ]
+
+def test_info_provenance_cache():
+    image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
+    vol = create_volume_from_image(
+        image=image, 
+        offset=(0,0,0), 
+        layer_path='gs://seunglab-test/cloudvolume/caching', 
+        layer_type='image', 
+        resolution=(1,1,1), 
+        encoding='raw'
+    )
+
+    # Test Info
+    vol.cache = True
+    vol.flush_cache()
+    info = vol.refresh_info()
+    assert info is not None
+
+    with open(os.path.join(vol.cache_path, 'info'), 'r') as infof:
+        info = infof.read()
+        info = json.loads(info)
+
+    with open(os.path.join(vol.cache_path, 'info'), 'w') as infof:
+        infof.write(json.dumps({ 'wow': 'amaze' }))
+
+    info = vol.refresh_info()
+    assert info == { 'wow': 'amaze' }
+    vol.cache = False
+    info = vol.refresh_info()
+    assert info != { 'wow': 'amaze' }
+
+    # Test Provenance
+    vol.cache = True
+    vol.flush_cache()
+    prov = vol.refresh_provenance()
+    assert prov is not None
+
+    with open(os.path.join(vol.cache_path, 'provenance'), 'r') as provf:
+        prov = provf.read()
+        prov = json.loads(prov)
+
+    with open(os.path.join(vol.cache_path, 'provenance'), 'w') as provf:
+        prov['description'] = 'wow'
+        provf.write(json.dumps(prov))
+
+    prov = vol.refresh_provenance()
+    assert prov['description'] == 'wow'
+    vol.cache = False
+    prov = vol.refresh_provenance()
+    assert prov['description'] == ''
 
 
 def test_caching():
