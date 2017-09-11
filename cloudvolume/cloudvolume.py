@@ -561,7 +561,7 @@ class CloudVolume(object):
         shutil.rmtree(self.cache_path) 
 
   def _fetch_data(self, cloudpaths):
-    if not self.cache or self._protocol == 'file':
+    if not self.cache:
       with Storage(self.layer_cloudpath) as storage:
         files = storage.get_files(cloudpaths)
       return files
