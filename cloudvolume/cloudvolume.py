@@ -339,7 +339,7 @@ class CloudVolume(object):
   @property
   def cache_path(self):
     return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-      self._protocol, self._bucket, 
+      self._protocol, self._bucket.replace('/', ''),
       self._dataset_name, self._layer
     ))
 

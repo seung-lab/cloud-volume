@@ -7,9 +7,8 @@ import shutil
 import gzip
 import json
 
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, chunks, Storage
 from cloudvolume.lib import mkdir, Bbox
-from cloudvolume import chunks
 from layer_harness import (
     TEST_NUMBER, create_image, 
     delete_layer, create_layer,
@@ -273,10 +272,13 @@ def test_caching():
     image[0:64,64:128,64:128] = 7
     image[64:128,64:128,64:128] = 8
 
+    dirpath = '/tmp/cloudvolume/caching-' + str(TEST_NUMBER)
+    layer_path = 'file://' + dirpath
+
     vol = create_volume_from_image(
         image=image, 
         offset=(0,0,0), 
-        layer_path='gs://seunglab-test/cloudvolume/caching', 
+        layer_path=layer_path, 
         layer_type='image', 
         resolution=(1,1,1), 
         encoding='raw'
