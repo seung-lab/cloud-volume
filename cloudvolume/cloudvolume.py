@@ -283,7 +283,7 @@ class CloudVolume(object):
     if self._protocol == 'boss':
       return self.provenance
 
-    self._storage.put_file('provenance', self.provenance.serialize())
+    self._storage.put_file('provenance', self.provenance.serialize(), 'application/json')
     self._maybe_cache_provenance()
     return self.provenance
 
