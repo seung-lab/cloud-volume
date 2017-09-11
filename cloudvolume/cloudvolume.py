@@ -994,9 +994,6 @@ class VolumeCutout(np.ndarray):
   def num_channels(self):
     return self.shape[3]
 
-  def upload(self, info):
-    bounds = self.bounds.shrunk_to_chunk_size( DEFAULT_CHUNK_SIZE )
-
   def save_images(self, axis='z', channel=None, directory=None, image_format='PNG'):
 
     if directory is None:
