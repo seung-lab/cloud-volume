@@ -13,11 +13,11 @@ You'll need to set up your cloud credentials as well as the main install.
 ### Credentials
 
 ```
-mkdir -p ~/.neuroglancer/secrets/
-echo $GOOGLE_STORAGE_PROJECT > ~/.neuroglancer/project_name # needed for Google
-mv aws-secret.json ~/.neuroglancer/secrets/ # needed for Google
-mv google-secret.json ~/.neuroglancer/secrets/ # needed for Amazon
-mv boss-secret.json ~/.neuroglancer/secrets/ # needed for the BOSS
+mkdir -p ~/.cloudvolume/secrets/
+echo $GOOGLE_STORAGE_PROJECT > ~/.cloudvolume/project_name # needed for Google
+mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Google
+mv google-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
+mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
 ```
 
 ### pip
@@ -65,7 +65,7 @@ vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 vol.save_mesh(12345) # save 12345 as ./12345.obj
 vol.save_mesh([12345, 12346, 12347]) # merge three segments into one obj
 
-# Caching, located at $HOME/.neuroglancer/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
+# Caching, located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
 vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
 image = vol[0:10,0:10,0:10] # Download partial image and cache
 vol[0:10,0:10,0:10] = image # Upload partial image and cache
@@ -104,7 +104,7 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * mip (uint:0, rw) - Read from and write to this mip level (0 is highest res). Each additional increment in the number is typically a 2x reduction in resolution.
 * bounded (bool:True, rw) - If a region outside of volume bounds is accessed throw an error if True or Fill the region with black (useful for e.g. marching cubes's 1px boundary) if False.
 * fill_missing (bool:False, rw) - If a file inside volume bounds is unable to be fetched use a block of zeros if True, else throw an error.
-* cache (bool:False, rw) - If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.neuroglancer/cache`.
+* cache (bool:False, rw) - If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
 * info (dict, rw) - Python dict representation of Neuroglancer info JSON file. You must call `vol.commit_info()` to save your changes to storage.
 * provenance (dict-like, rw) - Data layer provenance file representation. You must call `vol.commit_provenance()` to save your changes to storage.
 * available_mips (list of ints, r) - Query which mip levels are defined for reading and writing.

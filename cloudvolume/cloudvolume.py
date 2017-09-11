@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from .secrets import boss_credentials
+from .secrets import boss_credentials, CLOUD_VOLUME_DIR
 
 from . import lib, chunks, mesh2obj
 from .lib import toabs, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
@@ -293,7 +293,7 @@ class CloudVolume(object):
 
   @property
   def cache_path(self):
-    return toabs(os.path.join('~/.neuroglancer/cache/', 
+    return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
       self._protocol, self._bucket, 
       self._dataset_name, self._layer
     ))
