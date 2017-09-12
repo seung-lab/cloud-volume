@@ -1,9 +1,11 @@
 import pytest
 
 import json
+import os
 import numpy as np
 
 from cloudvolume import CloudVolume
+from cloudvolume.lib import Bbox
 from layer_harness import delete_layer, create_layer
     
 def test_aligned_read():
@@ -200,6 +202,47 @@ def test_provenance():
     cv.refresh_provenance()
 
     assert cv.provenance.sources == [ 'cooldude24@princeton.edu' ]
+
+def test_exists():
+
+    # Bbox version
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+    defexists = Bbox( (0,0,0), (128,64,64) )
+    results = cv.exists(defexists)
+    assert len(results) == 2
+    assert results['1_1_1/0-64_0-64_0-64'] == True
+    assert results['1_1_1/64-128_0-64_0-64'] == True
+
+    fpath = os.path.join(cv.layer_cloudpath, cv.key, '64-128_0-64_0-64')
+    fpath = fpath.replace('file://', '') + '.gz'
+    os.remove(fpath)
+
+    results = cv.exists(defexists)
+    assert len(results) == 2
+    assert results['1_1_1/0-64_0-64_0-64'] == True
+    assert results['1_1_1/64-128_0-64_0-64'] == False
+
+    # Slice version
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+    defexists = np.s_[ 0:128, :, : ]
+
+    results = cv.exists(defexists)
+    assert len(results) == 2
+    assert results['1_1_1/0-64_0-64_0-64'] == True
+    assert results['1_1_1/64-128_0-64_0-64'] == True
+
+    fpath = os.path.join(cv.layer_cloudpath, cv.key, '64-128_0-64_0-64')
+    fpath = fpath.replace('file://', '') + '.gz'
+    os.remove(fpath)
+
+    results = cv.exists(defexists)
+    assert len(results) == 2
+    assert results['1_1_1/0-64_0-64_0-64'] == True
+    assert results['1_1_1/64-128_0-64_0-64'] == False
 
 
 
