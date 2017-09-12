@@ -65,7 +65,32 @@ vol.save_mesh(12345) # save 12345 as ./12345.obj
 vol.save_mesh([12345, 12346, 12347]) # merge three segments into one obj
 ```
 
-### Property List
+### CloudVolume Constructor
+
+`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, info=None)`  
+
+* mip - Which mip level to access
+* bounded - Whether access is allowed outside the bounds defined in the info file
+* fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException?
+* info - Use this info object rather than pulling from the cloud (useful for creating new layers).
+
+
+### CloudVolume Methods
+
+Better documentation coming later, but for now, here's a summary of the most useful method calls. Use help(cloudvolume.CloudVolume.$method) for more info.
+
+* create_new_info (class method) - Helper function for creating info files for creating new data layers.
+* refresh_info - Repull the info file.
+* refresh_provenance - Repull the provenance file.
+* slices_from_global_coords - Find the CloudVolume slice from MIP 0 coordinates if you're on a different MIP. Often used in combination with neuroglancer.
+* reset_scales - Delete mips other than 0 in the info file. Does not autocommit.
+* add_scale - Generate a new mip level in the info property. Does not autocommit.
+* commit_info - Push the current info property into the cloud as a JSON file.
+* commit_provenance - Push the current provenance property into the cloud as a JSON file.
+* get_mesh - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
+
+
+### CloudVolume Properties
 
 Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (data type:default, writability). (r) means read only, (w) means write only, (rw) means read/write.
 
@@ -81,18 +106,32 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * layer_cloudpath (str, r) - The cloud path to the data layer e.g. gs://bucket/dataset/image
 * info_cloudpath (str, r) - Generate the cloud path to this data layer's info file.
 * scales (dict, r) - Shortcut to the 'scales' property of the info object
-* scale (dict, r) - Shortcut to the working scale of the current mip level
-* shape (Vec4, r) - Like numpy.ndarray.shape for the entire data layer. 
-* volume_size (Vec3, r) - Like shape, but omits channel (x,y,z only). 
+* scale (dict, r)† - Shortcut to the working scale of the current mip level
+* shape (Vec4, r)† - Like numpy.ndarray.shape for the entire data layer. 
+* volume_size (Vec3, r)† - Like shape, but omits channel (x,y,z only). 
 * num_channels (int, r) - The number of channels, the last element of shape. 
 * layer_type (str, r) - The neuroglancer info type, 'image' or 'segmentation'.
 * dtype (str, r) - The info data_type of the volume, e.g. uint8, uint32, etc. Similar to numpy.ndarray.dtype.
 * encoding (str, r) - The neuroglancer info encoding. e.g. 'raw', 'jpeg', 'npz'
-* resolution (Vec3, r) - The 3D physical resolution of a voxel in nanometers at the working mip level.
+* resolution (Vec3, r)† - The 3D physical resolution of a voxel in nanometers at the working mip level.
 * downsample_ratio (Vec3, r) - Ratio of the current resolution to the highest resolution mip available.
-* underlying (Vec3, r) - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
-* key (str, r) - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
-* bounds (Bbox, r) - A Bbox object that represents the bounds of the entire volume.
+* underlying (Vec3, r)† - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
+* key (str, r)† - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
+* bounds (Bbox, r)† - A Bbox object that represents the bounds of the entire volume.
+
+† These properties can also be accessed with a function named like `vol.mip_$PROPERTY($MIP)`. By default they return the current mip level assigned to the CloudVolume, but any mip level can be accessed via the corresponding `mip_` function. Example: `vol.mip_resolution(2)` would return the resolution of mip 2.
+
+### VolumeCutout Functions
+
+When you download an image using CloudVolume it gives you a `VolumeCutout`. These are `numpy.ndarray` subclasses that support a few extra properties to help make book keeping easier. The major advantage is `save_images()` which can help you debug your dataset.
+
+* `dataset_name` - The dataset this image came from.
+* `layer` - Which layer it came from.
+* `mip` - Which mip it came from
+* `layer_type` - "image" or "segmentation"
+* `bounds` - The bounding box of the cutout
+* `num_channels` - Alias for `vol.shape[3]`
+* `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
 
 
 
