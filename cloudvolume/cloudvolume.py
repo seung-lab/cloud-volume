@@ -26,7 +26,7 @@ if sys.version_info < (3,):
 else:
     integer_types = (int,)
 
-__all__ = [ 'CloudVolume', 'EmptyVolumeException' ]
+__all__ = [ 'CloudVolume', 'EmptyVolumeException', 'EmptyRequestException' ]
 
 ExtractedPath = namedtuple('ExtractedPath', 
   ('protocol','bucket_name', 'dataset_name','layer_name')
@@ -34,6 +34,14 @@ ExtractedPath = namedtuple('ExtractedPath',
 
 class EmptyVolumeException(Exception):
   """Raised upon finding a missing chunk."""
+  pass
+
+class EmptyRequestException(Exception):
+  """
+  Requesting uploading or downloading 
+  a bounding box of less than one cubic voxel
+  is impossible.
+  """
   pass
 
 DEFAULT_CHUNK_SIZE = (64,64,64)
@@ -87,6 +95,9 @@ class CloudVolume(object):
     self.bounded = bounded
     self.fill_missing = fill_missing
     self.cache = cache
+
+    if self.cache and not os.access(self.cache_path, os.R_OK|os.W_OK):
+      raise IOError('Cache directory needs read/write permission: ' + self.cache_path)
 
     self._storage = None
     if self._protocol != 'boss':
@@ -338,10 +349,13 @@ class CloudVolume(object):
 
   @property
   def cache_path(self):
-    return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-      self._protocol, self._bucket.replace('/', ''),
-      self._dataset_name, self._layer
-    ))
+    if type(self.cache) is not str:
+      return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
+        self._protocol, self._bucket.replace('/', ''),
+        self._dataset_name, self._layer
+      ))
+    else:
+      return toabs(self.cache)
 
   @property
   def shape(self):
@@ -760,7 +774,7 @@ class CloudVolume(object):
     bounds = Bbox(offset, shape + offset)
 
     if bounds.volume() < 1:
-      raise ValueError('Requested less than one pixel of volume. {}'.format(bounds))
+      raise EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
 
     x_rng = [ bounds.minpt.x, bounds.maxpt.x ]
     y_rng = [ bounds.minpt.y, bounds.maxpt.y ]

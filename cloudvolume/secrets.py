@@ -7,11 +7,7 @@ from google.oauth2 import service_account
 
 from .lib import mkdir
 
-BASE_LOCATION = os.environ['HOME']
-if 'CLOUD_VOLUME_DIR' in os.environ:
-  BASE_LOCATION = os.environ['CLOUD_VOLUME_DIR']
-
-CLOUD_VOLUME_DIR = mkdir(os.path.join(BASE_LOCATION, '.cloudvolume/'))
+CLOUD_VOLUME_DIR = mkdir(os.path.join(os.environ['HOME'], '.cloudvolume/'))
 secret_path = mkdir(os.path.join(CLOUD_VOLUME_DIR, 'secrets/'))
 
 PROJECT_NAME = None

@@ -16,7 +16,8 @@ from tqdm import tqdm
 
 def toabs(path):
   home = os.path.join(os.environ['HOME'], '')
-  return re.sub('^~/?', home, path)
+  path = re.sub('^~/?', home, path)
+  return os.path.abspath(path)
 
 def mkdir(path):
   path = toabs(path)
