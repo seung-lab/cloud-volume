@@ -272,7 +272,7 @@ def test_caching():
     image[0:64,64:128,64:128] = 7
     image[64:128,64:128,64:128] = 8
 
-    dirpath = '/tmp/cloudvolume/caching-' + str(TEST_NUMBER)
+    dirpath = '/tmp/cloudvolume/caching-volume-' + str(TEST_NUMBER)
     layer_path = 'file://' + dirpath
 
     vol = create_volume_from_image(
@@ -340,6 +340,19 @@ def test_caching():
     assert len(files) == 8
 
     vol.flush_cache()
+
+    # Test Non-standard Cache Destination
+    dirpath = '/tmp/cloudvolume/caching-cache-' + str(TEST_NUMBER)
+    vol.cache = dirpath
+    vol[:,:,:] = image
+
+    assert len(os.listdir(os.path.join(dirpath, vol.key))) == 8
+
+    vol.flush_cache()
+
+
+
+
 
 
 def test_exists():
