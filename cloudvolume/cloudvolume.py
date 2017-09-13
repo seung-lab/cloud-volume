@@ -74,8 +74,11 @@ class CloudVolume(object):
     fill_missing: (bool) If a file inside volume bounds is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
-    cache: (bool) Store downloaded and uploaded files in a cache on disk 
-      and preferentially read from it before redownloading.
+    cache: (bool or str) Store downloaded and uploaded files in a cache on disk 
+      and preferentially read from it before redownloading. 
+        - falsey value: no caching will occur.
+        - True: cache will be located in a standard location.
+        - non-empty string: cache is located at this file path
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
   """
