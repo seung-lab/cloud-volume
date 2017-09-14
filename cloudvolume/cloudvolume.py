@@ -19,6 +19,11 @@ from .lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
 from .provenance import DataLayerProvenance
 from .storage import Storage
 
+# Set the interpreter bool
+try:
+    INTERACTIVE = bool(sys.ps1)
+except AttributeError:
+    INTERACTIVE = bool(sys.flags.interactive)
 
 if sys.version_info < (3,):
     integer_types = (int, long,)
@@ -67,10 +72,11 @@ class CloudVolume(object):
         False: Throw an error
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
-    progress: (bool) Show tqdm progress bars.
+    progress: (bool) Show tqdm progress bars. 
+        Defaults True in interactive python, False in script execution mode.
   """
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
-      progress=False, info=None):
+      progress=INTERACTIVE, info=None):
 
     super(self.__class__, self).__init__()
 
