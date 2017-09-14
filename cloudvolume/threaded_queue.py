@@ -216,7 +216,7 @@ class ThreadedQueue(object):
       # progress and errors every tenth of a second
       while not self._queue.empty():
         size = self._queue.qsize()
-        delta = last - self._queue.qsize()
+        delta = last - size
         if delta != 0: # We should crash on negative numbers
           pbar.update(delta)
         last = size
