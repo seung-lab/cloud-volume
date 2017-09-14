@@ -67,8 +67,11 @@ class CloudVolume(object):
         False: Throw an error
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
+    progress: (bool) Show tqdm progress bars.
   """
-  def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, info=None):
+  def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
+      progress=False, info=None):
+
     super(self.__class__, self).__init__()
 
     extract = CloudVolume.extract_path(cloudpath)
@@ -80,6 +83,7 @@ class CloudVolume(object):
     self._dataset_name = extract.dataset_name
     self._layer = extract.layer_name
 
+    self.progress = progress
     self.mip = mip
     self.bounded = bounded
     self.fill_missing = fill_missing
@@ -555,10 +559,12 @@ class CloudVolume(object):
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
     renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
 
-    with Storage(self.layer_cloudpath) as storage:
+    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       files = storage.get_files(cloudpaths)
 
-    for fileinfo in tqdm(files, total=len(cloudpaths), desc="Rendering Image"):
+    fileiter = tqdm(files, total=len(cloudpaths), desc="Rendering Image", disable=(not self.progress))
+
+    for fileinfo in fileiter:
       if fileinfo['error'] is not None:
         raise fileinfo['error']
 
@@ -682,8 +688,10 @@ class CloudVolume(object):
     if str(self.dtype) != str(img.dtype):
       raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(self.dtype, img.dtype))
 
+    iterator = tqdm(self._generate_chunks(img, offset), disable=(not self.progress), desc='rechunking image')
+
     uploads = []
-    for imgchunk, spt, ept in tqdm(self._generate_chunks(img, offset), desc='uploading image'):
+    for imgchunk, spt, ept in iterator:
       if np.array_equal(spt, ept):
           continue
 
@@ -708,7 +716,7 @@ class CloudVolume(object):
 
     compress = (self.encoding in ('raw', 'compressed_segmentation'))
 
-    with Storage(self.layer_cloudpath) as storage:
+    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       storage.put_files(uploads, content_type=content_type, compress=compress)
 
   def _generate_chunks(self, img, offset):
