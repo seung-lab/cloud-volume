@@ -6,7 +6,7 @@ import re
 import time
 
 from cloudvolume.storage import Storage
-from layer_harness import delete_layer
+from layer_harness import delete_layer, TEST_NUMBER
 
 def test_path_extraction():
     assert (Storage.extract_path('s3://bucket_name/dataset_name/layer_name') 
@@ -42,6 +42,7 @@ def test_read_write():
 
     for num_threads in range(0,11,5):
         for url in urls:
+            url = url + '-' + str(TEST_NUMBER)
             with Storage(url, n_threads=num_threads) as s:
                 content = b'some_string'
                 s.put_file('info', content, compress=False)
@@ -59,6 +60,8 @@ def test_read_write():
                 assert all(map(lambda x: x['error'] is None, results))
                 assert s.get_files([ 'nonexistentfile' ])[0]['content'] is None
 
+                s.delete_file('info')
+
     delete_layer("/tmp/removeme/read_write")
 
 def test_delete():
@@ -69,6 +72,7 @@ def test_delete():
     ]
 
     for url in urls:
+        url = url + '-' + str(TEST_NUMBER)
         with Storage(url, n_threads=1) as s:
             content = b'some_string'
             s.put_file('delete-test', content, compress=False).wait()
@@ -89,6 +93,7 @@ def test_compression():
     ]
 
     for url in urls:
+        url = url + '-' + str(TEST_NUMBER)
         with Storage(url, n_threads=5) as s:
             content = b'some_string'
             s.put_file('info', content, compress=True)
@@ -107,6 +112,7 @@ def test_list():
     ]
 
     for url in urls:
+        url = url + '-' + str(TEST_NUMBER)
         with Storage(url, n_threads=5) as s:
             print('testing service:', url)
             content = b'some_string'
@@ -146,12 +152,13 @@ def test_list():
 
 def test_exists():
     urls = [
-        # "file:///tmp/removeme/exists",
-        # "gs://neuroglancer/removeme/exists",
+        "file:///tmp/removeme/exists",
+        "gs://neuroglancer/removeme/exists",
         "s3://neuroglancer/removeme/exists"
     ]
 
     for url in urls:
+        url = url + '-' + str(TEST_NUMBER)
         with Storage(url, n_threads=5) as s:
             content = b'some_string'
             s.put_file('info', content, compress=False)
