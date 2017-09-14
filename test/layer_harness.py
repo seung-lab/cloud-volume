@@ -8,6 +8,8 @@ import os
 from cloudvolume import Storage, CloudVolume
 from cloudvolume.lib import Bbox, Vec, min2, max2, find_closest_divisor
 
+TEST_NUMBER = np.random.randint(0, 999999)
+
 layer_path = '/tmp/removeme/'
 
 def create_storage(layer_name='layer'):
