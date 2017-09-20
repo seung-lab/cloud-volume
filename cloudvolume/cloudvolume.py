@@ -99,8 +99,12 @@ class CloudVolume(object):
     self.fill_missing = fill_missing
     self.cache = cache
 
-    if self.cache and not os.access(self.cache_path, os.R_OK|os.W_OK):
-      raise IOError('Cache directory needs read/write permission: ' + self.cache_path)
+    if self.cache:
+      if not os.path.exists(self.cache_path):
+        mkdir(self.cache_path)
+
+      if not os.access(self.cache_path, os.R_OK|os.W_OK):
+        raise IOError('Cache directory needs read/write permission: ' + self.cache_path)
 
     self._storage = None
     if self._protocol != 'boss':
