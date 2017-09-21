@@ -258,6 +258,7 @@ class CloudVolume(object):
         jsonfile = storage.get_file(filename)
 
       if jsonfile:
+        jsonfile = jsonfile.decode('utf-8')
         return json.loads(jsonfile)
       else:
         return None
