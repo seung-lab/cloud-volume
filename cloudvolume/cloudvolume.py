@@ -12,14 +12,12 @@ from tqdm import tqdm
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from secrets import boss_credentials
+from .secrets import boss_credentials
 
-import chunks
-import lib
-from lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
-import mesh2obj
-from provenance import DataLayerProvenance
-from storage import Storage
+from . import lib, chunks, mesh2obj
+from .lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
+from .provenance import DataLayerProvenance
+from .storage import Storage
 
 
 if sys.version_info < (3,):
@@ -151,6 +149,7 @@ class CloudVolume(object):
   def refresh_info(self):
     if self._protocol != "boss":
       infojson = self._storage.get_file('info')
+      infojson = infojson.decode('utf-8')
       self.info = json.loads(infojson)
     else:
       self.info = self.fetch_boss_info()
@@ -225,6 +224,7 @@ class CloudVolume(object):
 
     if self._storage.exists('provenance'):
       provfile = self._storage.get_file('provenance')
+      provfile = provfile.decode('utf-8')
       provfile = json.loads(provfile)
     else:
       provfile = {
@@ -241,7 +241,7 @@ class CloudVolume(object):
     if self._protocol == 'boss':
       return self
 
-    self._storage.put_file('provenance', self.provenance.serialize())
+    self._storage.put_file('provenance', self.provenance.serialize(), content_type='application/json')
     return self
 
   @property
