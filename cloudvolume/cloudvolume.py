@@ -468,7 +468,17 @@ class CloudVolume(object):
 
     return newscale
 
-  def __getitem__(self, slices):
+  def __interpret_slices(self, slices):
+    """
+    Convert python slice objects into a more useful and computable form:
+
+    - requested_bbox: A bounding box representing the volume requested
+    - steps: the requested stride over x,y,z
+    - channel_slice: A python slice object over the channel dimension
+
+    Returned as a tuple: (requested_bbox, steps, channel_slice)
+    """
+
     maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
     minsize = list(self.bounds.minpt) + [ 0 ]
 
@@ -479,7 +489,40 @@ class CloudVolume(object):
     maxpt = Vec(*[ slc.stop for slc in slices ]) 
     steps = Vec(*[ slc.step for slc in slices ])
 
-    requested_bbox = Bbox(minpt, maxpt)
+    return Bbox(minpt, maxpt), steps, channel_slice
+
+  def __realized_bbox(self, requested_bbox):
+    """
+    The requested bbox might not be aligned to the underlying chunk grid 
+    or even outside the bounds of the dataset. Convert the request into
+    a bbox representing something that can be actually downloaded.
+
+    Returns: Bbox
+    """
+    realized_bbox = requested_bbox.expand_to_chunk_size(self.underlying, offset=self.voxel_offset)
+    return Bbox.clamp(realized_bbox, self.bounds)
+
+  def exists(self, bbox_or_slices):
+    """
+    Produce a summary of whether all the requested chunks exist.
+
+    bbox_or_slices: accepts either a Bbox or a tuple of slices representing
+      the requested volume. 
+    Returns: { chunk_file_name: boolean, ... }
+    """
+    if type(bbox_or_slices) is Bbox:
+      requested_bbox = bbox_or_slices
+    else:
+      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
+    realized_bbox = self.__realized_bbox(requested_bbox)
+    cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+
+    with Storage(self.layer_cloudpath) as storage:
+      existence_report = storage.files_exist(cloudpaths)
+    return existence_report
+
+  def __getitem__(self, slices):
+    (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
     
     if self._protocol == 'boss':
       cutout = self._boss_cutout(requested_bbox, steps, channel_slice)
@@ -503,9 +546,8 @@ class CloudVolume(object):
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
   def _cutout(self, requested_bbox, steps, channel_slice=slice(None)):
-    realized_bbox = requested_bbox.expand_to_chunk_size(self.underlying, offset=self.voxel_offset)
-    realized_bbox = Bbox.clamp(realized_bbox, self.bounds)
-
+    realized_bbox = self.__realized_bbox(requested_bbox)
+    
     def multichannel_shape(bbox):
       shape = bbox.size3()
       return (shape[0], shape[1], shape[2], self.num_channels)

@@ -60,6 +60,7 @@ vol = CloudVolume('gs://mybucket/retina/image') # Basic Example
 vol = CloudVolume('gs://buck/ds/chan', mip=0, bounded=True, fill_missing=False) # Using multiple initialization options
 vol = CloudVolume('gs://buck/ds/chan', info=info) # Creating a new volume's info file from scratch
 image = vol[:,:,:] # Download the entire image stack into a numpy array
+listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 vol.save_mesh(12345) # save 12345 as ./12345.obj
 vol.save_mesh([12345, 12346, 12347]) # merge three segments into one obj
