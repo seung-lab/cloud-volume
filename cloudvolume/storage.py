@@ -120,7 +120,31 @@ class Storage(ThreadedQueue):
         return self
 
     def exists(self, file_path):
+        """Test if a single file exists. Returns boolean."""
         return self._interface.exists(file_path)
+
+    def files_exist(self, file_paths):
+        """
+        Threaded exists for all file paths. 
+
+        file_paths: (list) file paths to test for existence
+
+        Returns: { filepath: bool }
+        """
+        results = {}
+
+        def exist_thunk(path, interface):
+            results[path] = interface.exists(path)
+
+        for path in file_paths:
+            if len(self._threads):
+                self.put(partial(exist_thunk, path))
+            else:
+                exist_thunk(path, self._interface)
+
+        self.wait()
+
+        return results
 
     def get_file(self, file_path):
         # Create get_files does uses threading to speed up downloading
