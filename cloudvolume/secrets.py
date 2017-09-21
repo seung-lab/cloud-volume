@@ -3,7 +3,7 @@ import json
 
 from google.oauth2 import service_account
 
-from lib import mkdir
+from .lib import mkdir
 
 ngpath = mkdir(os.path.join(os.environ['HOME'], '.neuroglancer/'))
 secret_path = mkdir(os.path.join(ngpath, 'secrets/'))

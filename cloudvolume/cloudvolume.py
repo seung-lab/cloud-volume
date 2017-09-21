@@ -12,14 +12,12 @@ from tqdm import tqdm
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from secrets import boss_credentials
+from .secrets import boss_credentials
 
-import chunks
-import lib
-from lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
-import mesh2obj
-from provenance import DataLayerProvenance
-from storage import Storage
+from . import lib, chunks, mesh2obj
+from .lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
+from .provenance import DataLayerProvenance
+from .storage import Storage
 
 
 if sys.version_info < (3,):

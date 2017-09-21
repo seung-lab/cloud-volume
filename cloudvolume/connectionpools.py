@@ -7,7 +7,7 @@ from functools import partial
 from google.cloud.storage import Client
 import boto3 
 
-from secrets import PROJECT_NAME, google_credentials, aws_credentials
+from .secrets import PROJECT_NAME, google_credentials, aws_credentials
 
 class ConnectionPool(object):
     """
