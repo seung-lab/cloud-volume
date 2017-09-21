@@ -41,6 +41,7 @@ def test_dataset_provenance():
 
   with Storage('file://' + fs) as stor:
     provjson = stor.get_file('provenance')
+    provjson = provjson.decode('utf-8')
     prov = DatasetProvenance().from_json(provjson)
 
   assert prov.dataset_name == 'ur-mom-2039'
@@ -83,6 +84,7 @@ def test_data_layer_provenance():
 
   with Storage('file://' + fs) as stor:
     provjson = stor.get_file('provenance')
+    provjson = provjson.decode('utf-8')
     prov = DataLayerProvenance().from_json(provjson)
 
   assert prov.description == 'example dataset'
