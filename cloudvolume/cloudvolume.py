@@ -106,10 +106,6 @@ class CloudVolume(object):
       if not os.access(self.cache_path, os.R_OK|os.W_OK):
         raise IOError('Cache directory needs read/write permission: ' + self.cache_path)
 
-    self._storage = None
-    if self._protocol != 'boss':
-      self._storage = Storage(self.layer_cloudpath, n_threads=0)
-
     if info is None:
       self.refresh_info()
     else:
