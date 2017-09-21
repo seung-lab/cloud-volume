@@ -22,7 +22,7 @@ def test_dataset_provenance():
   prov.owners = [ 'scientist@princeton.edu', 'techstaff@princeton.edu' ]
 
   with Storage('file://' + fs) as stor:
-    stor.put_file('provenance', prov.serialize())
+    stor.put_file('provenance', prov.serialize(), content_type='application/json')
 
   path = os.path.join(fs, 'provenance')
 
@@ -65,7 +65,7 @@ def test_data_layer_provenance():
   prov.owners = [ 'gradstudent@princeton.edu' ]
 
   with Storage('file://' + fs) as stor:
-    stor.put_file('provenance', prov.serialize())
+    stor.put_file('provenance', prov.serialize(), content_type='application/json')
 
   path = os.path.join(fs, 'provenance')
 

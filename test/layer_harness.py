@@ -81,5 +81,5 @@ def create_info_file_from_image(image, offset, layer_path, layer_type, resolutio
   )
 
   vol = CloudVolume(layer_path, mip=0, info=info)
-  vol.commitInfo()
+  vol.commit_info()
   return vol
