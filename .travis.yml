@@ -7,6 +7,8 @@ python:
 - '3.6'
 dist: trusty
 before_install:
+- PYTHON_MAJOR_VERSION=`echo $TRAVIS_PYTHON_VERSION | head -c 1`
+- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then sudo apt-get install python3-pip; fi
 - mkdir -p ~/.neuroglancer/secrets/
 - openssl aes-256-cbc -K $encrypted_1f1d44165f5b_key -iv $encrypted_1f1d44165f5b_iv -in credentials.tar.enc -out credentials.tar -d
 - tar -xvf credentials.tar
@@ -15,10 +17,11 @@ before_install:
 - mv project_name ~/.neuroglancer/
 - rm credentials.tar
 install:
-- virtualenv venv
+- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then virtualenv venv; fi
+- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then virtualenv -p python3 venv; fi
 - source venv/bin/activate
-- pip install -e .
+- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then pip install -e .; fi
+- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip3 install -e .; fi
 script:
-- PYTHON_MAJOR_VERSION=`echo $TRAVIS_PYTHON_VERSION | head -c 1`
 - if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then py.test -v -x test; fi
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 -m pytest -v -x test; fi
