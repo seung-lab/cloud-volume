@@ -14,9 +14,9 @@ from google.cloud.storage import Client
 import gzip
 import tenacity
 
-from lib import mkdir
-from threaded_queue import ThreadedQueue
-from connectionpools import S3ConnectionPool, GCloudConnectionPool
+from .lib import mkdir
+from .threaded_queue import ThreadedQueue
+from .connectionpools import S3ConnectionPool, GCloudConnectionPool
 
 S3_POOL = S3ConnectionPool()
 GC_POOL = GCloudConnectionPool()

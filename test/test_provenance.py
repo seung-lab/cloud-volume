@@ -22,7 +22,7 @@ def test_dataset_provenance():
   prov.owners = [ 'scientist@princeton.edu', 'techstaff@princeton.edu' ]
 
   with Storage('file://' + fs) as stor:
-    stor.put_file('provenance', prov.serialize())
+    stor.put_file('provenance', prov.serialize(), content_type='application/json')
 
   path = os.path.join(fs, 'provenance')
 
@@ -41,6 +41,7 @@ def test_dataset_provenance():
 
   with Storage('file://' + fs) as stor:
     provjson = stor.get_file('provenance')
+    provjson = provjson.decode('utf-8')
     prov = DatasetProvenance().from_json(provjson)
 
   assert prov.dataset_name == 'ur-mom-2039'
@@ -65,7 +66,7 @@ def test_data_layer_provenance():
   prov.owners = [ 'gradstudent@princeton.edu' ]
 
   with Storage('file://' + fs) as stor:
-    stor.put_file('provenance', prov.serialize())
+    stor.put_file('provenance', prov.serialize(), content_type='application/json')
 
   path = os.path.join(fs, 'provenance')
 
@@ -83,6 +84,7 @@ def test_data_layer_provenance():
 
   with Storage('file://' + fs) as stor:
     provjson = stor.get_file('provenance')
+    provjson = provjson.decode('utf-8')
     prov = DataLayerProvenance().from_json(provjson)
 
   assert prov.description == 'example dataset'

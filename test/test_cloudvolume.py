@@ -1,5 +1,6 @@
 import pytest
 
+import json
 import numpy as np
 
 from cloudvolume import CloudVolume
@@ -191,7 +192,8 @@ def test_provenance():
     delete_layer()
     cv, data = create_layer(size=(64,64,64,1), offset=(0,0,0))
 
-    assert cv.provenance.serialize() == r'{"sources": [], "owners": [], "processing": [], "description": ""}'
+    provobj = json.loads(cv.provenance.serialize())
+    assert provobj == {"sources": [], "owners": [], "processing": [], "description": ""}
 
     cv.provenance.sources.append('cooldude24@princeton.edu')
     cv.commit_provenance()
