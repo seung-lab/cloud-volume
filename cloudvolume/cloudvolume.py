@@ -108,11 +108,14 @@ class CloudVolume(object):
 
     if info is None:
       self.refresh_info()
+      if self.cache:
+        self._check_cached_info_validity()
     else:
       self.info = info
 
     self.provenance = None
     self.refresh_provenance()
+    self._check_cached_provenance_validity()
 
     try:
       self.mip = self.available_mips[self.mip]
@@ -178,16 +181,75 @@ class CloudVolume(object):
         self.info = info
         return self.info
 
+    self.info = self._fetch_info()
+    self._maybe_cache_info()
+    return self.info
+
+  def _check_cached_info_validity(self):
+    """
+    ValueError if cache differs at all from source data layer with
+    an excepton for volume_size which prints a warning.
+    """
+    cache_info = self._read_cached_json('info')
+    if not cache_info:
+      return
+
+    fresh_info = self._fetch_info()
+
+    mismatch_error = ValueError("""
+      Data layer info file differs from cache. Please check whether this
+      change invalidates your cache. 
+
+      If VALID do one of:
+        1) Manually delete the cached info file (see location below)
+        2) Refresh your on-disk cache as follows:
+          vol = CloudVolume(..., cache=False) # refreshes from source
+          vol.cache = True
+          vol.commit_info() # writes to disk
+      If INVALID do one of: 
+        1) Delete the info file manually (see cache location below) 
+        2) Instantiate as follows: 
+          vol = CloudVolume(..., cache=False) # refreshes info from source
+          vol.flush_cache() # deletes cache
+          vol.cache = True
+          vol.commit_info() # writes info to disk
+
+      CACHED: {cache}
+      SOURCE: {source}
+      CACHE LOCATION: {path}
+      """.format(
+        cache=cache_info, 
+        source=fresh_info, 
+        path=self.cache_path
+    ))
+
+    try:
+      fresh_sizes = [ scale['size'] for scale in fresh_info['scales'] ]
+      cache_sizes = [ scale['size'] for scale in cache_info['scales'] ]
+    except KeyError:
+      raise mismatch_error
+
+    for scale in fresh_info['scales']:
+      del scale['size']
+
+    for scale in cache_info['scales']:
+      del scale['size']
+
+    if fresh_info != cache_info:
+      raise mismatch_error
+
+    if fresh_sizes != cache_sizes:
+      print("WARNING: Data layer bounding box differs in cache.\nCACHED: {}\nSOURCE: {}\nCACHE LOCATION:{}".format(
+        cache_sizes, fresh_sizes, self.cache_path
+      ))
+
+  def _fetch_info(self):
     if self._protocol != "boss":
       infojson = self._storage.get_file('info')
       infojson = infojson.decode('utf-8')
-      self.info = json.loads(infojson)
+      return json.loads(infojson)
     else:
-      self.info = self.fetch_boss_info()
-
-    self._maybe_cache_info()
-
-    return self.info
+      return self.fetch_boss_info()
 
   def refreshInfo(self):
     print("WARNING: refreshInfo is deprecated. Use refresh_info instead.")
@@ -275,6 +337,12 @@ class CloudVolume(object):
         self.provenance = DataLayerProvenance(**prov)
         return self.provenance
 
+    provfile = self._fetch_provenance()
+    self.provenance = DataLayerProvenance(**provfile)
+    self._maybe_cache_provenance()
+    return self.provenance
+
+  def _fetch_provenance(self):
     if self._protocol == 'boss':
       return self.provenance
 
@@ -290,9 +358,7 @@ class CloudVolume(object):
         "description": "",
       }
 
-    self.provenance = DataLayerProvenance(**provfile)
-    self._maybe_cache_provenance()
-    return self.provenance
+    return provfile
 
   def commit_provenance(self):
     if self._protocol == 'boss':
@@ -307,6 +373,20 @@ class CloudVolume(object):
       with Storage('file://' + self.cache_path, n_threads=0) as storage:
         storage.put_file('provenance', self.provenance.serialize(), 'application/json')
     return self
+
+  def _check_cached_provenance_validity(self):
+    cached_prov = self._read_cached_json('provenance')
+    if not cached_prov:
+      return
+    fresh_prov = self._fetch_provenance()
+
+    if cached_prov != fresh_prov:
+      print("""
+      WARNING: Cached provenance file does not match source.
+
+      CACHED: {}
+      SOURCE: {}
+      """.format(cached_prov, fresh_prov))
 
   @property
   def dataset_name(self):

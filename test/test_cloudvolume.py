@@ -351,9 +351,71 @@ def test_caching():
     vol.flush_cache()
 
 
+def test_cache_validity():
+    image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
+    dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
+    layer_path = 'file://' + dirpath
 
+    vol = create_volume_from_image(
+        image=image, 
+        offset=(1,1,1), 
+        layer_path=layer_path, 
+        layer_type='image', 
+        resolution=(1,1,1), 
+        encoding='raw'
+    )
+    vol.cache = True
+    vol.flush_cache()
+    vol.commit_info()
 
+    def test_with_mock_cache_info(info, shoulderror):
+        finfo = os.path.join(vol.cache_path, 'info')
+        with open(finfo, 'w') as f:
+            f.write(json.dumps(info))
 
+        if shoulderror:
+            try:
+                CloudVolume(vol.layer_cloudpath, cache=True)
+            except ValueError:
+                pass
+            else:
+                assert False
+        else:
+            CloudVolume(vol.layer_cloudpath, cache=True)
+
+    test_with_mock_cache_info(vol.info, shoulderror=False)
+
+    info = vol.info.copy()
+    info['scales'][0]['size'][0] = 666
+    test_with_mock_cache_info(info, shoulderror=False)
+
+    test_with_mock_cache_info({ 'zomg': 'wow' }, shoulderror=True)
+
+    def tiny_change(key, val):
+        info = vol.info.copy()
+        info[key] = val
+        test_with_mock_cache_info(info, shoulderror=True)
+
+    tiny_change('type', 'zoolander')
+    tiny_change('data_type', 'uint32')
+    tiny_change('num_channels', 2)
+    tiny_change('mesh', 'mesh')
+
+    def scale_change(key, val, mip=0):
+        info = vol.info.copy()
+        info['scales'][mip][key] = val
+        test_with_mock_cache_info(info, shoulderror=True)
+
+    scale_change('voxel_offset', [ 1, 2, 3 ])
+    scale_change('resolution', [ 1, 2, 3 ])
+    scale_change('encoding', 'npz')
+
+    vol.flush_cache()
+
+    # Test no info file at all    
+    CloudVolume(vol.layer_cloudpath, cache=True)
+
+    vol.flush_cache()
 
 def test_exists():
 
