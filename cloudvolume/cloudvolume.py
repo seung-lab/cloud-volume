@@ -251,22 +251,10 @@ class CloudVolume(object):
   @property
   def dataset_name(self):
     return self.path.dataset
-
-  @dataset_name.setter
-  def dataset_name(self, name):
-    if name != self.path.dataset:
-      self.path.dataset = name
-      self.refresh_info()
   
   @property
   def layer(self):
     return self.path.layer
-
-  @layer.setter
-  def layer(self, name):
-    if name != self.path.layer:
-      self.path.layer = name
-      self.refresh_info()
 
   @property
   def scales(self):
