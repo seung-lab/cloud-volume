@@ -158,9 +158,9 @@ def test_extract_path():
     def okgoogle(url):
         path = CloudVolume.extract_path(url)
         assert path.protocol == 'gs', url
-        assert path.bucket_name == 'bucket', url
-        assert path.dataset_name == 'dataset', url
-        assert path.layer_name == 'layer', url
+        assert path.bucket == 'bucket', url
+        assert path.dataset == 'dataset', url
+        assert path.layer == 'layer', url
        
 
     shoulderror('ou3bouqjsa fkj aojsf oaojf ojsaf')
@@ -170,15 +170,15 @@ def test_extract_path():
 
     path = CloudVolume.extract_path('s3://bucketxxxxxx/datasetzzzzz91h8__3/layer1br9bobasjf/')
     assert path.protocol == 's3'
-    assert path.bucket_name == 'bucketxxxxxx'
-    assert path.dataset_name == 'datasetzzzzz91h8__3'
-    assert path.layer_name == 'layer1br9bobasjf'
+    assert path.bucket == 'bucketxxxxxx'
+    assert path.dataset == 'datasetzzzzz91h8__3'
+    assert path.layer == 'layer1br9bobasjf'
 
     path = CloudVolume.extract_path('file://bucket/dataset/layer/')
     assert path.protocol == 'file'
-    assert path.bucket_name == 'bucket'
-    assert path.dataset_name == 'dataset'
-    assert path.layer_name == 'layer'
+    assert path.bucket == 'bucket'
+    assert path.dataset == 'dataset'
+    assert path.layer == 'layer'
 
     shoulderror('lucifer://bucket/dataset/layer/')
     shoulderror('gs://///')
@@ -186,9 +186,9 @@ def test_extract_path():
 
     path = CloudVolume.extract_path('file:///tmp/removeme/layer/')
     assert path.protocol == 'file'
-    assert path.bucket_name == '/tmp'
-    assert path.dataset_name == 'removeme'
-    assert path.layer_name == 'layer'
+    assert path.bucket == '/tmp'
+    assert path.dataset == 'removeme'
+    assert path.layer == 'layer'
 
 def test_provenance():
     delete_layer()

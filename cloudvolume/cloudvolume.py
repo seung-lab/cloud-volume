@@ -28,7 +28,7 @@ else:
 __all__ = [ 'CloudVolume', 'EmptyVolumeException' ]
 
 ExtractedPath = namedtuple('ExtractedPath', 
-  ('protocol','bucket_name', 'dataset_name','layer_name')
+  ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
 )
 
 class EmptyVolumeException(Exception):
@@ -71,21 +71,14 @@ class CloudVolume(object):
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, info=None):
     super(self.__class__, self).__init__()
 
-    extract = CloudVolume.extract_path(cloudpath)
-
-    self._protocol = extract.protocol
-    self._bucket = extract.bucket_name
-
-    # You can access these two with properties
-    self._dataset_name = extract.dataset_name
-    self._layer = extract.layer_name
+    self.path = CloudVolume.extract_path(cloudpath)
 
     self.mip = mip
     self.bounded = bounded
     self.fill_missing = fill_missing
 
     self._storage = None
-    if self._protocol != 'boss':
+    if self.path.protocol != 'boss':
       self._storage = Storage(self.layer_cloudpath, n_threads=0)
 
     if info is None:
@@ -143,11 +136,22 @@ class CloudVolume(object):
   @classmethod
   def extract_path(cls, cloudpath):
     """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
-    match = re.match(r'^(gs|file|s3|boss)://(/?[\d\w_\.\-]+)/([\d\w_\.\-]+)/([\d\w_\.\-]+)/?', cloudpath)
-    return ExtractedPath(*match.groups())
+    protocol_re = r'^(gs|file|s3|boss)://'
+    tail_re = r'(/?[\d\w_\.\-]+)/([\d\w_\.\-]+)/([\d\w_\.\-]+)(?:/info|/provenance|/)?$'
+
+    match = re.match(protocol_re, cloudpath)
+    (protocol,) = match.groups()
+
+    cloudpath = re.sub(protocol_re, '', cloudpath)
+    
+    match = re.search(tail_re, cloudpath)
+    bucket, dataset, layer = match.groups()
+    
+    intermediate_path = re.sub(tail_re, '', cloudpath)
+    return ExtractedPath(protocol, intermediate_path, bucket, dataset, layer)
 
   def refresh_info(self):
-    if self._protocol != "boss":
+    if self.path.protocol != "boss":
       infojson = self._storage.get_file('info')
       infojson = infojson.decode('utf-8')
       self.info = json.loads(infojson)
@@ -161,8 +165,8 @@ class CloudVolume(object):
 
   def fetch_boss_info(self):
     experiment = ExperimentResource(
-      name=self._dataset_name, 
-      collection_name=self._bucket
+      name=self.path.dataset, 
+      collection_name=self.path.bucket
     )
     rmt = BossRemote(boss_credentials)
     experiment = rmt.get_project(experiment)
@@ -170,7 +174,7 @@ class CloudVolume(object):
     coord_frame = CoordinateFrameResource(name=experiment.coord_frame)
     coord_frame = rmt.get_project(coord_frame)
 
-    channel = ChannelResource(self._layer, self._bucket, self._dataset_name)
+    channel = ChannelResource(self.path.layer, self.path.bucket, self.path.dataset)
     channel = rmt.get_project(channel)    
 
     unit_factors = {
@@ -211,7 +215,7 @@ class CloudVolume(object):
     return self.commit_info()
 
   def commit_info(self):
-    if self._protocol == 'boss':
+    if self.path.protocol == 'boss':
       return self 
 
     infojson = json.dumps(self.info)
@@ -219,7 +223,7 @@ class CloudVolume(object):
     return self
 
   def refresh_provenance(self):
-    if self._protocol == 'boss':
+    if self.path.protocol == 'boss':
       return self
 
     if self._storage.exists('provenance'):
@@ -238,7 +242,7 @@ class CloudVolume(object):
     return self
 
   def commit_provenance(self):
-    if self._protocol == 'boss':
+    if self.path.protocol == 'boss':
       return self
 
     self._storage.put_file('provenance', self.provenance.serialize(), content_type='application/json')
@@ -246,22 +250,22 @@ class CloudVolume(object):
 
   @property
   def dataset_name(self):
-    return self._dataset_name
+    return self.path.dataset
 
   @dataset_name.setter
   def dataset_name(self, name):
-    if name != self._dataset_name:
-      self._dataset_name = name
+    if name != self.path.dataset:
+      self.path.dataset = name
       self.refresh_info()
   
   @property
   def layer(self):
-    return self._layer
+    return self.path.layer
 
   @layer.setter
   def layer(self, name):
-    if name != self._layer:
-      self._layer = name
+    if name != self.path.layer:
+      self.path.layer = name
       self.refresh_info()
 
   @property
@@ -277,7 +281,7 @@ class CloudVolume(object):
 
   @property
   def base_cloudpath(self):
-    return "{}://{}/{}/".format(self._protocol, self._bucket, self.dataset_name)
+    return self.path.protocol + "://" + os.path.join(self.path.intermediate_path, self.path.bucket, self.dataset_name)
 
   @property
   def layer_cloudpath(self):
@@ -524,7 +528,7 @@ class CloudVolume(object):
   def __getitem__(self, slices):
     (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
     
-    if self._protocol == 'boss':
+    if self.path.protocol == 'boss':
       cutout = self._boss_cutout(requested_bbox, steps, channel_slice)
     else:
       cutout = self._cutout(requested_bbox, steps, channel_slice)
@@ -607,9 +611,9 @@ class CloudVolume(object):
     layer_type = 'image' if self.layer_type == 'unknown' else self.layer_type
 
     chan = ChannelResource(
-      collection_name=self._bucket, 
-      experiment_name=self._dataset_name, 
-      name=self._layer, # Channel
+      collection_name=self.path.bucket, 
+      experiment_name=self.path.dataset, 
+      name=self.path.layer, # Channel
       type=layer_type, 
       datatype=self.dtype,
     )
@@ -638,7 +642,7 @@ class CloudVolume(object):
     if not np.array_equal(imgshape, slice_shape):
       raise ValueError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
 
-    if self._protocol == 'boss':
+    if self.path.protocol == 'boss':
       self.upload_boss_image(img, bbox.minpt)
     else:
       self.upload_image(img, bbox.minpt)
@@ -659,9 +663,9 @@ class CloudVolume(object):
     layer_type = 'image' if self.layer_type == 'unknown' else self.layer_type
 
     chan = ChannelResource(
-      collection_name=self._bucket, 
-      experiment_name=self._dataset_name, 
-      name=self._layer, # Channel
+      collection_name=self.path.bucket, 
+      experiment_name=self.path.dataset, 
+      name=self.path.layer, # Channel
       type=layer_type, 
       datatype=self.dtype,
     )
@@ -676,7 +680,7 @@ class CloudVolume(object):
     rmt.create_cutout(chan, self.mip, x_rng, y_rng, z_rng, img)
 
   def upload_image(self, img, offset):
-    if self._protocol == 'boss':
+    if self.path.protocol == 'boss':
       raise NotImplementedError
 
     if str(self.dtype) != str(img.dtype):
