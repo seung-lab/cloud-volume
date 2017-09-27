@@ -166,7 +166,7 @@ def test_extract_path():
     shoulderror('ou3bouqjsa fkj aojsf oaojf ojsaf')
 
     okgoogle('gs://bucket/dataset/layer/')
-    okgoogle('gs://bucket/dataset/layer/info')
+    shoulderror('gs://bucket/dataset/layer/info')
 
     path = CloudVolume.extract_path('s3://bucketxxxxxx/datasetzzzzz91h8__3/layer1br9bobasjf/')
     assert path.protocol == 's3'
