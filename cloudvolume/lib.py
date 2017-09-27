@@ -14,6 +14,16 @@ from itertools import product
 import numpy as np
 from tqdm import tqdm
 
+COLORS = {
+  'RESET': "\033[m",
+  'YELLOW': "\033[1;93m",
+  'RED': '\033[1;91m',
+  'GREEN': '\033[1;92m',
+}
+
+def colorize(color, text):
+  color = color.upper()
+  return COLORS[color] + text + COLORS['RESET']
 
 def mkdir(path):
 
