@@ -15,7 +15,7 @@ from intern.resource.boss.resource import ChannelResource, ExperimentResource, C
 from .secrets import boss_credentials
 
 from . import lib, chunks, mesh2obj
-from .lib import mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
+from .lib import colorize, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
 from .provenance import DataLayerProvenance
 from .storage import Storage
 
@@ -79,7 +79,15 @@ class CloudVolume(object):
 
     self._storage = None
     if self.path.protocol != 'boss':
-      self._storage = Storage(self.layer_cloudpath, n_threads=0)
+      try:
+        self._storage = Storage(self.layer_cloudpath, n_threads=0)
+      except:
+        if self.path.layer == 'info':
+          print(colorize('yellow', 
+            "WARNING: Your layer is named 'info', is that what you meant? {}".format(
+              self.path
+          )))
+        raise
 
     if info is None:
       self.refresh_info()
@@ -137,7 +145,7 @@ class CloudVolume(object):
   def extract_path(cls, cloudpath):
     """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
     protocol_re = r'^(gs|file|s3|boss)://'
-    tail_re = r'(/?[\d\w_\.\-]+)/([\d\w_\.\-]+)/([\d\w_\.\-]+)(?:/info|/provenance|/)?$'
+    tail_re = r'(/?[\d\w_\.\-]+)/([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
 
     match = re.match(protocol_re, cloudpath)
     (protocol,) = match.groups()
