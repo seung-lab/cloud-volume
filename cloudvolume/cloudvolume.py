@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import shutil
 
 import numpy as np
 from PIL import Image
@@ -12,10 +13,10 @@ from tqdm import tqdm
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from .secrets import boss_credentials
+from .secrets import boss_credentials, CLOUD_VOLUME_DIR
 
 from . import lib, chunks, mesh2obj
-from .lib import colorize, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
+from .lib import toabs, colorize, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
 from .provenance import DataLayerProvenance
 from .storage import Storage
 
@@ -30,7 +31,7 @@ if sys.version_info < (3,):
 else:
     integer_types = (int,)
 
-__all__ = [ 'CloudVolume', 'EmptyVolumeException' ]
+__all__ = [ 'CloudVolume', 'EmptyVolumeException', 'EmptyRequestException' ]
 
 ExtractedPath = namedtuple('ExtractedPath', 
   ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
@@ -38,6 +39,14 @@ ExtractedPath = namedtuple('ExtractedPath',
 
 class EmptyVolumeException(Exception):
   """Raised upon finding a missing chunk."""
+  pass
+
+class EmptyRequestException(Exception):
+  """
+  Requesting uploading or downloading 
+  a bounding box of less than one cubic voxel
+  is impossible.
+  """
   pass
 
 DEFAULT_CHUNK_SIZE = (64,64,64)
@@ -70,15 +79,18 @@ class CloudVolume(object):
     fill_missing: (bool) If a file inside volume bounds is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
+    cache: (bool or str) Store downloaded and uploaded files in a cache on disk 
+      and preferentially read from it before redownloading. 
+        - falsey value: no caching will occur.
+        - True: cache will be located in a standard location.
+        - non-empty string: cache is located at this file path
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
     progress: (bool) Show tqdm progress bars. 
         Defaults True in interactive python, False in script execution mode.
   """
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
-      progress=INTERACTIVE, info=None):
-
-    super(self.__class__, self).__init__()
+      cache=False, progress=INTERACTIVE, info=None):
 
     self.path = CloudVolume.extract_path(cloudpath)
 
@@ -86,32 +98,46 @@ class CloudVolume(object):
     self.mip = mip
     self.bounded = bounded
     self.fill_missing = fill_missing
+    self.cache = cache
 
-    self._storage = None
-    if self.path.protocol != 'boss':
-      try:
-        self._storage = Storage(self.layer_cloudpath, n_threads=0)
-      except:
-        if self.path.layer == 'info':
-          print(colorize('yellow', 
-            "WARNING: Your layer is named 'info', is that what you meant? {}".format(
-              self.path
-          )))
-        raise
+    if self.cache:
+      if not os.path.exists(self.cache_path):
+        mkdir(self.cache_path)
+
+      if not os.access(self.cache_path, os.R_OK|os.W_OK):
+        raise IOError('Cache directory needs read/write permission: ' + self.cache_path)
 
     if info is None:
       self.refresh_info()
+      if self.cache:
+        self._check_cached_info_validity()
     else:
       self.info = info
 
     self.provenance = None
     self.refresh_provenance()
+    self._check_cached_provenance_validity()
 
     try:
       self.mip = self.available_mips[self.mip]
     except:
       raise Exception("MIP {} has not been generated.".format(self.mip))
 
+  @property
+  def _storage(self):
+    if self.path.protocol == 'boss':
+      return None
+    
+    try:
+      return Storage(self.layer_cloudpath, n_threads=0)
+    except:
+      if self.path.layer == 'info':
+        print(colorize('yellow', 
+          "WARNING: Your layer is named 'info', is that what you meant? {}".format(
+            self.path
+        )))
+      raise
+      
   @classmethod
   def create_new_info(cls, num_channels, layer_type, data_type, encoding, resolution, voxel_offset, volume_size, mesh=None, chunk_size=DEFAULT_CHUNK_SIZE):
     """
@@ -169,13 +195,81 @@ class CloudVolume(object):
     return ExtractedPath(protocol, intermediate_path, bucket, dataset, layer)
 
   def refresh_info(self):
+    if self.cache:
+      info = self._read_cached_json('info')
+      if info:
+        self.info = info
+        return self.info
+
+    self.info = self._fetch_info()
+    self._maybe_cache_info()
+    return self.info
+
+  def _check_cached_info_validity(self):
+    """
+    ValueError if cache differs at all from source data layer with
+    an excepton for volume_size which prints a warning.
+    """
+    cache_info = self._read_cached_json('info')
+    if not cache_info:
+      return
+
+    fresh_info = self._fetch_info()
+
+    mismatch_error = ValueError("""
+      Data layer info file differs from cache. Please check whether this
+      change invalidates your cache. 
+
+      If VALID do one of:
+        1) Manually delete the cache (see location below)
+        2) Refresh your on-disk cache as follows:
+          vol = CloudVolume(..., cache=False) # refreshes from source
+          vol.cache = True
+          vol.commit_info() # writes to disk
+      If INVALID do one of: 
+        1) Delete the cache manually (see cache location below) 
+        2) Instantiate as follows: 
+          vol = CloudVolume(..., cache=False) # refreshes info from source
+          vol.flush_cache() # deletes cache
+          vol.cache = True
+          vol.commit_info() # writes info to disk
+
+      CACHED: {cache}
+      SOURCE: {source}
+      CACHE LOCATION: {path}
+      """.format(
+        cache=cache_info, 
+        source=fresh_info, 
+        path=self.cache_path
+    ))
+
+    try:
+      fresh_sizes = [ scale['size'] for scale in fresh_info['scales'] ]
+      cache_sizes = [ scale['size'] for scale in cache_info['scales'] ]
+    except KeyError:
+      raise mismatch_error
+
+    for scale in fresh_info['scales']:
+      del scale['size']
+
+    for scale in cache_info['scales']:
+      del scale['size']
+
+    if fresh_info != cache_info:
+      raise mismatch_error
+
+    if fresh_sizes != cache_sizes:
+      print("WARNING: Data layer bounding box differs in cache.\nCACHED: {}\nSOURCE: {}\nCACHE LOCATION:{}".format(
+        cache_sizes, fresh_sizes, self.cache_path
+      ))
+
+  def _fetch_info(self):
     if self.path.protocol != "boss":
       infojson = self._storage.get_file('info')
       infojson = infojson.decode('utf-8')
-      self.info = json.loads(infojson)
+      return json.loads(infojson)
     else:
-      self.info = self.fetch_boss_info()
-    return self.info
+      return self.fetch_boss_info()
 
   def refreshInfo(self):
     print("WARNING: refreshInfo is deprecated. Use refresh_info instead.")
@@ -238,11 +332,39 @@ class CloudVolume(object):
 
     infojson = json.dumps(self.info)
     self._storage.put_file('info', infojson, 'application/json').wait()
+    self._maybe_cache_info()
     return self
 
+  def _read_cached_json(self, filename):
+      with Storage('file://' + self.cache_path, n_threads=0) as storage:
+        jsonfile = storage.get_file(filename)
+
+      if jsonfile:
+        jsonfile = jsonfile.decode('utf-8')
+        return json.loads(jsonfile)
+      else:
+        return None
+
+  def _maybe_cache_info(self):
+    if self.cache:
+      with Storage('file://' + self.cache_path, n_threads=0) as storage:
+        storage.put_file('info', json.dumps(self.info), 'application/json')
+
   def refresh_provenance(self):
+    if self.cache:
+      prov = self._read_cached_json('provenance')
+      if prov:
+        self.provenance = DataLayerProvenance(**prov)
+        return self.provenance
+
+    provfile = self._fetch_provenance()
+    self.provenance = DataLayerProvenance(**provfile)
+    self._maybe_cache_provenance()
+    return self.provenance
+
+  def _fetch_provenance(self):
     if self.path.protocol == 'boss':
-      return self
+      return self.provenance
 
     if self._storage.exists('provenance'):
       provfile = self._storage.get_file('provenance')
@@ -256,15 +378,35 @@ class CloudVolume(object):
         "description": "",
       }
 
-    self.provenance = DataLayerProvenance(**provfile)
-    return self
+    return provfile
 
   def commit_provenance(self):
     if self.path.protocol == 'boss':
-      return self
+      return self.provenance
 
-    self._storage.put_file('provenance', self.provenance.serialize(), content_type='application/json')
+    self._storage.put_file('provenance', self.provenance.serialize(), 'application/json')
+    self._maybe_cache_provenance()
+    return self.provenance
+
+  def _maybe_cache_provenance(self):
+    if self.cache and self.provenance:
+      with Storage('file://' + self.cache_path, n_threads=0) as storage:
+        storage.put_file('provenance', self.provenance.serialize(), 'application/json')
     return self
+
+  def _check_cached_provenance_validity(self):
+    cached_prov = self._read_cached_json('provenance')
+    if not cached_prov:
+      return
+    fresh_prov = self._fetch_provenance()
+
+    if cached_prov != fresh_prov:
+      print("""
+      WARNING: Cached provenance file does not match source.
+
+      CACHED: {}
+      SOURCE: {}
+      """.format(cached_prov, fresh_prov))
 
   @property
   def dataset_name(self):
@@ -296,6 +438,16 @@ class CloudVolume(object):
   @property
   def info_cloudpath(self):
     return os.path.join(self.layer_cloudpath, 'info')
+
+  @property
+  def cache_path(self):
+    if type(self.cache) is not str:
+      return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
+        self.path.protocol, self.path.bucket.replace('/', ''),
+        self.path.dataset, self.path.layer
+      ))
+    else:
+      return toabs(self.cache)
 
   @property
   def shape(self):
@@ -555,6 +707,61 @@ class CloudVolume(object):
     renderbuffer[ lp.x:hp.x, lp.y:hp.y, lp.z:hp.z, : ] = cutout 
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
+  def flush_cache(self):
+    if os.path.exists(self.cache_path):
+        shutil.rmtree(self.cache_path) 
+
+  def _content_type(self):
+    if self.encoding == 'jpeg':
+      return 'image/jpeg'
+    return 'application/octet-stream'
+
+  def _should_compress(self):
+    return self.encoding in ('raw', 'compressed_segmentation')
+
+  def _fetch_data(self, cloudpaths):
+    if not self.cache:
+      with Storage(self.layer_cloudpath) as storage:
+        files = storage.get_files(cloudpaths)
+      return files
+
+    def noextensions(fnames):
+      return [ os.path.splitext(fname)[0] for fname in fnames ]
+
+    list_dir = mkdir(os.path.join(self.cache_path, self.key))
+    filenames = noextensions(os.listdir(list_dir))
+
+    basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }
+
+    # check which files are already cached, we only want to download ones not in cache
+    requested = set([ os.path.basename(path) for path in cloudpaths ])
+    already_have = requested.intersection(set(filenames))
+    to_download = requested.difference(already_have)
+
+    download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]
+
+    with Storage('file://' + list_dir) as storage:
+      local_files = storage.get_files(already_have)
+
+    cloud_files = []
+
+    if len(download_paths):
+      with Storage(self.layer_cloudpath, progress=self.progress) as storage:
+        cloud_files = storage.get_files(download_paths)
+
+      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
+        paths = []
+        for item in cloud_files:
+          if item['error'] is None:
+            paths.append( (item['filename'], item['content']) )
+
+        storage.put_files(paths, 
+          content_type=self._content_type(), 
+          compress=self._should_compress()
+        )
+
+    return local_files + cloud_files
+
   def _cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     realized_bbox = self.__realized_bbox(requested_bbox)
     
@@ -565,8 +772,7 @@ class CloudVolume(object):
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
     renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
 
-    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-      files = storage.get_files(cloudpaths)
+    files = self._fetch_data(cloudpaths)
 
     fileiter = tqdm(files, total=len(cloudpaths), desc="Rendering Image", disable=(not self.progress))
 
@@ -662,7 +868,7 @@ class CloudVolume(object):
     bounds = Bbox(offset, shape + offset)
 
     if bounds.volume() < 1:
-      raise ValueError('Requested less than one pixel of volume. {}'.format(bounds))
+      raise EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
 
     x_rng = [ bounds.minpt.x, bounds.maxpt.x ]
     y_rng = [ bounds.minpt.y, bounds.maxpt.y ]
@@ -715,6 +921,23 @@ class CloudVolume(object):
       cloudpath = os.path.join(self.key, filename)
       encoded = chunks.encode(imgchunk, self.encoding)
       uploads.append( (cloudpath, encoded) )
+
+    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
+      storage.put_files(uploads, 
+        content_type=self._content_type(), 
+        compress=self._should_compress()
+      )
+
+    if self.cache:
+      mkdir(self.cache_path)
+      if self.progress:
+        print("Caching upload...")
+      
+      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
+        storage.put_files(uploads, 
+          content_type=self._content_type(), 
+          compress=self._should_compress()
+        )
 
     content_type = 'application/octet-stream'
     if self.encoding == 'jpeg':
@@ -820,10 +1043,7 @@ class CloudVolume(object):
       paths.append( os.path.join(key, filename) )
 
     return paths
-
-  def __del__(self):
-    if self._storage:
-      self._storage.kill_threads()
+    
 
 def generate_slices(slices, minsize, maxsize, bounded=True):
   """Assisting function for __getitem__. e.g. vol[:,:,:,:]"""
@@ -895,9 +1115,6 @@ class VolumeCutout(np.ndarray):
   @property
   def num_channels(self):
     return self.shape[3]
-
-  def upload(self, info):
-    bounds = self.bounds.shrunk_to_chunk_size( DEFAULT_CHUNK_SIZE )
 
   def save_images(self, axis='z', channel=None, directory=None, image_format='PNG'):
 

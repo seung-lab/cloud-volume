@@ -25,10 +25,13 @@ def colorize(color, text):
   color = color.upper()
   return COLORS[color] + text + COLORS['RESET']
 
-def mkdir(path):
-
+def toabs(path):
   home = os.path.join(os.environ['HOME'], '')
   path = re.sub('^~/?', home, path)
+  return os.path.abspath(path)
+
+def mkdir(path):
+  path = toabs(path)
 
   try:
     if path != '' and not os.path.exists(path):
