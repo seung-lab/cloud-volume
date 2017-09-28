@@ -694,7 +694,7 @@ class CloudVolume(object):
     if str(self.dtype) != str(img.dtype):
       raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(self.dtype, img.dtype))
 
-    iterator = tqdm(self._generate_chunks(img, offset), disable=(not self.progress), desc='rechunking image')
+    iterator = tqdm(self._generate_chunks(img, offset), desc='Rechunking image', disable=(not self.progress))
 
     uploads = []
     for imgchunk, spt, ept in iterator:
