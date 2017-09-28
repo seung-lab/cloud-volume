@@ -3,11 +3,18 @@ import pytest
 import json
 import os
 import numpy as np
+import shutil
+import gzip
+import json
 
-from cloudvolume import CloudVolume
-from cloudvolume.lib import Bbox
-from layer_harness import delete_layer, create_layer
-    
+from cloudvolume import CloudVolume, chunks, Storage
+from cloudvolume.lib import mkdir, Bbox
+from layer_harness import (
+    TEST_NUMBER, create_image, 
+    delete_layer, create_layer,
+    create_volume_from_image
+)
+
 def test_aligned_read():
     delete_layer()
     cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
@@ -182,7 +189,7 @@ def test_extract_path():
 
     shoulderror('lucifer://bucket/dataset/layer/')
     shoulderror('gs://///')
-    shoulderror('gs://neuroglancer//segmentation')
+    shoulderror('gs://seunglab-test//segmentation')
 
     path = CloudVolume.extract_path('file:///tmp/removeme/layer/')
     assert path.protocol == 'file'
@@ -202,6 +209,213 @@ def test_provenance():
     cv.refresh_provenance()
 
     assert cv.provenance.sources == [ 'cooldude24@princeton.edu' ]
+
+def test_info_provenance_cache():
+    image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
+    vol = create_volume_from_image(
+        image=image, 
+        offset=(0,0,0), 
+        layer_path='gs://seunglab-test/cloudvolume/caching', 
+        layer_type='image', 
+        resolution=(1,1,1), 
+        encoding='raw'
+    )
+
+    # Test Info
+    vol.cache = True
+    vol.flush_cache()
+    info = vol.refresh_info()
+    assert info is not None
+
+    with open(os.path.join(vol.cache_path, 'info'), 'r') as infof:
+        info = infof.read()
+        info = json.loads(info)
+
+    with open(os.path.join(vol.cache_path, 'info'), 'w') as infof:
+        infof.write(json.dumps({ 'wow': 'amaze' }))
+
+    info = vol.refresh_info()
+    assert info == { 'wow': 'amaze' }
+    vol.cache = False
+    info = vol.refresh_info()
+    assert info != { 'wow': 'amaze' }
+
+    # Test Provenance
+    vol.cache = True
+    vol.flush_cache()
+    prov = vol.refresh_provenance()
+    assert prov is not None
+
+    with open(os.path.join(vol.cache_path, 'provenance'), 'r') as provf:
+        prov = provf.read()
+        prov = json.loads(prov)
+
+    with open(os.path.join(vol.cache_path, 'provenance'), 'w') as provf:
+        prov['description'] = 'wow'
+        provf.write(json.dumps(prov))
+
+    prov = vol.refresh_provenance()
+    assert prov['description'] == 'wow'
+    vol.cache = False
+    prov = vol.refresh_provenance()
+    assert prov['description'] == ''
+
+
+def test_caching():
+    image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
+    image[0:64,0:64,0:64] = 1
+    image[64:128,0:64,0:64] = 2
+    image[0:64,64:128,0:64] = 3
+    image[0:64,0:64,64:128] = 4
+    image[64:128,64:128,0:64] = 5
+    image[64:128,0:64,64:128] = 6
+    image[0:64,64:128,64:128] = 7
+    image[64:128,64:128,64:128] = 8
+
+    dirpath = '/tmp/cloudvolume/caching-volume-' + str(TEST_NUMBER)
+    layer_path = 'file://' + dirpath
+
+    vol = create_volume_from_image(
+        image=image, 
+        offset=(0,0,0), 
+        layer_path=layer_path, 
+        layer_type='image', 
+        resolution=(1,1,1), 
+        encoding='raw'
+    )
+
+    vol.cache = True
+    vol.flush_cache()
+
+    # Test that reading populates the cache
+    read1 = vol[:,:,:]
+    assert np.all(read1 == image)
+
+    read2 = vol[:,:,:]
+    assert np.all(read2 == image)
+
+    assert len(os.listdir(os.path.join(vol.cache_path, vol.key))) > 0
+
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    validation_set = [
+        '0-64_0-64_0-64',
+        '64-128_0-64_0-64',
+        '0-64_64-128_0-64',
+        '0-64_0-64_64-128',
+        '64-128_64-128_0-64',
+        '64-128_0-64_64-128',
+        '0-64_64-128_64-128',
+        '64-128_64-128_64-128'
+    ]
+    assert set([ os.path.splitext(fname)[0] for fname in files ]) == set(validation_set)
+
+    for i in range(8):
+        fname = os.path.join(vol.cache_path, vol.key, validation_set[i]) + '.gz'
+        with gzip.GzipFile(fname, mode='rb') as gfile:
+            chunk = gfile.read()
+        img3d = chunks.decode(
+          chunk, 'raw', (64,64,64,1), np.uint8
+        )
+        assert np.all(img3d == (i+1))
+
+    vol.flush_cache()
+    assert not os.path.exists(vol.cache_path)
+
+    # Test that writing populates the cache
+    vol[:,:,:] = image
+
+    assert os.path.exists(vol.cache_path)
+    assert np.all(vol[:,:,:] == image)
+
+    vol.flush_cache()
+
+    # Test that partial reads work too
+    result = vol[0:64,0:64,:]
+    assert np.all(result == image[0:64,0:64,:])
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 2
+    result = vol[:,:,:]
+    assert np.all(result == image)
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 8
+
+    vol.flush_cache()
+
+    # Test Non-standard Cache Destination
+    dirpath = '/tmp/cloudvolume/caching-cache-' + str(TEST_NUMBER)
+    vol.cache = dirpath
+    vol[:,:,:] = image
+
+    assert len(os.listdir(os.path.join(dirpath, vol.key))) == 8
+
+    vol.flush_cache()
+
+
+def test_cache_validity():
+    image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
+    dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
+    layer_path = 'file://' + dirpath
+
+    vol = create_volume_from_image(
+        image=image, 
+        offset=(1,1,1), 
+        layer_path=layer_path, 
+        layer_type='image', 
+        resolution=(1,1,1), 
+        encoding='raw'
+    )
+    vol.cache = True
+    vol.flush_cache()
+    vol.commit_info()
+
+    def test_with_mock_cache_info(info, shoulderror):
+        finfo = os.path.join(vol.cache_path, 'info')
+        with open(finfo, 'w') as f:
+            f.write(json.dumps(info))
+
+        if shoulderror:
+            try:
+                CloudVolume(vol.layer_cloudpath, cache=True)
+            except ValueError:
+                pass
+            else:
+                assert False
+        else:
+            CloudVolume(vol.layer_cloudpath, cache=True)
+
+    test_with_mock_cache_info(vol.info, shoulderror=False)
+
+    info = vol.info.copy()
+    info['scales'][0]['size'][0] = 666
+    test_with_mock_cache_info(info, shoulderror=False)
+
+    test_with_mock_cache_info({ 'zomg': 'wow' }, shoulderror=True)
+
+    def tiny_change(key, val):
+        info = vol.info.copy()
+        info[key] = val
+        test_with_mock_cache_info(info, shoulderror=True)
+
+    tiny_change('type', 'zoolander')
+    tiny_change('data_type', 'uint32')
+    tiny_change('num_channels', 2)
+    tiny_change('mesh', 'mesh')
+
+    def scale_change(key, val, mip=0):
+        info = vol.info.copy()
+        info['scales'][mip][key] = val
+        test_with_mock_cache_info(info, shoulderror=True)
+
+    scale_change('voxel_offset', [ 1, 2, 3 ])
+    scale_change('resolution', [ 1, 2, 3 ])
+    scale_change('encoding', 'npz')
+
+    vol.flush_cache()
+
+    # Test no info file at all    
+    CloudVolume(vol.layer_cloudpath, cache=True)
+
+    vol.flush_cache()
 
 def test_exists():
 
@@ -243,8 +457,4 @@ def test_exists():
     assert len(results) == 2
     assert results['1_1_1/0-64_0-64_0-64'] == True
     assert results['1_1_1/64-128_0-64_0-64'] == False
-
-
-
-
 
