@@ -19,14 +19,14 @@ def test_threading():
   with ThreadedQueue(n_threads=1) as tq:
     for idnum in range(execution_count):
       fn = partial(addone, idnum)
-      tq._queue.put(fn)
+      tq.put(fn)
   assert all(executions)
 
   executions = reset_executions()
   tq = ThreadedQueue(n_threads=40)
   for idnum in range(execution_count):
     fn = partial(addone, idnum)
-    tq._queue.put(fn)
+    tq.put(fn)
   tq.wait().kill_threads()
   assert tq.processed == execution_count
   assert all(executions)
@@ -51,7 +51,7 @@ def test_derived_class():
 
   with DerivedThreadedQueue(n_threads=1) as tq:
     for _ in range(1000):
-      tq._queue.put(what_fun)
+      tq.put(what_fun)
 
     tq.wait()
     assert tq.processed == 1000

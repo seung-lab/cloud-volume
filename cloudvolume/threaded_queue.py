@@ -6,6 +6,8 @@ from functools import partial
 import threading
 import time
 
+from tqdm import tqdm
+
 class ThreadedQueue(object):
   """Grant threaded task processing to any derived class."""
   def __init__(self, n_threads, queue_size=0):
@@ -18,6 +20,7 @@ class ThreadedQueue(object):
 
     self._processed_lock = threading.Lock()
     self.processed = 0
+    self._inserted = 0
 
     self.start_threads(n_threads)
 
@@ -41,6 +44,7 @@ class ThreadedQueue(object):
 
     Returns: self
     """
+    self._inserted += 1
     self._queue.put(fn, block=True)
     return self
 
@@ -175,30 +179,62 @@ class ThreadedQueue(object):
         self.processed += 1
         self._queue.task_done()
 
-  def wait(self):
+  def _check_errors(self):
+    try:
+      err = self._error_queue.get(block=False) 
+      self._error_queue.task_done()
+      self.kill_threads()
+      raise err
+    except Queue.Empty:
+      pass
+
+  def wait(self, progress=None):
     """
     Allow background threads to process until the
     task queue is empty. If there are no threads,
     in theory the queue should always be empty
     as processing happens immediately on the main thread.
 
-    Required: None
+    Optional:
+      progress: (bool or str) show a tqdm progress bar optionally
+        with a description if a string is provided
     
     Returns: self (for chaining)
 
     Raises: The first exception recieved from threads
     """
-    if len(self._threads):
-        self._queue.join()
+    if not len(self._threads):
+      return self
 
-    try:
-      # no blocking because we're guaranteed
-      # that all threads have finished processing
-      err = self._error_queue.get(block=False) 
-      self._error_queue.task_done()
-      raise err
-    except Queue.Empty:
-      pass
+    desc = None
+    if type(progress) is str:
+      desc = progress
+
+    last = self._inserted
+    with tqdm(total=self._inserted, disable=(not progress), desc=desc) as pbar:
+      # Allow queue to consume, but check up on
+      # progress and errors every tenth of a second
+      while not self._queue.empty():
+        size = self._queue.qsize()
+        delta = last - size
+        if delta != 0: # We should crash on negative numbers
+          pbar.update(delta)
+        last = size
+        self._check_errors()
+        time.sleep(0.1)
+
+      # Wait until all tasks in the queue are 
+      # fully processed. queue.task_done must be
+      # called for each task.
+      self._queue.join() 
+      self._check_errors()
+
+      final = self._inserted - last
+      if final:
+        pbar.update(final)
+
+    if self._queue.empty():
+      self._inserted = 0
 
     return self
 

@@ -29,22 +29,31 @@ retry = tenacity.retry(
 
 class Storage(ThreadedQueue):
     """
-    Probably rather sooner that later we will have to store datasets in S3.
-    The idea is to modify this class constructor to probably take a path of 
-    the problem protocol://bucket_name/dataset_name/layer_name where protocol
-    can be s3, gs or file.
+    Access files stored in Google Storage (gs), Amazon S3 (s3), 
+    or the local Filesystem (file).
 
-    file:// would be useful for when the in-memory python datasource uses too much RAM,
-    or possible for writing unit tests.
+    e.g. with Storage('gs://bucket/dataset/layer') as stor:
+            files = stor.get_file('filename')
 
-    This should be the only way to interact with files for any of the protocols.
+    Required:
+        layer_path (str): A protocol prefixed path of the above format.
+            Accepts s3:// gs:// and file://. File paths are absolute.
+
+    Optional:
+        n_threads (int:20): number of threads to use downloading and uplaoding.
+            If 0, execution will be on the main python thread.
+        progress (bool:false): Show a tqdm progress bar for multiple 
+            uploads and downloads.
     """
     gzip_magic_numbers = [ 0x1f, 0x8b ]
     path_regex = re.compile(r'^(gs|file|s3)://(/?.*?)/(.*/)?([^//]+)/([^//]+)/?$')
     ExtractedPath = namedtuple('ExtractedPath',
         ['protocol','bucket_name','dataset_path','dataset_name','layer_name'])
 
-    def __init__(self, layer_path='', n_threads=20):
+    def __init__(self, layer_path, n_threads=20, progress=False):
+
+        self.progress = progress
+
         self._layer_path = layer_path
         self._path = self.extract_path(layer_path)
         
@@ -115,7 +124,8 @@ class Storage(ThreadedQueue):
                 uploadfn(self._interface)
 
         if block:
-            self.wait()
+            desc = 'Uploading' if self.progress else None
+            self.wait(desc)
 
         return self
 
@@ -186,7 +196,8 @@ class Storage(ThreadedQueue):
             else:
                 get_file_thunk(path, self._interface)
 
-        self.wait()
+        desc = 'Downloading' if self.progress else None
+        self.wait(desc)
 
         return results
 
