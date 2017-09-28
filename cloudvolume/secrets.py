@@ -5,9 +5,19 @@ import json
 
 from google.oauth2 import service_account
 
-from .lib import mkdir
+from .lib import mkdir, colorize
 
-CLOUD_VOLUME_DIR = mkdir(os.path.join(os.environ['HOME'], '.cloudvolume/'))
+backwards_compatible_path = os.path.join(os.environ['HOME'], '.neuroglancer/')
+new_path = os.path.join(os.environ['HOME'], '.cloudvolume/')
+
+if os.path.exists(new_path):
+  CLOUD_VOLUME_DIR = new_path
+elif os.path.exists(backwards_compatible_path):
+  CLOUD_VOLUME_DIR = backwards_compatible_path
+  print(colorize('yellow', 'Deprecation Warning: Directory ~/.cloudvolume is now preferred to ~/.neuroglancer.\nConsider running: mv ~/.neuroglancer ~/.cloudvolume'))
+else:
+  CLOUD_VOLUME_DIR = mkdir(new_path)
+
 secret_path = mkdir(os.path.join(CLOUD_VOLUME_DIR, 'secrets/'))
 
 PROJECT_NAME = None
