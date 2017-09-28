@@ -435,8 +435,8 @@ class CloudVolume(object):
   def cache_path(self):
     if type(self.cache) is not str:
       return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-        self._protocol, self._bucket.replace('/', ''),
-        self._dataset_name, self._layer
+        self.path.protocol, self.path.bucket.replace('/', ''),
+        self.path.dataset, self.path.layer
       ))
     else:
       return toabs(self.cache)
