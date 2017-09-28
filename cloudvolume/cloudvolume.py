@@ -19,6 +19,11 @@ from .lib import colorize, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_
 from .provenance import DataLayerProvenance
 from .storage import Storage
 
+# Set the interpreter bool
+try:
+    INTERACTIVE = bool(sys.ps1)
+except AttributeError:
+    INTERACTIVE = bool(sys.flags.interactive)
 
 if sys.version_info < (3,):
     integer_types = (int, long,)
@@ -67,12 +72,17 @@ class CloudVolume(object):
         False: Throw an error
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
+    progress: (bool) Show tqdm progress bars. 
+        Defaults True in interactive python, False in script execution mode.
   """
-  def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, info=None):
+  def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
+      progress=INTERACTIVE, info=None):
+
     super(self.__class__, self).__init__()
 
     self.path = CloudVolume.extract_path(cloudpath)
 
+    self.progress = progress
     self.mip = mip
     self.bounded = bounded
     self.fill_missing = fill_missing
@@ -555,10 +565,12 @@ class CloudVolume(object):
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
     renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
 
-    with Storage(self.layer_cloudpath) as storage:
+    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       files = storage.get_files(cloudpaths)
 
-    for fileinfo in tqdm(files, total=len(cloudpaths), desc="Rendering Image"):
+    fileiter = tqdm(files, total=len(cloudpaths), desc="Rendering Image", disable=(not self.progress))
+
+    for fileinfo in fileiter:
       if fileinfo['error'] is not None:
         raise fileinfo['error']
 
@@ -682,8 +694,10 @@ class CloudVolume(object):
     if str(self.dtype) != str(img.dtype):
       raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(self.dtype, img.dtype))
 
+    iterator = tqdm(self._generate_chunks(img, offset), desc='Rechunking image', disable=(not self.progress))
+
     uploads = []
-    for imgchunk, spt, ept in tqdm(self._generate_chunks(img, offset), desc='uploading image'):
+    for imgchunk, spt, ept in iterator:
       if np.array_equal(spt, ept):
           continue
 
@@ -708,7 +722,7 @@ class CloudVolume(object):
 
     compress = (self.encoding in ('raw', 'compressed_segmentation'))
 
-    with Storage(self.layer_cloudpath) as storage:
+    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       storage.put_files(uploads, content_type=content_type, compress=compress)
 
   def _generate_chunks(self, img, offset):
