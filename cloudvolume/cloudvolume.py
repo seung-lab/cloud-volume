@@ -213,13 +213,13 @@ class CloudVolume(object):
       change invalidates your cache. 
 
       If VALID do one of:
-        1) Manually delete the cached info file (see location below)
+        1) Manually delete the cache (see location below)
         2) Refresh your on-disk cache as follows:
           vol = CloudVolume(..., cache=False) # refreshes from source
           vol.cache = True
           vol.commit_info() # writes to disk
       If INVALID do one of: 
-        1) Delete the info file manually (see cache location below) 
+        1) Delete the cache manually (see cache location below) 
         2) Instantiate as follows: 
           vol = CloudVolume(..., cache=False) # refreshes info from source
           vol.flush_cache() # deletes cache
