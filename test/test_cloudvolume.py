@@ -458,3 +458,50 @@ def test_exists():
     assert results['1_1_1/0-64_0-64_0-64'] == True
     assert results['1_1_1/64-128_0-64_0-64'] == False
 
+def test_delete():
+
+    # Bbox version
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+    defexists = Bbox( (0,0,0), (128,64,64) )
+    results = cv.exists(defexists)
+    assert len(results) == 2
+    assert results['1_1_1/0-64_0-64_0-64'] == True
+    assert results['1_1_1/64-128_0-64_0-64'] == True
+
+
+    cv.delete(defexists)
+    results = cv.exists(defexists)
+    assert len(results) == 2
+    assert results['1_1_1/0-64_0-64_0-64'] == False
+    assert results['1_1_1/64-128_0-64_0-64'] == False
+
+    # Slice version
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+    defexists = np.s_[ 0:128, :, : ]
+
+    results = cv.exists(defexists)
+    assert len(results) == 2
+    assert results['1_1_1/0-64_0-64_0-64'] == True
+    assert results['1_1_1/64-128_0-64_0-64'] == True
+
+    cv.delete(defexists)
+    results = cv.exists(defexists)
+    assert len(results) == 2
+    assert results['1_1_1/0-64_0-64_0-64'] == False
+    assert results['1_1_1/64-128_0-64_0-64'] == False
+
+    # Check errors
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+    try:
+        results = cv.exists( np.s_[1:129, :, :] )
+    except ValueError:
+        pass
+    else:
+        assert False
+
