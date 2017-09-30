@@ -683,6 +683,31 @@ class CloudVolume(object):
       existence_report = storage.files_exist(cloudpaths)
     return existence_report
 
+  def delete(self, bbox_or_slices):
+    """
+    Delete the files within the bounding box.
+
+    bbox_or_slices: accepts either a Bbox or a tuple of slices representing
+      the requested volume. 
+    """
+    if type(bbox_or_slices) is Bbox:
+      requested_bbox = bbox_or_slices
+    else:
+      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
+    realized_bbox = self.__realized_bbox(requested_bbox)
+
+    if requested_bbox != realized_bbox:
+      raise ValueError("Unable to delete non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
+        requested_bbox, realized_bbox
+      ))
+
+    cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+
+    with Storage(self.layer_cloudpath) as storage:
+      for path in cloudpaths:
+        storage.delete_file(path)
+
+
   def __getitem__(self, slices):
     (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
     
