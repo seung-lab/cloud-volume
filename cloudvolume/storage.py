@@ -152,7 +152,8 @@ class Storage(ThreadedQueue):
             else:
                 exist_thunk(path, self._interface)
 
-        self.wait()
+        desc = 'Existence Testing' if self.progress else None
+        self.wait(desc)
 
         return results
 
@@ -210,6 +211,22 @@ class Storage(ThreadedQueue):
             self.put(thunk_delete)
         else:
             thunk_delete(self._interface)
+
+        return self
+
+    def delete_files(self, file_paths):
+
+        def thunk_delete(path, interface):
+            interface.delete_file(path)
+
+        for path in file_paths:
+            if len(self._threads):
+                self.put(partial(thunk_delete, path))
+            else:
+                thunk_delete(path, self._interface)
+
+        desc = 'Deleting' if self.progress else None
+        self.wait(desc)
 
         return self
 
