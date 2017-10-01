@@ -61,6 +61,7 @@ vol = CloudVolume('gs://buck/ds/chan', mip=0, bounded=True, fill_missing=False) 
 vol = CloudVolume('gs://buck/ds/chan', info=info) # Creating a new volume's info file from scratch
 image = vol[:,:,:] # Download the entire image stack into a numpy array
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
+listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 vol.save_mesh(12345) # save 12345 as ./12345.obj
 vol.save_mesh([12345, 12346, 12347]) # merge three segments into one obj
@@ -74,11 +75,13 @@ vol.flush_cache() # Delete local cache for this layer at this mip level
 
 ### CloudVolume Constructor
 
-`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, info=None)`  
+`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, cache=False, progress=INTERACTIVE, info=None)`  
 
 * mip - Which mip level to access
 * bounded - Whether access is allowed outside the bounds defined in the info file
 * fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException?
+* cache - Save uploads/downloads to disk. You can also provide a string path instead of a boolean to specify a custom cache location.
+* progress - Show progress bars. Defaults to True if in python interactive mode else default False.
 * info - Use this info object rather than pulling from the cloud (useful for creating new layers).
 
 
@@ -95,6 +98,8 @@ Better documentation coming later, but for now, here's a summary of the most use
 * commit_info - Push the current info property into the cloud as a JSON file.
 * commit_provenance - Push the current provenance property into the cloud as a JSON file.
 * get_mesh - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
+* exists - Generate a report on which chunks within a bounding box exist.
+* delete - Delete the chunks within this bounding box.
 
 
 ### CloudVolume Properties
