@@ -351,6 +351,17 @@ def test_caching():
     vol.flush_cache()
 
 
+    # Test that deletion works too
+    vol.cache = True
+    vol[:,:,:] = image
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 8
+    vol.delete( np.s_[:,:,:] )
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 0
+
+    vol.flush_cache()
+
 def test_cache_validity():
     image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
     dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
@@ -504,4 +515,3 @@ def test_delete():
         pass
     else:
         assert False
-

@@ -679,7 +679,7 @@ class CloudVolume(object):
     realized_bbox = self.__realized_bbox(requested_bbox)
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
 
-    with Storage(self.layer_cloudpath) as storage:
+    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       existence_report = storage.files_exist(cloudpaths)
     return existence_report
 
@@ -703,9 +703,12 @@ class CloudVolume(object):
 
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
 
-    with Storage(self.layer_cloudpath) as storage:
-      for path in cloudpaths:
-        storage.delete_file(path)
+    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
+      storage.delete_files(cloudpaths)
+
+    if self.cache:
+      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
+        storage.delete_files(cloudpaths)
 
 
   def __getitem__(self, slices):
