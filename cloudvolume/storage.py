@@ -1,4 +1,3 @@
-from collections import namedtuple
 import six
 from six import StringIO, BytesIO
 from six.moves import queue as Queue
@@ -14,7 +13,7 @@ from google.cloud.storage import Client
 import gzip
 import tenacity
 
-from .lib import mkdir
+from .lib import mkdir, extract_path
 from .threaded_queue import ThreadedQueue
 from .connectionpools import S3ConnectionPool, GCloudConnectionPool
 
@@ -46,16 +45,12 @@ class Storage(ThreadedQueue):
             uploads and downloads.
     """
     gzip_magic_numbers = [ 0x1f, 0x8b ]
-    path_regex = re.compile(r'^(gs|file|s3)://(/?.*?)/(.*/)?([^//]+)/([^//]+)/?$')
-    ExtractedPath = namedtuple('ExtractedPath',
-        ['protocol','bucket_name','dataset_path','dataset_name','layer_name'])
-
     def __init__(self, layer_path, n_threads=20, progress=False):
 
         self.progress = progress
 
         self._layer_path = layer_path
-        self._path = self.extract_path(layer_path)
+        self._path = extract_path(layer_path)
         
         if self._path.protocol == 'file':
             self._interface_cls = FileInterface
@@ -84,14 +79,6 @@ class Storage(ThreadedQueue):
 
     def get_path_to_file(self, file_path):
         return os.path.join(self._layer_path, file_path)
-
-    @classmethod
-    def extract_path(cls, layer_path):
-        match = cls.path_regex.match(layer_path)
-        if not match:
-            return None
-        else:
-            return cls.ExtractedPath(*match.groups())
 
     def put_file(self, file_path, content, content_type=None, compress=False):
         """ 
@@ -294,11 +281,14 @@ class FileInterface(object):
 
     def get_path_to_file(self, file_path):
         
-        clean = filter(None,[self._path.bucket_name,
-                             self._path.dataset_path,
-                             self._path.dataset_name,
-                             self._path.layer_name,
-                             file_path])
+        clean = filter(None,[
+          self._path.bucket, 
+          self._path.intermediate_path,                             
+          self._path.dataset,
+          self._path.layer,
+          file_path
+        ])
+
         return  os.path.join(*clean)
 
     def put_file(self, file_path, content, content_type, compress):
@@ -398,12 +388,13 @@ class GoogleCloudStorageInterface(object):
         global GC_POOL
         self._path = path
         self._client = GC_POOL.get_connection()
-        self._bucket = self._client.get_bucket(self._path.bucket_name)
+        self._bucket = self._client.get_bucket(self._path.bucket)
 
     def get_path_to_file(self, file_path):
-        clean = filter(None,[self._path.dataset_path,
-                             self._path.dataset_name,
-                             self._path.layer_name,
+        clean = filter(None,[self._path.bucket,
+                             self._path.intermediate_path,
+                             self._path.dataset,
+                             self._path.layer,
                              file_path])
         return  os.path.join(*clean)
 
@@ -468,9 +459,9 @@ class S3Interface(object):
         self._conn = S3_POOL.get_connection()
 
     def get_path_to_file(self, file_path):
-        clean = filter(None,[self._path.dataset_path,
-                             self._path.dataset_name,
-                             self._path.layer_name,
+        clean = filter(None,[self._path.intermediate_path,
+                             self._path.dataset,
+                             self._path.layer,
                              file_path])
         return  os.path.join(*clean)
 
@@ -479,7 +470,7 @@ class S3Interface(object):
         key = self.get_path_to_file(file_path)
         if compress:
             self._conn.put_object(
-                Bucket=self._path.bucket_name,
+                Bucket=self._path.bucket,
                 Body=content,
                 Key=key,
                 ContentType=(content_type or 'application/octet-stream'),
@@ -487,7 +478,7 @@ class S3Interface(object):
             )
         else:
             self._conn.put_object(
-                Bucket=self._path.bucket_name,
+                Bucket=self._path.bucket,
                 Body=content,
                 Key=key,
                 ContentType=(content_type or 'application/octet-stream'),
@@ -503,7 +494,7 @@ class S3Interface(object):
 
         try:
             resp = self._conn.get_object(
-                Bucket=self._path.bucket_name,
+                Bucket=self._path.bucket,
                 Key=self.get_path_to_file(file_path),
             )
 
@@ -522,7 +513,7 @@ class S3Interface(object):
         exists = True
         try:
             self._conn.head_object(
-                Bucket=self._path.bucket_name,
+                Bucket=self._path.bucket,
                 Key=self.get_path_to_file(file_path),
             )
         except botocore.exceptions.ClientError as e:
@@ -536,7 +527,7 @@ class S3Interface(object):
     @retry
     def delete_file(self, file_path):
         self._conn.delete_object(
-            Bucket=self._path.bucket_name,
+            Bucket=self._path.bucket,
             Key=self.get_path_to_file(file_path),
         )
 
@@ -552,7 +543,7 @@ class S3Interface(object):
         layer_path = self.get_path_to_file("")        
         path = os.path.join(layer_path, prefix)
         resp = self._conn.list_objects_v2(
-            Bucket=self._path.bucket_name,
+            Bucket=self._path.bucket,
             Prefix=path,
         )
 

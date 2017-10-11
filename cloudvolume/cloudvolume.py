@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-from collections import namedtuple
 import json
 import json5
 import os
@@ -34,10 +33,6 @@ else:
     integer_types = (int,)
 
 __all__ = [ 'CloudVolume', 'EmptyVolumeException', 'EmptyRequestException' ]
-
-ExtractedPath = namedtuple('ExtractedPath', 
-  ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
-)
 
 def warn(text):
   print(colorize('yellow', text))
@@ -102,7 +97,7 @@ class CloudVolume(object):
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
       cache=False, progress=INTERACTIVE, info=None, provenance=None):
 
-    self.path = CloudVolume.extract_path(cloudpath)
+    self.path = lib.extract_path(cloudpath)
 
     self.progress = progress
     self.mip = mip
@@ -188,23 +183,6 @@ class CloudVolume(object):
       info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
 
     return info
-
-  @classmethod
-  def extract_path(cls, cloudpath):
-    """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
-    protocol_re = r'^(gs|file|s3|boss)://'
-    tail_re = r'(/?[\d\w_\.\-]+)/([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
-
-    match = re.match(protocol_re, cloudpath)
-    (protocol,) = match.groups()
-
-    cloudpath = re.sub(protocol_re, '', cloudpath)
-    
-    match = re.search(tail_re, cloudpath)
-    bucket, dataset, layer = match.groups()
-    
-    intermediate_path = re.sub(tail_re, '', cloudpath)
-    return ExtractedPath(protocol, intermediate_path, bucket, dataset, layer)
 
   def refresh_info(self):
     if self.cache:
@@ -475,7 +453,7 @@ class CloudVolume(object):
   def cache_path(self):
     if type(self.cache) is not str:
       return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-        self.path.protocol, self.path.bucket.replace('/', ''),
+        self.path.protocol, self.path.bucket.replace('/', ''), self.path.intermediate_path,
         self.path.dataset, self.path.layer
       ))
     else:

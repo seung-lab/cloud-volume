@@ -1,6 +1,7 @@
 from __future__ import print_function
 from six.moves import range
 
+from collections import namedtuple
 import os
 import io
 import re 
@@ -24,6 +25,30 @@ COLORS = {
 def colorize(color, text):
   color = color.upper()
   return COLORS[color] + text + COLORS['RESET']
+
+ExtractedPath = namedtuple('ExtractedPath', 
+  ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
+)
+
+def extract_path(cloudpath):
+  """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
+  protocol_re = r'^(gs|file|s3|boss)://'
+  bucket_re = r'^(/?[\d\w_\.\-]+)/'
+  tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
+
+  match = re.match(protocol_re, cloudpath)
+  (protocol,) = match.groups()
+  cloudpath = re.sub(protocol_re, '', cloudpath)
+
+  match = re.match(bucket_re, cloudpath)
+  (bucket,) = match.groups()
+  cloudpath = re.sub(bucket_re, '', cloudpath)
+
+  match = re.search(tail_re, cloudpath)
+  dataset, layer = match.groups()
+
+  intermediate_path = re.sub(tail_re, '', cloudpath)
+  return ExtractedPath(protocol, intermediate_path, bucket, dataset, layer)
 
 def toabs(path):
   home = os.path.join(os.environ['HOME'], '')
