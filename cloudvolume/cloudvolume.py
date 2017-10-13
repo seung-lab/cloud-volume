@@ -428,8 +428,9 @@ class CloudVolume(object):
     cached_prov = self._read_cached_json('provenance')
     if not cached_prov:
       return
-    fresh_prov = self._fetch_provenance()
 
+    cached_prov = self._cast_provenance(cached_prov)
+    fresh_prov = self._fetch_provenance()
     if cached_prov != fresh_prov:
       warn("""
       WARNING: Cached provenance file does not match source.
