@@ -93,7 +93,7 @@ class CloudVolume(object):
         - non-empty string: cache is located at this file path
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
-    provenance: (dict or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
+    provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
             This is useful when doing multiprocessing.
     progress: (bool) Show tqdm progress bars. 
         Defaults True in interactive python, False in script execution mode.
@@ -128,7 +128,7 @@ class CloudVolume(object):
       self.refresh_provenance()
       self._check_cached_provenance_validity()
     else:
-      self.provenance = provenance
+      self.provenance = self._cast_provenance(provenance)
 
     try:
       self.mip = self.available_mips[self.mip]
@@ -368,10 +368,23 @@ class CloudVolume(object):
         self.provenance = DataLayerProvenance(**prov)
         return self.provenance
 
-    provfile = self._fetch_provenance()
-    self.provenance = DataLayerProvenance(**provfile)
+    self.provenance = self._fetch_provenance()
     self._maybe_cache_provenance()
     return self.provenance
+
+  def _cast_provenance(self, prov):
+    if isinstance(prov, DataLayerProvenance):
+      return prov
+    elif type(prov) in (str, unicode):
+      prov = json.loads(prov)
+
+    provobj = DataLayerProvenance(**prov)
+    provobj.sources = provobj.sources or []  
+    provobj.owners = provobj.owners or []
+    provobj.processing = provobj.processing or []
+    provobj.description = provobj.description or ""
+    provobj.validate()
+    return provobj
 
   def _fetch_provenance(self):
     if self.path.protocol == 'boss':
@@ -395,7 +408,7 @@ class CloudVolume(object):
         "description": "",
       }
 
-    return provfile
+    return self._cast_provenance(provfile)
 
   def commit_provenance(self):
     if self.path.protocol == 'boss':
