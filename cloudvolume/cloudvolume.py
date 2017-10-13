@@ -11,6 +11,7 @@ import shutil
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+from six import string_types
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
@@ -184,7 +185,7 @@ class CloudVolume(object):
     }
 
     if mesh:
-      info['mesh'] = 'mesh' if type(mesh) not in (str, unicode) else mesh
+      info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
 
     return info
 
@@ -375,7 +376,7 @@ class CloudVolume(object):
   def _cast_provenance(self, prov):
     if isinstance(prov, DataLayerProvenance):
       return prov
-    elif type(prov) in (str, unicode):
+    elif isinstance(prov, string_types):
       prov = json.loads(prov)
 
     provobj = DataLayerProvenance(**prov)
@@ -644,7 +645,7 @@ class CloudVolume(object):
       u"size": downscale(fullres['size'], np.ceil),
     }
 
-    newscale[u'key'] = unicode("_".join([ str(res) for res in newscale['resolution']]))
+    newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
 
     new_res = np.array(newscale['resolution'], dtype=int)
 
