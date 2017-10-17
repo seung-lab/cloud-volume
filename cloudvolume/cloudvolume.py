@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from collections import namedtuple
 import json
+import json5
 import os
 import re
 import sys
@@ -36,6 +37,12 @@ __all__ = [ 'CloudVolume', 'EmptyVolumeException', 'EmptyRequestException' ]
 ExtractedPath = namedtuple('ExtractedPath', 
   ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
 )
+
+def warn(text):
+  print(colorize('yellow', text))
+
+def red(text):
+  return colorize('red', text)
 
 class EmptyVolumeException(Exception):
   """Raised upon finding a missing chunk."""
@@ -132,10 +139,9 @@ class CloudVolume(object):
       return Storage(self.layer_cloudpath, n_threads=0)
     except:
       if self.path.layer == 'info':
-        print(colorize('yellow', 
-          "WARNING: Your layer is named 'info', is that what you meant? {}".format(
+        warn("WARNING: Your layer is named 'info', is that what you meant? {}".format(
             self.path
-        )))
+        ))
       raise
       
   @classmethod
@@ -259,7 +265,7 @@ class CloudVolume(object):
       raise mismatch_error
 
     if fresh_sizes != cache_sizes:
-      print("WARNING: Data layer bounding box differs in cache.\nCACHED: {}\nSOURCE: {}\nCACHE LOCATION:{}".format(
+      warn("WARNING: Data layer bounding box differs in cache.\nCACHED: {}\nSOURCE: {}\nCACHE LOCATION:{}".format(
         cache_sizes, fresh_sizes, self.cache_path
       ))
 
@@ -272,7 +278,7 @@ class CloudVolume(object):
       return self.fetch_boss_info()
 
   def refreshInfo(self):
-    print("WARNING: refreshInfo is deprecated. Use refresh_info instead.")
+    warn("WARNING: refreshInfo is deprecated. Use refresh_info instead.")
     return self.refresh_info()
 
   def fetch_boss_info(self):
@@ -323,7 +329,7 @@ class CloudVolume(object):
     )
 
   def commitInfo(self):
-    print("WARNING: commitInfo is deprecated use commit_info instead.")
+    warn("WARNING: commitInfo is deprecated use commit_info instead.")
     return self.commit_info()
 
   def commit_info(self):
@@ -369,7 +375,13 @@ class CloudVolume(object):
     if self._storage.exists('provenance'):
       provfile = self._storage.get_file('provenance')
       provfile = provfile.decode('utf-8')
-      provfile = json.loads(provfile)
+
+      try:
+        provfile = json5.loads(provfile)
+      except ValueError:
+        raise ValueError(red("""The provenance file could not be JSON decoded. 
+          Please reformat the provenance file before continuing. 
+          Contents: {}""".format(provfile)))
     else:
       provfile = {
         "sources": [],
@@ -401,7 +413,7 @@ class CloudVolume(object):
     fresh_prov = self._fetch_provenance()
 
     if cached_prov != fresh_prov:
-      print("""
+      warn("""
       WARNING: Cached provenance file does not match source.
 
       CACHED: {}
@@ -822,7 +834,7 @@ class CloudVolume(object):
           fileinfo['content'], self.encoding, multichannel_shape(bbox), self.dtype
         )
       except Exception:
-        print('File Read Error: {} bytes, {}, {}, errors: {}'.format(
+        error('File Read Error: {} bytes, {}, {}, errors: {}'.format(
             content_len, bbox, fileinfo['filename'], fileinfo['error']))
         raise
       
