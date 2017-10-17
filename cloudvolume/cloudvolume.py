@@ -761,7 +761,7 @@ class CloudVolume(object):
 
   def _fetch_data(self, cloudpaths):
     if not self.cache:
-      with Storage(self.layer_cloudpath) as storage:
+      with Storage(self.layer_cloudpath, progress=self.progress) as storage:
         files = storage.get_files(cloudpaths)
       return files
 
