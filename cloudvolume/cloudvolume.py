@@ -979,15 +979,6 @@ class CloudVolume(object):
           compress=self._should_compress()
         )
 
-    content_type = 'application/octet-stream'
-    if self.encoding == 'jpeg':
-      content_type == 'image/jpeg'
-
-    compress = (self.encoding in ('raw', 'compressed_segmentation'))
-
-    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-      storage.put_files(uploads, content_type=content_type, compress=compress)
-
   def _generate_chunks(self, img, offset):
     shape = Vec(*img.shape)[:3]
     offset = Vec(*offset)[:3]
