@@ -11,6 +11,7 @@ import shutil
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+from six import string_types
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
@@ -93,11 +94,13 @@ class CloudVolume(object):
         - non-empty string: cache is located at this file path
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
+    provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
+            This is useful when doing multiprocessing.
     progress: (bool) Show tqdm progress bars. 
         Defaults True in interactive python, False in script execution mode.
   """
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
-      cache=False, progress=INTERACTIVE, info=None):
+      cache=False, progress=INTERACTIVE, info=None, provenance=None):
 
     self.path = CloudVolume.extract_path(cloudpath)
 
@@ -121,9 +124,12 @@ class CloudVolume(object):
     else:
       self.info = info
 
-    self.provenance = None
-    self.refresh_provenance()
-    self._check_cached_provenance_validity()
+    if provenance is None:
+      self.provenance = None
+      self.refresh_provenance()
+      self._check_cached_provenance_validity()
+    else:
+      self.provenance = self._cast_provenance(provenance)
 
     try:
       self.mip = self.available_mips[self.mip]
@@ -179,7 +185,7 @@ class CloudVolume(object):
     }
 
     if mesh:
-      info['mesh'] = 'mesh' if type(mesh) not in (str, unicode) else mesh
+      info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
 
     return info
 
@@ -363,10 +369,23 @@ class CloudVolume(object):
         self.provenance = DataLayerProvenance(**prov)
         return self.provenance
 
-    provfile = self._fetch_provenance()
-    self.provenance = DataLayerProvenance(**provfile)
+    self.provenance = self._fetch_provenance()
     self._maybe_cache_provenance()
     return self.provenance
+
+  def _cast_provenance(self, prov):
+    if isinstance(prov, DataLayerProvenance):
+      return prov
+    elif isinstance(prov, string_types):
+      prov = json.loads(prov)
+
+    provobj = DataLayerProvenance(**prov)
+    provobj.sources = provobj.sources or []  
+    provobj.owners = provobj.owners or []
+    provobj.processing = provobj.processing or []
+    provobj.description = provobj.description or ""
+    provobj.validate()
+    return provobj
 
   def _fetch_provenance(self):
     if self.path.protocol == 'boss':
@@ -390,7 +409,7 @@ class CloudVolume(object):
         "description": "",
       }
 
-    return provfile
+    return self._cast_provenance(provfile)
 
   def commit_provenance(self):
     if self.path.protocol == 'boss':
@@ -410,8 +429,9 @@ class CloudVolume(object):
     cached_prov = self._read_cached_json('provenance')
     if not cached_prov:
       return
-    fresh_prov = self._fetch_provenance()
 
+    cached_prov = self._cast_provenance(cached_prov)
+    fresh_prov = self._fetch_provenance()
     if cached_prov != fresh_prov:
       warn("""
       WARNING: Cached provenance file does not match source.
@@ -625,7 +645,7 @@ class CloudVolume(object):
       u"size": downscale(fullres['size'], np.ceil),
     }
 
-    newscale[u'key'] = unicode("_".join([ str(res) for res in newscale['resolution']]))
+    newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
 
     new_res = np.array(newscale['resolution'], dtype=int)
 
