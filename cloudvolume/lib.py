@@ -244,7 +244,7 @@ class Bbox(object):
 
   @classmethod
   def from_filename(cls, filename):
-    match = re.search(r'(\d+)-(\d+)_(\d+)-(\d+)_(\d+)-(\d+)(?:\.gz)?$', os.path.basename(filename))
+    match = re.search(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz)?$', os.path.basename(filename))
 
     (xmin, xmax,
      ymin, ymax,
