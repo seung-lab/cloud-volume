@@ -120,6 +120,12 @@ def test_writer_last_chunk_smaller():
 #     with pytest.raises(ValueError):
 #         img1 = cv[::-1, ::-1, ::-1, :]
 
+def test_negative_coords_upload_download():
+    cv, data = create_layer(size=(128,64,64,1), offset=(-64,-64,-64))
+
+    downloaded = cv[-64:64, -64:0, -64:0]
+    assert np.all(data == downloaded)
+
 def test_setitem_mismatch():
     delete_layer()
     cv, data = create_layer(size=(64,64,64,1), offset=(0,0,0))
