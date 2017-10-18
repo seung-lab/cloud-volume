@@ -67,7 +67,7 @@ def test_read_write():
 def test_delete():
     urls = [
         "file:///tmp/removeme/delete",
-        # "gs://seunglab-test/cloudvolume/delete",
+        "gs://seunglab-test/cloudvolume/delete",
         "s3://seunglab-test/cloudvolume/delete"
     ]
 
@@ -88,7 +88,7 @@ def test_delete():
 def test_compression():
     urls = [
         "file:///tmp/removeme/compression",
-        # "gs://seunglab-test/cloudvolume/compression",
+        "gs://seunglab-test/cloudvolume/compression",
         "s3://seunglab-test/cloudvolume/compression"
     ]
 
