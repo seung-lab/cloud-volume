@@ -391,12 +391,13 @@ class GoogleCloudStorageInterface(object):
         self._bucket = self._client.get_bucket(self._path.bucket)
 
     def get_path_to_file(self, file_path):
-        clean = filter(None,[self._path.bucket,
-                             self._path.intermediate_path,
-                             self._path.dataset,
-                             self._path.layer,
-                             file_path])
-        return  os.path.join(*clean)
+        clean = filter(None,[
+          self._path.intermediate_path,
+          self._path.dataset,
+          self._path.layer,
+          file_path
+        ])
+        return os.path.join(*clean)
 
     @retry
     def put_file(self, file_path, content, content_type, compress):
