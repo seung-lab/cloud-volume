@@ -8,30 +8,6 @@ import time
 from cloudvolume.storage import Storage
 from layer_harness import delete_layer, TEST_NUMBER
 
-def test_path_extraction():
-    assert (Storage.extract_path('s3://bucket_name/dataset_name/layer_name') 
-        == Storage.ExtractedPath('s3', "bucket_name", None, 'dataset_name', 'layer_name'))
-
-    assert Storage.extract_path('s4://dataset_name/layer_name') is None
-
-    assert Storage.extract_path('dataset_name/layer_name') is None
-
-    assert Storage.extract_path('s3://dataset_name') is None
-
-    assert (Storage.extract_path('s3://seunglab-test/intermediate/path/dataset_name/layer_name') 
-        == Storage.ExtractedPath('s3', 'seunglab-test', 'intermediate/path/','dataset_name', 'layer_name'))
-
-    assert (Storage.extract_path('file:///tmp/dataset_name/layer_name') 
-        == Storage.ExtractedPath('file', "/tmp",  None, 'dataset_name', 'layer_name'))
-
-    assert (Storage.extract_path('file://seunglab-test/intermediate/path/dataset_name/layer_name') 
-        == Storage.ExtractedPath('file', 'seunglab-test','intermediate/path/','dataset_name', 'layer_name'))
-
-    assert (Storage.extract_path('gs://seunglab-test/intermediate/path/dataset_name/layer_name') 
-        == Storage.ExtractedPath('gs', 'seunglab-test', 'intermediate/path/','dataset_name', 'layer_name'))
-
-    assert Storage.extract_path('s3://dataset_name/layer_name/') is None
-
 #TODO delete files created by tests
 def test_read_write():
     urls = [
