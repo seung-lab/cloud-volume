@@ -210,6 +210,26 @@ def test_provenance():
 
     assert cv.provenance.sources == [ 'cooldude24@princeton.edu' ]
 
+    # should not die
+    cv = CloudVolume(cv.layer_cloudpath, provenance={})
+    cv = CloudVolume(cv.layer_cloudpath, provenance={ 'sources': [] })
+    cv = CloudVolume(cv.layer_cloudpath, provenance={ 'owners': [] })
+    cv = CloudVolume(cv.layer_cloudpath, provenance={ 'processing': [] })
+    cv = CloudVolume(cv.layer_cloudpath, provenance={ 'description': '' })
+
+    # should die
+    try:
+        cv = CloudVolume(cv.layer_cloudpath, provenance={ 'sources': 3 })
+        assert False
+    except:
+        pass
+
+    cv = CloudVolume(cv.layer_cloudpath, provenance="""{
+        "sources": [ "wow" ]
+    }""")
+
+    assert cv.provenance.sources[0] == 'wow'
+
 def test_info_provenance_cache():
     image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
     vol = create_volume_from_image(
