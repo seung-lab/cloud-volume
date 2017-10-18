@@ -761,7 +761,7 @@ class CloudVolume(object):
 
   def _fetch_data(self, cloudpaths):
     if not self.cache:
-      with Storage(self.layer_cloudpath) as storage:
+      with Storage(self.layer_cloudpath, progress=self.progress) as storage:
         files = storage.get_files(cloudpaths)
       return files
 
@@ -978,15 +978,6 @@ class CloudVolume(object):
           content_type=self._content_type(), 
           compress=self._should_compress()
         )
-
-    content_type = 'application/octet-stream'
-    if self.encoding == 'jpeg':
-      content_type == 'image/jpeg'
-
-    compress = (self.encoding in ('raw', 'compressed_segmentation'))
-
-    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-      storage.put_files(uploads, content_type=content_type, compress=compress)
 
   def _generate_chunks(self, img, offset):
     shape = Vec(*img.shape)[:3]
