@@ -15,6 +15,10 @@ from layer_harness import (
     create_volume_from_image
 )
 
+def test_cloud_access():
+    vol = CloudVolume('gs://seunglab-test/test_v0/image')
+    vol = CloudVolume('s3://seunglab-test/test_dataset/image')
+
 def test_aligned_read():
     delete_layer()
     cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
