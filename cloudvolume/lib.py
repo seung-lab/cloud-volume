@@ -2,6 +2,7 @@ from __future__ import print_function
 from six.moves import range
 
 from collections import namedtuple
+import json
 import os
 import io
 import re 
@@ -174,6 +175,19 @@ def check_bounds(val, low, high):
   if val > high or val < low:
     raise ValueError('Value {} cannot be outside of inclusive range {} to {}'.format(val,low,high))
   return val
+
+def state_from_url(url):
+  """convert a neuroglancer url into a state dictionary."""
+
+  state = re.sub(r'^.*?\#\!', '', url) # strip domain
+  state = state.replace("'_'", "', '") # convert 324'_'324 to 324, 324
+  state = state.replace("_'", ", '") # convert }_'navigation to }, 'navigation
+  state = state.replace("]_[", "],[") # convert [1,2,3]_[4,5,6] to [1,2,3],[4,5,6]
+  state = re.sub(r'(\d)_', r'\1, ', state) # convert 123_ to 123,
+  state = re.sub(r"'(\d+)'", r'\1', state) # convert '123' to 123
+  state = state.replace('\'', '"') # convert single quotes to double (JSON is fussy)
+  
+  return json.loads(state)
 
 class Vec(np.ndarray):
     def __new__(cls, *args, **kwargs):

@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from collections import defaultdict
 import json
 import json5
 import os
@@ -1026,6 +1027,39 @@ class CloudVolume(object):
       paths = [ os.path.join(mesh_dir, fragment) for fragment in fragments ]
       frag_datas = stor.get_files(paths)  
     return frag_datas
+
+  def save_mesh_from_url(self, url):
+    """Save out all the meshes within a neuroglancer scene specified by the url."""
+    state = lib.state_from_url(url)
+
+    layer = self.layer
+
+    ct = 0
+    if layer not in state['layers']:
+      for lyr in state['layers']:
+        if state['layers'][lyr]['type'] == 'segmentation':
+          ct += 1
+          layer = lyr
+
+    if ct > 1 or ct == 0:
+      raise KeyError('Unable to determine which segmentation layer to use. {}'.format(state))
+    elif ct == 1:
+      print('Using layer: {}, source: {}'.format(layer, state['layers'][layer]['source']))
+
+    segids = state['layers'][layer]['segments']
+
+    # looks like [ [1,2,3], [3,4,1], [6,7,8] ]
+    equivlist = state['layers'][layer]['equivalences']
+
+    equivs = defaultdict(set)
+    for bag in equivlist:
+      for segid in bag:
+        equivs[segid].update(bag)
+
+    for segid in segids:
+      matches = list(equivs[segid])
+      matches += [ segid ]
+      self.save_mesh(matches)
 
   def save_mesh(self, segids, file_format='obj'):
     """
