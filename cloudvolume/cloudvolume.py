@@ -1015,7 +1015,7 @@ class CloudVolume(object):
 
     download_path = os.path.join(mesh_dir, mesh_json_file_name)
 
-    with Storage(self.layer_cloudpath) as stor:
+    with Storage(self.layer_cloudpath, progress=self.progress) as stor:
       fragments = json.loads(stor.get_file(download_path))['fragments']
       
       # Older mesh manifest generation tasks had a bug where they
@@ -1042,7 +1042,7 @@ class CloudVolume(object):
     for segid in segids:
       fragments.extend( self.get_mesh(segid) )
 
-    meshdata = mesh2obj.decode_downloaded_data(fragments)
+    meshdata = mesh2obj.decode_downloaded_data(fragments, progress=self.progress)
 
     if file_format != 'obj':
       raise NotImplementedError('Only .obj is currently supported.')
@@ -1053,7 +1053,7 @@ class CloudVolume(object):
 
     num_vertices = 0
     with open('./{}.obj'.format(filename), 'wb') as f:
-      for name, fragment in meshdata.items():
+      for name, fragment in tqdm(meshdata.items(), disable=(not self.progress), desc="Saving Mesh"):
         mesh_data = mesh2obj.mesh_to_obj(fragment, num_vertices)
         f.write('\n'.join(mesh_data) + '\n')
         num_vertices += fragment['num_vertices']

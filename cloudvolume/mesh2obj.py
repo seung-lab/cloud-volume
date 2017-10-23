@@ -19,10 +19,11 @@ Example Output:
     obj files for SEGID3 in ./SEGID3/
 """
 import struct
+from tqdm import tqdm
 
-def decode_downloaded_data(frag_datas):
+def decode_downloaded_data(frag_datas, progress=False):
   data = {}
-  for result in frag_datas:
+  for result in tqdm(frag_datas, disable=(not progress), desc="Decoding Mesh Buffer"):
     data[result['filename']] = decode_mesh_buffer(result['filename'], result['content'])
   return data
 
