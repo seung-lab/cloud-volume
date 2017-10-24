@@ -439,7 +439,7 @@ class CloudVolume(object):
 
   @property
   def base_cloudpath(self):
-    return self.path.protocol + "://" + os.path.join(self.path.intermediate_path, self.path.bucket, self.dataset_name)
+    return self.path.protocol + "://" + os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset_name)
 
   @property
   def layer_cloudpath(self):
