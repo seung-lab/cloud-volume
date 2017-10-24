@@ -139,7 +139,7 @@ class ThreadedQueue(object):
 
     while not terminate_evt.is_set():
       try:
-        fn = self._queue.get(block=True, timeout=1)
+        fn = self._queue.get(block=True, timeout=0.01)
       except Queue.Empty:
         continue # periodically check if the thread is supposed to die
 
