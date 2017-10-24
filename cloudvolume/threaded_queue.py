@@ -92,7 +92,7 @@ class ThreadedQueue(object):
     """Kill all threads."""
     self._terminate.set()
     while self.are_threads_alive():
-      time.sleep(0.1)
+      time.sleep(0.001)
     self._threads = ()
     return self
 
