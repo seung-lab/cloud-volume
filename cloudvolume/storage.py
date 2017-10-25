@@ -80,15 +80,20 @@ class Storage(ThreadedQueue):
     def get_path_to_file(self, file_path):
         return os.path.join(self._layer_path, file_path)
 
-    def put_file(self, file_path, content, content_type=None, compress=False):
+    def put_file(self, file_path, content, content_type=None, compress=False, cache_control=None):
         """ 
         Args:
             filename (string): it can contains folders
             content (string): binary data to save
         """
-        return self.put_files([ (file_path, content) ], content_type, compress, block=False)
+        return self.put_files([ (file_path, content) ], 
+            content_type=content_type, 
+            compress=compress, 
+            cache_control=cache_control, 
+            block=False
+        )
 
-    def put_files(self, files, content_type=None, compress=False, block=True):
+    def put_files(self, files, content_type=None, compress=False, cache_control=None, block=True):
         """
         Put lots of files at once and get a nice progress bar. It'll also wait
         for the upload to complete, just like get_files.
@@ -97,7 +102,7 @@ class Storage(ThreadedQueue):
             files: [ (filepath, content), .... ]
         """
         def base_uploadfn(path, content, interface):
-            interface.put_file(path, content, content_type, compress)
+            interface.put_file(path, content, content_type, compress, cache_control=cache_control)
 
         for path, content in files:
             if compress:
@@ -291,7 +296,7 @@ class FileInterface(object):
 
         return  os.path.join(*clean)
 
-    def put_file(self, file_path, content, content_type, compress):
+    def put_file(self, file_path, content, content_type, compress, cache_control=None):
         path = self.get_path_to_file(file_path)
         mkdir(os.path.dirname(path))
 
@@ -400,11 +405,13 @@ class GoogleCloudStorageInterface(object):
         return os.path.join(*clean)
 
     @retry
-    def put_file(self, file_path, content, content_type, compress):
+    def put_file(self, file_path, content, content_type, compress, cache_control=None):
         key = self.get_path_to_file(file_path)
         blob = self._bucket.blob( key )
         if compress:
             blob.content_encoding = "gzip"
+        if cache_control:
+            blob.cache_control = cache_control
         blob.upload_from_string(content, content_type)
 
     @retry
@@ -467,24 +474,23 @@ class S3Interface(object):
         return  os.path.join(*clean)
 
     @retry
-    def put_file(self, file_path, content, content_type, compress):
+    def put_file(self, file_path, content, content_type, compress, cache_control=None):
         key = self.get_path_to_file(file_path)
+
+        attrs = {
+            'Bucket': self._path.bucket,
+            'Body': content,
+            'Key': key,
+            'ContentType': (content_type or 'application/octet-stream'),
+        }
+
         if compress:
-            self._conn.put_object(
-                Bucket=self._path.bucket,
-                Body=content,
-                Key=key,
-                ContentType=(content_type or 'application/octet-stream'),
-                ContentEncoding='gzip',
-            )
-        else:
-            self._conn.put_object(
-                Bucket=self._path.bucket,
-                Body=content,
-                Key=key,
-                ContentType=(content_type or 'application/octet-stream'),
-            )
-            
+            attrs['ContentEncoding'] = 'gzip'
+        if cache_control:
+            attrs['CacheControl'] = cache_control
+
+        self._conn.put_object(**attrs)
+
     @retry
     def get_file(self, file_path):
         """

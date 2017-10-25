@@ -321,7 +321,10 @@ class CloudVolume(object):
       return self 
 
     infojson = json.dumps(self.info)
-    self._storage.put_file('info', infojson, 'application/json').wait()
+    self._storage.put_file('info', infojson, 
+      content_type='application/json', 
+      cache_control='no-cache'
+    ).wait()
     self._maybe_cache_info()
     return self
 
@@ -393,7 +396,10 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       return self.provenance
 
-    self._storage.put_file('provenance', self.provenance.serialize(), 'application/json')
+    self._storage.put_file('provenance', self.provenance.serialize(), 
+      content_type='application/json',
+      cache_control='no-cache',
+    )
     self._maybe_cache_provenance()
     return self.provenance
 
