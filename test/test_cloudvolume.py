@@ -19,6 +19,32 @@ def test_cloud_access():
     vol = CloudVolume('gs://seunglab-test/test_v0/image')
     vol = CloudVolume('s3://seunglab-test/test_dataset/image')
 
+def test_fill_missing():
+  info = CloudVolume.create_new_info(
+    num_channels=1, # Increase this number when we add more tests for RGB
+    layer_type='image', 
+    data_type='uint8', 
+    encoding='raw',
+    resolution=[ 1,1,1 ], 
+    voxel_offset=[0,0,0], 
+    volume_size=[128,128,64],
+    mesh='mesh', 
+    chunk_size=[ 64,64,64 ],
+  )
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, info=info)
+  vol.commit_info()
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, fill_missing=True)
+  assert np.count_nonzero(vol[:]) == 0
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, fill_missing=True, cache=True)
+  assert np.count_nonzero(vol[:]) == 0
+  assert np.count_nonzero(vol[:]) == 0
+
+  vol.flush_cache()
+  delete_layer('/tmp/cloudvolume/empty_volume')
+
 def test_aligned_read():
     delete_layer()
     cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
