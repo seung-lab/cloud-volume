@@ -797,7 +797,8 @@ class CloudVolume(object):
         paths = []
         for item in cloud_files:
           if item['error'] is None:
-            paths.append( (item['filename'], item['content']) )
+            content = item['content'] or b''
+            paths.append( (item['filename'], content) )
 
         storage.put_files(paths, 
           content_type=self._content_type(), 
