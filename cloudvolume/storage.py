@@ -1,3 +1,15 @@
+"""
+
+Storage is a class to help transfer files 
+between the local machine and the cloud servers: Google Storage and Amazon S3.
+
+e.g.
+s = Storage('gs://monkeymind')
+s.get_file('brainslice.tif') #download a file
+s.put_file('brainslice.tif') #upload a file
+
+"""
+
 import six
 from six import StringIO, BytesIO
 from six.moves import queue as Queue
