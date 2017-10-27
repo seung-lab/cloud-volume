@@ -22,6 +22,8 @@ class ThreadedQueue(object):
     self.processed = 0
     self._inserted = 0
 
+    self.with_progress = None
+
     self.start_threads(n_threads)
 
   @property
@@ -250,5 +252,5 @@ class ThreadedQueue(object):
     return self
 
   def __exit__(self, exception_type, exception_value, traceback):
-    self.wait()
+    self.wait(progress=self.with_progress)
     self.kill_threads()
