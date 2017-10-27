@@ -98,9 +98,15 @@ class S3ConnectionPool(ConnectionPool):
     def _close_function(self):
         return lambda conn: conn.close()
 
-class GCloudConnectionPool(ConnectionPool):
+class GCloudBucketPool(ConnectionPool):
+    def __init__(self, bucket):
+        self.bucket = bucket
+        super(GCloudBucketPool, self).__init__()
+
     def _create_connection(self):
-        return Client(
+        client = Client(
             credentials=google_credentials,
             project=PROJECT_NAME
         )
+
+        return client.get_bucket(self.bucket)

@@ -4,12 +4,12 @@ from six.moves import range
 import tenacity
 from tqdm import tqdm
 
-from cloudvolume.connectionpools import S3ConnectionPool, GCloudConnectionPool
+from cloudvolume.connectionpools import S3ConnectionPool, GCloudBucketPool
 from cloudvolume.threaded_queue import ThreadedQueue
 from cloudvolume.storage import Storage
 
 S3_POOL = S3ConnectionPool()
-GC_POOL = GCloudConnectionPool()
+GC_POOL = GCloudBucketPool('seunglab-test')
 
 retry = tenacity.retry(
     reraise=True, 
@@ -26,12 +26,11 @@ def test_gc_stresstest():
 
   @retry
   def create_conn(interface):
-    conn = GC_POOL.get_connection()
     # assert GC_POOL.total_connections() <= GC_POOL.max_connections * 5
-    bucket = conn.get_bucket('seunglab-test')
+    bucket = GC_POOL.get_connection()
     blob = bucket.get_blob('cloudvolume/connection_pool/test')
     blob.download_as_string()
-    GC_POOL.release_connection(conn)
+    GC_POOL.release_connection(bucket)
     pbar.update()
 
   with ThreadedQueue(n_threads=20) as tq:
