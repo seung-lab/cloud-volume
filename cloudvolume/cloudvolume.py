@@ -437,7 +437,7 @@ class CloudVolume(object):
 
       CACHED: {}
       SOURCE: {}
-      """.format(cached_prov, fresh_prov))
+      """.format(cached_prov.serialize(), fresh_prov.serialize()))
 
   @property
   def dataset_name(self):
