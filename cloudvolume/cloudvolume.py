@@ -320,7 +320,12 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       return self 
 
-    infojson = json.dumps(self.info)
+    infojson = json.dumps(self.info, 
+      sort_keys=True,
+      indent=2, 
+      separators=(',', ': ')
+    )
+
     self._storage.put_file('info', infojson, 
       content_type='application/json', 
       cache_control='no-cache'
@@ -396,7 +401,17 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       return self.provenance
 
-    self._storage.put_file('provenance', self.provenance.serialize(), 
+    prov = self.provenance.serialize()
+
+    # hack to pretty print provenance files
+    prov = json.loads(prov)
+    prov = json.dumps(prov, 
+      sort_keys=True,
+      indent=2, 
+      separators=(',', ': ')
+    )
+
+    self._storage.put_file('provenance', prov, 
       content_type='application/json',
       cache_control='no-cache',
     )
@@ -422,7 +437,7 @@ class CloudVolume(object):
 
       CACHED: {}
       SOURCE: {}
-      """.format(cached_prov, fresh_prov))
+      """.format(cached_prov.serialize(), fresh_prov.serialize()))
 
   @property
   def dataset_name(self):
