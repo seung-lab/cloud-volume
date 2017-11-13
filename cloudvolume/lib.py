@@ -33,7 +33,7 @@ ExtractedPath = namedtuple('ExtractedPath',
 def extract_path(cloudpath):
   """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
   protocol_re = r'^(gs|file|s3|boss)://'
-  bucket_re = r'^(/?[\d\w_\.\-]+)/'
+  bucket_re = r'^(/?[~\d\w_\.\-]+)/'
   tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
 
   match = re.match(protocol_re, cloudpath)
@@ -42,6 +42,8 @@ def extract_path(cloudpath):
 
   match = re.match(bucket_re, cloudpath)
   (bucket,) = match.groups()
+  if protocol == 'file':
+    bucket = toabs(bucket)
   cloudpath = re.sub(bucket_re, '', cloudpath)
 
   match = re.search(tail_re, cloudpath)
