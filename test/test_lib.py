@@ -1,5 +1,8 @@
 import pytest
 
+import os
+import re
+
 import cloudvolume.lib as lib
 
 def test_divisors():
@@ -54,6 +57,14 @@ def test_path_extraction():
   shoulderror('dataset/layer')
   shoulderror('s3://dataset')
 
+  firstdir = lambda x: '/' + x.split('/')[1]
+
+  homepath = lib.toabs('~')
+  homerintermediate = homepath.replace(firstdir(homepath), '')[1:]
+
+  curpath = lib.toabs('.')
+  curintermediate = curpath.replace(firstdir(curpath), '')[1:]
+
   assert (lib.extract_path('s3://seunglab-test/intermediate/path/dataset/layer') 
       == lib.ExtractedPath('s3', 'intermediate/path/', 'seunglab-test', 'dataset', 'layer'))
 
@@ -61,10 +72,13 @@ def test_path_extraction():
       == lib.ExtractedPath('file', '', "/tmp", 'dataset', 'layer'))
 
   assert (lib.extract_path('file://seunglab-test/intermediate/path/dataset/layer') 
-      == lib.ExtractedPath('file', 'intermediate/path/', 'seunglab-test', 'dataset', 'layer'))
+      == lib.ExtractedPath('file', os.path.join(curintermediate, 'seunglab-test', 'intermediate/path/'), firstdir(curpath), 'dataset', 'layer'))
 
   assert (lib.extract_path('gs://seunglab-test/intermediate/path/dataset/layer') 
       == lib.ExtractedPath('gs', 'intermediate/path/', 'seunglab-test', 'dataset', 'layer'))
+
+  assert (lib.extract_path('file://~/seunglab-test/intermediate/path/dataset/layer') 
+      == lib.ExtractedPath('file', os.path.join(homerintermediate, 'seunglab-test', 'intermediate/path/'), firstdir(homepath), 'dataset', 'layer'))
 
   assert (lib.extract_path('file:///User/me/.cloudvolume/cache/gs/bucket/dataset/layer') 
       == lib.ExtractedPath('file', 'me/.cloudvolume/cache/gs/bucket/', '/User', 'dataset', 'layer'))
@@ -82,9 +96,9 @@ def test_path_extraction():
   assert path.dataset == 'datasetzzzzz91h8__3'
   assert path.layer == 'layer1br9bobasjf'
 
-  path = lib.extract_path('file://bucket/dataset/layer/')
+  path = lib.extract_path('file:///bucket/dataset/layer/')
   assert path.protocol == 'file'
-  assert path.bucket == 'bucket'
+  assert path.bucket == '/bucket'
   assert path.dataset == 'dataset'
   assert path.layer == 'layer'
 
