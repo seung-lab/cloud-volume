@@ -39,11 +39,11 @@ def extract_path(cloudpath):
   match = re.match(protocol_re, cloudpath)
   (protocol,) = match.groups()
   cloudpath = re.sub(protocol_re, '', cloudpath)
+  if protocol == 'file':
+    cloudpath = toabs(cloudpath)
 
   match = re.match(bucket_re, cloudpath)
   (bucket,) = match.groups()
-  if protocol == 'file':
-    bucket = toabs(bucket)
   cloudpath = re.sub(bucket_re, '', cloudpath)
 
   match = re.search(tail_re, cloudpath)
