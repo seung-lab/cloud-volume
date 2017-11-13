@@ -1029,13 +1029,17 @@ class CloudVolume(object):
     
       yield chunkimg, spt, ept 
 
+  def _mesh_manifest_path(self, segid):
+    mesh_dir = self.info['mesh']
+    mesh_json_file_name = str(segid) + ':0'
+    return os.path.join(mesh_dir, mesh_json_file_name)
+
   def get_mesh(self, segid):
     """Download the raw mesh fragments for this seg ID."""
+    
     mesh_dir = self.info['mesh']
-
     mesh_json_file_name = str(segid) + ':0'
-
-    download_path = os.path.join(mesh_dir, mesh_json_file_name)
+    download_path = self._mesh_manifest_path(segid)
 
     with Storage(self.layer_cloudpath, progress=self.progress) as stor:
       fragments = json.loads(stor.get_file(download_path))['fragments']
@@ -1049,6 +1053,19 @@ class CloudVolume(object):
       frag_datas = stor.get_files(paths)  
     return frag_datas
 
+  def _mesh_check_missing(self, segids):
+    """Check if there are any missing mesh manifests prior to downloading."""
+    manifest_paths = [ self._mesh_manifest_path(segid) for segid in segids ]
+    with Storage(self.layer_cloudpath, progress=self.progress) as stor:
+      exists = stor.files_exist(manifest_paths)
+    
+    dne = []
+    for path, there in exists.items():
+      if not there:
+        (segid,) = re.search('(\d+):0$', path).groups()
+        dne.append(segid)
+    return dne
+
   def save_mesh(self, segids, file_format='obj'):
     """
     Save one or more segids into a common mesh format as a single file.
@@ -1059,6 +1076,16 @@ class CloudVolume(object):
     """
     if type(segids) != list:
       segids = [ segids ]
+
+    dne = self._mesh_check_missing(segids)
+
+    if len(dne) > 0:
+      missing = ', '.join([ str(segid) for segid in dne ])
+      print(red(
+        'Segment ID(s) {} are missing corresponding mesh manifests.\nAborted.' \
+          .format(missing)
+      ))
+      sys.exit()
 
     fragments = []
     for segid in segids:
