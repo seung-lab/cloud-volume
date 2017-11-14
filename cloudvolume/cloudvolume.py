@@ -87,6 +87,12 @@ class CloudVolume(object):
         - falsey value: no caching will occur.
         - True: cache will be located in a standard location.
         - non-empty string: cache is located at this file path
+    cdn_cache: (int, bool, or str) Sets the Cache-Control HTTP header on uploaded image files.
+      Most cloud providers perform some kind of caching. As of this writing, Google defaults to
+      3600 seconds. Most of the time you'll want to go with the default. 
+      - int: number of seconds for cache to be considered fresh (max-age)
+      - bool: True: max-age=3600, False: no-cache
+      - str: set the header manually
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
     provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
@@ -95,7 +101,7 @@ class CloudVolume(object):
         Defaults True in interactive python, False in script execution mode.
   """
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
-      cache=False, progress=INTERACTIVE, info=None, provenance=None):
+      cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None):
 
     self.path = lib.extract_path(cloudpath)
 
@@ -104,6 +110,7 @@ class CloudVolume(object):
     self.bounded = bounded
     self.fill_missing = fill_missing
     self.cache = cache
+    self.cdn_cache = cdn_cache
 
     if self.cache:
       if not os.path.exists(self.cache_path):
@@ -985,7 +992,8 @@ class CloudVolume(object):
     with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       storage.put_files(uploads, 
         content_type=self._content_type(), 
-        compress=self._should_compress()
+        compress=self._should_compress(),
+        cache_control=self._cdn_cache_control(self.cdn_cache),
       )
 
     if self.cache:
@@ -998,6 +1006,28 @@ class CloudVolume(object):
           content_type=self._content_type(), 
           compress=self._should_compress()
         )
+
+  def _cdn_cache_control(self, val=None):
+    """Translate self.cdn_cache into a Cache-Control HTTP header."""
+    if val is None:
+      return 'max-age=3600, s-max-age=3600'
+    elif type(val) is str:
+      return val
+    elif type(val) is bool:
+      if val:
+        return 'max-age=3600, s-max-age=3600'
+      else:
+        return 'no-cache'
+    elif type(val) is int:
+      if val < 0:
+        raise ValueError('cdn_cache must be a positive integer, boolean, or string. Got: ' + str(val))
+
+      if val == 0:
+        return 'no-cache'
+      else:
+        return 'max-age={}, s-max-age={}'.format(val, val)
+    else:
+      raise NotImplementedError(type(val) + ' is not a supported cache_control setting.')
 
   def _generate_chunks(self, img, offset):
     shape = Vec(*img.shape)[:3]
