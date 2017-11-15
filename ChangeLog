@@ -1,0 +1,132 @@
+CHANGES
+=======
+
+0.6.0
+-----
+
+* feat: manual control over cache-control headers for uploaded files
+* feat: file:// protocol now supports the ~ prefix for your home dir (#60)
+* feat: better error message for missing mesh manifests (#61)
+
+0.5.8
+-----
+
+* feat: reveal secrets (#58)
+
+0.5.7
+-----
+
+* feat: backwards compatible secrets (#57)
+* feat: pretty print info and provenance files (#56)
+
+0.5.6
+-----
+
+* fix: pool on buckets instead of clients for gcloud (#53)
+* chore: downgrade google-cloud from 0.27 to 0.26.1
+
+0.5.5
+-----
+
+* fix: cache + fill\_missing interaction crash (#52)
+
+0.5.4
+-----
+
+* feat: added cache-control options to Storage (#51)
+
+0.5.3
+-----
+
+* fix: layer\_cloudpath was not handling intermediate paths correctly
+
+0.5.2
+-----
+
+* Optimize Sleep Patterns (#50)
+* fix: save\_mesh supports progress bar
+
+0.5.1
+-----
+
+* Fix gcloud Access in 0.5.0 (#46)
+
+0.5.0
+-----
+
+* feat: negative index downloads (#45)
+* feat: CloudVolume supports intermediate paths (#38)
+* Optionally pass provenance to CloudVolume constructor (#41)
+* Wms test metadata (#44)
+
+0.4.1
+-----
+
+* Fix Double Upload (#43)
+* feat: provenance files are now decoded with the json5 module (#40)
+* Update README.md
+* fix: missing support for progress and caching for delete and exists
+* docs: Added exists, delete, cache, and progress to README.md
+
+0.4.0
+-----
+
+* feat: delete bounding boxes on a given mip level (#35)
+
+0.3.0
+-----
+
+* feat: backwards compatibility with ~/.neuroglancer (#33)
+* feat: added cache flag to CloudVolume (#12)
+* feat: progress flag for CloudVolume, Storage (#21)
+* feat: add support for intermediate paths in URIs (#30)
+* feat: CloudVolume.exists (#14)
+
+0.2.1
+-----
+
+* fix: python3 compatibility (#25)
+* test: deconflict parallel storage tests (#19)
+* docs: CloudVolume methods, mip\_ functions, and VolumeCutout in README.md
+* docs: added additional CloudVolume init examples
+* docs: added boss-secret.json to docs
+* docs: added property list to README.md
+
+0.2.0
+-----
+
+* feat: exported several useful libraries
+* feat(Provenance): added support for data layer provenance (#6)
+
+0.1.0
+-----
+
+* feat: added exponential window random retry to Storage (#5)
+* feat: python3 support (#4)
+* Update README.md
+* fix: removed scipy from requirmements list
+* docs: formatting README.md
+* docs: added BOSS and virtualenvwrapper to README
+* docs: added save\_mesh to the README
+* fix: compress for raw and compressed\_encoding
+* fix: added chardet to requirements.txt
+* fix: added missing items to requirements.txt
+* feat(BOSS): added reading and writing capability to BOSS MIP 0
+* fix: upgraded urllib3 to urllib3[secure]
+* feat: added connection pools
+* fix: google secrets is only read from disk once
+* feat: support saving equivalences as a single obj
+* feat: added get\_mesh, save\_mesh to CloudVolume
+* chore: bumped google-cloud to 0.27 from 0.26
+* test: chunks.py now has some tests
+* docs: added more detailed insallation instructions to README.md
+* test(secrets): added API keys for Storage
+* fix(ThreadedQueue): ensure processed matches task\_done
+* test: added travis config file
+* docs: updated setup.cfg info
+* feat(VolumeCutout): prepend 0 to single digit numbers
+* chore: added saved\_images to .gitignore
+* fix: missing PIL import
+* refactor(CloudVolume): clean up package import namespace
+* feat(CloudVolume): created minimal implementation
+* Initial commit
