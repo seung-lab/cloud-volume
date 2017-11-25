@@ -75,15 +75,16 @@ vol.flush_cache() # Delete local cache for this layer at this mip level
 
 ### CloudVolume Constructor
 
-`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, cache=False, progress=INTERACTIVE, info=None)`  
+`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None)`  
 
 * mip - Which mip level to access
 * bounded - Whether access is allowed outside the bounds defined in the info file
 * fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException?
 * cache - Save uploads/downloads to disk. You can also provide a string path instead of a boolean to specify a custom cache location.
+* cdn_cache - Set the HTTP Cache-Control header on uploaded image chunks.
 * progress - Show progress bars. Defaults to True if in python interactive mode else default False.
 * info - Use this info object rather than pulling from the cloud (useful for creating new layers).
-
+* provenance - Use this object as the provenance file.
 
 ### CloudVolume Methods
 
