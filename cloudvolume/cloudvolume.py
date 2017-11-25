@@ -854,8 +854,8 @@ class CloudVolume(object):
           fileinfo['content'], self.encoding, multichannel_shape(bbox), self.dtype
         )
       except Exception:
-        error('File Read Error: {} bytes, {}, {}, errors: {}'.format(
-            content_len, bbox, fileinfo['filename'], fileinfo['error']))
+        print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
+            content_len, bbox, fileinfo['filename'], fileinfo['error'])))
         raise
       
       start = bbox.minpt - realized_bbox.minpt
