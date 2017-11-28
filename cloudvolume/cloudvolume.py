@@ -263,6 +263,10 @@ class CloudVolume(object):
   def _fetch_info(self):
     if self.path.protocol != "boss":
       infojson = self._storage.get_file('info')
+
+      if infojson is None:
+        raise ValueError(red('No info file was found: {}'.format(self.info_cloudpath)))
+
       infojson = infojson.decode('utf-8')
       return json.loads(infojson)
     else:
