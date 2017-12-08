@@ -208,7 +208,7 @@ class Vec(np.ndarray):
       return int(''.join(map(str, self)))
 
     def __repr__(self):
-      values = u",".join(self.astype(unicode))
+      values = u",".join(self.astype(str))
       return u"Vec({}, dtype={})".format(values, self.dtype)
 
 def __assign(self, val, index):
