@@ -7,6 +7,7 @@ import re
 import sys
 import shutil
 
+from builtins import range
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
@@ -1247,7 +1248,7 @@ class VolumeCutout(np.ndarray):
 
     channel = slice(None) if channel is None else channel
 
-    for level in tqdm(xrange(self.shape[index]), desc="Saving Images"):
+    for level in tqdm(range(self.shape[index]), desc="Saving Images"):
       if index == 0:
         img = self[level, :, :, channel ]
       elif index == 1:
@@ -1259,7 +1260,7 @@ class VolumeCutout(np.ndarray):
 
       num_channels = img.shape[2]
 
-      for channel_index in xrange(num_channels):
+      for channel_index in range(num_channels):
         img2d = img[:, :, channel_index]
 
         # discovered that downloaded cube is in a weird rotated state.

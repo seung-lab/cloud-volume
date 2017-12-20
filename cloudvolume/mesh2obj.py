@@ -18,6 +18,7 @@ Example Output:
     obj files for SEGID2 in ./SEGID2/
     obj files for SEGID3 in ./SEGID3/
 """
+from builtins import range
 import struct
 from tqdm import tqdm
 
@@ -41,14 +42,14 @@ def decode_mesh_buffer(filename, fragment):
       raise ValueError("""Unable to process fragment {}. Violation: len face data is not a multiple of 12.
         Array Length: {}""".format(filename, len(face_data)))
 
-    for i in xrange(0, len(vertex_data), 12):
+    for i in range(0, len(vertex_data), 12):
       x = struct.unpack("=f", vertex_data[i:i+4])[0]
       y = struct.unpack("=f", vertex_data[i+4:i+8])[0]
       z = struct.unpack("=f", vertex_data[i+8:i+12])[0]
       vertices.append((x,y,z))
 
     faces = []
-    for i in xrange(0, len(face_data), 4):
+    for i in range(0, len(face_data), 4):
       vertex_number = struct.unpack("=I", face_data[i:i+4])[0]
       if vertex_number >= num_vertices:
         raise ValueError(
@@ -71,7 +72,7 @@ def mesh_to_obj(fragment, num_prev_vertices):
     objdata.append('v %s %s %s' % (vertex[0], vertex[1], vertex[2]))
   
   faces = [ face + num_prev_vertices + 1 for face in fragment['faces'] ]
-  for i in xrange(0, len(faces), 3):
+  for i in range(0, len(faces), 3):
     objdata.append('f %s %s %s' % (faces[i], faces[i+1], faces[i+2]))
   
   return objdata
