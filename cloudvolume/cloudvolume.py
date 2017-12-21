@@ -646,12 +646,12 @@ class CloudVolume(object):
 
     def downscale(size, roundingfn):
       smaller = Vec(*size, dtype=np.float32) / Vec(*factor)
-      return list(roundingfn(smaller).astype(int))
+      return list(map(int, roundingfn(smaller)))
 
     newscale = {
       u"encoding": fullres['encoding'],
       u"chunk_sizes": [ chunk_size ],
-      u"resolution": list( Vec(*fullres['resolution']) * factor ),
+      u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
       u"voxel_offset": downscale(fullres['voxel_offset'], np.floor),
       u"size": downscale(fullres['size'], np.ceil),
     }
