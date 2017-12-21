@@ -1,10 +1,32 @@
 CHANGES
 =======
 
-0.6.0
+0.6.5
 -----
 
-* feat: manual control over cache-control headers for uploaded files
+* fix: add\_scale in Python3 rendered np.int64
+
+0.6.4
+-----
+
+* fix: python3 xrange compatibility
+* fix: python3 incompatible unicode call in lib.py
+
+0.6.3
+-----
+
+* fix: better error message for missing info file
+* feat: manual control over cache-control headers for uploaded files (#62)
+
+0.6.2
+-----
+
+* fix: file read errors were crashing incorrectly
+
+0.6.1
+-----
+
+* chore: bump google-cloud-python to 0.30.0
 * feat: file:// protocol now supports the ~ prefix for your home dir (#60)
 * feat: better error message for missing mesh manifests (#61)
 
