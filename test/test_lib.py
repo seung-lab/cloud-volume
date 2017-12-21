@@ -3,7 +3,10 @@ import pytest
 import os
 import re
 
+import numpy as np
+
 import cloudvolume.lib as lib
+from cloudvolume.lib import Bbox, Vec
 
 def test_divisors():
 
@@ -111,3 +114,18 @@ def test_path_extraction():
   assert path.bucket == '/tmp'
   assert path.dataset == 'removeme'
   assert path.layer == 'layer'
+
+
+def test_vec_division():
+  vec = Vec(2,4,8)
+  assert np.all( (vec/2) == Vec(1,2,4) )
+
+
+def test_bbox_division():
+  box = Bbox( (0,2,4), (4,8,16) )
+  assert (box//2) == Bbox( (0,1,2), (2,4,8) )
+
+  box = Bbox( (0,3,4), (4,8,16) )
+
+  assert (box/2) == Bbox( (0,1.5,2), (2,4,8) )
+

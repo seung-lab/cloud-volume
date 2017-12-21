@@ -418,9 +418,22 @@ class Bbox(object):
     return tmp
 
   def __div__(self, operand):
+    return self.__floordiv__(operand)
+
+  def __floordiv__(self, operand):
     tmp = self.clone()
-    tmp.minpt /= operand
-    tmp.maxpt /= operand
+    tmp.minpt //= operand
+    tmp.maxpt //= operand
+    return tmp
+
+  def __truediv__(self, operand):
+    tmp = self.clone()
+
+    if type(operand) is int:
+      operand = float(operand)
+
+    tmp.minpt = Vec(*( tmp.minpt.astype(float) / operand ))
+    tmp.maxpt = Vec(*( tmp.maxpt.astype(float) / operand ))
     return tmp
 
   def __ne__(self, other):
