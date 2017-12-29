@@ -2,6 +2,7 @@ from __future__ import print_function
 from six.moves import range
 
 from collections import namedtuple
+import json
 import os
 import io
 import re 
@@ -21,6 +22,16 @@ COLORS = {
   'RED': '\033[1;91m',
   'GREEN': '\033[1;92m',
 }
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
+
+def jsonify(obj, **kwargs):
+  return json.dumps(obj, cls=NumpyEncoder, **kwargs)
 
 def colorize(color, text):
   color = color.upper()

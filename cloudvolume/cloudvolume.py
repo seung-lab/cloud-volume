@@ -18,7 +18,7 @@ from intern.resource.boss.resource import ChannelResource, ExperimentResource, C
 from .secrets import boss_credentials, CLOUD_VOLUME_DIR
 
 from . import lib, chunks, mesh2obj
-from .lib import toabs, colorize, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds
+from .lib import toabs, colorize, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds, jsonify
 from .provenance import DataLayerProvenance
 from .storage import Storage
 
@@ -332,7 +332,7 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       return self 
 
-    infojson = json.dumps(self.info, 
+    infojson = jsonify(self.info, 
       sort_keys=True,
       indent=2, 
       separators=(',', ': ')
@@ -358,7 +358,7 @@ class CloudVolume(object):
   def _maybe_cache_info(self):
     if self.cache:
       with Storage('file://' + self.cache_path, n_threads=0) as storage:
-        storage.put_file('info', json.dumps(self.info), 'application/json')
+        storage.put_file('info', jsonify(self.info), 'application/json')
 
   def refresh_provenance(self):
     if self.cache:
@@ -417,7 +417,7 @@ class CloudVolume(object):
 
     # hack to pretty print provenance files
     prov = json.loads(prov)
-    prov = json.dumps(prov, 
+    prov = jsonify(prov, 
       sort_keys=True,
       indent=2, 
       separators=(',', ': ')
