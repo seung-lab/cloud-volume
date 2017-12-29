@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+0.6.12
+------
+
+* chore: removed old depencency for google-resumable-media
+
 0.6.10
 ------
 
