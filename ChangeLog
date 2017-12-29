@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+* fix: make commit\_info more resilent to numpy arrays
+
+0.6.8
+-----
+
+* chore: additional flexibility in requirements
+
+0.6.6
+-----
+
+* fix: added python3 division to Bbox
+
 0.6.5
 -----
 
