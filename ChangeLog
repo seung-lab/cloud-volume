@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+0.6.9
+-----
+
+* chore: fork intern and install from github to resolve dependency issue (#63)
 * fix: make commit\_info more resilent to numpy arrays
 
 0.6.8

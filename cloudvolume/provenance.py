@@ -1,4 +1,3 @@
-from jsonschema import validate
 import python_jsonschema_objects as pjs
 
 __all__ = [ 'DatasetProvenance', 'DataLayerProvenance' ]
