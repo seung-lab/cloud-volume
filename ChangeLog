@@ -4,6 +4,11 @@ CHANGES
 0.6.12
 ------
 
+* fix: remove unnecessary dependency
+
+0.6.11
+------
+
 * chore: removed old depencency for google-resumable-media
 
 0.6.10
