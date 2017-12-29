@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+0.6.10
+------
+
+* chore: remove unnecessary independent jsonschema dependency
+
 0.6.9
 -----
 
