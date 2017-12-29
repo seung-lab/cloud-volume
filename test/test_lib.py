@@ -129,3 +129,13 @@ def test_bbox_division():
 
   assert (box/2) == Bbox( (0,1.5,2), (2,4,8) )
 
+def test_jsonify():
+  obj = {
+    'x': [ np.array([1,2,3,4,5], dtype=np.uint64) ],
+    'y': [ {}, {} ],
+    'z': 5,
+    'w': '1 2 34 5'
+  }
+
+  assert lib.jsonify(obj, sort_keys=True) == r"""{"w": "1 2 34 5", "x": [[1, 2, 3, 4, 5]], "y": [{}, {}], "z": 5}"""
+  
