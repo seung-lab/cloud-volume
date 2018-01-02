@@ -587,6 +587,37 @@ class CloudVolume(object):
     shape = self.mip_volume_size(mip)
     return Bbox( offset, offset + shape )
 
+  def slices_to_global_coords(self, slices):
+    """
+    Used to convert from a higher mip level into mip 0 resolution.
+    """
+    if type(slices) is Bbox:
+      slices = slices.to_slices()
+
+    maxsize = list(self.mip_volume_size(0)) + [ self.num_channels ]
+    minsize = list(self.mip_voxel_offset(0)) + [ 0 ]
+
+    slices = generate_slices(slices, minsize, maxsize)[:3]
+    lower = Vec(*map(lambda x: x.start, slices), dtype=np.int64)
+    upper = Vec(*map(lambda x: x.stop, slices), dtype=np.int64)
+    step = Vec(*map(lambda x: x.step, slices), dtype=np.int64)
+
+    dsr = self.downsample_ratio.astype(np.int64)
+
+    lower *= dsr
+    upper *= dsr
+
+    signs = step / np.absolute(step)
+    step = signs * max2(np.absolute(step * dsr), Vec(1,1,1))
+    step = Vec(*np.round(step))
+
+    return [
+      slice(lower.x, upper.x, step.x),
+      slice(lower.y, upper.y, step.y),
+      slice(lower.z, upper.z, step.z)
+    ]
+
+
   def slices_from_global_coords(self, slices):
     """
     Used for converting from mip 0 coordinates to upper mip level
@@ -594,19 +625,24 @@ class CloudVolume(object):
     client displays the mip 0 coordinates for your cursor.
     """
 
+    if type(slices) is Bbox:
+      slices = slices.to_slices()
+
     maxsize = list(self.mip_volume_size(0)) + [ self.num_channels ]
     minsize = list(self.mip_voxel_offset(0)) + [ 0 ]
 
     slices = generate_slices(slices, minsize, maxsize)[:3]
-    lower = Vec(*map(lambda x: x.start, slices))
-    upper = Vec(*map(lambda x: x.stop, slices))
-    step = Vec(*map(lambda x: x.step, slices))
+    lower = Vec(*map(lambda x: x.start, slices), dtype=np.int64)
+    upper = Vec(*map(lambda x: x.stop, slices), dtype=np.int64)
+    step = Vec(*map(lambda x: x.step, slices), dtype=np.int64)
 
-    lower /= self.downsample_ratio
-    upper /= self.downsample_ratio
+    dsr = self.downsample_ratio.astype(np.int64)
+
+    lower //= dsr
+    upper //= dsr
 
     signs = step / np.absolute(step)
-    step = signs * max2(np.absolute(step / self.downsample_ratio), Vec(1,1,1))
+    step = signs * max2(np.absolute(step / dsr), Vec(1,1,1))
     step = Vec(*np.round(step))
 
     return [

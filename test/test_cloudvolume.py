@@ -1,5 +1,6 @@
 import pytest
 
+import copy
 import json
 import os
 import numpy as np
@@ -547,6 +548,67 @@ def test_cdn_cache_control():
         pass
     else:
         assert False
+
+def test_slices_from_global_coords():
+    delete_layer()
+    cv, data = create_layer(size=(1024, 1024, 5, 1), offset=(7,0,0))
+
+    bbox = Bbox( (10, 10, 1), (100, 100, 2) )
+
+    scale = cv.info['scales'][0]
+    scale = copy.deepcopy(scale)
+    scale['voxel_offset'] = [ 3, 0, 0 ]
+    scale['volume_size'] = [ 512, 512, 5 ]
+    scale['resolution'] = [ 2, 2, 1 ]
+    scale['key'] = '2_2_1'
+    cv.info['scales'].append(scale)
+    cv.commit_info()
+
+    assert len(cv.available_mips) == 2
+
+    cv.mip = 1
+    slices = cv.slices_from_global_coords( Bbox( (100, 100, 1), (500, 512, 2) ) )
+    result = Bbox.from_slices(slices)
+    assert result == Bbox( (50, 50, 1), (250, 256, 2) )
+
+    cv.mip = 0
+    slices = cv.slices_from_global_coords( Bbox( (100, 100, 1), (500, 512, 2) ) )
+    result = Bbox.from_slices(slices)
+    assert result == Bbox( (100, 100, 1), (500, 512, 2) )
+
+
+def test_slices_to_global_coords():
+    delete_layer()
+    cv, data = create_layer(size=(1024, 1024, 5, 1), offset=(7,0,0))
+
+    bbox = Bbox( (10, 10, 1), (100, 100, 2) )
+
+    scale = cv.info['scales'][0]
+    scale = copy.deepcopy(scale)
+    scale['voxel_offset'] = [ 3, 0, 0 ]
+    scale['volume_size'] = [ 512, 512, 5 ]
+    scale['resolution'] = [ 2, 2, 1 ]
+    scale['key'] = '2_2_1'
+    cv.info['scales'].append(scale)
+    cv.commit_info()
+
+    assert len(cv.available_mips) == 2
+
+    cv.mip = 1
+    slices = cv.slices_to_global_coords( Bbox( (100, 100, 1), (500, 512, 2) ) )
+
+    result = Bbox.from_slices(slices)
+    assert result == Bbox( (200, 200, 1), (1000, 1024, 2) )
+
+    cv.mip = 0
+    slices = cv.slices_to_global_coords( Bbox( (100, 100, 1), (500, 512, 2) ) )
+    result = Bbox.from_slices(slices)
+    assert result == Bbox( (100, 100, 1), (500, 512, 2) )
+
+
+
+
+
 
 
 
