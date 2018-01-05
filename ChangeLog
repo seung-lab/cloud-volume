@@ -1,6 +1,16 @@
 CHANGES
 =======
 
+0.7.0
+-----
+
+* feat: slices\_to\_global\_coords + tests
+
+0.6.13
+------
+
+* chore: expand protobuf dependency qualifications
+
 0.6.12
 ------
 
