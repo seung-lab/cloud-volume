@@ -1,5 +1,5 @@
 from __future__ import print_function
-from six.moves import range
+from six.moves import range, reduce
 
 from collections import namedtuple
 import json
