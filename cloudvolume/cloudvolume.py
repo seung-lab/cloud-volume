@@ -826,11 +826,9 @@ class CloudVolume(object):
   def _should_compress(self):
     return self.encoding in ('raw', 'compressed_segmentation')
 
-  def _fetch_data(self, cloudpaths):
+  def _compute_data_locations(self, cloudpaths):
     if not self.cache:
-      with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-        files = storage.get_files(cloudpaths)
-      return files
+      return { 'local': [], 'remote': cloudpaths }
 
     def noextensions(fnames):
       return [ os.path.splitext(fname)[0] for fname in fnames ]
@@ -845,17 +843,26 @@ class CloudVolume(object):
     already_have = requested.intersection(set(filenames))
     to_download = requested.difference(already_have)
 
-    download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]
+    download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]    
 
-    with Storage('file://' + list_dir) as storage:
-      local_files = storage.get_files(already_have)
+    return { 'local': already_have, 'remote': download_paths }
+
+  def _fetch_data(self, cloudpaths):
+    locs = self._compute_data_locations(cloudpaths)
+
+    local_files = []
+    if locs['local']:
+      cachedir = os.path.join(self.cache_path, self.key)
+      with Storage('file://' + cachedir) as storage:
+        local_files = storage.get_files(locs['local'])
 
     cloud_files = []
 
-    if len(download_paths):
+    if locs['remote']:
       with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-        cloud_files = storage.get_files(download_paths)
+        cloud_files = storage.get_files(locs['remote'])
 
+    if self.cache and cloud_files:
       with Storage('file://' + self.cache_path, progress=self.progress) as storage:
         paths = []
         for item in cloud_files:
