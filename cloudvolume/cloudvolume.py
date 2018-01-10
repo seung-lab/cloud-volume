@@ -1125,6 +1125,10 @@ class CloudVolume(object):
       paths.append( os.path.join(key, filename) )
 
     return paths
+
+  def save_mesh(self, *args, **kwargs):
+    warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
+    self.mesh.save(*args, **kwargs)
     
 
 def generate_slices(slices, minsize, maxsize, bounded=True):
