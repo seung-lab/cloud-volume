@@ -33,6 +33,12 @@ class NumpyEncoder(json.JSONEncoder):
 def jsonify(obj, **kwargs):
   return json.dumps(obj, cls=NumpyEncoder, **kwargs)
 
+def yellow(text):
+  return colorize('yellow', text)
+
+def red(text):
+  return colorize('red', text)
+
 def colorize(color, text):
   color = color.upper()
   return COLORS[color] + text + COLORS['RESET']

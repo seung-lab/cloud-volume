@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import shutil
+import weakref
 
 from builtins import range
 import numpy as np
@@ -17,8 +18,14 @@ from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
 from .secrets import boss_credentials, CLOUD_VOLUME_DIR
 
-from . import lib, chunks, mesh2obj
-from .lib import toabs, colorize, mkdir, clamp, xyzrange, Vec, Bbox, min2, max2, check_bounds, jsonify
+from . import lib, chunks
+from .lib import ( 
+  toabs, colorize, red, yellow, 
+  mkdir, clamp, xyzrange, Vec, 
+  Bbox, min2, max2, check_bounds, 
+  jsonify 
+)
+from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
 from .storage import Storage
 
@@ -37,9 +44,6 @@ __all__ = [ 'CloudVolume', 'EmptyVolumeException', 'EmptyRequestException' ]
 
 def warn(text):
   print(colorize('yellow', text))
-
-def red(text):
-  return colorize('red', text)
 
 class EmptyVolumeException(Exception):
   """Raised upon finding a missing chunk."""
@@ -112,6 +116,7 @@ class CloudVolume(object):
     self.fill_missing = fill_missing
     self.cache = cache
     self.cdn_cache = cdn_cache
+    self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
 
     if self.cache:
       if not os.path.exists(self.cache_path):
@@ -1107,85 +1112,6 @@ class CloudVolume(object):
     
       yield chunkimg, spt, ept 
 
-  def _mesh_manifest_path(self, segid):
-    mesh_dir = self.info['mesh']
-    mesh_json_file_name = str(segid) + ':0'
-    return os.path.join(mesh_dir, mesh_json_file_name)
-
-  def get_mesh(self, segid):
-    """Download the raw mesh fragments for this seg ID."""
-    
-    mesh_dir = self.info['mesh']
-    mesh_json_file_name = str(segid) + ':0'
-    download_path = self._mesh_manifest_path(segid)
-
-    with Storage(self.layer_cloudpath, progress=self.progress) as stor:
-      fragments = json.loads(stor.get_file(download_path))['fragments']
-      
-      # Older mesh manifest generation tasks had a bug where they
-      # accidently included the manifest file in the list of mesh
-      # fragments. Exclude these accidental files, no harm done.
-      fragments = [ f for f in fragments if f != mesh_json_file_name ] 
-
-      paths = [ os.path.join(mesh_dir, fragment) for fragment in fragments ]
-      frag_datas = stor.get_files(paths)  
-    return frag_datas
-
-  def _mesh_check_missing(self, segids):
-    """Check if there are any missing mesh manifests prior to downloading."""
-    manifest_paths = [ self._mesh_manifest_path(segid) for segid in segids ]
-    with Storage(self.layer_cloudpath, progress=self.progress) as stor:
-      exists = stor.files_exist(manifest_paths)
-    
-    dne = []
-    for path, there in exists.items():
-      if not there:
-        (segid,) = re.search('(\d+):0$', path).groups()
-        dne.append(segid)
-    return dne
-
-  def save_mesh(self, segids, file_format='obj'):
-    """
-    Save one or more segids into a common mesh format as a single file.
-
-    segids: int, string, or list thereof
-
-    Supported Formats: 'obj'
-    """
-    if type(segids) != list:
-      segids = [ segids ]
-
-    dne = self._mesh_check_missing(segids)
-
-    if len(dne) > 0:
-      missing = ', '.join([ str(segid) for segid in dne ])
-      print(red(
-        'Segment ID(s) {} are missing corresponding mesh manifests.\nAborted.' \
-          .format(missing)
-      ))
-      sys.exit()
-
-    fragments = []
-    for segid in segids:
-      fragments.extend( self.get_mesh(segid) )
-
-    meshdata = mesh2obj.decode_downloaded_data(fragments, progress=self.progress)
-
-    if file_format != 'obj':
-      raise NotImplementedError('Only .obj is currently supported.')
-
-    filename = str(segids[0])
-    if len(segids) > 1:
-      filename = "{}_{}".format(segids[0], segids[-1])
-
-    num_vertices = 0
-    with open('./{}.obj'.format(filename), 'wb') as f:
-      for name, fragment in tqdm(meshdata.items(), disable=(not self.progress), desc="Saving Mesh"):
-        mesh_data = mesh2obj.mesh_to_obj(fragment, num_vertices)
-        f.write('\n'.join(mesh_data) + '\n')
-        num_vertices += fragment['num_vertices']
-
-
   def __chunknames(self, bbox, volume_bbox, key, chunk_size):
     paths = []
 
@@ -1199,6 +1125,10 @@ class CloudVolume(object):
       paths.append( os.path.join(key, filename) )
 
     return paths
+
+  def save_mesh(self, *args, **kwargs):
+    warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
+    self.mesh.save(*args, **kwargs)
     
 
 def generate_slices(slices, minsize, maxsize, bounded=True):

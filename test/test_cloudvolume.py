@@ -619,10 +619,33 @@ def test_slices_to_global_coords():
     assert result == Bbox( (100, 100, 1), (500, 512, 2) )
 
 
+def test_mesh_fragment_download():
+    vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
+    frags = vol.mesh._get_raw_frags(18)
+    assert len(frags) == 1
+    assert len(frags[0]['content']) > 0
+    assert frags[0]['filename'] == os.path.join(vol.info['mesh'], '18:0:0-512_0-512_0-100')
+    assert frags[0]['error'] is None
+
+    frags = vol.mesh._get_raw_frags(147)
+    assert len(frags) == 1
+    assert len(frags[0]['content']) > 0
+    assert frags[0]['filename'] == os.path.join(vol.info['mesh'], '147:0:0-512_0-512_0-100')
+    assert frags[0]['error'] is None
 
 
-
-
+def test_get_mesh():
+    vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
+    mesh = vol.mesh.get(18)
+    assert mesh['num_vertices'] == 2041
+    assert len(mesh['vertices']) == 6123
+    assert len(mesh['faces']) == 36726
+    
+    try:
+        vol.mesh.get(666666666)
+        assert False
+    except ValueError:
+        pass
 
 
 
