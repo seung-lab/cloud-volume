@@ -2,6 +2,7 @@ import six
 from six import StringIO, BytesIO
 from six.moves import queue as Queue
 from collections import defaultdict
+import json
 import os.path
 import re
 from functools import partial
@@ -157,6 +158,10 @@ class Storage(ThreadedQueue):
         self.wait(desc)
 
         return results
+
+    def get_json(self, file_path):
+        content = self.get_file(file_path).decode('utf8')
+        return json.loads(content)
 
     def get_file(self, file_path):
         # Create get_files does uses threading to speed up downloading

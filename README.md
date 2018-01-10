@@ -63,8 +63,9 @@ image = vol[:,:,:] # Download the entire image stack into a numpy array
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
-vol.save_mesh(12345) # save 12345 as ./12345.obj
-vol.save_mesh([12345, 12346, 12347]) # merge three segments into one obj
+vol.mesh.save(12345) # save 12345 as ./12345.obj
+vol.mesh.save([12345, 12346, 12347]) # merge three segments into one obj
+vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
 
 # Caching, located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
 vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
@@ -98,7 +99,9 @@ Better documentation coming later, but for now, here's a summary of the most use
 * add_scale - Generate a new mip level in the info property. Does not autocommit.
 * commit_info - Push the current info property into the cloud as a JSON file.
 * commit_provenance - Push the current provenance property into the cloud as a JSON file.
-* get_mesh - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
+* mesh - Access mesh operations
+	* get - Download an object. Can merge multiple segmentids
+	* save - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
 * exists - Generate a report on which chunks within a bounding box exist.
 * delete - Delete the chunks within this bounding box.
 
