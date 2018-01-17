@@ -313,7 +313,7 @@ class CloudVolume(object):
       (cf.x_start, cf.y_start, cf.z_start),
       (cf.x_stop, cf.y_stop, cf.z_stop)
     )
-    bbox.maxpt = bbox.maxpt - 1 # boss uses exclusive outer bound
+    bbox.maxpt = bbox.maxpt 
 
     layer_type = 'unknown'
     if 'type' in channel.raw:
@@ -954,6 +954,7 @@ class CloudVolume(object):
 
     rmt = BossRemote(boss_credentials)
     cutout = rmt.get_cutout(chan, self.mip, x_rng, y_rng, z_rng).T
+    cutout = cutout.astype(self.dtype)
     cutout = cutout[::steps.x, ::steps.y, ::steps.z]
 
     if len(cutout.shape) == 3:
