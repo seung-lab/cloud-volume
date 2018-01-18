@@ -1,6 +1,29 @@
 CHANGES
 =======
 
+0.8.3
+-----
+
+* chore: liberalized requirements for boto3
+
+0.8.2
+-----
+
+* chore: liberalize Pillow version requirements
+
+0.8.1
+-----
+
+* test: added BOSS test
+* fix: boss bounds were off by one at border + cast cutout to correct type
+
+0.8.0
+-----
+
+* refactor: added vol.mesh interface (#64)
+* refactor: seperate file location computation from fetching
+* fix: Vec.rectVolume was broken in python3
+
 0.7.0
 -----
 

@@ -10,12 +10,10 @@ before_install:
 - PYTHON_MAJOR_VERSION=`echo $TRAVIS_PYTHON_VERSION | head -c 1`
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then sudo apt-get install python3-pip; fi
 - mkdir -p ~/.cloudvolume/secrets/
-- openssl aes-256-cbc -K $encrypted_1f1d44165f5b_key -iv $encrypted_1f1d44165f5b_iv -in credentials.tar.enc -out credentials.tar -d
-- tar -xvf credentials.tar
-- mv google-secret.json ~/.cloudvolume/secrets/
-- mv aws-secret.json ~/.cloudvolume/secrets/
-- mv project_name ~/.cloudvolume/
-- rm credentials.tar
+- echo $AWS_SECRET > ~/.cloudvolume/secrets/aws-secret.json
+- echo $GOOGLE_SECRET > ~/.cloudvolume/secrets/google-secret.json
+- echo $BOSS_SECRET > ~/.cloudvolume/secrets/boss-secret.json
+- echo $PROJECT_NAME > ~/.cloudvolume/secrets/project_name
 install:
 - if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then virtualenv venv; fi
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then virtualenv -p python3 venv; fi
