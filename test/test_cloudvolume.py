@@ -651,8 +651,8 @@ def test_boss_download():
     vol = CloudVolume('gs://seunglab-test/test_v0/image')
     bossvol = CloudVolume('boss://automated_testing/test_v0/image')
 
-    vimg = vol[:]
-    bimg = bossvol[:]
+    vimg = vol[:,:,:5]
+    bimg = bossvol[:,:,:5]
 
     assert np.all(bimg == vimg)
     assert bimg.dtype == vimg.dtype
