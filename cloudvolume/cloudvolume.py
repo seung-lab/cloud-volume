@@ -691,7 +691,7 @@ class CloudVolume(object):
 
     newscale = {
       u"encoding": fullres['encoding'],
-      u"chunk_sizes": [ chunk_size ],
+      u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
       u"voxel_offset": downscale(fullres['voxel_offset'], np.floor),
       u"size": downscale(fullres['size'], np.ceil),
