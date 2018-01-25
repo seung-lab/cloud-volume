@@ -21,7 +21,7 @@ def test_read_write():
             url = url + '-' + str(TEST_NUMBER)
             with Storage(url, n_threads=num_threads) as s:
                 content = b'some_string'
-                s.put_file('info', content, compress=False)
+                s.put_file('info', content, compress=None)
                 s.wait()
                 assert s.get_file('info') == content
                 assert s.get_file('nonexistentfile') is None
@@ -51,8 +51,8 @@ def test_delete():
         url = url + '-' + str(TEST_NUMBER)
         with Storage(url, n_threads=1) as s:
             content = b'some_string'
-            s.put_file('delete-test', content, compress=False).wait()
-            s.put_file('delete-test-compressed', content, compress=True).wait()
+            s.put_file('delete-test', content, compress=None).wait()
+            s.put_file('delete-test-compressed', content, compress='gzip').wait()
             assert s.get_file('delete-test') == content
             s.delete_file('delete-test').wait()
             assert s.get_file('delete-test') is None
@@ -63,20 +63,37 @@ def test_delete():
 
 def test_compression():
     urls = [
-        "file:///tmp/removeme/compression",
-        "gs://seunglab-test/cloudvolume/compression",
-        "s3://seunglab-test/cloudvolume/compression"
+        "file:///tmp/removeme/compress",
+        "gs://seunglab-test/cloudvolume/compress",
+        "s3://seunglab-test/cloudvolume/compress"
+    ]
+
+    compression_tests = [
+        '',
+        None,
+        True,
+        False,
+        'gzip',
     ]
 
     for url in urls:
         url = url + '-' + str(TEST_NUMBER)
+        for method in compression_tests:
+            with Storage(url, n_threads=5) as s:
+                content = b'some_string'
+                s.put_file('info', content, compress=method)
+                s.wait()
+                retrieved = s.get_file('info')
+                assert content == retrieved
+                assert s.get_file('nonexistentfile') is None
+
         with Storage(url, n_threads=5) as s:
             content = b'some_string'
-            s.put_file('info', content, compress=True)
-            s.wait()
-            assert s.get_file('info') == content
-            assert s.get_file('nonexistentfile') is None
-            s.delete_file('info')
+            try:
+                s.put_file('info', content, compress='nonexistent').wait()
+                assert False
+            except NotImplementedError:
+                pass
 
     delete_layer("/tmp/removeme/compression")
 
@@ -92,12 +109,12 @@ def test_list():
         with Storage(url, n_threads=5) as s:
             print('testing service:', url)
             content = b'some_string'
-            s.put_file('info1', content, compress=False)
-            s.put_file('info2', content, compress=False)
-            s.put_file('build/info3', content, compress=False)
-            s.put_file('level1/level2/info4', content, compress=False)
-            s.put_file('info5', content, compress=True)
-            s.put_file('info.txt', content, compress=False)
+            s.put_file('info1', content, compress=None)
+            s.put_file('info2', content, compress=None)
+            s.put_file('build/info3', content, compress=None)
+            s.put_file('level1/level2/info4', content, compress=None)
+            s.put_file('info5', content, compress='gzip')
+            s.put_file('info.txt', content, compress=None)
             s.wait()
             time.sleep(1) # sometimes it takes a moment for google to update the list
             assert set(s.list_files(prefix='')) == set(['build/info3','info1', 'info2', 'level1/level2/info4', 'info5', 'info.txt'])
@@ -137,10 +154,12 @@ def test_exists():
         url = url + '-' + str(TEST_NUMBER)
         with Storage(url, n_threads=5) as s:
             content = b'some_string'
-            s.put_file('info', content, compress=False)
+            s.put_file('info', content, compress=None)
             s.wait()
             time.sleep(1) # sometimes it takes a moment for google to update the list
             
             assert s.exists('info')
             assert not s.exists('doesntexist')
             s.delete_file('info')
+
+                

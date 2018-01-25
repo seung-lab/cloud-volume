@@ -104,20 +104,26 @@ class CloudVolume(object):
             This is useful when doing multiprocessing.
     progress: (bool) Show tqdm progress bars. 
         Defaults True in interactive python, False in script execution mode.
+    compress: (bool, str, None) pick which compression method to use. 
+      None: (default) Use the pre-programmed recommendation (e.g. gzip raw arrays and compressed_segmentation)
+      bool: True=gzip, False=no compression, Overrides defaults
+      str: 'gzip', extension so that we can add additional methods in the future like lz4 or zstd. 
+        '' means no compression (same as False).
   """
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
-      cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None):
+      cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
+      compress=None):
 
-    self.path = lib.extract_path(cloudpath)
-
-    self.progress = progress
-    self.mip = mip
     self.bounded = bounded
-    self.fill_missing = fill_missing
     self.cache = cache
     self.cdn_cache = cdn_cache
+    self.compress = compress
+    self.fill_missing = fill_missing
+    self.mip = mip
     self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
-
+    self.progress = progress
+    self.path = lib.extract_path(cloudpath)
+    
     if self.cache:
       if not os.path.exists(self.cache_path):
         mkdir(self.cache_path)
@@ -829,7 +835,14 @@ class CloudVolume(object):
     return 'application/octet-stream'
 
   def _should_compress(self):
-    return self.encoding in ('raw', 'compressed_segmentation')
+    if self.compress is None:
+      return 'gzip' if self.encoding in ('raw', 'compressed_segmentation') else None
+    elif self.compress == True:
+      return 'gzip'
+    elif self.compress == False:
+      return None
+    else:
+      return self.compress
 
   def _compute_data_locations(self, cloudpaths):
     if not self.cache:
