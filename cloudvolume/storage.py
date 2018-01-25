@@ -1,5 +1,4 @@
 import six
-from six import StringIO, BytesIO
 from six.moves import queue as Queue
 from collections import defaultdict
 import json
@@ -12,13 +11,15 @@ import botocore
 from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Client
-import gzip
 import tenacity
+from tqdm import tqdm
 
+from . import compression
 from .lib import mkdir, extract_path
 from .threaded_queue import ThreadedQueue
 from .connectionpools import S3ConnectionPool, GCloudBucketPool
 
+# This is just to support pooling by bucket
 class keydefaultdict(defaultdict):
     def __missing__(self, key):
         if self.default_factory is None:
@@ -54,7 +55,6 @@ class Storage(ThreadedQueue):
         progress (bool:false): Show a tqdm progress bar for multiple 
             uploads and downloads.
     """
-    gzip_magic_numbers = [ 0x1f, 0x8b ]
     def __init__(self, layer_path, n_threads=20, progress=False):
 
         self.progress = progress
@@ -90,7 +90,7 @@ class Storage(ThreadedQueue):
     def get_path_to_file(self, file_path):
         return os.path.join(self._layer_path, file_path)
 
-    def put_file(self, file_path, content, content_type=None, compress=False, cache_control=None):
+    def put_file(self, file_path, content, content_type=None, compress=None, cache_control=None):
         """ 
         Args:
             filename (string): it can contains folders
@@ -103,7 +103,7 @@ class Storage(ThreadedQueue):
             block=False
         )
 
-    def put_files(self, files, content_type=None, compress=False, cache_control=None, block=True):
+    def put_files(self, files, content_type=None, compress=None, cache_control=None, block=True):
         """
         Put lots of files at once and get a nice progress bar. It'll also wait
         for the upload to complete, just like get_files.
@@ -115,9 +115,7 @@ class Storage(ThreadedQueue):
             interface.put_file(path, content, content_type, compress, cache_control=cache_control)
 
         for path, content in files:
-            if compress:
-                content = self._compress(content)
-
+            content = compression.compress(content, method=compress)
             uploadfn = partial(base_uploadfn, path, content)
 
             if len(self._threads):
@@ -164,11 +162,8 @@ class Storage(ThreadedQueue):
         return json.loads(content)
 
     def get_file(self, file_path):
-        # Create get_files does uses threading to speed up downloading
-
-        content, decompress = self._interface.get_file(file_path)
-        if content and decompress != False:
-            content = self._maybe_uncompress(content)
+        content, encoding = self._interface.get_file(file_path)
+        content = compression.decompress(content, encoding, filename=file_path)
         return content
 
     def get_files(self, file_paths):
@@ -185,11 +180,12 @@ class Storage(ThreadedQueue):
                 result = interface.get_file(path)
             except Exception as err:
                 error = err
-                print(err)
+                # important to print immediately because 
+                # errors are collected at the end
+                print(err) 
             
-            content, decompress = result
-            if content and decompress:
-                content = self._maybe_uncompress(content)
+            content, encoding = result
+            content = compression.decompress(content, encoding)
 
             results.append({
                 "filename": path,
@@ -235,32 +231,6 @@ class Storage(ThreadedQueue):
         self.wait(desc)
 
         return self
-
-    def _maybe_uncompress(self, content):
-        """ Uncompression is applied if the first to bytes matches with
-            the gzip magic numbers. 
-            There is once chance in 65536 that a file that is not gzipped will
-            be ungzipped. That's why is better to set uncompress to False in
-            get file.
-        """
-        first_two_bytes = [ byte for byte in bytearray(content)[:2] ]
-        if first_two_bytes == self.gzip_magic_numbers:
-            return self._uncompress(content)
-        return content
-
-    @staticmethod
-    def _compress(content):
-        stringio = BytesIO()
-        gzip_obj = gzip.GzipFile(mode='wb', fileobj=stringio)
-        gzip_obj.write(content)
-        gzip_obj.close()
-        return stringio.getvalue()
-
-    @staticmethod
-    def _uncompress(content):
-        stringio = BytesIO(content)
-        with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
-            return gfile.read()
 
     def list_files(self, prefix="", flat=False):
         """
@@ -308,7 +278,7 @@ class FileInterface(object):
           file_path
         ])
 
-        return  os.path.join(*clean)
+        return os.path.join(*clean)
 
     def put_file(self, file_path, content, content_type, compress, cache_control=None):
         path = self.get_path_to_file(file_path)
@@ -338,13 +308,15 @@ class FileInterface(object):
             
         if compressed:
             path += '.gz'
+
+        encoding = 'gzip' if compressed else None
         
         try:
             with open(path, 'rb') as f:
                 data = f.read()
-            return data, compressed
+            return data, encoding
         except IOError:
-            return None, False
+            return None, encoding
 
     def exists(self, file_path):
         path = self.get_path_to_file(file_path)
@@ -432,10 +404,10 @@ class GoogleCloudStorageInterface(object):
         key = self.get_path_to_file(file_path)
         blob = self._bucket.get_blob( key )
         if not blob:
-            return None, False
-        # blob handles the decompression in the case
-        # it is necessary
-        return blob.download_as_string(), False
+            return None, None # content, encoding
+
+        # blob handles the decompression so the encoding is None
+        return blob.download_as_string(), None # content, encoding
 
     def exists(self, file_path):
         key = self.get_path_to_file(file_path)
@@ -522,10 +494,10 @@ class S3Interface(object):
             if 'ContentEncoding' in resp:
                 encoding = resp['ContentEncoding']
 
-            return resp['Body'].read(), encoding == "gzip"
+            return resp['Body'].read(), encoding
         except botocore.exceptions.ClientError as err: 
             if err.response['Error']['Code'] == 'NoSuchKey':
-                return None, False
+                return None, None
             else:
                 raise
 
