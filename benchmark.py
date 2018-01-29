@@ -1,0 +1,120 @@
+from collections import defaultdict
+import time
+import re
+import json
+import socket
+from operators import mult
+from functools import reduce
+
+from cloudvolume import CloudVolume
+
+CHUNK_SIZES = ( 
+	(128,128,1),
+	(128,128,2),
+	(128,128,4),
+	(128,128,8),
+	(128,128,16),
+	(128,128,32),
+	(128,128,64),
+	(128,128,128),
+	(1024,1024,1),
+	(1024,1024,2),
+	(1024,1024,4),
+	(1024,1024,8),
+	(1024,1024,16),
+	(1024,1024,32),
+	(1024,1024,64),
+	(1024,1024,100), # max size of SNEMI3D
+)
+
+logfile = open('./log.tsv', 'wt')
+logfile.write("hostname\tdirection\tcompression\timage_type\tchunk_size\tdtype\tMB\tN\tmean (sec)\tfastest (sec)\tslowest (sec)\tcloudpath\n")
+logfile.flush()
+
+def stopwatch(fn):
+	start = time.time()
+	fn()
+	return time.time() - start
+
+def benchmark(fn, N):
+	lst = [ stopwatch(fn) for _ in range(N) ]
+	return {
+		'mean': (sum(lst) / N), 
+		'fastest': min(lst), 
+		'slowest': max(lst), 
+		'N': N,
+	}
+
+def MBs(vol, sec):
+	bits, = re.search(r'(\d+)$', vol.dtype).groups()
+	dtype_bytes = int(bits) // 8
+	total_bytes = vol.bounds.volume() * dtype_bytes
+	return total_bytes / 1e6 / sec
+
+def disp(desc, vol, stats):
+	mbs = lambda sec: MBs(vol, sec)
+	return "%s -- mean=%.2f MB/sec, range=%.2f to %.2f MB/sec; N=%d" % (
+		desc, mbs(stats['mean']), mbs(stats['slowest']), mbs(stats['fastest']), stats['N']
+	)
+
+def log(row):
+	global logfile
+	bits, = re.search(r'(\d+)$', row['dtype']).groups()
+	dtype_bytes = int(bits) // 8
+	row['MB'] = reduce(mult, row['chunk_size']) * dtype_bytes
+	entry = "{hostname}\t{direction}\t{compression}\t{image_type}\t{chunk_size}\t{dtype}\t{MB}\t{N}\t{mean}\t{fastest}\t{slowest}\t{cloudpath}\n".format(**row)
+	logfile.write(entry)
+	logfile.flush()
+
+def rawlog(results):
+	with open('./results.json', 'wt') as f:
+		f.write(json.dumps(results))
+
+def benchmark_download(voltype):
+	global CHUNK_SIZES
+	N = 2
+
+	for chunk_size in CHUNK_SIZES[::-1]:
+		cloudpath = 'gs://seunglab-test/test_v0/{}_{}_{}_{}'.format(voltype, *chunk_size)
+		vol = CloudVolume(cloudpath, progress=True)
+		stats = benchmark(lambda: vol[:], N)
+
+		log({
+			"direction": "download",
+			"compression": "gzip",
+			"image_type": voltype,
+			"N": N,
+			"mean": stats['mean'],
+			"fastest": stats['fastest'],
+			"slowest": stats['slowest'],
+			"cloudpath": cloudpath,
+			"chunk_size": chunk_size,
+			"dtype": vol.dtype,
+			"hostname": socket.gethostname(),
+		})
+
+	for chunk_size in CHUNK_SIZES[::-1]:
+		cloudpath = 'gs://seunglab-test/test_v0/{}_uncompressed_{}_{}_{}'.format(voltype, *chunk_size)
+		vol = CloudVolume(cloudpath, progress=True)
+		stats = benchmark(lambda: vol[:], N)
+
+		log({
+			"direction": "download",
+			"compression": "none",
+			"image_type": voltype,
+			"N": N,
+			"mean": stats['mean'],
+			"fastest": stats['fastest'],
+			"slowest": stats['slowest'],
+			"cloudpath": cloudpath,
+			"chunk_size": chunk_size,
+			"dtype": vol.dtype,
+			"hostname": socket.gethostname(),
+		})
+
+	return results
+
+benchmark_download('black')
+benchmark_download('image')
+benchmark_download('segmentation')
+logfile.close()
