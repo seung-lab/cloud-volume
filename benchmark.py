@@ -3,7 +3,7 @@ import time
 import re
 import json
 import socket
-from operators import mult
+from operator import mul
 from functools import reduce
 
 from cloudvolume import CloudVolume
@@ -27,8 +27,8 @@ CHUNK_SIZES = (
 	(1024,1024,100), # max size of SNEMI3D
 )
 
-logfile = open('./log.tsv', 'wt')
-logfile.write("hostname\tdirection\tcompression\timage_type\tchunk_size\tdtype\tMB\tN\tmean (sec)\tfastest (sec)\tslowest (sec)\tcloudpath\n")
+logfile = open('./benchmark.tsv', 'wt')
+logfile.write("hostname\tdirection\tcompression\timage_type\tchunk_size\tdtype\tMB\tMean MB/sec\tN\tmean (sec)\tfastest (sec)\tslowest (sec)\tcloudpath\n")
 logfile.flush()
 
 def stopwatch(fn):
@@ -61,14 +61,16 @@ def log(row):
 	global logfile
 	bits, = re.search(r'(\d+)$', row['dtype']).groups()
 	dtype_bytes = int(bits) // 8
-	row['MB'] = reduce(mult, row['chunk_size']) * dtype_bytes
-	entry = "{hostname}\t{direction}\t{compression}\t{image_type}\t{chunk_size}\t{dtype}\t{MB}\t{N}\t{mean}\t{fastest}\t{slowest}\t{cloudpath}\n".format(**row)
+	row['MB'] = reduce(mul, row['chunk_size']) * dtype_bytes / 1024**2
+	row['MBs'] = row['MB'] / row['mean']
+
+	for k,v in row.items():
+		if type(v) is float:
+			row[k] = '%.1f' % v
+
+	entry = "{hostname}\t{direction}\t{compression}\t{image_type}\t{chunk_size}\t{dtype}\t{MB}\t{MBs}\t{N}\t{mean}\t{fastest}\t{slowest}\t{cloudpath}\n".format(**row)
 	logfile.write(entry)
 	logfile.flush()
-
-def rawlog(results):
-	with open('./results.json', 'wt') as f:
-		f.write(json.dumps(results))
 
 def benchmark_download(voltype):
 	global CHUNK_SIZES
@@ -111,8 +113,6 @@ def benchmark_download(voltype):
 			"dtype": vol.dtype,
 			"hostname": socket.gethostname(),
 		})
-
-	return results
 
 benchmark_download('black')
 benchmark_download('image')
