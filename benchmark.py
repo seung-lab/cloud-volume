@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 import time
 import re
 import json
@@ -6,7 +7,10 @@ import socket
 from operator import mul
 from functools import reduce
 
+import numpy as np
 from cloudvolume import CloudVolume
+
+N = 2
 
 CHUNK_SIZES = ( 
 	(128,128,1),
@@ -66,15 +70,78 @@ def log(row):
 
 	for k,v in row.items():
 		if type(v) is float:
-			row[k] = '%.1f' % v
+			row[k] = '%.3f' % v
 
 	entry = "{hostname}\t{direction}\t{compression}\t{image_type}\t{chunk_size}\t{dtype}\t{MB}\t{MBs}\t{N}\t{mean}\t{fastest}\t{slowest}\t{cloudpath}\n".format(**row)
 	logfile.write(entry)
 	logfile.flush()
 
+def benchmark_upload(voltype):
+	global CHUNK_SIZES
+	global N
+
+	blackvol = CloudVolume('gs://seunglab-test/test_v0/black')
+	blackvol.reset_scales()
+	info = deepcopy(blackvol.info)
+
+	black = np.zeros(shape=blackvol.shape, dtype=blackvol.dtype)
+
+	for chunk_size in CHUNK_SIZES[::-1]:
+		cloudpath = 'gs://seunglab-test/test_v0/{}_upload_{}_{}_{}'.format(voltype, *chunk_size)
+		info['scales'][0]['chunk_sizes'] = [ list(chunk_size) ]
+		vol = CloudVolume(cloudpath, progress=True, info=info, compress='gzip')
+
+		def upload():
+			vol[:] = black
+
+		stats = benchmark(upload, N)
+
+		log({
+			"direction": "upload",
+			"compression": "gzip",
+			"image_type": voltype,
+			"N": N,
+			"mean": stats['mean'],
+			"fastest": stats['fastest'],
+			"slowest": stats['slowest'],
+			"cloudpath": cloudpath,
+			"chunk_size": chunk_size,
+			"dtype": vol.dtype,
+			"hostname": socket.gethostname(),
+		})
+
+		vol.delete(vol.bounds)
+
+	for chunk_size in CHUNK_SIZES[::-1]:
+		cloudpath = 'gs://seunglab-test/test_v0/{}_upload_{}_{}_{}'.format(voltype, *chunk_size)
+		info['scales'][0]['chunk_sizes'] = [ list(chunk_size) ]
+		vol = CloudVolume(cloudpath, progress=True, info=info, compress='')
+
+		def upload():
+			vol[:] = black
+		
+		stats = benchmark(upload, N)
+
+		log({
+			"direction": "upload",
+			"compression": "none",
+			"image_type": voltype,
+			"N": N,
+			"mean": stats['mean'],
+			"fastest": stats['fastest'],
+			"slowest": stats['slowest'],
+			"cloudpath": cloudpath,
+			"chunk_size": chunk_size,
+			"dtype": vol.dtype,
+			"hostname": socket.gethostname(),
+		})
+
+		vol.delete(vol.bounds)
+
+
 def benchmark_download(voltype):
 	global CHUNK_SIZES
-	N = 2
+	global N
 
 	for chunk_size in CHUNK_SIZES[::-1]:
 		cloudpath = 'gs://seunglab-test/test_v0/{}_{}_{}_{}'.format(voltype, *chunk_size)
@@ -114,7 +181,13 @@ def benchmark_download(voltype):
 			"hostname": socket.gethostname(),
 		})
 
-benchmark_download('black')
-benchmark_download('image')
-benchmark_download('segmentation')
+# benchmark_download('black')
+# benchmark_download('image')
+# benchmark_download('segmentation')
+
+benchmark_upload('black')
+# benchmark_upload('image')
+# benchmark_upload('segmentation')
+
+
 logfile.close()
