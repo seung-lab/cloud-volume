@@ -749,11 +749,15 @@ class CloudVolume(object):
 
     for i in range(3):
       if downs_size[i] * factor[i] != fullres_size[i]:
-        raise Exception("Fullres size is not divisible by downsample_factor along dim {}".format(i))
+        suggestion = int(fullres_size[i] + (fullres_size[i] % factor[i]))
+        raise Exception("Can't scale offset: {} % {} != 0. Suggested change: dim {} to {}".format(fullres_size[i], factor[i],
+                                    i, suggestion))
       if downs_voff[i] * factor[i] != fullres_voff[i]:
-        raise Exception("Fullres voxel offset is not divisible by downsample_factor along dim {}".format(i))
+        raise Exception("Can't scale offset: {} % {} != 0".format(fullres_voff[i], factor[i]))
       if downs_size[i] % downs_chunk[i] != 0:
-        raise Exception("Downsamplede size is not divisible by chunk size along dim {}".format(i))
+        suggestion = int(fullres_size[i] + factor[i] * (downs_size[i] % fullres_chunk[i]))
+        raise Exception("Chunk size misalignment: {} / {} % {} != 0. Suggested change: dim {} to {}".format(fullres_size[i],
+                                    factor[i], fullres_chunk[i], i, suggestion))
 
     newscale = {
       u"encoding": fullres['encoding'],
