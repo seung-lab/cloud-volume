@@ -743,19 +743,19 @@ class CloudVolume(object):
     fullres_res   = fullres['resolution']
 
     downs_chunk = fullres_chunk
-    downs_size  = [ fullres_size[i] / factor[i] for i in range(len(factor)) ]
-    downs_voff  = [ fullres_voff[i] / factor[i] for i in range(len(factor)) ]
-    downs_res   = [ fullres_res[i]  * factor[i] for i in range(len(factor)) ]
+    downs_size  = [ int(fullres_size[i] / factor[i]) for i in range(len(factor)) ]
+    downs_voff  = [ int(fullres_voff[i] / factor[i]) for i in range(len(factor)) ]
+    downs_res   = [ int(fullres_res[i]  * factor[i]) for i in range(len(factor)) ]
 
     for i in range(3):
       if downs_size[i] * factor[i] != fullres_size[i]:
-        suggestion = int(fullres_size[i] + (fullres_size[i] % factor[i]))
+        suggestion = int(fullres_size[i] + factor[i] - (fullres_size[i] % factor[i]))
         raise Exception("Can't scale offset: {} % {} != 0. Suggested change: dim {} to {}".format(fullres_size[i], factor[i],
                                     i, suggestion))
       if downs_voff[i] * factor[i] != fullres_voff[i]:
         raise Exception("Can't scale offset: {} % {} != 0".format(fullres_voff[i], factor[i]))
       if downs_size[i] % downs_chunk[i] != 0:
-        suggestion = int(fullres_size[i] + factor[i] * (downs_size[i] % fullres_chunk[i]))
+        suggestion = int(fullres_size[i] + fullres_chunk - factor[i] * (downs_size[i] % downs_chunk[i]))
         raise Exception("Chunk size misalignment: {} / {} % {} != 0. Suggested change: dim {} to {}".format(fullres_size[i],
                                     factor[i], fullres_chunk[i], i, suggestion))
 
