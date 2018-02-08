@@ -80,11 +80,11 @@ def benchmark_upload(voltype):
 	global CHUNK_SIZES
 	global N
 
-	blackvol = CloudVolume('gs://seunglab-test/test_v0/black')
-	blackvol.reset_scales()
-	info = deepcopy(blackvol.info)
+	originvol = CloudVolume('gs://seunglab-test/test_v0/{}'.format(voltype))
+	originvol.reset_scales()
+	info = deepcopy(originvol.info)
 
-	black = np.zeros(shape=blackvol.shape, dtype=blackvol.dtype)
+	img = originvol[:]
 
 	for chunk_size in CHUNK_SIZES[::-1]:
 		cloudpath = 'gs://seunglab-test/test_v0/{}_upload_{}_{}_{}'.format(voltype, *chunk_size)
@@ -92,7 +92,7 @@ def benchmark_upload(voltype):
 		vol = CloudVolume(cloudpath, progress=True, info=info, compress='gzip')
 
 		def upload():
-			vol[:] = black
+			vol[:] = img
 
 		stats = benchmark(upload, N)
 
@@ -118,7 +118,7 @@ def benchmark_upload(voltype):
 		vol = CloudVolume(cloudpath, progress=True, info=info, compress='')
 
 		def upload():
-			vol[:] = black
+			vol[:] = img
 		
 		stats = benchmark(upload, N)
 
@@ -181,13 +181,13 @@ def benchmark_download(voltype):
 			"hostname": socket.gethostname(),
 		})
 
-# benchmark_download('black')
-# benchmark_download('image')
-# benchmark_download('segmentation')
+benchmark_download('black')
+benchmark_download('image')
+benchmark_download('segmentation')
 
 benchmark_upload('black')
-# benchmark_upload('image')
-# benchmark_upload('segmentation')
+benchmark_upload('image')
+benchmark_upload('segmentation')
 
 
 logfile.close()
