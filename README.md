@@ -8,7 +8,7 @@ When working with a particular dataset, say an EM scan of a mouse, fish, or fly 
 
 ## Setup
 
-You'll need to set up your cloud credentials as well as the main install.
+You'll need to set up your cloud credentials as well as the main install. On linux, installation requires python3-dev and g++.
 
 ### Credentials
 
