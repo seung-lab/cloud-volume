@@ -31,10 +31,10 @@ styles = {
 
 
 index = 0
-for direction in stats.keys():
+for direction in sorted(stats.keys()):
 	direxpr = stats[direction]
 
-	for compress in direxpr.keys():
+	for compress in sorted(direxpr.keys()):
 		imageexper = direxpr[compress]
 		index += 1
 
@@ -49,8 +49,7 @@ for direction in stats.keys():
 		for imgtype in imageexper.keys():
 			style = styles[imgtype]
 			experiment = imageexper[imgtype]
-			xdata = [ float(mb) for mb in experiment.keys() ]
-			xdata.sort()
+			xdata = sorted([ float(mb) for mb in experiment.keys() ])
 			ydata = [ float(experiment[mb]) for mb in xdata ]
 			line = plt.plot(xdata, ydata, style, linestyle='-', linewidth=2)
 			lines.append(line)
