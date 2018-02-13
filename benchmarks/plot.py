@@ -24,9 +24,9 @@ for row in rows:
 
 
 styles = {
-	'black': 'b.',
-	'image': 'r.',
-	'segmentation': 'g.',
+	'black': 'k',
+	'image': (.7, .7, .7, 1),
+	'segmentation': 'r',
 }
 
 
@@ -51,7 +51,7 @@ for direction in sorted(stats.keys()):
 			experiment = imageexper[imgtype]
 			xdata = sorted([ float(mb) for mb in experiment.keys() ])
 			ydata = [ float(experiment[mb]) for mb in xdata ]
-			line = plt.plot(xdata, ydata, style, linestyle='-', linewidth=2)
+			line = plt.plot(xdata, ydata, color=style, linestyle='-', linewidth=2)
 			lines.append(line)
 			legends.append(imgtype)
 
