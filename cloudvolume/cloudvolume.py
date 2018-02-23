@@ -903,13 +903,9 @@ class CloudVolume(object):
       return (shape[0], shape[1], shape[2], self.num_channels)
 
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
-    renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
-
     files = self._fetch_data(cloudpaths)
 
-    fileiter = tqdm(files, total=len(cloudpaths), desc="Rendering Image", disable=(not self.progress))
-
-    for fileinfo in fileiter:
+    def decode(fileinfo):
       if fileinfo['error'] is not None:
         raise fileinfo['error']
 
@@ -923,20 +919,28 @@ class CloudVolume(object):
           raise EmptyVolumeException(fileinfo['filename'])
 
       try:
-        img3d = chunks.decode(
+        return chunks.decode(
           fileinfo['content'], self.encoding, multichannel_shape(bbox), self.dtype
         )
       except Exception:
         print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
             content_len, bbox, fileinfo['filename'], fileinfo['error'])))
         raise
-      
-      start = bbox.minpt - realized_bbox.minpt
-      end = min2(start + self.underlying, renderbuffer.shape[:3] )
-      delta = min2(end - start, img3d.shape[:3])
-      end = start + delta
 
-      renderbuffer[ start.x:end.x, start.y:end.y, start.z:end.z, : ] = img3d[ :delta.x, :delta.y, :delta.z, : ]
+    if len(files) == 1:
+      renderbuffer = decode(files[0])
+    else:
+      renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
+      fileiter = tqdm(files, total=len(cloudpaths), desc="Rendering Image", disable=(not self.progress))
+      for fileinfo in fileiter:
+        bbox = Bbox.from_filename(fileinfo['filename'])
+        img3d = decode(fileinfo)
+        start = bbox.minpt - realized_bbox.minpt
+        end = min2(start + self.underlying, renderbuffer.shape[:3] )
+        delta = min2(end - start, img3d.shape[:3])
+        end = start + delta
+
+        renderbuffer[ start.x:end.x, start.y:end.y, start.z:end.z, : ] = img3d[ :delta.x, :delta.y, :delta.z, : ]
 
     bounded_request = Bbox.clamp(requested_bbox, self.bounds)
     lp = bounded_request.minpt - realized_bbox.minpt # low realized point
