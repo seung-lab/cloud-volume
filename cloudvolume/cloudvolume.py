@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from functools import partial
 import json
 import json5
 import os
@@ -8,10 +9,15 @@ import sys
 import shutil
 import weakref
 
-from builtins import range
+from six.moves import range
 import numpy as np
 from PIL import Image
+import mmap
+import multiprocessing 
+import posix_ipc
+from posix_ipc import O_CREAT
 from tqdm import tqdm
+import uuid
 from six import string_types
 
 from intern.remote.boss import BossRemote
@@ -27,7 +33,8 @@ from .lib import (
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
-from .storage import Storage
+from .storage import SimpleStorage, Storage
+from .threaded_queue import ThreadedQueue
 
 # Set the interpreter bool
 try:
@@ -100,6 +107,8 @@ class CloudVolume(object):
       - str: set the header manually
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
+    parallel (int: 1, bool): number of extra processes to launch, 1 means only use the main process. If parallel is True
+      use the number of CPUs returned by multiprocessing.cpu_count()
     provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
             This is useful when doing multiprocessing.
     progress: (bool) Show tqdm progress bars. 
@@ -112,7 +121,7 @@ class CloudVolume(object):
   """
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
       cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None):
+      compress=None, parallel=1):
 
     self.bounded = bounded
     self.cache = cache
@@ -124,6 +133,17 @@ class CloudVolume(object):
     self.progress = progress
     self.path = lib.extract_path(cloudpath)
     
+    self.parallel = 1
+    if type(parallel) == bool:
+      if parallel:
+        self.parallel = multiprocessing.cpu_count()
+    elif type(parallel) == int:
+      self.parallel = parallel
+    else:
+      raise ValueError(str(parallel) + ' is not an acceptable parallel parameter. Must be int >= 1 or bool.')
+
+    self.uuid = str(uuid.uuid4())
+
     if self.cache:
       if not os.path.exists(self.cache_path):
         mkdir(self.cache_path)
@@ -865,84 +885,38 @@ class CloudVolume(object):
 
     return { 'local': already_have, 'remote': download_paths }
 
-  def _fetch_data(self, cloudpaths):
-    locs = self._compute_data_locations(cloudpaths)
-
-    local_files = []
-    if locs['local']:
-      cachedir = os.path.join(self.cache_path, self.key)
-      with Storage('file://' + cachedir) as storage:
-        local_files = storage.get_files(locs['local'])
-
-    cloud_files = []
-
-    if locs['remote']:
-      with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-        cloud_files = storage.get_files(locs['remote'])
-
-    if self.cache and cloud_files:
-      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
-        paths = []
-        for item in cloud_files:
-          if item['error'] is None:
-            content = item['content'] or b''
-            paths.append( (item['filename'], content) )
-
-        storage.put_files(paths, 
-          content_type=self._content_type(), 
-          compress=self._should_compress()
-        )
-
-    return local_files + cloud_files
-
   def _cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     realized_bbox = self.__realized_bbox(requested_bbox)
-    
-    def multichannel_shape(bbox):
-      shape = bbox.size3()
-      return (shape[0], shape[1], shape[2], self.num_channels)
-
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
-    renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
-
-    files = self._fetch_data(cloudpaths)
-
-    fileiter = tqdm(files, total=len(cloudpaths), desc="Rendering Image", disable=(not self.progress))
-
-    for fileinfo in fileiter:
-      if fileinfo['error'] is not None:
-        raise fileinfo['error']
-
-      bbox = Bbox.from_filename(fileinfo['filename'])
-      content_len = len(fileinfo['content']) if fileinfo['content'] is not None else 0
-
-      if not fileinfo['content']:
-        if self.fill_missing:
-          fileinfo['content'] = ''
-        else:
-          raise EmptyVolumeException(fileinfo['filename'])
-
-      try:
-        img3d = chunks.decode(
-          fileinfo['content'], self.encoding, multichannel_shape(bbox), self.dtype
+  
+    if self.parallel == 1:
+      renderbuffer = np.zeros(shape=multichannel_shape(self, realized_bbox), dtype=self.dtype)
+      single_process_download(self, realized_bbox, cloudpaths, renderbuffer)
+    else:
+      pool = multiprocessing.Pool(self.parallel)
+      cloudpaths_by_process = []
+      length = (len(cloudpaths) // self.parallel) or 1
+      for i in range(0, len(cloudpaths), length):
+        cloudpaths_by_process.append(
+          cloudpaths[i:i+length]
         )
-      except Exception:
-        print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
-            content_len, bbox, fileinfo['filename'], fileinfo['error'])))
-        raise
-      
-      start = bbox.minpt - realized_bbox.minpt
-      end = min2(start + self.underlying, renderbuffer.shape[:3] )
-      delta = min2(end - start, img3d.shape[:3])
-      end = start + delta
 
-      renderbuffer[ start.x:end.x, start.y:end.y, start.z:end.z, : ] = img3d[ :delta.x, :delta.y, :delta.z, : ]
+      provenance = self.provenance 
+      self.provenance = None
+      spd = partial(multi_process_download, self, realized_bbox)
+      pool.map(spd, cloudpaths_by_process)
+      self.provenance = provenance
 
+      shared, array_like, renderbuffer = open_renderbuffer(self, realized_bbox)
+      renderbuffer = np.copy(renderbuffer)
+      array_like.close()
+      shared.unlink()
+    
     bounded_request = Bbox.clamp(requested_bbox, self.bounds)
     lp = bounded_request.minpt - realized_bbox.minpt # low realized point
     hp = lp + bounded_request.size3()
-
-    renderbuffer = renderbuffer[ lp.x:hp.x:steps.x, lp.y:hp.y:steps.y, lp.z:hp.z:steps.z, channel_slice ] 
+    
+    renderbuffer = renderbuffer[ lp.x:hp.x:steps.x, lp.y:hp.y:steps.y, lp.z:hp.z:steps.z, channel_slice ]
     return VolumeCutout.from_volume(self, renderbuffer, bounded_request)
   
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
@@ -1034,45 +1008,34 @@ class CloudVolume(object):
     if str(self.dtype) != str(img.dtype):
       raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(self.dtype, img.dtype))
 
-    iterator = tqdm(self._generate_chunks(img, offset), desc='Rechunking image', disable=(not self.progress))
+    img_bbox = Bbox.from_vec(img.shape[:3])
 
-    uploads = []
-    for imgchunk, spt, ept in iterator:
-      if np.array_equal(spt, ept):
-          continue
+    chunk_ranges = list(self._generate_chunks(img, offset))
+  
+    if self.parallel == 1:
+      single_process_upload(self, img_bbox, chunk_ranges, img)
+      return
 
-      # handle the edge of the dataset
-      clamp_ept = min2(ept, self.bounds.maxpt)
-      newept = clamp_ept - spt
-      imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
-
-      filename = "{}-{}_{}-{}_{}-{}".format(
-        spt.x, clamp_ept.x,
-        spt.y, clamp_ept.y, 
-        spt.z, clamp_ept.z
+    length = (len(chunk_ranges) // self.parallel) or 1
+    chunk_ranges_by_process = []
+    for i in range(0, len(chunk_ranges), length):
+      chunk_ranges_by_process.append(
+        chunk_ranges[i:i+length]
       )
 
-      cloudpath = os.path.join(self.key, filename)
-      encoded = chunks.encode(imgchunk, self.encoding)
-      uploads.append( (cloudpath, encoded) )
+    shared, array_like, renderbuffer = open_renderbuffer(self, img_bbox)
+    renderbuffer[:] = img
 
-    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-      storage.put_files(uploads, 
-        content_type=self._content_type(), 
-        compress=self._should_compress(),
-        cache_control=self._cdn_cache_control(self.cdn_cache),
-      )
+    pool = multiprocessing.Pool(self.parallel)
+    provenance = self.provenance 
+    self.provenance = None
+    mpu = partial(multi_process_upload, self, img_bbox)
+    pool.map(mpu, chunk_ranges_by_process)
+    self.provenance = provenance
 
-    if self.cache:
-      mkdir(self.cache_path)
-      if self.progress:
-        print("Caching upload...")
-      
-      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
-        storage.put_files(uploads, 
-          content_type=self._content_type(), 
-          compress=self._should_compress()
-        )
+    array_like.close()
+    shared.unlink()
+
 
   def _cdn_cache_control(self, val=None):
     """Translate self.cdn_cache into a Cache-Control HTTP header."""
@@ -1114,17 +1077,12 @@ class CloudVolume(object):
     img_offset = bounds.minpt - offset
     img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
 
-    if len(img.shape) == 3:
-      img = img[:, :, :, np.newaxis ]
-  
     for startpt in xyzrange( img_offset, img_end, self.underlying ):
+      startpt = startpt.clone()
       endpt = min2(startpt + self.underlying, shape)
-      chunkimg = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
-
       spt = (startpt + bounds.minpt).astype(int)
       ept = (endpt + bounds.minpt).astype(int)
-    
-      yield chunkimg, spt, ept 
+      yield (startpt, endpt, spt, ept)
 
   def __chunknames(self, bbox, volume_bbox, key, chunk_size):
     paths = []
@@ -1270,4 +1228,132 @@ class VolumeCutout(np.ndarray):
 
         path = os.path.join(directory, filename)
         img2d.save(path, image_format)
+
+def single_process_download(cv, realized_bbox, cloudpaths, renderbuffer):
+  cachedir = 'file://' + os.path.join(cv.cache_path, cv.key)
+  progress = 'Downloading' if cv.progress else None
+
+  locations = cv._compute_data_locations(cloudpaths)
+  with ThreadedQueue(n_threads=20, progress=progress) as tq:
+    for filename in locations['local']:
+      dl = partial(download, cv, realized_bbox, renderbuffer, cachedir, filename, False)
+      tq.put(dl)
+    for filename in locations['remote']:
+      dl = partial(download, cv, realized_bbox, renderbuffer, cv.layer_cloudpath, filename, cv.cache)
+      tq.put(dl)
+
+def multi_process_download(cv, realized_bbox, cloudpaths):
+  shared, array_like, renderbuffer = open_renderbuffer(cv, realized_bbox)
+  single_process_download(cv, realized_bbox, cloudpaths, renderbuffer)
+  array_like.close()
+  shared.close_fd()
+
+def multichannel_shape(vol, bbox):
+  shape = bbox.size3()
+  return Vec(shape[0], shape[1], shape[2], vol.num_channels)
+
+def decode(vol, filename, content):
+  bbox = Bbox.from_filename(filename)
+  content_len = len(content) if content is not None else 0
+
+  if not content:
+    if vol.fill_missing:
+      content = ''
+    else:
+      raise EmptyVolumeException(filename)
+
+  try:
+    return chunks.decode(
+      content, vol.encoding, multichannel_shape(vol, bbox), vol.dtype
+    )
+  except Exception:
+    print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
+        content_len, bbox, filename, error)))
+    raise
+
+def paint(vol, realized_bbox, renderbuffer, filename, content):
+    bbox = Bbox.from_filename(filename)
+    img3d = decode(vol, filename, content)
+    start = bbox.minpt - realized_bbox.minpt
+    end = min2(start + vol.underlying, renderbuffer.shape[:3] )
+    delta = min2(end - start, img3d.shape[:3])
+    end = start + delta
+    renderbuffer[ start.x:end.x, start.y:end.y, start.z:end.z, : ] = img3d[ :delta.x, :delta.y, :delta.z, : ]
+
+def download(vol, realized_bbox, renderbuffer, cloudpath, filename, cache, iface):
+  content = SimpleStorage(cloudpath).get_file(filename)
+  paint(vol, realized_bbox, renderbuffer, filename, content)
+  if cache:
+    content = content or b''
+    SimpleStorage('file://' + vol.cache_path).put_file(
+      file_path=filename, 
+      content=content, 
+      content_type=vol._content_type(), 
+      compress=vol._should_compress()
+    )
+
+def open_renderbuffer(vol, realized_bbox):
+  mcshape = multichannel_shape(vol, realized_bbox)
+  nbytes = mcshape.rectVolume() * np.dtype(vol.dtype).itemsize
+  shared = posix_ipc.SharedMemory(vol.uuid, flags=O_CREAT, size=int(nbytes))
+  array_like = mmap.mmap(shared.fd, shared.size)
+  renderbuffer = np.ndarray(buffer=array_like, dtype=vol.dtype, shape=mcshape)
+  return shared, array_like, renderbuffer
+
+
+def single_process_upload(vol, img_bbox, chunk_ranges, renderbuffer):
+  img = renderbuffer[:]
+
+  if len(img.shape) == 3:
+    img = img[:, :, :, np.newaxis ]
+
+  if vol.cache:
+    mkdir(vol.cache_path)
+
+  def upload(imgchunk, filename, iface):
+    encoded = chunks.encode(imgchunk, vol.encoding)
+    SimpleStorage(vol.layer_cloudpath).put_file(
+      file_path=filename, 
+      content=encoded,
+      content_type=vol._content_type(), 
+      compress=vol._should_compress(),
+      cache_control=vol._cdn_cache_control(vol.cdn_cache),
+    )
+
+    if vol.cache:
+      SimpleStorage('file://' + vol.cache_path).put_file(
+        file_path=filename, 
+        content=encoded,
+        compress=vol._should_compress(),
+      )
+
+  progress = 'Uploading' if vol.progress else None
+  with ThreadedQueue(n_threads=20, progress=progress) as tq:
+    for startpt, endpt, spt, ept in chunk_ranges:
+      if np.array_equal(spt, ept):
+          continue
+
+      imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
+
+      # handle the edge of the dataset
+      clamp_ept = min2(ept, vol.bounds.maxpt)
+      newept = clamp_ept - spt
+      imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
+
+      filename = "{}-{}_{}-{}_{}-{}".format(
+        spt.x, clamp_ept.x,
+        spt.y, clamp_ept.y, 
+        spt.z, clamp_ept.z
+      )
+      
+      cloudpath = os.path.join(vol.key, filename)
+      
+      tq.put(partial(upload, imgchunk, cloudpath))
+
+
+def multi_process_upload(vol, img_bbox, chunk_ranges):
+  shared, array_like, renderbuffer = open_renderbuffer(vol, img_bbox)
+  single_process_upload(vol, img_bbox, chunk_ranges, renderbuffer)
+  array_like.close()
+  shared.close_fd()
 

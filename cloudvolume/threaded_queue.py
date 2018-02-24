@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 class ThreadedQueue(object):
   """Grant threaded task processing to any derived class."""
-  def __init__(self, n_threads, queue_size=0):
+  def __init__(self, n_threads, queue_size=0, progress=None):
     self._n_threads = n_threads
 
     self._queue = Queue.Queue(maxsize=queue_size) # 0 = infinite size
@@ -22,7 +22,7 @@ class ThreadedQueue(object):
     self.processed = 0
     self._inserted = 0
 
-    self.with_progress = None
+    self.with_progress = progress
 
     self.start_threads(n_threads)
 
