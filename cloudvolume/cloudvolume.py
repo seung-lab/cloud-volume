@@ -12,7 +12,12 @@ import weakref
 from six.moves import range
 import numpy as np
 from PIL import Image
+import mmap
+import multiprocessing 
+import posix_ipc
+from posix_ipc import O_CREAT
 from tqdm import tqdm
+import uuid
 from six import string_types
 
 from intern.remote.boss import BossRemote
@@ -102,6 +107,8 @@ class CloudVolume(object):
       - str: set the header manually
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
+    parallel (int: 1, bool): number of extra processes to launch, 1 means only use the main process. If parallel is True
+      use the number of CPUs returned by multiprocessing.cpu_count()
     provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
             This is useful when doing multiprocessing.
     progress: (bool) Show tqdm progress bars. 
@@ -114,7 +121,7 @@ class CloudVolume(object):
   """
   def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
       cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None):
+      compress=None, parallel=1):
 
     self.bounded = bounded
     self.cache = cache
@@ -126,6 +133,17 @@ class CloudVolume(object):
     self.progress = progress
     self.path = lib.extract_path(cloudpath)
     
+    self.parallel = 1
+    if type(parallel) == bool:
+      if parallel:
+        self.parallel = multiprocessing.cpu_count()
+    elif type(parallel) == int:
+      self.parallel = parallel
+    else:
+      raise ValueError(str(parallel) + ' is not an acceptable parallel parameter. Must be int >= 1 or bool.')
+
+    self.uuid = str(uuid.uuid4())
+
     if self.cache:
       if not os.path.exists(self.cache_path):
         mkdir(self.cache_path)
@@ -870,70 +888,28 @@ class CloudVolume(object):
   def _cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     realized_bbox = self.__realized_bbox(requested_bbox)
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+  
+    pool = multiprocessing.Pool(self.parallel)
+    cloudpaths_by_process = []
+    length = (len(cloudpaths) // self.parallel) or 1
+    for i in range(0, len(cloudpaths), length):
+      cloudpaths_by_process.append(
+        cloudpaths[i:i+length]
+      )
 
-    def multichannel_shape(bbox):
-      shape = bbox.size3()
-      return (shape[0], shape[1], shape[2], self.num_channels)
+    self.provenance = None
+    spd = partial(single_process_download, self, realized_bbox)
+    pool.map(spd, cloudpaths_by_process)
 
-    def decode(filename, content):
-      bbox = Bbox.from_filename(filename)
-      content_len = len(content) if content is not None else 0
-
-      if not content:
-        if self.fill_missing:
-          content = ''
-        else:
-          raise EmptyVolumeException(filename)
-
-      try:
-        return chunks.decode(
-          content, self.encoding, multichannel_shape(bbox), self.dtype
-        )
-      except Exception:
-        print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
-            content_len, bbox, filename, error)))
-        raise
-
-    renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
-
-    def paint(filename, content):
-        bbox = Bbox.from_filename(filename)
-        img3d = decode(filename, content)
-        start = bbox.minpt - realized_bbox.minpt
-        end = min2(start + self.underlying, renderbuffer.shape[:3] )
-        delta = min2(end - start, img3d.shape[:3])
-        end = start + delta
-        renderbuffer[ start.x:end.x, start.y:end.y, start.z:end.z, : ] = img3d[ :delta.x, :delta.y, :delta.z, : ]
-
-    def download(cloudpath, filename, cache, iface):
-      content = SimpleStorage(cloudpath).get_file(filename)
-      paint(filename, content)
-      if cache:
-        content = content or b''
-        SimpleStorage('file://' + self.cache_path).put_file(
-          file_path=filename, 
-          content=content, 
-          content_type=self._content_type(), 
-          compress=self._should_compress()
-        )
-
-    locations = self._compute_data_locations(cloudpaths)
-    cachedir = 'file://' + os.path.join(self.cache_path, self.key)
-    progress = 'Downloading' if self.progress else None
-
-    with ThreadedQueue(n_threads=20, progress=progress) as tq:
-      for filename in locations['local']:
-        dl = partial(download, cachedir, filename, False)
-        tq.put(dl)
-      for filename in locations['remote']:
-        dl = partial(download, self.layer_cloudpath, filename, self.cache)
-        tq.put(dl)
+    shared, array_like, renderbuffer = open_renderbuffer(self, realized_bbox)
 
     bounded_request = Bbox.clamp(requested_bbox, self.bounds)
     lp = bounded_request.minpt - realized_bbox.minpt # low realized point
     hp = lp + bounded_request.size3()
 
-    renderbuffer = renderbuffer[ lp.x:hp.x:steps.x, lp.y:hp.y:steps.y, lp.z:hp.z:steps.z, channel_slice ] 
+    renderbuffer = np.copy(renderbuffer[ lp.x:hp.x:steps.x, lp.y:hp.y:steps.y, lp.z:hp.z:steps.z, channel_slice ])
+    array_like.close()
+    shared.unlink()
     return VolumeCutout.from_volume(self, renderbuffer, bounded_request)
   
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
@@ -1262,3 +1238,71 @@ class VolumeCutout(np.ndarray):
         path = os.path.join(directory, filename)
         img2d.save(path, image_format)
 
+def single_process_download(cv, realized_bbox, cloudpaths):
+  print("HERE!")
+  shared, array_like, renderbuffer = open_renderbuffer(cv, realized_bbox)
+  locations = cv._compute_data_locations(cloudpaths)
+  cachedir = 'file://' + os.path.join(cv.cache_path, cv.key)
+  progress = 'Downloading' if cv.progress else None
+
+  with ThreadedQueue(n_threads=20, progress=progress) as tq:
+    for filename in locations['local']:
+      dl = partial(download, cv, realized_bbox, renderbuffer, cachedir, filename, False)
+      tq.put(dl)
+    for filename in locations['remote']:
+      dl = partial(download, cv, realized_bbox, renderbuffer, cv.layer_cloudpath, filename, cv.cache)
+      tq.put(dl)
+  array_like.close()
+
+
+def multichannel_shape(vol, bbox):
+  shape = bbox.size3()
+  return Vec(shape[0], shape[1], shape[2], vol.num_channels)
+
+def decode(vol, filename, content):
+  bbox = Bbox.from_filename(filename)
+  content_len = len(content) if content is not None else 0
+
+  if not content:
+    if vol.fill_missing:
+      content = ''
+    else:
+      raise EmptyVolumeException(filename)
+
+  try:
+    return chunks.decode(
+      content, vol.encoding, multichannel_shape(vol, bbox), vol.dtype
+    )
+  except Exception:
+    print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
+        content_len, bbox, filename, error)))
+    raise
+
+def paint(vol, realized_bbox, renderbuffer, filename, content):
+    bbox = Bbox.from_filename(filename)
+    img3d = decode(vol, filename, content)
+    start = bbox.minpt - realized_bbox.minpt
+    end = min2(start + vol.underlying, renderbuffer.shape[:3] )
+    delta = min2(end - start, img3d.shape[:3])
+    end = start + delta
+    renderbuffer[ start.x:end.x, start.y:end.y, start.z:end.z, : ] = img3d[ :delta.x, :delta.y, :delta.z, : ]
+
+def download(vol, realized_bbox, renderbuffer, cloudpath, filename, cache, iface):
+  content = SimpleStorage(cloudpath).get_file(filename)
+  paint(vol, realized_bbox, renderbuffer, filename, content)
+  if cache:
+    content = content or b''
+    SimpleStorage('file://' + vol.cache_path).put_file(
+      file_path=filename, 
+      content=content, 
+      content_type=vol._content_type(), 
+      compress=vol._should_compress()
+    )
+
+def open_renderbuffer(vol, realized_bbox):
+  mcshape = multichannel_shape(vol, realized_bbox)
+  nbytes = mcshape.rectVolume() * np.dtype(vol.dtype).itemsize
+  shared = posix_ipc.SharedMemory(vol.uuid, flags=O_CREAT, size=int(nbytes))
+  array_like = mmap.mmap(shared.fd, shared.size)
+  renderbuffer = np.ndarray(buffer=array_like, dtype=vol.dtype, shape=mcshape)
+  return shared, array_like, renderbuffer
