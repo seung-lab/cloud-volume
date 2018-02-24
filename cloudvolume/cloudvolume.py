@@ -889,27 +889,34 @@ class CloudVolume(object):
     realized_bbox = self.__realized_bbox(requested_bbox)
     cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
   
-    pool = multiprocessing.Pool(self.parallel)
-    cloudpaths_by_process = []
-    length = (len(cloudpaths) // self.parallel) or 1
-    for i in range(0, len(cloudpaths), length):
-      cloudpaths_by_process.append(
-        cloudpaths[i:i+length]
-      )
+    if self.parallel == 1:
+      renderbuffer = np.zeros(shape=multichannel_shape(self, realized_bbox), dtype=self.dtype)
+      single_process_download(self, realized_bbox, cloudpaths, renderbuffer)
+    else:
+      pool = multiprocessing.Pool(self.parallel)
+      cloudpaths_by_process = []
+      length = (len(cloudpaths) // self.parallel) or 1
+      for i in range(0, len(cloudpaths), length):
+        cloudpaths_by_process.append(
+          cloudpaths[i:i+length]
+        )
 
-    self.provenance = None
-    spd = partial(single_process_download, self, realized_bbox)
-    pool.map(spd, cloudpaths_by_process)
+      provenance = self.provenance 
+      self.provenance = None
+      spd = partial(multi_process_download, self, realized_bbox)
+      pool.map(spd, cloudpaths_by_process)
+      self.provenance = provenance
 
-    shared, array_like, renderbuffer = open_renderbuffer(self, realized_bbox)
-
+      shared, array_like, renderbuffer = open_renderbuffer(self, realized_bbox)
+      renderbuffer = np.copy(renderbuffer)
+      array_like.close()
+      shared.unlink()
+    
     bounded_request = Bbox.clamp(requested_bbox, self.bounds)
     lp = bounded_request.minpt - realized_bbox.minpt # low realized point
     hp = lp + bounded_request.size3()
-
-    renderbuffer = np.copy(renderbuffer[ lp.x:hp.x:steps.x, lp.y:hp.y:steps.y, lp.z:hp.z:steps.z, channel_slice ])
-    array_like.close()
-    shared.unlink()
+    
+    renderbuffer = renderbuffer[ lp.x:hp.x:steps.x, lp.y:hp.y:steps.y, lp.z:hp.z:steps.z, channel_slice ]
     return VolumeCutout.from_volume(self, renderbuffer, bounded_request)
   
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
@@ -1238,13 +1245,11 @@ class VolumeCutout(np.ndarray):
         path = os.path.join(directory, filename)
         img2d.save(path, image_format)
 
-def single_process_download(cv, realized_bbox, cloudpaths):
-  print("HERE!")
-  shared, array_like, renderbuffer = open_renderbuffer(cv, realized_bbox)
-  locations = cv._compute_data_locations(cloudpaths)
+def single_process_download(cv, realized_bbox, cloudpaths, renderbuffer):
   cachedir = 'file://' + os.path.join(cv.cache_path, cv.key)
   progress = 'Downloading' if cv.progress else None
 
+  locations = cv._compute_data_locations(cloudpaths)
   with ThreadedQueue(n_threads=20, progress=progress) as tq:
     for filename in locations['local']:
       dl = partial(download, cv, realized_bbox, renderbuffer, cachedir, filename, False)
@@ -1252,8 +1257,12 @@ def single_process_download(cv, realized_bbox, cloudpaths):
     for filename in locations['remote']:
       dl = partial(download, cv, realized_bbox, renderbuffer, cv.layer_cloudpath, filename, cv.cache)
       tq.put(dl)
-  array_like.close()
 
+def multi_process_download(cv, realized_bbox, cloudpaths):
+  shared, array_like, renderbuffer = open_renderbuffer(cv, realized_bbox)
+  single_process_download(cv, realized_bbox, cloudpaths, renderbuffer)
+  array_like.close()
+  shared.close_fd()
 
 def multichannel_shape(vol, bbox):
   shape = bbox.size3()
