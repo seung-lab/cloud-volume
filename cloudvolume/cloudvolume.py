@@ -919,22 +919,15 @@ class CloudVolume(object):
 
     locations = self._compute_data_locations(cloudpaths)
     cachedir = 'file://' + os.path.join(self.cache_path, self.key)
+    progress = 'Downloading' if self.progress else None
 
-    if len(cloudpaths) == 1:
-      fname = cloudpaths[0]
-      layer = self.layer_cloudpath
-      if locations['local']:
-          layer = cachedir
-      renderbuffer = decode(fname, SimpleStorage(layer).get_file(fname))
-    else:
-      progress = 'Downloading' if self.progress else None
-      with ThreadedQueue(n_threads=20, progress=progress) as tq:
-        for filename in locations['local']:
-          dl = partial(download, cachedir, filename, False)
-          tq.put(dl)
-        for filename in locations['remote']:
-          dl = partial(download, self.layer_cloudpath, filename, self.cache)
-          tq.put(dl)
+    with ThreadedQueue(n_threads=20, progress=progress) as tq:
+      for filename in locations['local']:
+        dl = partial(download, cachedir, filename, False)
+        tq.put(dl)
+      for filename in locations['remote']:
+        dl = partial(download, self.layer_cloudpath, filename, self.cache)
+        tq.put(dl)
 
     bounded_request = Bbox.clamp(requested_bbox, self.bounds)
     lp = bounded_request.minpt - realized_bbox.minpt # low realized point
