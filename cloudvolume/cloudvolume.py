@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from functools import partial
 import json
 import json5
 import os
@@ -8,7 +9,7 @@ import sys
 import shutil
 import weakref
 
-from builtins import range
+from six.moves import range
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
@@ -27,7 +28,8 @@ from .lib import (
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
-from .storage import Storage
+from .storage import SimpleStorage, Storage
+from .threaded_queue import ThreadedQueue
 
 # Set the interpreter bool
 try:
@@ -865,82 +867,73 @@ class CloudVolume(object):
 
     return { 'local': already_have, 'remote': download_paths }
 
-  def _fetch_data(self, cloudpaths):
-    locs = self._compute_data_locations(cloudpaths)
-
-    local_files = []
-    if locs['local']:
-      cachedir = os.path.join(self.cache_path, self.key)
-      with Storage('file://' + cachedir) as storage:
-        local_files = storage.get_files(locs['local'])
-
-    cloud_files = []
-
-    if locs['remote']:
-      with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-        cloud_files = storage.get_files(locs['remote'])
-
-    if self.cache and cloud_files:
-      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
-        paths = []
-        for item in cloud_files:
-          if item['error'] is None:
-            content = item['content'] or b''
-            paths.append( (item['filename'], content) )
-
-        storage.put_files(paths, 
-          content_type=self._content_type(), 
-          compress=self._should_compress()
-        )
-
-    return local_files + cloud_files
-
   def _cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     realized_bbox = self.__realized_bbox(requested_bbox)
-    
+    cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+
     def multichannel_shape(bbox):
       shape = bbox.size3()
       return (shape[0], shape[1], shape[2], self.num_channels)
 
-    cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
-    files = self._fetch_data(cloudpaths)
+    def decode(filename, content):
+      bbox = Bbox.from_filename(filename)
+      content_len = len(content) if content is not None else 0
 
-    def decode(fileinfo):
-      if fileinfo['error'] is not None:
-        raise fileinfo['error']
-
-      bbox = Bbox.from_filename(fileinfo['filename'])
-      content_len = len(fileinfo['content']) if fileinfo['content'] is not None else 0
-
-      if not fileinfo['content']:
+      if not content:
         if self.fill_missing:
-          fileinfo['content'] = ''
+          content = ''
         else:
-          raise EmptyVolumeException(fileinfo['filename'])
+          raise EmptyVolumeException(filename)
 
       try:
         return chunks.decode(
-          fileinfo['content'], self.encoding, multichannel_shape(bbox), self.dtype
+          content, self.encoding, multichannel_shape(bbox), self.dtype
         )
       except Exception:
         print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
-            content_len, bbox, fileinfo['filename'], fileinfo['error'])))
+            content_len, bbox, filename, error)))
         raise
 
-    if len(files) == 1:
-      renderbuffer = decode(files[0])
-    else:
-      renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
-      fileiter = tqdm(files, total=len(cloudpaths), desc="Rendering Image", disable=(not self.progress))
-      for fileinfo in fileiter:
-        bbox = Bbox.from_filename(fileinfo['filename'])
-        img3d = decode(fileinfo)
+    renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
+
+    def paint(filename, content):
+        bbox = Bbox.from_filename(filename)
+        img3d = decode(filename, content)
         start = bbox.minpt - realized_bbox.minpt
         end = min2(start + self.underlying, renderbuffer.shape[:3] )
         delta = min2(end - start, img3d.shape[:3])
         end = start + delta
-
         renderbuffer[ start.x:end.x, start.y:end.y, start.z:end.z, : ] = img3d[ :delta.x, :delta.y, :delta.z, : ]
+
+    def download(cloudpath, filename, cache, iface):
+      content = SimpleStorage(cloudpath).get_file(filename)
+      paint(filename, content)
+      if cache:
+        content = content or b''
+        SimpleStorage('file://' + self.cache_path).put_file(
+          file_path=filename, 
+          content=content, 
+          content_type=self._content_type(), 
+          compress=self._should_compress()
+        )
+
+    locations = self._compute_data_locations(cloudpaths)
+    cachedir = 'file://' + os.path.join(self.cache_path, self.key)
+
+    if len(cloudpaths) == 1:
+      fname = cloudpaths[0]
+      layer = self.layer_cloudpath
+      if locations['local']:
+          layer = cachedir
+      renderbuffer = decode(fname, SimpleStorage(layer).get_file(fname))
+    else:
+      with ThreadedQueue(n_threads=20) as tq:
+        for filename in locations['local']:
+          dl = partial(download, cachedir, filename, False)
+          tq.put(dl)
+        for filename in locations['remote']:
+          dl = partial(download, self.layer_cloudpath, filename, self.cache)
+          tq.put(dl)
 
     bounded_request = Bbox.clamp(requested_bbox, self.bounds)
     lp = bounded_request.minpt - realized_bbox.minpt # low realized point
