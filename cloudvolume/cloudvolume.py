@@ -1008,45 +1008,34 @@ class CloudVolume(object):
     if str(self.dtype) != str(img.dtype):
       raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(self.dtype, img.dtype))
 
-    iterator = tqdm(self._generate_chunks(img, offset), desc='Rechunking image', disable=(not self.progress))
+    img_bbox = Bbox.from_vec(img.shape[:3])
 
-    uploads = []
-    for imgchunk, spt, ept in iterator:
-      if np.array_equal(spt, ept):
-          continue
+    chunk_ranges = list(self._generate_chunks(img, offset))
+  
+    if self.parallel == 1:
+      single_process_upload(self, img_bbox, chunk_ranges, img)
+      return
 
-      # handle the edge of the dataset
-      clamp_ept = min2(ept, self.bounds.maxpt)
-      newept = clamp_ept - spt
-      imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
-
-      filename = "{}-{}_{}-{}_{}-{}".format(
-        spt.x, clamp_ept.x,
-        spt.y, clamp_ept.y, 
-        spt.z, clamp_ept.z
+    length = (len(chunk_ranges) // self.parallel) or 1
+    chunk_ranges_by_process = []
+    for i in range(0, len(chunk_ranges), length):
+      chunk_ranges_by_process.append(
+        chunk_ranges[i:i+length]
       )
 
-      cloudpath = os.path.join(self.key, filename)
-      encoded = chunks.encode(imgchunk, self.encoding)
-      uploads.append( (cloudpath, encoded) )
+    shared, array_like, renderbuffer = open_renderbuffer(self, img_bbox)
+    renderbuffer[:] = img
 
-    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-      storage.put_files(uploads, 
-        content_type=self._content_type(), 
-        compress=self._should_compress(),
-        cache_control=self._cdn_cache_control(self.cdn_cache),
-      )
+    pool = multiprocessing.Pool(self.parallel)
+    provenance = self.provenance 
+    self.provenance = None
+    mpu = partial(multi_process_upload, self, img_bbox)
+    pool.map(mpu, chunk_ranges_by_process)
+    self.provenance = provenance
 
-    if self.cache:
-      mkdir(self.cache_path)
-      if self.progress:
-        print("Caching upload...")
-      
-      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
-        storage.put_files(uploads, 
-          content_type=self._content_type(), 
-          compress=self._should_compress()
-        )
+    array_like.close()
+    shared.unlink()
+
 
   def _cdn_cache_control(self, val=None):
     """Translate self.cdn_cache into a Cache-Control HTTP header."""
@@ -1088,17 +1077,12 @@ class CloudVolume(object):
     img_offset = bounds.minpt - offset
     img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
 
-    if len(img.shape) == 3:
-      img = img[:, :, :, np.newaxis ]
-  
     for startpt in xyzrange( img_offset, img_end, self.underlying ):
+      startpt = startpt.clone()
       endpt = min2(startpt + self.underlying, shape)
-      chunkimg = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
-
       spt = (startpt + bounds.minpt).astype(int)
       ept = (endpt + bounds.minpt).astype(int)
-    
-      yield chunkimg, spt, ept 
+      yield (startpt, endpt, spt, ept)
 
   def __chunknames(self, bbox, volume_bbox, key, chunk_size):
     paths = []
@@ -1315,3 +1299,61 @@ def open_renderbuffer(vol, realized_bbox):
   array_like = mmap.mmap(shared.fd, shared.size)
   renderbuffer = np.ndarray(buffer=array_like, dtype=vol.dtype, shape=mcshape)
   return shared, array_like, renderbuffer
+
+
+def single_process_upload(vol, img_bbox, chunk_ranges, renderbuffer):
+  img = renderbuffer[:]
+
+  if len(img.shape) == 3:
+    img = img[:, :, :, np.newaxis ]
+
+  if vol.cache:
+    mkdir(vol.cache_path)
+
+  def upload(imgchunk, filename, iface):
+    encoded = chunks.encode(imgchunk, vol.encoding)
+    SimpleStorage(vol.layer_cloudpath).put_file(
+      file_path=filename, 
+      content=encoded,
+      content_type=vol._content_type(), 
+      compress=vol._should_compress(),
+      cache_control=vol._cdn_cache_control(vol.cdn_cache),
+    )
+
+    if vol.cache:
+      SimpleStorage('file://' + vol.cache_path).put_file(
+        file_path=filename, 
+        content=encoded,
+        compress=vol._should_compress(),
+      )
+
+  progress = 'Uploading' if vol.progress else None
+  with ThreadedQueue(n_threads=20, progress=progress) as tq:
+    for startpt, endpt, spt, ept in chunk_ranges:
+      if np.array_equal(spt, ept):
+          continue
+
+      imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
+
+      # handle the edge of the dataset
+      clamp_ept = min2(ept, vol.bounds.maxpt)
+      newept = clamp_ept - spt
+      imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
+
+      filename = "{}-{}_{}-{}_{}-{}".format(
+        spt.x, clamp_ept.x,
+        spt.y, clamp_ept.y, 
+        spt.z, clamp_ept.z
+      )
+      
+      cloudpath = os.path.join(vol.key, filename)
+      
+      tq.put(partial(upload, imgchunk, cloudpath))
+
+
+def multi_process_upload(vol, img_bbox, chunk_ranges):
+  shared, array_like, renderbuffer = open_renderbuffer(vol, img_bbox)
+  single_process_upload(vol, img_bbox, chunk_ranges, renderbuffer)
+  array_like.close()
+  shared.close_fd()
+

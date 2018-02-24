@@ -126,15 +126,15 @@ def test_writer_last_chunk_smaller():
 
     assert len(chunks) == 2
 
-    img, spt, ept = chunks[0]
+    startpt, endpt, spt, ept = chunks[0]
     assert np.array_equal(spt, (0,0,0))
     assert np.array_equal(ept, (64,64,64))
-    assert img.shape == (64,64,64,1)
+    # assert img.shape == (64,64,64,1)
 
-    img, spt, ept = chunks[1]
+    startpt, endpt, spt, ept = chunks[1]
     assert np.array_equal(spt, (64,0,0))
     assert np.array_equal(ept, (100,64,64))
-    assert img.shape == (36,64,64,1)
+    # assert img.shape == (36,64,64,1)
 
 # def test_reader_negative_indexing():
 #     """negative indexing is supported"""
