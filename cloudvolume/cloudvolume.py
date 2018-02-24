@@ -927,7 +927,8 @@ class CloudVolume(object):
           layer = cachedir
       renderbuffer = decode(fname, SimpleStorage(layer).get_file(fname))
     else:
-      with ThreadedQueue(n_threads=20) as tq:
+      progress = 'Downloading' if self.progress else None
+      with ThreadedQueue(n_threads=20, progress=progress) as tq:
         for filename in locations['local']:
           dl = partial(download, cachedir, filename, False)
           tq.put(dl)
