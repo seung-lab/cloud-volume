@@ -37,6 +37,140 @@ retry = tenacity.retry(
     wait=tenacity.wait_full_jitter(0.5, 60.0),
 )
 
+class SimpleStorage(object):
+    """
+    Access files stored in Google Storage (gs), Amazon S3 (s3), 
+    or the local Filesystem (file).
+
+    e.g. with Storage('gs://bucket/dataset/layer') as stor:
+            files = stor.get_file('filename')
+
+    Required:
+        layer_path (str): A protocol prefixed path of the above format.
+            Accepts s3:// gs:// and file://. File paths are absolute.
+
+    Optional:
+        n_threads (int:20): number of threads to use downloading and uplaoding.
+            If 0, execution will be on the main python thread.
+        progress (bool:false): Show a tqdm progress bar for multiple 
+            uploads and downloads.
+    """
+    def __init__(self, layer_path, progress=False):
+
+        self.progress = progress
+
+        self._layer_path = layer_path
+        self._path = extract_path(layer_path)
+        
+        if self._path.protocol == 'file':
+            self._interface_cls = FileInterface
+        elif self._path.protocol == 'gs':
+            self._interface_cls = GoogleCloudStorageInterface
+        elif self._path.protocol == 's3':
+            self._interface_cls = S3Interface
+
+        self._interface = self._interface_cls(self._path)
+
+    @property
+    def layer_path(self):
+        return self._layer_path
+
+    def get_path_to_file(self, file_path):
+        return os.path.join(self._layer_path, file_path)
+
+    def put_file(self, file_path, content, content_type=None, compress=None, cache_control=None):
+        """ 
+        Args:
+            filename (string): it can contains folders
+            content (string): binary data to save
+        """
+        return self.put_files([ (file_path, content) ], 
+            content_type=content_type, 
+            compress=compress, 
+            cache_control=cache_control, 
+            block=False
+        )
+
+    def put_files(self, files, content_type=None, compress=None, cache_control=None, block=True):
+        """
+        Put lots of files at once and get a nice progress bar. It'll also wait
+        for the upload to complete, just like get_files.
+
+        Required:
+            files: [ (filepath, content), .... ]
+        """
+        for path, content in files:
+            content = compression.compress(content, method=compress)
+            self._interface.put_file(path, content, content_type, compress, cache_control=cache_control)
+        return self
+
+    def exists(self, file_path):
+        """Test if a single file exists. Returns boolean."""
+        return self._interface.exists(file_path)
+
+    def files_exist(self, file_paths):
+        """
+        Threaded exists for all file paths. 
+
+        file_paths: (list) file paths to test for existence
+
+        Returns: { filepath: bool }
+        """
+        results = {}
+        for path in file_paths:
+            results[path] = self._interface.exists(path)
+        return results
+
+    def get_json(self, file_path):
+        content = self.get_file(file_path).decode('utf8')
+        return json.loads(content)
+
+    def get_file(self, file_path):
+        content, encoding = self._interface.get_file(file_path)
+        content = compression.decompress(content, encoding, filename=file_path)
+        return content
+
+    def delete_file(self, file_path):
+        self._interface.delete_file(file_path)
+
+    def delete_files(self, file_paths):
+        for path in file_paths:
+            self._interface.delete_file(path)
+        return self
+
+    def list_files(self, prefix="", flat=False):
+        """
+        List the files in the layer with the given prefix. 
+
+        flat means only generate one level of a directory,
+        while non-flat means generate all file paths with that 
+        prefix.
+
+        Here's how flat=True handles different senarios:
+            1. partial directory name prefix = 'bigarr'
+                - lists the '' directory and filters on key 'bigarr'
+            2. full directory name prefix = 'bigarray'
+                - Same as (1), but using key 'bigarray'
+            3. full directory name + "/" prefix = 'bigarray/'
+                - Lists the 'bigarray' directory
+            4. partial file name prefix = 'bigarray/chunk_'
+                - Lists the 'bigarray/' directory and filters on 'chunk_'
+        
+        Return: generated sequence of file paths relative to layer_path
+        """
+
+        for f in self._interface.list_files(prefix, flat):
+            yield f
+
+    def __del__(self):
+        self._interface.release_connection()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        self._interface.release_connection()
+
 class Storage(ThreadedQueue):
     """
     Access files stored in Google Storage (gs), Amazon S3 (s3), 
