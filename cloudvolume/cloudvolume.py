@@ -1068,11 +1068,13 @@ class CloudVolume(object):
           compress=self._should_compress()
         )
 
-    cloudstorage.wait()
+    desc = 'Uploading' if self.progress else None
+    cloudstorage.wait(desc)
     cloudstorage.kill_threads()
     
     if self.cache:
-      cachestorage.wait()
+      desc = 'Caching' if self.progress else None
+      cachestorage.wait(desc)
       cachestorage.kill_threads()
 
   def _cdn_cache_control(self, val=None):
