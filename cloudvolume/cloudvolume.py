@@ -889,7 +889,7 @@ class CloudVolume(object):
         return chunks.decode(
           content, self.encoding, multichannel_shape(bbox), self.dtype
         )
-      except Exception:
+      except Exception as error:
         print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
             content_len, bbox, filename, error)))
         raise
