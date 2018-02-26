@@ -1027,7 +1027,13 @@ class CloudVolume(object):
 
     iterator = tqdm(self._generate_chunks(img, offset), desc='Rechunking image', disable=(not self.progress))
 
-    uploads = []
+    if self.cache:
+        mkdir(self.cache_path)
+        if self.progress:
+          print("Caching upload...")
+        cachestorage = Storage('file://' + self.cache_path, progress=self.progress)
+
+    cloudstorage = Storage(self.layer_cloudpath, progress=self.progress)
     for imgchunk, spt, ept in iterator:
       if np.array_equal(spt, ept):
           continue
@@ -1045,25 +1051,29 @@ class CloudVolume(object):
 
       cloudpath = os.path.join(self.key, filename)
       encoded = chunks.encode(imgchunk, self.encoding)
-      uploads.append( (cloudpath, encoded) )
 
-    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-      storage.put_files(uploads, 
+      cloudstorage.put_file(
+        file_path=cloudpath, 
+        content=encoded,
         content_type=self._content_type(), 
         compress=self._should_compress(),
         cache_control=self._cdn_cache_control(self.cdn_cache),
       )
 
-    if self.cache:
-      mkdir(self.cache_path)
-      if self.progress:
-        print("Caching upload...")
-      
-      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
-        storage.put_files(uploads, 
+      if self.cache:
+        cachestorage.put_file(
+          file_path=cloudpath,
+          content=encoded, 
           content_type=self._content_type(), 
           compress=self._should_compress()
         )
+
+    cloudstorage.wait()
+    cloudstorage.kill_threads()
+    
+    if self.cache:
+      cachestorage.wait()
+      cachestorage.kill_threads()
 
   def _cdn_cache_control(self, val=None):
     """Translate self.cdn_cache into a Cache-Control HTTP header."""
