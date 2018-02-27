@@ -35,6 +35,14 @@ project_name_paths = [
   secretpath('project_name')
 ]
 
+google_credentials_path = secretpath('secrets/google-secret.json')
+if os.path.exists(google_credentials_path):
+  google_credentials = service_account.Credentials \
+    .from_service_account_file(google_credentials_path)
+else:
+  google_credentials = ''
+
+
 if 'GOOGLE_PROJECT_NAME' in os.environ: 
   PROJECT_NAME = os.environ['GOOGLE_PROJECT_NAME']
 else: 
@@ -44,12 +52,10 @@ else:
         PROJECT_NAME = f.read().strip()
       break
 
-google_credentials_path = secretpath('secrets/google-secret.json')
-if os.path.exists(google_credentials_path):
-  google_credentials = service_account.Credentials \
-    .from_service_account_file(google_credentials_path)
-else:
-  google_credentials = ''
+if not PROJECT_NAME and google_credentials_path:
+  if os.path.exists(google_credentials_path):
+    with open(google_credentials_path, 'rt') as f:
+      PROJECT_NAME = json.loads(f.read())['project_id']
 
 aws_credentials_path = secretpath('secrets/aws-secret.json')
 if os.path.exists(aws_credentials_path):

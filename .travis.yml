@@ -13,7 +13,6 @@ before_install:
 - echo $AWS_SECRET > ~/.cloudvolume/secrets/aws-secret.json
 - echo $GOOGLE_SECRET > ~/.cloudvolume/secrets/google-secret.json
 - echo $BOSS_SECRET > ~/.cloudvolume/secrets/boss-secret.json
-- echo $PROJECT_NAME > ~/.cloudvolume/secrets/project_name
 install:
 - if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then virtualenv venv; fi
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then virtualenv -p python3 venv; fi

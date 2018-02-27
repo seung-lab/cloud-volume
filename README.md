@@ -14,7 +14,6 @@ You'll need to set up your cloud credentials as well as the main install. On lin
 
 ```
 mkdir -p ~/.cloudvolume/secrets/
-echo $GOOGLE_STORAGE_PROJECT > ~/.cloudvolume/project_name # needed for Google
 mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
 mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
 mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
