@@ -1,6 +1,27 @@
 CHANGES
 =======
 
+0.10.0
+------
+
+* feat: removed requirement for project\_name file
+
+0.9.0
+-----
+
+* Concurrent painting w/ Download & Upload (Save image size worth of memory) (#69)
+* docs: memory usage graphs for image and segmentation download
+* docs: example memory profile of running pytest
+* feat: more memorable colors for plots
+* feat: sorted plots for benchmark
+* docs: benchmark data and plotting for gcloud
+* Performance Benchmark (#67)
+* Update README.md
+* feat: added compress option to CloudVolume (#66)
+* fix: force chunk sizes to be integers
+* test+perf: make boss download 1/20th the size
+* test: Changed travis API keys to environment variables
+
 0.8.3
 -----
 
