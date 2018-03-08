@@ -327,7 +327,7 @@ class CloudVolume(object):
     if 'type' in channel.raw:
       layer_type = channel.raw['type']
 
-    return CloudVolume.create_new_info(
+    info = CloudVolume.create_new_info(
       num_channels=1,
       layer_type=layer_type,
       data_type=channel.datatype,
@@ -336,6 +336,17 @@ class CloudVolume(object):
       voxel_offset=bbox.minpt,
       volume_size=bbox.size3(),
     )
+
+    each_factor = Vec(2,2,1)
+    if experiment.hierarchy_method == 'isotropic':
+      each_factor = Vec(2,2,2)
+    
+    factor = each_factor.clone()
+    for mip in range(1, experiment.num_hierarchy_levels):
+      self.add_scale(factor, info=info)
+      factor *= each_factor
+
+    return info
 
   def commitInfo(self):
     warn("WARNING: commitInfo is deprecated use commit_info instead.")
@@ -669,7 +680,7 @@ class CloudVolume(object):
     self.info['scales'] = self.info['scales'][0:1]
     return self.commit_info()
 
-  def add_scale(self, factor):
+  def add_scale(self, factor, info=None):
     """
     Generate a new downsample scale to for the info file and return an updated dictionary.
     You'll still need to call self.commit_info() to make it permenant.
@@ -679,10 +690,13 @@ class CloudVolume(object):
 
     Returns: info dict
     """
+    if not info:
+      info = self.info
+
     # e.g. {"encoding": "raw", "chunk_sizes": [[64, 64, 64]], "key": "4_4_40", 
     # "resolution": [4, 4, 40], "voxel_offset": [0, 0, 0], 
     # "size": [2048, 2048, 256]}
-    fullres = self.info['scales'][0]
+    fullres = info['scales'][0]
 
     # If the voxel_offset is not divisible by the ratio,
     # zooming out will slightly shift the data.
@@ -710,15 +724,15 @@ class CloudVolume(object):
     new_res = np.array(newscale['resolution'], dtype=int)
 
     preexisting = False
-    for index, scale in enumerate(self.info['scales']):
+    for index, scale in enumerate(info['scales']):
       res = np.array(scale['resolution'], dtype=int)
       if np.array_equal(new_res, res):
         preexisting = True
-        self.info['scales'][index] = newscale
+        info['scales'][index] = newscale
         break
 
     if not preexisting:    
-      self.info['scales'].append(newscale)
+      info['scales'].append(newscale)
 
     return newscale
 
@@ -732,7 +746,6 @@ class CloudVolume(object):
 
     Returned as a tuple: (requested_bbox, steps, channel_slice)
     """
-
     maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
     minsize = list(self.bounds.minpt) + [ 0 ]
 
@@ -938,7 +951,7 @@ class CloudVolume(object):
   
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     bounds = Bbox.clamp(requested_bbox, self.bounds)
-
+    
     if bounds.volume() < 1:
       raise ValueError('Requested less than one pixel of volume. {}'.format(bounds))
 
