@@ -607,7 +607,7 @@ class CloudVolume(object):
     if type(slices) is Bbox:
       slices = slices.to_slices()
 
-    maxsize = list(self.mip_volume_size(0)) + [ self.num_channels ]
+    maxsize = list(self.mip_volume_size(0) + self.mip_voxel_offset(0)) + [ self.num_channels ]
     minsize = list(self.mip_voxel_offset(0)) + [ 0 ]
 
     slices = generate_slices(slices, minsize, maxsize)[:3]
@@ -641,7 +641,7 @@ class CloudVolume(object):
     if type(slices) is Bbox:
       slices = slices.to_slices()
 
-    maxsize = list(self.mip_volume_size(0)) + [ self.num_channels ]
+    maxsize = list(self.mip_volume_size(0) + self.mip_voxel_offset(0)) + [ self.num_channels ]
     minsize = list(self.mip_voxel_offset(0)) + [ 0 ]
 
     slices = generate_slices(slices, minsize, maxsize)[:3]
