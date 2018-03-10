@@ -53,17 +53,35 @@ def extract_path(cloudpath):
   bucket_re = r'^(/?[~\d\w_\.\-]+)/'
   tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
 
+  error = ValueError("""
+    Cloud path must conform to PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
+    Example: gs://test_bucket/mouse_dataset/em
+
+    Supported protocols: gs, s3, file, boss
+
+    Received: {}
+    """.format(cloudpath))
+
   match = re.match(protocol_re, cloudpath)
+
+  if not match:
+    raise error
+
   (protocol,) = match.groups()
   cloudpath = re.sub(protocol_re, '', cloudpath)
   if protocol == 'file':
     cloudpath = toabs(cloudpath)
 
   match = re.match(bucket_re, cloudpath)
+  if not match:
+    raise error
+
   (bucket,) = match.groups()
   cloudpath = re.sub(bucket_re, '', cloudpath)
 
   match = re.search(tail_re, cloudpath)
+  if not match:
+    raise error
   dataset, layer = match.groups()
 
   intermediate_path = re.sub(tail_re, '', cloudpath)

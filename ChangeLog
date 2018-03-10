@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+0.10.3
+------
+
+* fix: slices\_from\_global\_coords was not computing maxsize properly
+* feat: added support for downloading different MIPs from BOSS (#73)
+
+0.10.1
+------
+
+* feat: exported ConnectionPools
+
 0.10.0
 ------
 
