@@ -1,7 +1,6 @@
 from six.moves import queue as Queue
 import threading
 import time
-import signal
 from functools import partial
 
 from google.cloud.storage import Client
@@ -32,12 +31,6 @@ class ConnectionPool(object):
         self.pool = Queue.Queue(maxsize=0)
         self.outstanding = 0
         self._lock = threading.Lock()
-
-        def handler(signum, frame):
-            self.reset_pool()
-
-        signal.signal(signal.SIGINT, handler)
-        signal.signal(signal.SIGTERM, handler)
 
     def total_connections(self):
         return self.pool.qsize() + self.outstanding

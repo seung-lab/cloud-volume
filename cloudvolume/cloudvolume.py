@@ -33,7 +33,7 @@ from .lib import (
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
-from .storage import SimpleStorage, Storage
+from .storage import SimpleStorage, Storage, reset_connection_pools
 from .threaded_queue import ThreadedQueue
 
 # Set the interpreter bool
@@ -906,7 +906,6 @@ class CloudVolume(object):
       spd = partial(multi_process_download, self, realized_bbox)
       pool.map(spd, cloudpaths_by_process)
       self.provenance = provenance
-
       shared, array_like, renderbuffer = open_renderbuffer(self, realized_bbox)
       renderbuffer = np.copy(renderbuffer)
       array_like.close()
@@ -1243,6 +1242,7 @@ def single_process_download(cv, realized_bbox, cloudpaths, renderbuffer):
       tq.put(dl)
 
 def multi_process_download(cv, realized_bbox, cloudpaths):
+  reset_connection_pools() # otherwise multi-process hangs
   shared, array_like, renderbuffer = open_renderbuffer(cv, realized_bbox)
   single_process_download(cv, realized_bbox, cloudpaths, renderbuffer)
   array_like.close()
@@ -1352,6 +1352,7 @@ def single_process_upload(vol, img_bbox, chunk_ranges, renderbuffer):
 
 
 def multi_process_upload(vol, img_bbox, chunk_ranges):
+  reset_connection_pools()
   shared, array_like, renderbuffer = open_renderbuffer(vol, img_bbox)
   single_process_upload(vol, img_bbox, chunk_ranges, renderbuffer)
   array_like.close()
