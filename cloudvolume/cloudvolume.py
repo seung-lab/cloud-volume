@@ -819,10 +819,10 @@ class CloudVolume(object):
   def __getitem__(self, slices):
     (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
     
-    if self.path.protocol == 'boss':
-      cutout = self._boss_cutout(requested_bbox, steps, channel_slice)
-    else:
-      cutout = self._cutout(requested_bbox, steps, channel_slice)
+    if self.path.protocol != 'boss':
+      return self._cutout(requested_bbox, steps, channel_slice)
+
+    cutout = self._boss_cutout(requested_bbox, steps, channel_slice)      
 
     if self.bounded:
       return cutout
@@ -881,12 +881,15 @@ class CloudVolume(object):
     return { 'local': already_have, 'remote': download_paths }
 
   def _cutout(self, requested_bbox, steps, channel_slice=slice(None)):
-    realized_bbox = self.__realized_bbox(requested_bbox)
-    cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+    cloudpath_bbox = requested_bbox.expand_to_chunk_size(self.underlying, offset=self.voxel_offset)
+    cloudpath_bbox = Bbox.clamp(cloudpath_bbox, self.bounds)
+    cloudpaths = self.__chunknames(cloudpath_bbox, self.bounds, self.key, self.underlying)
 
     def multichannel_shape(bbox):
       shape = bbox.size3()
       return (shape[0], shape[1], shape[2], self.num_channels)
+
+    renderbuffer = np.zeros(shape=multichannel_shape(requested_bbox), dtype=self.dtype)
 
     def decode(filename, content):
       bbox = Bbox.from_filename(filename)
@@ -907,16 +910,23 @@ class CloudVolume(object):
             content_len, bbox, filename, error)))
         raise
 
-    renderbuffer = np.zeros(shape=multichannel_shape(realized_bbox), dtype=self.dtype)
+    ZERO3 = Vec(0,0,0)
 
     def paint(filename, content):
-        bbox = Bbox.from_filename(filename)
+        bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
         img3d = decode(filename, content)
-        start = bbox.minpt - realized_bbox.minpt
-        end = min2(start + self.underlying, renderbuffer.shape[:3] )
-        delta = min2(end - start, img3d.shape[:3])
-        end = start + delta
-        renderbuffer[ start.x:end.x, start.y:end.y, start.z:end.z, : ] = img3d[ :delta.x, :delta.y, :delta.z, : ]
+        
+        if not Bbox.intersects(requested_bbox, bbox):
+          return
+
+        spt = max2(bbox.minpt, requested_bbox.minpt)
+        ept = min2(bbox.maxpt, requested_bbox.maxpt)
+
+        istart = max2(spt - bbox.minpt, ZERO3)
+        iend = min2(ept - bbox.maxpt, ZERO3) + img3d.shape[:3]
+
+        rbox = Bbox(spt, ept) - requested_bbox.minpt
+        renderbuffer[ rbox.to_slices() ] = img3d[ istart.x:iend.x, istart.y:iend.y, istart.z:iend.z, : ]
 
     def download(cloudpath, filename, cache, iface):
       content = SimpleStorage(cloudpath).get_file(filename)
@@ -942,12 +952,8 @@ class CloudVolume(object):
         dl = partial(download, self.layer_cloudpath, filename, self.cache)
         tq.put(dl)
 
-    bounded_request = Bbox.clamp(requested_bbox, self.bounds)
-    lp = bounded_request.minpt - realized_bbox.minpt # low realized point
-    hp = lp + bounded_request.size3()
-
-    renderbuffer = renderbuffer[ lp.x:hp.x:steps.x, lp.y:hp.y:steps.y, lp.z:hp.z:steps.z, channel_slice ] 
-    return VolumeCutout.from_volume(self, renderbuffer, bounded_request)
+    renderbuffer = renderbuffer[ ::steps.x, ::steps.y, ::steps.z, channel_slice ]
+    return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
   
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     bounds = Bbox.clamp(requested_bbox, self.bounds)

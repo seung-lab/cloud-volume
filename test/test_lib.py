@@ -129,6 +129,17 @@ def test_bbox_division():
 
   assert (box/2) == Bbox( (0,1.5,2), (2,4,8) )
 
+def test_bbox_intersect():
+  box = Bbox( (0,0,0), (10, 10, 10) )
+  
+  assert Bbox.intersects(box, box)
+  assert Bbox.intersects(box, Bbox((1,1,1), (11,11,11)) )
+  assert Bbox.intersects(box, Bbox((-1,-1,-1), (9,9,9)) ) 
+  assert Bbox.intersects(box, Bbox((5, -5, 0), (15, 5, 10)))
+  assert not Bbox.intersects(box, Bbox( (30,30,30), (40,40,40) ))
+  assert not Bbox.intersects(box, Bbox( (-30,-30,-30), (-40,-40,-40) ))
+  assert not Bbox.intersects(box, Bbox( (10, 0, 0), (20, 10, 10) ))
+
 def test_jsonify():
   obj = {
     'x': [ np.array([1,2,3,4,5], dtype=np.uint64) ],

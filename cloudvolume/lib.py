@@ -276,6 +276,17 @@ class Bbox(object):
     )
 
   @classmethod
+  def intersects(cls, bbx1, bbx2):
+    return (
+          bbx1.minpt.x < bbx2.maxpt.x 
+      and bbx1.maxpt.x > bbx2.minpt.x 
+      and bbx1.minpt.y < bbx2.maxpt.y
+      and bbx1.maxpt.y > bbx2.minpt.y
+      and bbx1.minpt.z < bbx2.maxpt.z
+      and bbx1.maxpt.z > bbx2.minpt.z 
+    )
+
+  @classmethod
   def from_vec(cls, vec):
     return Bbox( (0,0,0), vec )
 
