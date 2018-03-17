@@ -91,6 +91,14 @@ def test_non_aligned_read():
     img2 = cv[:, :, :, :][::2, ::2, ::2, :]
     assert np.array_equal(img1, img2)
 
+    # read a single pixel
+    delete_layer()
+    cv, data = create_layer(size=(256,256,64,1), offset=(3,7,11))
+    # the last dimension is the number of channels
+    assert cv[22:77:2, 22:197:3, 22:32].shape == (28,59,10,1) 
+    assert data[19:74:2, 15:190:3, 11:21,:].shape == (28,59,10,1) 
+    assert np.all(cv[22:77:2, 22:197:3, 22:32] == data[19:74:2, 15:190:3, 11:21,:])
+
 def test_write():
     delete_layer()
     cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
