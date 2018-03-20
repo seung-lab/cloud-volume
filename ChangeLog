@@ -1,6 +1,21 @@
 CHANGES
 =======
 
+0.12.0
+------
+
+* Autocrop (#81)
+
+0.11.0
+------
+
+* Reduce Memory Usage for Non-Aligned Downloads (#79)
+
+0.10.4
+------
+
+* feat: more informative error message for non-compliant cloudpaths
+
 0.10.3
 ------
 
