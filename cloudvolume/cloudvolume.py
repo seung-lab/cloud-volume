@@ -1125,8 +1125,9 @@ class CloudVolume(object):
     bounds = Bbox( offset, shape + offset)
 
     alignment_check = bounds.round_to_chunk_size(self.underlying, self.voxel_offset)
+    alignment_check = Bbox.clamp(alignment_check, self.bounds)
 
-    if not np.all(alignment_check.minpt == bounds.minpt):
+    if not np.all(alignment_check.minpt == bounds.minpt) or not np.all(alignment_check.maxpt == bounds.maxpt):
       raise ValueError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
         bounds, self.voxel_offset, alignment_check)
       )

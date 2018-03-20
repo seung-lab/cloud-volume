@@ -124,13 +124,11 @@ def test_write():
         cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
 def test_writer_last_chunk_smaller():
-    """
-    we make it believe the last chunk is smaller by hacking the info file
-    """
     delete_layer()
-    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+    cv, data = create_layer(size=(100,64,64,1), offset=(0,0,0))
+    cv.info['scales'][0]['chunk_sizes'] = [[ 64,64,64 ]]
     
-    chunks = [ chunk for chunk in cv._generate_chunks(data[:100,:,:,:], (0,0,0)) ]
+    chunks = [ chunk for chunk in cv._generate_chunks(data[:,:,:,:], (0,0,0)) ]
 
     assert len(chunks) == 2
 
