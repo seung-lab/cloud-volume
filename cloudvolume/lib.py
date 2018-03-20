@@ -276,6 +276,21 @@ class Bbox(object):
     )
 
   @classmethod
+  def intersection(cls, bbx1, bbx2):
+    if not Bbox.intersects(bbx1, bbx2):
+      return Bbox( (0,0,0), (0,0,0) )
+
+    result = Bbox( (0,0,0), (0,0,0) )
+    result.minpt.x = max(bbx1.minpt.x, bbx2.minpt.x)
+    result.minpt.y = max(bbx1.minpt.y, bbx2.minpt.y)
+    result.minpt.z = max(bbx1.minpt.z, bbx2.minpt.z)
+    result.maxpt.x = min(bbx1.maxpt.x, bbx2.maxpt.x)
+    result.maxpt.y = min(bbx1.maxpt.y, bbx2.maxpt.y)
+    result.maxpt.z = min(bbx1.maxpt.z, bbx2.maxpt.z)
+
+    return result
+
+  @classmethod
   def intersects(cls, bbx1, bbx2):
     return (
           bbx1.minpt.x < bbx2.maxpt.x 

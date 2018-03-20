@@ -140,6 +140,15 @@ def test_bbox_intersect():
   assert not Bbox.intersects(box, Bbox( (-30,-30,-30), (-40,-40,-40) ))
   assert not Bbox.intersects(box, Bbox( (10, 0, 0), (20, 10, 10) ))
 
+def test_bbox_intersection():
+  bbx1 = Bbox( (0,0,0), (10,10,10) )
+  bbx2 = Bbox( (5,5,5), (15,15,15) )
+
+  assert Bbox.intersection(bbx1, bbx2) == Bbox((5,5,5),(10,10,10))
+  assert Bbox.intersection(bbx2, bbx1) == Bbox((5,5,5),(10,10,10))
+  bbx2.minpt = Vec(11,11,11)
+  assert Bbox.intersection(bbx1, bbx2) == Bbox((0,0,0),(0,0,0))
+
 def test_jsonify():
   obj = {
     'x': [ np.array([1,2,3,4,5], dtype=np.uint64) ],
