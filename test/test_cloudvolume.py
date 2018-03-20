@@ -99,6 +99,38 @@ def test_non_aligned_read():
     assert data[19:74:2, 15:190:3, 11:21,:].shape == (28,59,10,1) 
     assert np.all(cv[22:77:2, 22:197:3, 22:32] == data[19:74:2, 15:190:3, 11:21,:])
 
+def test_autocropped_read():
+    delete_layer()
+    cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+
+    cv.autocrop = True
+    cv.bounded = False
+
+    # left overlap
+    img = cv[-25:25,-25:25,-25:25]
+    assert img.shape == (25,25,25,1)
+    assert np.all(img == data[:25, :25, :25])
+
+    # right overlap
+    img = cv[40:60, 40:60, 40:60]
+    assert img.shape == (10,10,10,1)
+    assert np.all(img == data[40:, 40:, 40:])
+
+    # containing
+    img = cv[-100:100, -100:100, -100:100]
+    assert img.shape == (50,50,50,1)
+    assert np.all(img == data)
+
+    # contained
+    img = cv[10:20, 10:20, 10:20]
+    assert img.shape == (10,10,10,1)
+    assert np.all(img == data[10:20, 10:20, 10:20])
+
+    # non-intersecting
+    img = cv[100:120, 100:120, 100:120]
+    assert img.shape == (0,0,0,1)
+    assert np.all(img == data[0:0, 0:0, 0:0])    
+
 def test_write():
     delete_layer()
     cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
@@ -123,14 +155,39 @@ def test_write():
     with pytest.raises(ValueError):
         cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
-def test_writer_last_chunk_smaller():
-    """
-    we make it believe the last chunk is smaller by hacking the info file
-    """
+def test_autocropped_write():
     delete_layer()
-    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+    cv, data = create_layer(size=(100,100,100,1), offset=(0,0,0))
+
+    cv.autocrop = True
+    cv.bounded = False
+
+    replacement_data = np.ones(shape=(300,300,300,1), dtype=np.uint8)
+    cv[-100:200, -100:200, -100:200] = replacement_data
+    assert np.all(cv[:,:,:] == replacement_data[0:100,0:100,0:100])
     
-    chunks = [ chunk for chunk in cv._generate_chunks(data[:100,:,:,:], (0,0,0)) ]
+    replacement_data = np.random.randint(255, size=(100,100,100,1), dtype=np.uint8)
+    
+    cv[-50:50, -50:50, -50:50] = replacement_data
+    assert np.all(cv[0:50,0:50,0:50] == replacement_data[50:, 50:, 50:])
+
+    cv[50:150, 50:150, 50:150] = replacement_data
+    assert np.all(cv[50:,50:,50:] == replacement_data[:50, :50, :50])
+
+    cv[0:50, 0:50, 0:50] = replacement_data[:50,:50,:50]
+    assert np.all(cv[0:50, 0:50, 0:50] == replacement_data[:50,:50,:50])    
+
+    replacement_data = np.ones(shape=(100,100,100,1), dtype=np.uint8)
+    cv[:] = replacement_data + 1
+    cv[100:200, 100:200, 100:200] = replacement_data
+    assert np.all(cv[:,:,:] != 1)
+
+def test_writer_last_chunk_smaller():
+    delete_layer()
+    cv, data = create_layer(size=(100,64,64,1), offset=(0,0,0))
+    cv.info['scales'][0]['chunk_sizes'] = [[ 64,64,64 ]]
+    
+    chunks = [ chunk for chunk in cv._generate_chunks(data[:,:,:,:], (0,0,0)) ]
 
     assert len(chunks) == 2
 

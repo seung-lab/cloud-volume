@@ -86,6 +86,8 @@ class CloudVolume(object):
     bounded: (bool) If a region outside of volume bounds is accessed:
         True: Throw an error
         False: Fill the region with black (useful for e.g. marching cubes's 1px boundary)
+    autocrop: (bool) If the uploaded or downloaded region exceeds bounds, process only the
+      area contained in bounds. Only has effect when bounded=True.
     fill_missing: (bool) If a file inside volume bounds is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
@@ -112,10 +114,11 @@ class CloudVolume(object):
       str: 'gzip', extension so that we can add additional methods in the future like lz4 or zstd. 
         '' means no compression (same as False).
   """
-  def __init__(self, cloudpath, mip=0, bounded=True, fill_missing=False, 
+  def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
       cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
       compress=None):
 
+    self.autocrop = bool(autocrop)
     self.bounded = bounded
     self.cache = cache
     self.cdn_cache = cdn_cache
@@ -815,16 +818,18 @@ class CloudVolume(object):
       with Storage('file://' + self.cache_path, progress=self.progress) as storage:
         storage.delete_files(cloudpaths)
 
-
   def __getitem__(self, slices):
     (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
+
+    if self.autocrop:
+      requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
     if self.path.protocol != 'boss':
       return self._cutout(requested_bbox, steps, channel_slice)
-
+    
     cutout = self._boss_cutout(requested_bbox, steps, channel_slice)      
 
-    if self.bounded:
+    if self.bounded or self.autocrop:
       return cutout
     elif cutout.bounds == requested_bbox:
       return cutout
@@ -992,13 +997,24 @@ class CloudVolume(object):
 
     maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
     minsize = list(self.bounds.minpt) + [ 0 ]
-    slices = generate_slices(slices, minsize, maxsize)
+    slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
     bbox = Bbox.from_slices(slices)
 
     slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
 
     if not np.array_equal(imgshape, slice_shape):
       raise ValueError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
+
+    if self.autocrop:
+      if not self.bounds.contains_bbox(bbox):
+        cropped_bbox = Bbox.intersection(bbox, self.bounds)
+        dmin = np.absolute(bbox.minpt - cropped_bbox.minpt)
+        dmax = dmin + cropped_bbox.size3()
+        img = img[ dmin.x:dmax.x, dmin.y:dmax.y, dmin.z:dmax.z ] 
+        bbox = cropped_bbox
+
+    if bbox.volume() < 1:
+      return
 
     if self.path.protocol == 'boss':
       self.upload_boss_image(img, bbox.minpt)
@@ -1125,8 +1141,9 @@ class CloudVolume(object):
     bounds = Bbox( offset, shape + offset)
 
     alignment_check = bounds.round_to_chunk_size(self.underlying, self.voxel_offset)
+    alignment_check = Bbox.clamp(alignment_check, self.bounds)
 
-    if not np.all(alignment_check.minpt == bounds.minpt):
+    if not np.all(alignment_check.minpt == bounds.minpt) or not np.all(alignment_check.maxpt == bounds.maxpt):
       raise ValueError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
         bounds, self.voxel_offset, alignment_check)
       )
