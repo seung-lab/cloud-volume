@@ -29,7 +29,7 @@ pip install cloud-volume
 ```
 git clone git@github.com:seung-lab/cloud-volume.git
 cd cloud-volume
-mkvirtualenv cloud-volume
+virtualenv cloud-volume
 workon cloud-volume
 pip install -e .
 ```
