@@ -1140,7 +1140,7 @@ class CloudVolume(object):
 
     bounds = Bbox( offset, shape + offset)
 
-    alignment_check = bounds.round_to_chunk_size(self.underlying, self.voxel_offset)
+    alignment_check = bounds.expand_to_chunk_size(self.underlying, self.voxel_offset)
     alignment_check = Bbox.clamp(alignment_check, self.bounds)
 
     if not np.all(alignment_check.minpt == bounds.minpt) or not np.all(alignment_check.maxpt == bounds.maxpt):

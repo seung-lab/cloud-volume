@@ -155,6 +155,13 @@ def test_write():
     with pytest.raises(ValueError):
         cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
+    # test bounds check for short boundary chunk
+    delete_layer()
+    cv, data = create_layer(size=(25,25,25,1), offset=(1,3,5))
+    cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
+    cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
+
+
 def test_autocropped_write():
     delete_layer()
     cv, data = create_layer(size=(100,100,100,1), offset=(0,0,0))
