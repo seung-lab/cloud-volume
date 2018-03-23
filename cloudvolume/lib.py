@@ -507,4 +507,4 @@ class Bbox(object):
     return int(''.join(self.to_list()))
 
   def __repr__(self):
-    return "Bbox({},{})".format(self.minpt, self.maxpt)
+    return "Bbox({},{})".format(list(self.minpt), list(self.maxpt))
