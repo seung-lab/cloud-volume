@@ -845,9 +845,85 @@ class CloudVolume(object):
     renderbuffer[ lp.x:hp.x, lp.y:hp.y, lp.z:hp.z, : ] = cutout 
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
-  def flush_cache(self):
-    if os.path.exists(self.cache_path):
-        shutil.rmtree(self.cache_path) 
+  def flush_cache(self, preserve=None):
+    """
+    Delete the cache for this dataset. Optionally preserve
+    a region. Helpful when working with overlaping volumes.
+
+    Warning: the preserve option is not multi-process safe.
+    You're liable to end up deleting the entire cache.
+
+    Optional:
+      preserve (Bbox: None): Preserve chunks located partially
+        or entirely within this bounding box. 
+    
+    Return: void
+    """
+    if not os.path.exists(self.cache_path):
+      return
+
+    if preserve is None:
+      shutil.rmtree(self.cache_path)
+      return
+
+    for mip in self.available_mips:
+      preserve_mip = self.slices_from_global_coords(preserve)
+      preserve_mip = Bbox.from_slices(preserve_mip)
+
+      mip_path = os.path.join(self.cache_path, self.mip_key(mip))
+      if not os.path.exists(mip_path):
+        continue
+
+      for filename in os.listdir(mip_path):
+        bbox = Bbox.from_filename(filename)
+        if not Bbox.intersects(preserve_mip, bbox):
+          os.remove(os.path.join(mip_path, filename))
+
+  # flush_cache_region seems like it could be tacked on
+  # as a flag to delete, but there are reasons not
+  # to do that. 
+  # 1) reduces the risks of disasterous programming errors. 
+  # 2) doesn't require chunk alignment
+  # 3) processes potentially multiple mips at once
+
+  def flush_cache_region(self, region, mips=None):
+    """
+    Delete a cache region at one or more mip levels 
+    bounded by a Bbox for this dataset. Bbox coordinates
+    should be specified in mip 0 coordinates.
+
+    Required:
+      region (Bbox): Delete cached chunks located partially
+        or entirely within this bounding box. 
+    Optional:
+      mip (int: None): Flush the cache from this mip. Region
+        is in global coordinates.
+    
+    Return: void
+    """
+    if not os.path.exists(self.cache_path):
+      return
+    
+    if type(region) in (list, tuple):
+      region = generate_slices(region, self.bounds.minpt, self.bounds.maxpt, bounded=False)
+      region = Bbox.from_slices(region)
+
+    mips = self.mip if mips == None else mips
+    if type(mips) == int:
+      mips = (mips, )
+
+    for mip in mips:
+      mip_path = os.path.join(self.cache_path, self.mip_key(mip))
+      if not os.path.exists(mip_path):
+        continue
+
+      region_mip = self.slices_from_global_coords(region)
+      region_mip = Bbox.from_slices(region_mip)
+
+      for filename in os.listdir(mip_path):
+        bbox = Bbox.from_filename(filename)
+        if not Bbox.intersects(region, bbox):
+          os.remove(os.path.join(mip_path, filename))
 
   def _content_type(self):
     if self.encoding == 'jpeg':

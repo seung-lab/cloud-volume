@@ -461,6 +461,36 @@ def test_caching():
 
     vol.flush_cache()    
 
+    vol[:,:,:] = image
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 8
+    vol.flush_cache(preserve=np.s_[:,:,:])
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 8
+    vol.flush_cache(preserve=np.s_[:64,:64,:])
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 2
+
+    vol.flush_cache()
+
+    vol[:,:,:] = image
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 8
+    vol.flush_cache_region(Bbox( (50, 50, 0), (100, 100, 10) ))
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 4
+
+    vol.flush_cache()
+
+    vol[:,:,:] = image
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 8
+    vol.flush_cache_region(np.s_[50:100, 50:100, 0:10])
+    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    assert len(files) == 4
+
+    vol.flush_cache()
+
 def test_cache_validity():
     image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
     dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
