@@ -16,6 +16,11 @@ from itertools import product
 import numpy as np
 from tqdm import tqdm
 
+if sys.version_info < (3,):
+    integer_types = (int, long,)
+else:
+    integer_types = (int,)
+
 COLORS = {
   'RESET': "\033[m",
   'YELLOW': "\033[1;93m",
@@ -508,3 +513,46 @@ class Bbox(object):
 
   def __repr__(self):
     return "Bbox({},{})".format(list(self.minpt), list(self.maxpt))
+
+
+def generate_slices(slices, minsize, maxsize, bounded=True):
+  """Assisting function for __getitem__. e.g. vol[:,:,:,:]"""
+
+  if isinstance(slices, integer_types) or isinstance(slices, float):
+    slices = [ slice(int(slices), int(slices)+1, 1) ]
+  if type(slices) == slice:
+    slices = [ slices ]
+
+  slices = list(slices)
+
+  while len(slices) < len(maxsize):
+    slices.append( slice(None, None, None) )
+
+  # First three slices are x,y,z, last is channel. 
+  # Handle only x,y,z here, channel seperately
+  for index, slc in enumerate(slices):
+    if isinstance(slc, integer_types) or isinstance(slc, float):
+      slices[index] = slice(int(slc), int(slc)+1, 1)
+    else:
+      start = minsize[index] if slc.start is None else slc.start
+      end = maxsize[index] if slc.stop is None else slc.stop 
+      step = 1 if slc.step is None else slc.step
+
+      if step < 0:
+        raise ValueError('Negative step sizes are not supported. Got: {}'.format(step))
+
+      # note: when unbounded, negative indicies do not refer to
+      # the end of the volume as they can describe, e.g. a 1px
+      # border on the edge of the beginning of the dataset as in
+      # marching cubes.
+      if bounded:
+        # if start < 0: # this is support for negative indicies
+          # start = maxsize[index] + start         
+        check_bounds(start, minsize[index], maxsize[index])
+        # if end < 0: # this is support for negative indicies
+        #   end = maxsize[index] + end
+        check_bounds(end, minsize[index], maxsize[index])
+
+      slices[index] = slice(start, end, step)
+
+  return slices

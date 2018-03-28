@@ -122,8 +122,10 @@ class SimpleStorage(object):
         return results
 
     def get_json(self, file_path):
-        content = self.get_file(file_path).decode('utf8')
-        return json.loads(content)
+        content = self.get_file(file_path)
+        if content is None:
+            return None
+        return json.loads(content.decode('utf8'))
 
     def get_file(self, file_path):
         content, encoding = self._interface.get_file(file_path)
@@ -292,8 +294,10 @@ class Storage(ThreadedQueue):
         return results
 
     def get_json(self, file_path):
-        content = self.get_file(file_path).decode('utf8')
-        return json.loads(content)
+        content = self.get_file(file_path)
+        if content is None:
+            return None
+        return json.loads(content.decode('utf8'))
 
     def get_file(self, file_path):
         content, encoding = self._interface.get_file(file_path)

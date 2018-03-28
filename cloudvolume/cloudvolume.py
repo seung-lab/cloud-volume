@@ -6,7 +6,6 @@ import json5
 import os
 import re
 import sys
-import shutil
 import weakref
 
 from six.moves import range
@@ -20,11 +19,12 @@ from intern.resource.boss.resource import ChannelResource, ExperimentResource, C
 from .secrets import boss_credentials, CLOUD_VOLUME_DIR
 
 from . import lib, chunks
+from .cacheservice import CacheService
 from .lib import ( 
   toabs, colorize, red, yellow, 
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, check_bounds, 
-  jsonify 
+  jsonify, generate_slices
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
@@ -37,11 +37,6 @@ try:
     INTERACTIVE = bool(sys.ps1)
 except AttributeError:
     INTERACTIVE = bool(sys.flags.interactive)
-
-if sys.version_info < (3,):
-    integer_types = (int, long,)
-else:
-    integer_types = (int,)
 
 __all__ = [ 'CloudVolume', 'EmptyVolumeException', 'EmptyRequestException' ]
 
@@ -59,9 +54,6 @@ class EmptyRequestException(Exception):
   is impossible.
   """
   pass
-
-DEFAULT_CHUNK_SIZE = (64,64,64)
-
 
 class CloudVolume(object):
   """
@@ -121,33 +113,27 @@ class CloudVolume(object):
 
     self.autocrop = bool(autocrop)
     self.bounded = bounded
-    self.cache = cache
     self.cdn_cache = cdn_cache
     self.compress = compress
     self.fill_missing = fill_missing
     self.mip = mip
-    self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
     self.progress = progress
     self.path = lib.extract_path(cloudpath)
-    
-    if self.cache:
-      if not os.path.exists(self.cache_path):
-        mkdir(self.cache_path)
 
-      if not os.access(self.cache_path, os.R_OK|os.W_OK):
-        raise IOError('Cache directory needs read/write permission: ' + self.cache_path)
+    self.cache = CacheService(cache, weakref.proxy(self)) 
+    self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
 
     if info is None:
       self.refresh_info()
-      if self.cache:
-        self._check_cached_info_validity()
+      if self.cache.enabled:
+        self.cache.check_info_validity()
     else:
       self.info = info
 
     if provenance is None:
       self.provenance = None
       self.refresh_provenance()
-      self._check_cached_provenance_validity()
+      self.cache.check_provenance_validity()
     else:
       self.provenance = self._cast_provenance(provenance)
 
@@ -162,7 +148,7 @@ class CloudVolume(object):
       return None
     
     try:
-      return Storage(self.layer_cloudpath, n_threads=0)
+      return SimpleStorage(self.layer_cloudpath)
     except:
       if self.path.layer == 'info':
         warn("WARNING: Your layer is named 'info', is that what you meant? {}".format(
@@ -171,7 +157,7 @@ class CloudVolume(object):
       raise
       
   @classmethod
-  def create_new_info(cls, num_channels, layer_type, data_type, encoding, resolution, voxel_offset, volume_size, mesh=None, chunk_size=DEFAULT_CHUNK_SIZE):
+  def create_new_info(cls, num_channels, layer_type, data_type, encoding, resolution, voxel_offset, volume_size, mesh=None, chunk_size=(64,64,64)):
     """
     Used for creating new neuroglancer info files.
 
@@ -210,85 +196,26 @@ class CloudVolume(object):
     return info
 
   def refresh_info(self):
-    if self.cache:
-      info = self._read_cached_json('info')
+    if self.cache.enabled:
+      info = self.cache.get_json('info')
       if info:
         self.info = info
         return self.info
 
     self.info = self._fetch_info()
-    self._maybe_cache_info()
+    self.cache.maybe_cache_info()
     return self.info
 
-  def _check_cached_info_validity(self):
-    """
-    ValueError if cache differs at all from source data layer with
-    an excepton for volume_size which prints a warning.
-    """
-    cache_info = self._read_cached_json('info')
-    if not cache_info:
-      return
-
-    fresh_info = self._fetch_info()
-
-    mismatch_error = ValueError("""
-      Data layer info file differs from cache. Please check whether this
-      change invalidates your cache. 
-
-      If VALID do one of:
-        1) Manually delete the cache (see location below)
-        2) Refresh your on-disk cache as follows:
-          vol = CloudVolume(..., cache=False) # refreshes from source
-          vol.cache = True
-          vol.commit_info() # writes to disk
-      If INVALID do one of: 
-        1) Delete the cache manually (see cache location below) 
-        2) Instantiate as follows: 
-          vol = CloudVolume(..., cache=False) # refreshes info from source
-          vol.flush_cache() # deletes cache
-          vol.cache = True
-          vol.commit_info() # writes info to disk
-
-      CACHED: {cache}
-      SOURCE: {source}
-      CACHE LOCATION: {path}
-      """.format(
-        cache=cache_info, 
-        source=fresh_info, 
-        path=self.cache_path
-    ))
-
-    try:
-      fresh_sizes = [ scale['size'] for scale in fresh_info['scales'] ]
-      cache_sizes = [ scale['size'] for scale in cache_info['scales'] ]
-    except KeyError:
-      raise mismatch_error
-
-    for scale in fresh_info['scales']:
-      del scale['size']
-
-    for scale in cache_info['scales']:
-      del scale['size']
-
-    if fresh_info != cache_info:
-      raise mismatch_error
-
-    if fresh_sizes != cache_sizes:
-      warn("WARNING: Data layer bounding box differs in cache.\nCACHED: {}\nSOURCE: {}\nCACHE LOCATION:{}".format(
-        cache_sizes, fresh_sizes, self.cache_path
-      ))
-
   def _fetch_info(self):
-    if self.path.protocol != "boss":
-      infojson = self._storage.get_file('info')
-
-      if infojson is None:
-        raise ValueError(red('No info file was found: {}'.format(self.info_cloudpath)))
-
-      infojson = infojson.decode('utf-8')
-      return json.loads(infojson)
-    else:
+    if self.path.protocol == "boss":
       return self.fetch_boss_info()
+    
+    with self._storage as stor:
+      info = stor.get_json('info')
+
+    if info is None:
+      raise ValueError(red('No info file was found: {}'.format(self.info_cloudpath)))
+    return info
 
   def refreshInfo(self):
     warn("WARNING: refreshInfo is deprecated. Use refresh_info instead.")
@@ -366,37 +293,23 @@ class CloudVolume(object):
       separators=(',', ': ')
     )
 
-    self._storage.put_file('info', infojson, 
-      content_type='application/json', 
-      cache_control='no-cache'
-    ).wait()
-    self._maybe_cache_info()
+    with self._storage as stor:
+      stor.put_file('info', infojson, 
+        content_type='application/json', 
+        cache_control='no-cache'
+      )
+    self.cache.maybe_cache_info()
     return self
 
-  def _read_cached_json(self, filename):
-      with Storage('file://' + self.cache_path, n_threads=0) as storage:
-        jsonfile = storage.get_file(filename)
-
-      if jsonfile:
-        jsonfile = jsonfile.decode('utf-8')
-        return json.loads(jsonfile)
-      else:
-        return None
-
-  def _maybe_cache_info(self):
-    if self.cache:
-      with Storage('file://' + self.cache_path, n_threads=0) as storage:
-        storage.put_file('info', jsonify(self.info), 'application/json')
-
   def refresh_provenance(self):
-    if self.cache:
-      prov = self._read_cached_json('provenance')
+    if self.cache.enabled:
+      prov = self.cache.get_json('provenance')
       if prov:
         self.provenance = DataLayerProvenance(**prov)
         return self.provenance
 
     self.provenance = self._fetch_provenance()
-    self._maybe_cache_provenance()
+    self.cache.maybe_cache_provenance()
     return self.provenance
 
   def _cast_provenance(self, prov):
@@ -417,23 +330,24 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       return self.provenance
 
-    if self._storage.exists('provenance'):
-      provfile = self._storage.get_file('provenance')
-      provfile = provfile.decode('utf-8')
+    with self._storage as stor:
+      if stor.exists('provenance'):
+        provfile = stor.get_file('provenance')
+        provfile = provfile.decode('utf-8')
 
-      try:
-        provfile = json5.loads(provfile)
-      except ValueError:
-        raise ValueError(red("""The provenance file could not be JSON decoded. 
-          Please reformat the provenance file before continuing. 
-          Contents: {}""".format(provfile)))
-    else:
-      provfile = {
-        "sources": [],
-        "owners": [],
-        "processing": [],
-        "description": "",
-      }
+        try:
+          provfile = json5.loads(provfile)
+        except ValueError:
+          raise ValueError(red("""The provenance file could not be JSON decoded. 
+            Please reformat the provenance file before continuing. 
+            Contents: {}""".format(provfile)))
+      else:
+        provfile = {
+          "sources": [],
+          "owners": [],
+          "processing": [],
+          "description": "",
+        }
 
     return self._cast_provenance(provfile)
 
@@ -451,33 +365,13 @@ class CloudVolume(object):
       separators=(',', ': ')
     )
 
-    self._storage.put_file('provenance', prov, 
-      content_type='application/json',
-      cache_control='no-cache',
-    )
-    self._maybe_cache_provenance()
+    with self._storage as stor:
+      stor.put_file('provenance', prov, 
+        content_type='application/json',
+        cache_control='no-cache',
+      )
+    self.cache.maybe_cache_provenance()
     return self.provenance
-
-  def _maybe_cache_provenance(self):
-    if self.cache and self.provenance:
-      with Storage('file://' + self.cache_path, n_threads=0) as storage:
-        storage.put_file('provenance', self.provenance.serialize(), 'application/json')
-    return self
-
-  def _check_cached_provenance_validity(self):
-    cached_prov = self._read_cached_json('provenance')
-    if not cached_prov:
-      return
-
-    cached_prov = self._cast_provenance(cached_prov)
-    fresh_prov = self._fetch_provenance()
-    if cached_prov != fresh_prov:
-      warn("""
-      WARNING: Cached provenance file does not match source.
-
-      CACHED: {}
-      SOURCE: {}
-      """.format(cached_prov.serialize(), fresh_prov.serialize()))
 
   @property
   def dataset_name(self):
@@ -512,13 +406,7 @@ class CloudVolume(object):
 
   @property
   def cache_path(self):
-    if type(self.cache) is not str:
-      return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-        self.path.protocol, self.path.bucket.replace('/', ''), self.path.intermediate_path,
-        self.path.dataset, self.path.layer
-      ))
-    else:
-      return toabs(self.cache)
+    return self.cache.path
 
   @property
   def shape(self):
@@ -815,8 +703,8 @@ class CloudVolume(object):
     with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       storage.delete_files(cloudpaths)
 
-    if self.cache:
-      with Storage('file://' + self.cache_path, progress=self.progress) as storage:
+    if self.cache.enabled:
+      with Storage('file://' + self.cache.path, progress=self.progress) as storage:
         storage.delete_files(cloudpaths)
 
   def __getitem__(self, slices):
@@ -860,71 +748,8 @@ class CloudVolume(object):
     
     Return: void
     """
-    if not os.path.exists(self.cache_path):
-      return
-
-    if preserve is None:
-      shutil.rmtree(self.cache_path)
-      return
-
-    for mip in self.available_mips:
-      preserve_mip = self.slices_from_global_coords(preserve)
-      preserve_mip = Bbox.from_slices(preserve_mip)
-
-      mip_path = os.path.join(self.cache_path, self.mip_key(mip))
-      if not os.path.exists(mip_path):
-        continue
-
-      for filename in os.listdir(mip_path):
-        bbox = Bbox.from_filename(filename)
-        if not Bbox.intersects(preserve_mip, bbox):
-          os.remove(os.path.join(mip_path, filename))
-
-  # flush_cache_region seems like it could be tacked on
-  # as a flag to delete, but there are reasons not
-  # to do that. 
-  # 1) reduces the risks of disasterous programming errors. 
-  # 2) doesn't require chunk alignment
-  # 3) processes potentially multiple mips at once
-
-  def flush_cache_region(self, region, mips=None):
-    """
-    Delete a cache region at one or more mip levels 
-    bounded by a Bbox for this dataset. Bbox coordinates
-    should be specified in mip 0 coordinates.
-
-    Required:
-      region (Bbox): Delete cached chunks located partially
-        or entirely within this bounding box. 
-    Optional:
-      mip (int: None): Flush the cache from this mip. Region
-        is in global coordinates.
-    
-    Return: void
-    """
-    if not os.path.exists(self.cache_path):
-      return
-    
-    if type(region) in (list, tuple):
-      region = generate_slices(region, self.bounds.minpt, self.bounds.maxpt, bounded=False)
-      region = Bbox.from_slices(region)
-
-    mips = self.mip if mips == None else mips
-    if type(mips) == int:
-      mips = (mips, )
-
-    for mip in mips:
-      mip_path = os.path.join(self.cache_path, self.mip_key(mip))
-      if not os.path.exists(mip_path):
-        continue
-
-      region_mip = self.slices_from_global_coords(region)
-      region_mip = Bbox.from_slices(region_mip)
-
-      for filename in os.listdir(mip_path):
-        bbox = Bbox.from_filename(filename)
-        if not Bbox.intersects(region, bbox):
-          os.remove(os.path.join(mip_path, filename))
+    warn("CloudVolume.flush_cache(...) is deprecated. Please use CloudVolume.cache.flush(...) instead.")
+    return self.cache.flush(preserve=preserve)
 
   def _content_type(self):
     if self.encoding == 'jpeg':
@@ -942,7 +767,7 @@ class CloudVolume(object):
       return self.compress
 
   def _compute_data_locations(self, cloudpaths):
-    if not self.cache:
+    if not self.cache.enabled:
       return { 'local': [], 'remote': cloudpaths }
 
     def noextensions(fnames):
@@ -1011,19 +836,20 @@ class CloudVolume(object):
         renderbuffer[ rbox.to_slices() ] = img3d[ istart.x:iend.x, istart.y:iend.y, istart.z:iend.z, : ]
 
     def download(cloudpath, filename, cache, iface):
-      content = SimpleStorage(cloudpath).get_file(filename)
+      with SimpleStorage(cloudpath) as stor:
+        content = stor.get_file(filename)
       paint(filename, content)
       if cache:
-        content = content or b''
-        SimpleStorage('file://' + self.cache_path).put_file(
-          file_path=filename, 
-          content=content, 
-          content_type=self._content_type(), 
-          compress=self._should_compress()
-        )
+        with SimpleStorage('file://' + self.cache.path) as stor:
+          stor.put_file(
+            file_path=filename, 
+            content=(content or b''), 
+            content_type=self._content_type(), 
+            compress=self._should_compress()
+          )
 
     locations = self._compute_data_locations(cloudpaths)
-    cachedir = 'file://' + os.path.join(self.cache_path, self.key)
+    cachedir = 'file://' + os.path.join(self.cache.path, self.key)
     progress = 'Downloading' if self.progress else None
 
     with ThreadedQueue(n_threads=20, progress=progress) as tq:
@@ -1031,7 +857,7 @@ class CloudVolume(object):
         dl = partial(download, cachedir, filename, False)
         tq.put(dl)
       for filename in locations['remote']:
-        dl = partial(download, self.layer_cloudpath, filename, self.cache)
+        dl = partial(download, self.layer_cloudpath, filename, self.cache.enabled)
         tq.put(dl)
 
     renderbuffer = renderbuffer[ ::steps.x, ::steps.y, ::steps.z, channel_slice ]
@@ -1139,11 +965,11 @@ class CloudVolume(object):
 
     iterator = tqdm(self._generate_chunks(img, offset), desc='Rechunking image', disable=(not self.progress))
 
-    if self.cache:
-        mkdir(self.cache_path)
+    if self.cache.enabled:
+        mkdir(self.cache.path)
         if self.progress:
           print("Caching upload...")
-        cachestorage = Storage('file://' + self.cache_path, progress=self.progress)
+        cachestorage = Storage('file://' + self.cache.path, progress=self.progress)
 
     cloudstorage = Storage(self.layer_cloudpath, progress=self.progress)
     for imgchunk, spt, ept in iterator:
@@ -1172,7 +998,7 @@ class CloudVolume(object):
         cache_control=self._cdn_cache_control(self.cdn_cache),
       )
 
-      if self.cache:
+      if self.cache.enabled:
         cachestorage.put_file(
           file_path=cloudpath,
           content=encoded, 
@@ -1184,7 +1010,7 @@ class CloudVolume(object):
     cloudstorage.wait(desc)
     cloudstorage.kill_threads()
     
-    if self.cache:
+    if self.cache.enabled:
       desc = 'Caching' if self.progress else None
       cachestorage.wait(desc)
       cachestorage.kill_threads()
@@ -1260,48 +1086,5 @@ class CloudVolume(object):
     warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
     self.mesh.save(*args, **kwargs)
     
-
-def generate_slices(slices, minsize, maxsize, bounded=True):
-  """Assisting function for __getitem__. e.g. vol[:,:,:,:]"""
-
-  if isinstance(slices, integer_types) or isinstance(slices, float):
-    slices = [ slice(int(slices), int(slices)+1, 1) ]
-  if type(slices) == slice:
-    slices = [ slices ]
-
-  slices = list(slices)
-
-  while len(slices) < len(maxsize):
-    slices.append( slice(None, None, None) )
-
-  # First three slices are x,y,z, last is channel. 
-  # Handle only x,y,z here, channel seperately
-  for index, slc in enumerate(slices):
-    if isinstance(slc, integer_types) or isinstance(slc, float):
-      slices[index] = slice(int(slc), int(slc)+1, 1)
-    else:
-      start = minsize[index] if slc.start is None else slc.start
-      end = maxsize[index] if slc.stop is None else slc.stop 
-      step = 1 if slc.step is None else slc.step
-
-      if step < 0:
-        raise ValueError('Negative step sizes are not supported. Got: {}'.format(step))
-
-      # note: when unbounded, negative indicies do not refer to
-      # the end of the volume as they can describe, e.g. a 1px
-      # border on the edge of the beginning of the dataset as in
-      # marching cubes.
-      if bounded:
-        # if start < 0: # this is support for negative indicies
-          # start = maxsize[index] + start         
-        check_bounds(start, minsize[index], maxsize[index])
-        # if end < 0: # this is support for negative indicies
-        #   end = maxsize[index] + end
-        check_bounds(end, minsize[index], maxsize[index])
-
-      slices[index] = slice(start, end, step)
-
-  return slices
-
 
 
