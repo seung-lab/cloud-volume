@@ -668,20 +668,36 @@ class S3Interface(object):
 
         layer_path = self.get_path_to_file("")        
         path = os.path.join(layer_path, prefix)
+
         resp = self._conn.list_objects_v2(
             Bucket=self._path.bucket,
             Prefix=path,
         )
 
-        if 'Contents' not in resp.keys():
-            resp['Contents'] = []
+        def iterate(resp):
+            if 'Contents' not in resp.keys():
+                resp['Contents'] = []
 
-        for item in resp['Contents']:
-            key = item['Key']
-            filename = key.replace(layer_path + '/', '')
-            if not flat and filename[-1] != '/':
-                yield filename
-            elif flat and '/' not in key.replace(path, ''):
+            for item in resp['Contents']:
+                key = item['Key']
+                filename = key.replace(layer_path + '/', '')
+                if not flat and filename[-1] != '/':
+                    yield filename
+                elif flat and '/' not in key.replace(path, ''):
+                    yield filename
+
+
+        for filename in iterate(resp):
+            yield filename
+
+        while resp['IsTruncated'] and resp['NextContinuationToken']:
+            resp = self._conn.list_objects_v2(
+                Bucket=self._path.bucket,
+                Prefix=path,
+                ContinuationToken=resp['NextContinuationToken'],
+            )
+
+            for filename in iterate(resp):
                 yield filename
 
     def release_connection(self):
