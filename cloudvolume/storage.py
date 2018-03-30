@@ -28,8 +28,15 @@ class keydefaultdict(defaultdict):
             ret = self[key] = self.default_factory(key)
             return ret
 
-S3_POOL = S3ConnectionPool()
-GC_POOL = keydefaultdict(lambda bucket_name: GCloudBucketPool(bucket_name))
+S3_POOL = None
+GC_POOL = None
+def reset_connection_pools():
+    global S3_POOL
+    global GC_POOL
+    S3_POOL = S3ConnectionPool()
+    GC_POOL = keydefaultdict(lambda bucket_name: GCloudBucketPool(bucket_name))
+
+reset_connection_pools()
 
 retry = tenacity.retry(
     reraise=True, 
