@@ -26,7 +26,7 @@ The format for this file is as follows:
 	"AWS_SECRET_ACCESS_KEY_ID": ""
 }
 ```
-(adjust key name for your service, and fill in the value
+(adjust key name for your service, and fill in the values with your credentials)
 ### pip
 
 ```
