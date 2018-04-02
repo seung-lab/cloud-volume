@@ -2,13 +2,13 @@
 
 # cloud-volume
 
-Python client for reading and writing to Neuroglancer Precomputed volumes on cloud services. (https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)
+Cloud-Volume is a library for writing services that work with the "precomputed" volume type for Neuroglancer. These volumes are typically stored in AWS S3 or Google GS (and the library can work with those services given appropriate credentials), but they can also be stored on a regular webserver, and the library can generate the appropriate file hierarchies for that as well. (https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)
 
-When working with a particular dataset, say an EM scan of a mouse, fish, or fly brain, you'll typically store that as a grayscale data layer accessible to neuroglancer. You may store additional labelings and processing results as other layers.
+A typical dataset for Neuroglancer might be an EM scan of a mouse, fish, or fly brain. It is normally stored that as a grayscale data layer accessible to neuroglancer. You may store additional labelings and processing results (such as segmentation) as other layers.
 
 ## Setup
 
-You'll need to set up your cloud credentials as well as the main install. On linux, installation requires python3-dev and g++.
+Cloud-volume is written for Python 3, and on linux requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. 
 
 ### Credentials
 
@@ -19,6 +19,14 @@ mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
 mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
 ```
 
+The format for this file is as follows:
+```
+{
+	"AWS_ACCESS_KEY_ID": "",
+	"AWS_SECRET_ACCESS_KEY_ID": ""
+}
+```
+(adjust key name for your service, and fill in the values with your credentials)
 ### pip
 
 ```
@@ -71,6 +79,26 @@ vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
 image = vol[0:10,0:10,0:10] # Download partial image and cache
 vol[0:10,0:10,0:10] = image # Upload partial image and cache
 vol.flush_cache() # Delete local cache for this layer at this mip level
+```
+
+Loading a segmentation as a new volume,
+assume you have a 3d numpy array as "rawdata" and various cfg values:
+```
+metadata = cloudvolume.CloudVolume.create_new_info(
+        num_channels    = 1,
+        layer_type      = 'segmentation',
+        data_type       = 'uint64',
+        encoding        = 'raw',
+        resolution      = [8, 8, 8], # Pick scaling for your data!
+        voxel_offset    = [cfg.x, cfg.y, cfg.z],
+        mesh            = 'mesh',
+        chunk_size      = [cfg.chunksize, cfg.chunksize, cfg.chunksize], # This must divide evenly into image length or you won't cover the whole cube
+        volume_size     = [cfg.length, cfg.length, cfg.length]
+        )
+vol = cloudvolume.CloudVolume(cfg.path, mip=cfg.compression, info=metadata)
+vol.commit_info()
+vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:] # Be wary of XYZ-versus-ZYX issues
+
 ```
 
 ### CloudVolume Constructor
@@ -150,6 +178,4 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 * `bounds` - The bounding box of the cutout
 * `num_channels` - Alias for `vol.shape[3]`
 * `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
-
-
 
