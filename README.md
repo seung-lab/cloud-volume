@@ -19,7 +19,7 @@ mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
 mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
 ```
 
-The format for this file is as follows:
+The format for the aws-secret.json file is as follows:
 ```
 {
 	"AWS_ACCESS_KEY_ID": "",
