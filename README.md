@@ -70,7 +70,22 @@ vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing t
 vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
 image = vol[0:10,0:10,0:10] # Download partial image and cache
 vol[0:10,0:10,0:10] = image # Upload partial image and cache
-vol.flush_cache() # Delete local cache for this layer at this mip level
+
+# Evaluating the Cache
+vol.cache.list() # list files in cache at this mip level  
+vol.cache.list(mip=1) # list files in cache at mip 1  
+vol.cache.num_files() # number of files at this mip level  
+vol.cache.num_bytes(all_mips=True) # Return num files for each mip level in a list  
+vol.cache.num_bytes() # number of bytes taken up by files, size on disk can be bigger  
+vol.cache.num_bytes(all_mips=True) # Return num bytes for each mip level in a list  
+
+vol.cache.enabled = True/False/Path # Turn the cache on/off 
+
+# Deleting Cache
+vol.cache.flush() # Delete local cache for this layer at this mip level  
+vol.cache.flush(preserve=Bbox(...)) # Same, but presere cache in a region of space  
+vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)  
+
 ```
 
 ### CloudVolume Constructor
