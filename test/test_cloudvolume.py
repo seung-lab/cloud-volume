@@ -380,9 +380,9 @@ def test_caching():
     read2 = vol[:,:,:]
     assert np.all(read2 == image)
 
-    assert len(os.listdir(os.path.join(vol.cache.path, vol.key))) > 0
+    assert len(vol.cache.list()) > 0
 
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     validation_set = [
         '0-64_0-64_0-64',
         '64-128_0-64_0-64',
@@ -418,11 +418,11 @@ def test_caching():
     # Test that partial reads work too
     result = vol[0:64,0:64,:]
     assert np.all(result == image[0:64,0:64,:])
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 2
     result = vol[:,:,:]
     assert np.all(result == image)
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 8
 
     vol.cache.flush()
@@ -440,12 +440,12 @@ def test_caching():
     vol.cache.enabled = False
     result = vol[:,:,:]
     if os.path.exists(vol.cache.path):
-        files = os.listdir(os.path.join(vol.cache.path, vol.key))
+        files = vol.cache.list()
         assert len(files) == 0
 
     vol[:,:,:] = image
     if os.path.exists(vol.cache.path):
-        files = os.listdir(os.path.join(vol.cache.path, vol.key))
+        files = vol.cache.list()
         assert len(files) == 0
 
     vol.cache.flush()
@@ -453,40 +453,40 @@ def test_caching():
     # Test that deletion works too
     vol.cache.enabled = True
     vol[:,:,:] = image
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 8
     vol.delete( np.s_[:,:,:] )
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 0
 
     vol.cache.flush()    
 
     vol[:,:,:] = image
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 8
     vol.cache.flush(preserve=np.s_[:,:,:])
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 8
     vol.cache.flush(preserve=np.s_[:64,:64,:])
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 2
 
     vol.cache.flush()
 
     vol[:,:,:] = image
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 8
     vol.cache.flush_region(Bbox( (50, 50, 0), (100, 100, 10) ))
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 4
 
     vol.cache.flush()
 
     vol[:,:,:] = image
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 8
     vol.cache.flush_region(np.s_[50:100, 50:100, 0:10])
-    files = os.listdir(os.path.join(vol.cache.path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 4
 
     vol.cache.flush()
