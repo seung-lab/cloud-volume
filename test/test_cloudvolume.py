@@ -43,7 +43,7 @@ def test_fill_missing():
   assert np.count_nonzero(vol[:]) == 0
   assert np.count_nonzero(vol[:]) == 0
 
-  vol.flush_cache()
+  vol.cache.flush()
   delete_layer('/tmp/cloudvolume/empty_volume')
 
 def test_aligned_read():
@@ -308,41 +308,41 @@ def test_info_provenance_cache():
     )
 
     # Test Info
-    vol.cache = True
-    vol.flush_cache()
+    vol.cache.enabled = True
+    vol.cache.flush()
     info = vol.refresh_info()
     assert info is not None
 
-    with open(os.path.join(vol.cache_path, 'info'), 'r') as infof:
+    with open(os.path.join(vol.cache.path, 'info'), 'r') as infof:
         info = infof.read()
         info = json.loads(info)
 
-    with open(os.path.join(vol.cache_path, 'info'), 'w') as infof:
+    with open(os.path.join(vol.cache.path, 'info'), 'w') as infof:
         infof.write(json.dumps({ 'wow': 'amaze' }))
 
     info = vol.refresh_info()
     assert info == { 'wow': 'amaze' }
-    vol.cache = False
+    vol.cache.enabled = False
     info = vol.refresh_info()
     assert info != { 'wow': 'amaze' }
 
     # Test Provenance
-    vol.cache = True
-    vol.flush_cache()
+    vol.cache.enabled = True
+    vol.cache.flush()
     prov = vol.refresh_provenance()
     assert prov is not None
 
-    with open(os.path.join(vol.cache_path, 'provenance'), 'r') as provf:
+    with open(os.path.join(vol.cache.path, 'provenance'), 'r') as provf:
         prov = provf.read()
         prov = json.loads(prov)
 
-    with open(os.path.join(vol.cache_path, 'provenance'), 'w') as provf:
+    with open(os.path.join(vol.cache.path, 'provenance'), 'w') as provf:
         prov['description'] = 'wow'
         provf.write(json.dumps(prov))
 
     prov = vol.refresh_provenance()
     assert prov['description'] == 'wow'
-    vol.cache = False
+    vol.cache.enabled = False
     prov = vol.refresh_provenance()
     assert prov['description'] == ''
 
@@ -370,8 +370,8 @@ def test_caching():
         encoding='raw'
     )
 
-    vol.cache = True
-    vol.flush_cache()
+    vol.cache.enabled = True
+    vol.cache.flush()
 
     # Test that reading populates the cache
     read1 = vol[:,:,:]
@@ -380,9 +380,9 @@ def test_caching():
     read2 = vol[:,:,:]
     assert np.all(read2 == image)
 
-    assert len(os.listdir(os.path.join(vol.cache_path, vol.key))) > 0
+    assert len(vol.cache.list()) > 0
 
-    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    files = vol.cache.list()
     validation_set = [
         '0-64_0-64_0-64',
         '64-128_0-64_0-64',
@@ -396,7 +396,7 @@ def test_caching():
     assert set([ os.path.splitext(fname)[0] for fname in files ]) == set(validation_set)
 
     for i in range(8):
-        fname = os.path.join(vol.cache_path, vol.key, validation_set[i]) + '.gz'
+        fname = os.path.join(vol.cache.path, vol.key, validation_set[i]) + '.gz'
         with gzip.GzipFile(fname, mode='rb') as gfile:
             chunk = gfile.read()
         img3d = chunks.decode(
@@ -404,62 +404,92 @@ def test_caching():
         )
         assert np.all(img3d == (i+1))
 
-    vol.flush_cache()
-    assert not os.path.exists(vol.cache_path)
+    vol.cache.flush()
+    assert not os.path.exists(vol.cache.path)
 
     # Test that writing populates the cache
     vol[:,:,:] = image
 
-    assert os.path.exists(vol.cache_path)
+    assert os.path.exists(vol.cache.path)
     assert np.all(vol[:,:,:] == image)
 
-    vol.flush_cache()
+    vol.cache.flush()
 
     # Test that partial reads work too
     result = vol[0:64,0:64,:]
     assert np.all(result == image[0:64,0:64,:])
-    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 2
     result = vol[:,:,:]
     assert np.all(result == image)
-    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 8
 
-    vol.flush_cache()
+    vol.cache.flush()
 
     # Test Non-standard Cache Destination
     dirpath = '/tmp/cloudvolume/caching-cache-' + str(TEST_NUMBER)
-    vol.cache = dirpath
+    vol.cache.enabled = dirpath
     vol[:,:,:] = image
 
     assert len(os.listdir(os.path.join(dirpath, vol.key))) == 8
 
-    vol.flush_cache()
+    vol.cache.flush()
 
     # Test that caching doesn't occur when cache is not set
-    vol.cache = False
+    vol.cache.enabled = False
     result = vol[:,:,:]
-    if os.path.exists(vol.cache_path):
-        files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    if os.path.exists(vol.cache.path):
+        files = vol.cache.list()
         assert len(files) == 0
 
     vol[:,:,:] = image
-    if os.path.exists(vol.cache_path):
-        files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    if os.path.exists(vol.cache.path):
+        files = vol.cache.list()
         assert len(files) == 0
 
-    vol.flush_cache()
+    vol.cache.flush()
 
     # Test that deletion works too
-    vol.cache = True
+    vol.cache.enabled = True
     vol[:,:,:] = image
-    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 8
     vol.delete( np.s_[:,:,:] )
-    files = os.listdir(os.path.join(vol.cache_path, vol.key))
+    files = vol.cache.list()
     assert len(files) == 0
 
-    vol.flush_cache()    
+    vol.cache.flush()    
+
+    vol[:,:,:] = image
+    files = vol.cache.list()
+    assert len(files) == 8
+    vol.cache.flush(preserve=np.s_[:,:,:])
+    files = vol.cache.list()
+    assert len(files) == 8
+    vol.cache.flush(preserve=np.s_[:64,:64,:])
+    files = vol.cache.list()
+    assert len(files) == 2
+
+    vol.cache.flush()
+
+    vol[:,:,:] = image
+    files = vol.cache.list()
+    assert len(files) == 8
+    vol.cache.flush_region(Bbox( (50, 50, 0), (100, 100, 10) ))
+    files = vol.cache.list()
+    assert len(files) == 4
+
+    vol.cache.flush()
+
+    vol[:,:,:] = image
+    files = vol.cache.list()
+    assert len(files) == 8
+    vol.cache.flush_region(np.s_[50:100, 50:100, 0:10])
+    files = vol.cache.list()
+    assert len(files) == 4
+
+    vol.cache.flush()
 
 def test_cache_validity():
     image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
@@ -474,12 +504,12 @@ def test_cache_validity():
         resolution=(1,1,1), 
         encoding='raw'
     )
-    vol.cache = True
-    vol.flush_cache()
+    vol.cache.enabled = True
+    vol.cache.flush()
     vol.commit_info()
 
     def test_with_mock_cache_info(info, shoulderror):
-        finfo = os.path.join(vol.cache_path, 'info')
+        finfo = os.path.join(vol.cache.path, 'info')
         with open(finfo, 'w') as f:
             f.write(json.dumps(info))
 
@@ -520,12 +550,12 @@ def test_cache_validity():
     scale_change('resolution', [ 1, 2, 3 ])
     scale_change('encoding', 'npz')
 
-    vol.flush_cache()
+    vol.cache.flush()
 
     # Test no info file at all    
     CloudVolume(vol.layer_cloudpath, cache=True)
 
-    vol.flush_cache()
+    vol.cache.flush()
 
 def test_exists():
 
