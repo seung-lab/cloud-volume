@@ -72,6 +72,15 @@ class CacheService(object):
     else:
       return mip_size(self.vol.mip)
 
+  def list(self, mip=None):
+    mip = self.vol.mip if mip is None else mip
+    path = os.path.join(self.path, self.vol.mip_key(mip))
+
+    if not os.path.exists(path):
+      return []
+
+    return os.listdir(path)
+
   def flush(self, preserve=None):
     """
     Delete the cache for this dataset. Optionally preserve
