@@ -10,7 +10,6 @@ import weakref
 
 from six.moves import range
 import numpy as np
-from PIL import Image
 from tqdm import tqdm
 from six import string_types
 
@@ -29,7 +28,7 @@ from .lib import (
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
 from .storage import SimpleStorage, Storage
-from .threaded_queue import ThreadedQueue
+from . import txrx
 from .volumecutout import VolumeCutout
 
 # Set the interpreter bool
@@ -38,22 +37,8 @@ try:
 except AttributeError:
     INTERACTIVE = bool(sys.flags.interactive)
 
-__all__ = [ 'CloudVolume', 'EmptyVolumeException', 'EmptyRequestException' ]
-
 def warn(text):
   print(colorize('yellow', text))
-
-class EmptyVolumeException(Exception):
-  """Raised upon finding a missing chunk."""
-  pass
-
-class EmptyRequestException(Exception):
-  """
-  Requesting uploading or downloading 
-  a bounding box of less than one cubic voxel
-  is impossible.
-  """
-  pass
 
 class CloudVolume(object):
   """
@@ -106,18 +91,21 @@ class CloudVolume(object):
       bool: True=gzip, False=no compression, Overrides defaults
       str: 'gzip', extension so that we can add additional methods in the future like lz4 or zstd. 
         '' means no compression (same as False).
+    non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing safe without careful design.
+      When not enabled, a ValueError is thrown for non-aligned writes.
   """
   def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
       cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None):
+      compress=None, non_aligned_writes=False):
 
     self.autocrop = bool(autocrop)
-    self.bounded = bounded
+    self.bounded = bool(bounded)
     self.cdn_cache = cdn_cache
     self.compress = compress
-    self.fill_missing = fill_missing
-    self.mip = mip
-    self.progress = progress
+    self.fill_missing = bool(fill_missing)
+    self.mip = int(mip)
+    self.non_aligned_writes = bool(non_aligned_writes)
+    self.progress = bool(progress)
     self.path = lib.extract_path(cloudpath)
 
     self.cache = CacheService(cache, weakref.proxy(self)) 
@@ -674,7 +662,7 @@ class CloudVolume(object):
     else:
       (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
-    cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+    cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
 
     with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       existence_report = storage.files_exist(cloudpaths)
@@ -698,7 +686,7 @@ class CloudVolume(object):
         requested_bbox, realized_bbox
       ))
 
-    cloudpaths = self.__chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+    cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
 
     with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       storage.delete_files(cloudpaths)
@@ -714,7 +702,7 @@ class CloudVolume(object):
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
     if self.path.protocol != 'boss':
-      return self._cutout(requested_bbox, steps, channel_slice)
+      return txrx.cutout(self, requested_bbox, steps, channel_slice)
     
     cutout = self._boss_cutout(requested_bbox, steps, channel_slice)      
 
@@ -735,134 +723,10 @@ class CloudVolume(object):
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
   def flush_cache(self, preserve=None):
-    """
-    Delete the cache for this dataset. Optionally preserve
-    a region. Helpful when working with overlaping volumes.
-
-    Warning: the preserve option is not multi-process safe.
-    You're liable to end up deleting the entire cache.
-
-    Optional:
-      preserve (Bbox: None): Preserve chunks located partially
-        or entirely within this bounding box. 
-    
-    Return: void
-    """
+    """See vol.cache.flush"""
     warn("CloudVolume.flush_cache(...) is deprecated. Please use CloudVolume.cache.flush(...) instead.")
     return self.cache.flush(preserve=preserve)
 
-  def _content_type(self):
-    if self.encoding == 'jpeg':
-      return 'image/jpeg'
-    return 'application/octet-stream'
-
-  def _should_compress(self):
-    if self.compress is None:
-      return 'gzip' if self.encoding in ('raw', 'compressed_segmentation') else None
-    elif self.compress == True:
-      return 'gzip'
-    elif self.compress == False:
-      return None
-    else:
-      return self.compress
-
-  def _compute_data_locations(self, cloudpaths):
-    if not self.cache.enabled:
-      return { 'local': [], 'remote': cloudpaths }
-
-    def noextensions(fnames):
-      return [ os.path.splitext(fname)[0] for fname in fnames ]
-
-    list_dir = mkdir(os.path.join(self.cache_path, self.key))
-    filenames = noextensions(os.listdir(list_dir))
-
-    basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }
-
-    # check which files are already cached, we only want to download ones not in cache
-    requested = set([ os.path.basename(path) for path in cloudpaths ])
-    already_have = requested.intersection(set(filenames))
-    to_download = requested.difference(already_have)
-
-    download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]    
-
-    return { 'local': already_have, 'remote': download_paths }
-
-  def _cutout(self, requested_bbox, steps, channel_slice=slice(None)):
-    cloudpath_bbox = requested_bbox.expand_to_chunk_size(self.underlying, offset=self.voxel_offset)
-    cloudpath_bbox = Bbox.clamp(cloudpath_bbox, self.bounds)
-    cloudpaths = self.__chunknames(cloudpath_bbox, self.bounds, self.key, self.underlying)
-
-    def multichannel_shape(bbox):
-      shape = bbox.size3()
-      return (shape[0], shape[1], shape[2], self.num_channels)
-
-    renderbuffer = np.zeros(shape=multichannel_shape(requested_bbox), dtype=self.dtype)
-
-    def decode(filename, content):
-      bbox = Bbox.from_filename(filename)
-      content_len = len(content) if content is not None else 0
-
-      if not content:
-        if self.fill_missing:
-          content = ''
-        else:
-          raise EmptyVolumeException(filename)
-
-      try:
-        return chunks.decode(
-          content, self.encoding, multichannel_shape(bbox), self.dtype
-        )
-      except Exception as error:
-        print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
-            content_len, bbox, filename, error)))
-        raise
-
-    ZERO3 = Vec(0,0,0)
-
-    def paint(filename, content):
-        bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
-        img3d = decode(filename, content)
-        
-        if not Bbox.intersects(requested_bbox, bbox):
-          return
-
-        spt = max2(bbox.minpt, requested_bbox.minpt)
-        ept = min2(bbox.maxpt, requested_bbox.maxpt)
-
-        istart = max2(spt - bbox.minpt, ZERO3)
-        iend = min2(ept - bbox.maxpt, ZERO3) + img3d.shape[:3]
-
-        rbox = Bbox(spt, ept) - requested_bbox.minpt
-        renderbuffer[ rbox.to_slices() ] = img3d[ istart.x:iend.x, istart.y:iend.y, istart.z:iend.z, : ]
-
-    def download(cloudpath, filename, cache, iface):
-      with SimpleStorage(cloudpath) as stor:
-        content = stor.get_file(filename)
-      paint(filename, content)
-      if cache:
-        with SimpleStorage('file://' + self.cache.path) as stor:
-          stor.put_file(
-            file_path=filename, 
-            content=(content or b''), 
-            content_type=self._content_type(), 
-            compress=self._should_compress()
-          )
-
-    locations = self._compute_data_locations(cloudpaths)
-    cachedir = 'file://' + os.path.join(self.cache.path, self.key)
-    progress = 'Downloading' if self.progress else None
-
-    with ThreadedQueue(n_threads=20, progress=progress) as tq:
-      for filename in locations['local']:
-        dl = partial(download, cachedir, filename, False)
-        tq.put(dl)
-      for filename in locations['remote']:
-        dl = partial(download, self.layer_cloudpath, filename, self.cache.enabled)
-        tq.put(dl)
-
-    renderbuffer = renderbuffer[ ::steps.x, ::steps.y, ::steps.z, channel_slice ]
-    return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
-  
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     bounds = Bbox.clamp(requested_bbox, self.bounds)
     
@@ -922,7 +786,7 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       self.upload_boss_image(img, bbox.minpt)
     else:
-      self.upload_image(img, bbox.minpt)
+      txrx.upload_image(self, img, bbox.minpt)
 
   def upload_boss_image(self, img, offset):
     shape = Vec(*img.shape[:3])
@@ -955,132 +819,6 @@ class CloudVolume(object):
     img = np.ascontiguousarray(img.astype(self.dtype))
 
     rmt.create_cutout(chan, self.mip, x_rng, y_rng, z_rng, img)
-
-  def upload_image(self, img, offset):
-    if self.path.protocol == 'boss':
-      raise NotImplementedError
-
-    if str(self.dtype) != str(img.dtype):
-      raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(self.dtype, img.dtype))
-
-    iterator = tqdm(self._generate_chunks(img, offset), desc='Rechunking image', disable=(not self.progress))
-
-    if self.cache.enabled:
-        mkdir(self.cache.path)
-        if self.progress:
-          print("Caching upload...")
-        cachestorage = Storage('file://' + self.cache.path, progress=self.progress)
-
-    cloudstorage = Storage(self.layer_cloudpath, progress=self.progress)
-    for imgchunk, spt, ept in iterator:
-      if np.array_equal(spt, ept):
-          continue
-
-      # handle the edge of the dataset
-      clamp_ept = min2(ept, self.bounds.maxpt)
-      newept = clamp_ept - spt
-      imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
-
-      filename = "{}-{}_{}-{}_{}-{}".format(
-        spt.x, clamp_ept.x,
-        spt.y, clamp_ept.y, 
-        spt.z, clamp_ept.z
-      )
-
-      cloudpath = os.path.join(self.key, filename)
-      encoded = chunks.encode(imgchunk, self.encoding)
-
-      cloudstorage.put_file(
-        file_path=cloudpath, 
-        content=encoded,
-        content_type=self._content_type(), 
-        compress=self._should_compress(),
-        cache_control=self._cdn_cache_control(self.cdn_cache),
-      )
-
-      if self.cache.enabled:
-        cachestorage.put_file(
-          file_path=cloudpath,
-          content=encoded, 
-          content_type=self._content_type(), 
-          compress=self._should_compress()
-        )
-
-    desc = 'Uploading' if self.progress else None
-    cloudstorage.wait(desc)
-    cloudstorage.kill_threads()
-    
-    if self.cache.enabled:
-      desc = 'Caching' if self.progress else None
-      cachestorage.wait(desc)
-      cachestorage.kill_threads()
-
-  def _cdn_cache_control(self, val=None):
-    """Translate self.cdn_cache into a Cache-Control HTTP header."""
-    if val is None:
-      return 'max-age=3600, s-max-age=3600'
-    elif type(val) is str:
-      return val
-    elif type(val) is bool:
-      if val:
-        return 'max-age=3600, s-max-age=3600'
-      else:
-        return 'no-cache'
-    elif type(val) is int:
-      if val < 0:
-        raise ValueError('cdn_cache must be a positive integer, boolean, or string. Got: ' + str(val))
-
-      if val == 0:
-        return 'no-cache'
-      else:
-        return 'max-age={}, s-max-age={}'.format(val, val)
-    else:
-      raise NotImplementedError(type(val) + ' is not a supported cache_control setting.')
-
-  def _generate_chunks(self, img, offset):
-    shape = Vec(*img.shape)[:3]
-    offset = Vec(*offset)[:3]
-
-    bounds = Bbox( offset, shape + offset)
-
-    alignment_check = bounds.expand_to_chunk_size(self.underlying, self.voxel_offset)
-    alignment_check = Bbox.clamp(alignment_check, self.bounds)
-
-    if not np.all(alignment_check.minpt == bounds.minpt) or not np.all(alignment_check.maxpt == bounds.maxpt):
-      raise ValueError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
-        bounds, self.voxel_offset, alignment_check)
-      )
-
-    bounds = Bbox.clamp(bounds, self.bounds)
-
-    img_offset = bounds.minpt - offset
-    img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
-
-    if len(img.shape) == 3:
-      img = img[:, :, :, np.newaxis ]
-  
-    for startpt in xyzrange( img_offset, img_end, self.underlying ):
-      endpt = min2(startpt + self.underlying, shape)
-      chunkimg = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
-
-      spt = (startpt + bounds.minpt).astype(int)
-      ept = (endpt + bounds.minpt).astype(int)
-    
-      yield chunkimg, spt, ept 
-
-  def __chunknames(self, bbox, volume_bbox, key, chunk_size):
-    paths = []
-
-    for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
-      highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
-      filename = "{}-{}_{}-{}_{}-{}".format(
-        x, highpt.x,
-        y, highpt.y, 
-        z, highpt.z
-      )
-      paths.append( os.path.join(key, filename) )
-
-    return paths
 
   def save_mesh(self, *args, **kwargs):
     warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")

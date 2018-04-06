@@ -1,6 +1,32 @@
 CHANGES
 =======
 
+0.13.0
+------
+
+* feat: preserve option for fush\_cache + flush\_cache\_region (#86)
+* Update README.md
+* Changing the docs a bit (#91)
+
+0.12.3
+------
+
+* fix: added reset\_connection\_pools to storage.py (#90)
+
+0.12.2
+------
+
+* fix: s3 listing was limited to 1000 files (#89)
+* Update README.md
+
+0.12.1
+------
+
+* fix: bounds check for short end chunks
+* Update README.md
+* Update README.md
+* docs: updated README for autocrop
+
 0.12.0
 ------
 
@@ -47,193 +73,65 @@ CHANGES
 * fix: force chunk sizes to be integers
 * test+perf: make boss download 1/20th the size
 * test: Changed travis API keys to environment variables
-
-0.8.3
------
-
 * chore: liberalized requirements for boto3
-
-0.8.2
------
-
 * chore: liberalize Pillow version requirements
-
-0.8.1
------
-
 * test: added BOSS test
 * fix: boss bounds were off by one at border + cast cutout to correct type
-
-0.8.0
------
-
 * refactor: added vol.mesh interface (#64)
 * refactor: seperate file location computation from fetching
 * fix: Vec.rectVolume was broken in python3
-
-0.7.0
------
-
 * feat: slices\_to\_global\_coords + tests
-
-0.6.13
-------
-
 * chore: expand protobuf dependency qualifications
-
-0.6.12
-------
-
 * fix: remove unnecessary dependency
-
-0.6.11
-------
-
 * chore: removed old depencency for google-resumable-media
-
-0.6.10
-------
-
 * chore: remove unnecessary independent jsonschema dependency
-
-0.6.9
------
-
 * chore: fork intern and install from github to resolve dependency issue (#63)
 * fix: make commit\_info more resilent to numpy arrays
-
-0.6.8
------
-
 * chore: additional flexibility in requirements
-
-0.6.6
------
-
 * fix: added python3 division to Bbox
-
-0.6.5
------
-
 * fix: add\_scale in Python3 rendered np.int64
-
-0.6.4
------
-
 * fix: python3 xrange compatibility
 * fix: python3 incompatible unicode call in lib.py
-
-0.6.3
------
-
 * fix: better error message for missing info file
 * feat: manual control over cache-control headers for uploaded files (#62)
-
-0.6.2
------
-
 * fix: file read errors were crashing incorrectly
-
-0.6.1
------
-
 * chore: bump google-cloud-python to 0.30.0
 * feat: file:// protocol now supports the ~ prefix for your home dir (#60)
 * feat: better error message for missing mesh manifests (#61)
-
-0.5.8
------
-
 * feat: reveal secrets (#58)
-
-0.5.7
------
-
 * feat: backwards compatible secrets (#57)
 * feat: pretty print info and provenance files (#56)
-
-0.5.6
------
-
 * fix: pool on buckets instead of clients for gcloud (#53)
 * chore: downgrade google-cloud from 0.27 to 0.26.1
-
-0.5.5
------
-
 * fix: cache + fill\_missing interaction crash (#52)
-
-0.5.4
------
-
 * feat: added cache-control options to Storage (#51)
-
-0.5.3
------
-
 * fix: layer\_cloudpath was not handling intermediate paths correctly
-
-0.5.2
------
-
 * Optimize Sleep Patterns (#50)
 * fix: save\_mesh supports progress bar
-
-0.5.1
------
-
 * Fix gcloud Access in 0.5.0 (#46)
-
-0.5.0
------
-
 * feat: negative index downloads (#45)
 * feat: CloudVolume supports intermediate paths (#38)
 * Optionally pass provenance to CloudVolume constructor (#41)
 * Wms test metadata (#44)
-
-0.4.1
------
-
 * Fix Double Upload (#43)
 * feat: provenance files are now decoded with the json5 module (#40)
 * Update README.md
 * fix: missing support for progress and caching for delete and exists
 * docs: Added exists, delete, cache, and progress to README.md
-
-0.4.0
------
-
 * feat: delete bounding boxes on a given mip level (#35)
-
-0.3.0
------
-
 * feat: backwards compatibility with ~/.neuroglancer (#33)
 * feat: added cache flag to CloudVolume (#12)
 * feat: progress flag for CloudVolume, Storage (#21)
 * feat: add support for intermediate paths in URIs (#30)
 * feat: CloudVolume.exists (#14)
-
-0.2.1
------
-
 * fix: python3 compatibility (#25)
 * test: deconflict parallel storage tests (#19)
 * docs: CloudVolume methods, mip\_ functions, and VolumeCutout in README.md
 * docs: added additional CloudVolume init examples
 * docs: added boss-secret.json to docs
 * docs: added property list to README.md
-
-0.2.0
------
-
 * feat: exported several useful libraries
 * feat(Provenance): added support for data layer provenance (#6)
-
-0.1.0
------
-
 * feat: added exponential window random retry to Storage (#5)
 * feat: python3 support (#4)
 * Update README.md

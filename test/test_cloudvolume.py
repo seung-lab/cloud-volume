@@ -15,6 +15,7 @@ from layer_harness import (
     delete_layer, create_layer,
     create_volume_from_image
 )
+from cloudvolume import txrx
 
 def test_cloud_access():
     vol = CloudVolume('gs://seunglab-test/test_v0/image')
@@ -194,7 +195,7 @@ def test_writer_last_chunk_smaller():
     cv, data = create_layer(size=(100,64,64,1), offset=(0,0,0))
     cv.info['scales'][0]['chunk_sizes'] = [[ 64,64,64 ]]
     
-    chunks = [ chunk for chunk in cv._generate_chunks(data[:,:,:,:], (0,0,0)) ]
+    chunks = [ chunk for chunk in txrx.generate_chunks(cv, data[:,:,:,:], (0,0,0)) ]
 
     assert len(chunks) == 2
 
@@ -649,16 +650,16 @@ def test_cdn_cache_control():
     delete_layer()
     cv, data = create_layer(size=(128,10,10,1), offset=(0,0,0))
 
-    assert cv._cdn_cache_control(None) == 'max-age=3600, s-max-age=3600'
-    assert cv._cdn_cache_control(0) == 'no-cache'
-    assert cv._cdn_cache_control(False) == 'no-cache'
-    assert cv._cdn_cache_control(True) == 'max-age=3600, s-max-age=3600'
+    assert txrx.cdn_cache_control(None) == 'max-age=3600, s-max-age=3600'
+    assert txrx.cdn_cache_control(0) == 'no-cache'
+    assert txrx.cdn_cache_control(False) == 'no-cache'
+    assert txrx.cdn_cache_control(True) == 'max-age=3600, s-max-age=3600'
 
-    assert cv._cdn_cache_control(1337) == 'max-age=1337, s-max-age=1337'
-    assert cv._cdn_cache_control('private, must-revalidate') == 'private, must-revalidate'
+    assert txrx.cdn_cache_control(1337) == 'max-age=1337, s-max-age=1337'
+    assert txrx.cdn_cache_control('private, must-revalidate') == 'private, must-revalidate'
 
     try:
-        cv._cdn_cache_control(-1)
+        txrx.cdn_cache_control(-1)
     except ValueError:
         pass
     else:
