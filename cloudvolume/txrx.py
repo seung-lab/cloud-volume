@@ -41,11 +41,8 @@ NON_ALIGNED_WRITE = yellow(
   1) Memory and Network Inefficiency
     Producing non-aligned writes requires downloading the chunks that overlap
     with the write area but are not wholly contained. They are then painted
-    in the overlap region and added to the upload queue. A smart implementation
-    will require at least the outer shell of the aligned image to be downloaded 
-    painted, and uploaded. A dumb implementation will cause the entire aligned
-    region to be downloaded, painted, and reuploaded causing >2x memory usage 
-    and network traffic. No promises on how smart this implementation is. ;)
+    in the overlap region and added to the upload queue. This requires
+    the outer shell of the aligned image to be downloaded painted, and uploaded. 
   2) Race Conditions
     If you are using multiple instances of CloudVolume, the partially overlapped 
     chunks will be downloaded, partially painted, and uploaded. If this procedure
