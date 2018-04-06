@@ -151,6 +151,14 @@ Better documentation coming later, but for now, here's a summary of the most use
 * mesh - Access mesh operations
 	* get - Download an object. Can merge multiple segmentids
 	* save - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
+* cache - Access cache operations
+        * enabled - Boolean switch to enable/disable cache. If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
+	* path - Property that shows the current filesystem path to the cache
+	* list - List files in cache 
+	* num_files - Number of files in cache at this mip level , use all_mips=True to get them all
+	* num_bytes - Return the number of bytes in cache at this mip level, all_mips=True to get them all
+	* flush - Delete the cache at this mip level, preserve=Bbox/slice to save a spatial region
+	* flush_region - Delete a spatial region at this mip level
 * exists - Generate a report on which chunks within a bounding box exist.
 * delete - Delete the chunks within this bounding box.
 
@@ -163,7 +171,6 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * bounded (bool:True, rw) - If a region outside of volume bounds is accessed throw an error if True or Fill the region with black (useful for e.g. marching cubes's 1px boundary) if False.
 * autocrop (bool:False, rw) - If bounded is False and this option is True, automatically crop requested uploads and downloads to the volume boundary.
 * fill_missing (bool:False, rw) - If a file inside volume bounds is unable to be fetched use a block of zeros if True, else throw an error.
-* cache (bool:False, rw) - If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
 * info (dict, rw) - Python dict representation of Neuroglancer info JSON file. You must call `vol.commit_info()` to save your changes to storage.
 * provenance (dict-like, rw) - Data layer provenance file representation. You must call `vol.commit_provenance()` to save your changes to storage.
 * available_mips (list of ints, r) - Query which mip levels are defined for reading and writing.
