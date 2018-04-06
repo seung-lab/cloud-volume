@@ -8,7 +8,7 @@ A typical dataset for Neuroglancer might be an EM scan of a mouse, fish, or fly 
 
 ## Setup
 
-Cloud-volume is written for Python 3, and on linux requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. 
+Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. 
 
 ### Credentials
 
