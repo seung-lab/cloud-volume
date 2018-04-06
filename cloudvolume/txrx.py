@@ -60,6 +60,7 @@ NON_ALIGNED_WRITE = yellow(
 """)
 
 def cutout(vol, requested_bbox, steps, channel_slice=slice(None)):
+  """Cutout a requested bounding box from storage and return it as a numpy array."""
   cloudpath_bbox = requested_bbox.expand_to_chunk_size(vol.underlying, offset=vol.voxel_offset)
   cloudpath_bbox = Bbox.clamp(cloudpath_bbox, vol.bounds)
   cloudpaths = chunknames(cloudpath_bbox, vol.bounds, vol.key, vol.underlying)
@@ -90,7 +91,7 @@ def download_single(vol, cloudpath, filename, cache):
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
   img3d = decode(vol, filename, content)
-  return bbox, img3d
+  return img3d, bbox
 
 def download_multiple(vol, cloudpaths, fn):
   locations = vol.cache.compute_data_locations(cloudpaths)
@@ -98,7 +99,7 @@ def download_multiple(vol, cloudpaths, fn):
   progress = 'Downloading' if vol.progress else None
 
   def process(cloudpath, filename, cache, iface):
-    bbox, img3d = download_single(vol, cloudpath, filename, cache)
+    img3d, bbox = download_single(vol, cloudpath, filename, cache)
     fn(img3d, bbox)
 
   with ThreadedQueue(n_threads=DEFAULT_THREADS, progress=progress) as tq:
@@ -188,6 +189,7 @@ def cdn_cache_control(val):
     raise NotImplementedError(type(val) + ' is not a supported cache_control setting.')
 
 def check_grid_aligned(vol, img, offset):
+  """Returns (is_aligned, img bounds Bbox, nearest bbox inflated to grid aligned)"""
   shape = Vec(*img.shape)[:3]
   offset = Vec(*offset)[:3]
   bounds = Bbox( offset, shape + offset)
@@ -197,6 +199,7 @@ def check_grid_aligned(vol, img, offset):
   return (is_aligned, bounds, alignment_check) 
 
 def upload_image(vol, img, offset):
+  """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
 
   if str(vol.dtype) != str(img.dtype):
@@ -223,7 +226,9 @@ def upload_image(vol, img, offset):
   shell_chunks = all_chunks.difference(core_chunks)
 
   def shade_and_upload(img3d, bbox):
-    img3d.setflags(write=1)
+    # decode is returning non-writable chunk
+    # we're throwing them away so safe to write
+    img3d.setflags(write=1) 
     shade(img3d, bbox, img, bounds)
     upload_chunks(vol, ((img3d, bbox.minpt, bbox.maxpt),), n_threads=0)
 
