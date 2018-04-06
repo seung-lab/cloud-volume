@@ -152,7 +152,7 @@ Better documentation coming later, but for now, here's a summary of the most use
 	* get - Download an object. Can merge multiple segmentids
 	* save - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
 * cache - Access cache operations
-        * enabled - Boolean switch to enable/disable cache. If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
+	* enabled - Boolean switch to enable/disable cache. If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
 	* path - Property that shows the current filesystem path to the cache
 	* list - List files in cache 
 	* num_files - Number of files in cache at this mip level , use all_mips=True to get them all
