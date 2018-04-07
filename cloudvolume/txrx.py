@@ -149,6 +149,9 @@ def shade(renderbuffer, bufferbbox, img3d, bbox):
   iend = min2(ept - bbox.maxpt, ZERO3) + img3d.shape[:3]
 
   rbox = Bbox(spt, ept) - bufferbbox.minpt
+  if len(img3d.shape) == 3:
+    img3d = img3d[ :, :, :, np.newaxis]
+  
   renderbuffer[ rbox.to_slices() ] = img3d[ istart.x:iend.x, istart.y:iend.y, istart.z:iend.z, : ]
 
 def content_type(vol):

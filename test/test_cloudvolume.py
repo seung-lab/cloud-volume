@@ -9,7 +9,7 @@ import gzip
 import json
 
 from cloudvolume import CloudVolume, chunks, Storage
-from cloudvolume.lib import mkdir, Bbox
+from cloudvolume.lib import mkdir, Bbox, Vec
 from layer_harness import (
     TEST_NUMBER, create_image, 
     delete_layer, create_layer,
@@ -162,6 +162,61 @@ def test_write():
     cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
     cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
+def test_non_aligned_write():
+    delete_layer()
+    offset = Vec(5,7,13)
+    cv, data = create_layer(size=(1024, 1024, 5, 1), offset=offset)
+
+    cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
+
+    # Write inside a single chunk
+
+    onepx = Bbox( (10,200,15), (11,201,16) )
+    try:
+        cv[ onepx.to_slices() ] = np.ones(shape=onepx.size3(), dtype=cv.dtype)
+        assert False
+    except txrx.AlignmentError:
+        pass
+
+    cv.non_aligned_writes = True
+    cv[ onepx.to_slices() ] = np.ones(shape=onepx.size3(), dtype=cv.dtype)
+    answer = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    answer[ 5, 193, 2 ] = 1
+    assert np.all(cv[:] == answer)
+
+    # Write across multiple chunks
+    cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    cv.non_aligned_writes = True
+    middle = Bbox( (512 - 10, 512 - 11, 0), (512 + 10, 512 + 11, 5) ) + offset
+    cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
+    answer = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    answer[ 502:522, 501:523, : ] = 1
+    assert np.all(cv[:] == answer)    
+
+    cv.non_aligned_writes = False
+    try:
+        cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
+        assert False
+    except txrx.AlignmentError:
+        pass
+
+    # Big inner shell
+    delete_layer()
+    cv, data = create_layer(size=(1024, 1024, 5, 1), offset=offset)
+    cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    middle = Bbox( (512 - 150, 512 - 150, 0), (512 + 150, 512 + 150, 5) ) + offset
+
+    try:
+        cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
+        assert False
+    except txrx.AlignmentError:
+        pass
+
+    cv.non_aligned_writes = True
+    cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
+    answer = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    answer[ 362:662, 362:662, : ] = 1
+    assert np.all(cv[:] == answer)    
 
 def test_autocropped_write():
     delete_layer()
