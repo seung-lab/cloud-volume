@@ -247,6 +247,27 @@ class CacheService(object):
     if self.enabled and self.vol.provenance:
       with SimpleStorage('file://' + self.path) as storage:
         storage.put_file('provenance', self.vol.provenance.serialize(), 'application/json')
+
+  def compute_data_locations(self, cloudpaths):
+    if not self.enabled:
+      return { 'local': [], 'remote': cloudpaths }
+
+    def noextensions(fnames):
+      return [ os.path.splitext(fname)[0] for fname in fnames ]
+
+    list_dir = mkdir(os.path.join(self.vol.cache_path, self.vol.key))
+    filenames = noextensions(os.listdir(list_dir))
+
+    basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }
+
+    # check which files are already cached, we only want to download ones not in cache
+    requested = set([ os.path.basename(path) for path in cloudpaths ])
+    already_have = requested.intersection(set(filenames))
+    to_download = requested.difference(already_have)
+
+    download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]    
+
+    return { 'local': already_have, 'remote': download_paths }
     
 
 

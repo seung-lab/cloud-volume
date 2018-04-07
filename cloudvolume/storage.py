@@ -44,6 +44,8 @@ retry = tenacity.retry(
     wait=tenacity.wait_full_jitter(0.5, 60.0),
 )
 
+DEFAULT_THREADS = 20
+
 class SimpleStorage(object):
     """
     Access files stored in Google Storage (gs), Amazon S3 (s3), 

@@ -248,7 +248,7 @@ class Vec(np.ndarray):
       return int(''.join(map(str, self)))
 
     def __repr__(self):
-      values = u",".join(self.astype(str))
+      values = u",".join(list(self.astype(str)))
       return u"Vec({}, dtype={})".format(values, self.dtype)
 
 def __assign(self, val, index):
@@ -406,6 +406,13 @@ class Bbox(object):
     result = result - offset
     result.minpt = np.ceil(result.minpt / chunk_size) * chunk_size
     result.maxpt = np.floor(result.maxpt / chunk_size) * chunk_size 
+
+    # If we are inside a single chunk, the ends
+    # can invert, which tells us we should collapse
+    # to a single point.
+    if np.any(result.minpt > result.maxpt):
+      result.maxpt = result.minpt.clone()
+
     return result + offset
 
   def round_to_chunk_size(self, chunk_size, offset=Vec(0,0,0, dtype=int)):

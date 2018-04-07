@@ -9,12 +9,13 @@ import gzip
 import json
 
 from cloudvolume import CloudVolume, chunks, Storage
-from cloudvolume.lib import mkdir, Bbox
+from cloudvolume.lib import mkdir, Bbox, Vec
 from layer_harness import (
     TEST_NUMBER, create_image, 
     delete_layer, create_layer,
     create_volume_from_image
 )
+from cloudvolume import txrx
 
 def test_cloud_access():
     vol = CloudVolume('gs://seunglab-test/test_v0/image')
@@ -161,6 +162,61 @@ def test_write():
     cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
     cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
+def test_non_aligned_write():
+    delete_layer()
+    offset = Vec(5,7,13)
+    cv, data = create_layer(size=(1024, 1024, 5, 1), offset=offset)
+
+    cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
+
+    # Write inside a single chunk
+
+    onepx = Bbox( (10,200,15), (11,201,16) )
+    try:
+        cv[ onepx.to_slices() ] = np.ones(shape=onepx.size3(), dtype=cv.dtype)
+        assert False
+    except txrx.AlignmentError:
+        pass
+
+    cv.non_aligned_writes = True
+    cv[ onepx.to_slices() ] = np.ones(shape=onepx.size3(), dtype=cv.dtype)
+    answer = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    answer[ 5, 193, 2 ] = 1
+    assert np.all(cv[:] == answer)
+
+    # Write across multiple chunks
+    cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    cv.non_aligned_writes = True
+    middle = Bbox( (512 - 10, 512 - 11, 0), (512 + 10, 512 + 11, 5) ) + offset
+    cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
+    answer = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    answer[ 502:522, 501:523, : ] = 1
+    assert np.all(cv[:] == answer)    
+
+    cv.non_aligned_writes = False
+    try:
+        cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
+        assert False
+    except txrx.AlignmentError:
+        pass
+
+    # Big inner shell
+    delete_layer()
+    cv, data = create_layer(size=(1024, 1024, 5, 1), offset=offset)
+    cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    middle = Bbox( (512 - 150, 512 - 150, 0), (512 + 150, 512 + 150, 5) ) + offset
+
+    try:
+        cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
+        assert False
+    except txrx.AlignmentError:
+        pass
+
+    cv.non_aligned_writes = True
+    cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
+    answer = np.zeros(shape=cv.shape, dtype=cv.dtype)
+    answer[ 362:662, 362:662, : ] = 1
+    assert np.all(cv[:] == answer)    
 
 def test_autocropped_write():
     delete_layer()
@@ -194,7 +250,7 @@ def test_writer_last_chunk_smaller():
     cv, data = create_layer(size=(100,64,64,1), offset=(0,0,0))
     cv.info['scales'][0]['chunk_sizes'] = [[ 64,64,64 ]]
     
-    chunks = [ chunk for chunk in cv._generate_chunks(data[:,:,:,:], (0,0,0)) ]
+    chunks = [ chunk for chunk in txrx.generate_chunks(cv, data[:,:,:,:], (0,0,0)) ]
 
     assert len(chunks) == 2
 
@@ -649,16 +705,16 @@ def test_cdn_cache_control():
     delete_layer()
     cv, data = create_layer(size=(128,10,10,1), offset=(0,0,0))
 
-    assert cv._cdn_cache_control(None) == 'max-age=3600, s-max-age=3600'
-    assert cv._cdn_cache_control(0) == 'no-cache'
-    assert cv._cdn_cache_control(False) == 'no-cache'
-    assert cv._cdn_cache_control(True) == 'max-age=3600, s-max-age=3600'
+    assert txrx.cdn_cache_control(None) == 'max-age=3600, s-max-age=3600'
+    assert txrx.cdn_cache_control(0) == 'no-cache'
+    assert txrx.cdn_cache_control(False) == 'no-cache'
+    assert txrx.cdn_cache_control(True) == 'max-age=3600, s-max-age=3600'
 
-    assert cv._cdn_cache_control(1337) == 'max-age=1337, s-max-age=1337'
-    assert cv._cdn_cache_control('private, must-revalidate') == 'private, must-revalidate'
+    assert txrx.cdn_cache_control(1337) == 'max-age=1337, s-max-age=1337'
+    assert txrx.cdn_cache_control('private, must-revalidate') == 'private, must-revalidate'
 
     try:
-        cv._cdn_cache_control(-1)
+        txrx.cdn_cache_control(-1)
     except ValueError:
         pass
     else:
