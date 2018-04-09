@@ -814,6 +814,23 @@ def test_boss_download():
 
     assert np.all(bimg == vimg)
     assert bimg.dtype == vimg.dtype
+
+    vol.bounded = False
+    vol.fill_missing = True
+    bossvol.bounded = False
+    bossvol.fill_missing = True
+
+    assert np.all(vol[-100:100,-100:100,-10:10] == bossvol[-100:100,-100:100,-10:10])
+
+    # BOSS using a different algorithm for creating downsamples
+    # so hard to compare 1:1 w/ pixels.
+    bossvol.bounded = True
+    bossvol.fill_missing = False
+    bossvol.mip = 1
+    bimg = bossvol[:,:,5:6]
+    assert np.any(bimg > 0)
+
+
     
 
 

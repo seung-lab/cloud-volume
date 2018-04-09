@@ -717,9 +717,7 @@ class CloudVolume(object):
     # is needed.
     shape = list(requested_bbox.size3()) + [ cutout.shape[3] ]
     renderbuffer = np.zeros(shape=shape, dtype=self.dtype)
-    lp = cutout.bounds.minpt - requested_bbox.minpt
-    hp = lp + cutout.bounds.size3()
-    renderbuffer[ lp.x:hp.x, lp.y:hp.y, lp.z:hp.z, : ] = cutout 
+    txrx.shade(renderbuffer, requested_bbox, cutout, cutout.bounds)
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
   def flush_cache(self, preserve=None):
