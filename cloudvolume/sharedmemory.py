@@ -68,15 +68,17 @@ def track_mmap(array_like):
   global mmaps
   mmaps.append(array_like)
 
-def cleanup(vol=None):
+def cleanup():
   global mmaps 
 
   for array_like in mmaps:
-    array_like.close()
+    if not array_like.closed:
+      array_like.close()
   mmaps = []
 
-def unlink(vol):
+def unlink(location):
   try:
-    posix_ipc.unlink_shared_memory(vol.shared_memory_id)
+    posix_ipc.unlink_shared_memory(location)
   except posix_ipc.ExistentialError:
-    pass
+    return False
+  return True

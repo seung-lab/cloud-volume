@@ -32,6 +32,7 @@ from .provenance import DataLayerProvenance
 from .storage import SimpleStorage, Storage
 from . import txrx
 from .volumecutout import VolumeCutout
+from . import sharedmemory
 
 # Set the interpreter bool
 try:
@@ -114,7 +115,7 @@ class CloudVolume(object):
     self.non_aligned_writes = bool(non_aligned_writes)
     self.progress = bool(progress)
     self.path = lib.extract_path(cloudpath)
-    self.shared_memory_id = self.random_shared_memory_location()
+    self.shared_memory_id = self.generate_shared_memory_location()
     if type(output_to_shared_memory) == str:
       self.shared_memory_id = str(output_to_shared_memory)
     self.output_to_shared_memory = bool(output_to_shared_memory)
@@ -152,8 +153,11 @@ class CloudVolume(object):
     self.cache = CacheService(cache, weakref.proxy(self)) 
     self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
 
-  def random_shared_memory_location(self):
+  def generate_shared_memory_location(self):
     return 'cloudvolume-shm-' + str(uuid.uuid4())
+
+  def unlink_shared_memory(self):
+    return sharedmemory.unlink(self.shared_memory_id)
 
   @property
   def _storage(self):
