@@ -74,7 +74,7 @@ def multi_process_download(cv, bufferbbox, caching, cloudpaths):
 
 def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
   cloudpaths_by_process = []
-  length = math.ceil(len(cloudpaths) / float(parallel)) or 1
+  length = int(math.ceil(len(cloudpaths) / float(parallel)) or 1)
   for i in range(0, len(cloudpaths), length):
     cloudpaths_by_process.append(
       cloudpaths[i:i+length]
