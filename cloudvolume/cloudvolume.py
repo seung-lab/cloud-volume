@@ -764,7 +764,7 @@ class CloudVolume(object):
     if len(cutout.shape) == 3:
       cutout = cutout.reshape(tuple(list(cutout.shape) + [ 1 ]))
 
-    if self.bounded or self.autocrop or cutout.bounds == requested_bbox:
+    if self.bounded or self.autocrop or bounds == requested_bbox:
       return VolumeCutout.from_volume(self, cutout, bounds)
 
     # This section below covers the case where the requested volume is bigger
@@ -773,7 +773,7 @@ class CloudVolume(object):
     # is needed.
     shape = list(requested_bbox.size3()) + [ cutout.shape[3] ]
     renderbuffer = np.zeros(shape=shape, dtype=self.dtype)
-    txrx.shade(renderbuffer, requested_bbox, cutout, cutout.bounds)
+    txrx.shade(renderbuffer, requested_bbox, cutout, bounds)
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
   def __setitem__(self, slices, img):
