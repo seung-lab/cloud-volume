@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.15.1
+------
+
+* feat: added \_\_version\_\_ to cloudvolume
+* docs: updated README to discuss parallel, shared memory, non\_aligned\_writes
+
 0.15.0
 ------
 
