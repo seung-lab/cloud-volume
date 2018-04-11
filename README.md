@@ -152,8 +152,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 * provenance - Use this object as the provenance file.
 * compress - None or 'gzip', force this compression algorithm to be used for upload
 * non_aligned_writes - True/False. If False, non-chunk-aligned writes will trigger an error with a helpful message. If True,
-    Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing
-    environment, are subject to an ugly race condition.
+    Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/issues/87)
 * parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
    that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
 * otuput_to_shared_memory - True/False/string. Instead of using ordinary numpy memory allocations, download to shared memory.
