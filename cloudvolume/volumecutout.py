@@ -9,10 +9,10 @@ from .lib import mkdir
 
 class VolumeCutout(np.ndarray):
 
-  def __new__(cls, buf, dataset_name, layer, mip, layer_type, bounds, *args, **kwargs):
+  def __new__(cls, buf, dataset_name, layer, mip, layer_type, bounds, handle, *args, **kwargs):
     return super(VolumeCutout, cls).__new__(cls, shape=buf.shape, buffer=np.ascontiguousarray(buf), dtype=buf.dtype)
 
-  def __init__(self, buf, dataset_name, layer, mip, layer_type, bounds, *args, **kwargs):
+  def __init__(self, buf, dataset_name, layer, mip, layer_type, bounds, handle, *args, **kwargs):
     super(VolumeCutout, self).__init__()
     
     self.dataset_name = dataset_name
@@ -20,9 +20,15 @@ class VolumeCutout(np.ndarray):
     self.mip = mip
     self.layer_type = layer_type
     self.bounds = bounds
+    self.handle = handle
+
+  def __del__(self):
+    super(VolumeCutout, self).__del__()
+    if self.handle:
+      self.handle.close()
 
   @classmethod
-  def from_volume(cls, volume, buf, bounds):
+  def from_volume(cls, volume, buf, bounds, handle=None):
     return VolumeCutout(
       buf=buf,
       dataset_name=volume.dataset_name,
@@ -30,6 +36,7 @@ class VolumeCutout(np.ndarray):
       mip=volume.mip,
       layer_type=volume.layer_type,
       bounds=bounds,
+      handle=handle,
     )
 
   @property

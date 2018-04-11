@@ -72,6 +72,18 @@ def test_aligned_read():
     assert np.all(cutout2 == data[64:128,:64,:64,:])
 
 
+def test_parallel_read():
+    vol1 = CloudVolume('gs://seunglab-test/test_v0/image', parallel=1)
+    vol2 = CloudVolume('gs://seunglab-test/test_v0/image', parallel=2)
+    assert np.all(vol1[:512,:512,:50] == vol2[:512,:512,:50])
+
+    vol2.output_to_shared_memory = True
+    data = vol2[:512,:512,:50]
+    assert np.all(vol1[:512,:512,:50] == data)
+    del data
+    vol2.unlink_shared_memory()
+
+
 def test_non_aligned_read():
     delete_layer()
     cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))

@@ -6,12 +6,14 @@ import json5
 import os
 import re
 import sys
+import uuid
 import weakref
 
 from six.moves import range
 import numpy as np
 from tqdm import tqdm
 from six import string_types
+import multiprocessing as mp
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
@@ -30,6 +32,7 @@ from .provenance import DataLayerProvenance
 from .storage import SimpleStorage, Storage
 from . import txrx
 from .volumecutout import VolumeCutout
+from . import sharedmemory
 
 # Set the interpreter bool
 try:
@@ -82,6 +85,11 @@ class CloudVolume(object):
       - str: set the header manually
     info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
             This is useful when creating new datasets.
+    parallel (int: 1, bool): number of extra processes to launch, 1 means only use the main process. If parallel is True
+      use the number of CPUs returned by multiprocessing.cpu_count()
+    output_to_shared_memory (bool: False, str): Write results to shared memory. Don't make copies from this buffer
+      and don't automatically unlink it. If a string is provided, use that shared memory location rather than
+      the default.
     provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
             This is useful when doing multiprocessing.
     progress: (bool) Show tqdm progress bars. 
@@ -96,7 +104,7 @@ class CloudVolume(object):
   """
   def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
       cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None, non_aligned_writes=False):
+      compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
@@ -107,9 +115,20 @@ class CloudVolume(object):
     self.non_aligned_writes = bool(non_aligned_writes)
     self.progress = bool(progress)
     self.path = lib.extract_path(cloudpath)
+    self.shared_memory_id = self.generate_shared_memory_location()
+    if type(output_to_shared_memory) == str:
+      self.shared_memory_id = str(output_to_shared_memory)
+    self.output_to_shared_memory = bool(output_to_shared_memory)
 
-    self.cache = CacheService(cache, weakref.proxy(self)) 
-    self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
+    if type(parallel) == bool:
+      self.parallel = mp.cpu_count() if parallel == True else 1
+    else:
+      self.parallel = int(parallel)
+    
+    if self.parallel <= 0:
+      raise ValueError('Number of processes must be >= 1. Got: ' + str(self.parallel))
+
+    self.init_submodules(cache)
 
     if info is None:
       self.refresh_info()
@@ -129,6 +148,16 @@ class CloudVolume(object):
       self.mip = self.available_mips[self.mip]
     except:
       raise Exception("MIP {} has not been generated.".format(self.mip))
+
+  def init_submodules(self, cache):
+    self.cache = CacheService(cache, weakref.proxy(self)) 
+    self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
+
+  def generate_shared_memory_location(self):
+    return 'cloudvolume-shm-' + str(uuid.uuid4())
+
+  def unlink_shared_memory(self):
+    return sharedmemory.unlink(self.shared_memory_id)
 
   @property
   def _storage(self):
@@ -702,23 +731,9 @@ class CloudVolume(object):
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
     if self.path.protocol != 'boss':
-      return txrx.cutout(self, requested_bbox, steps, channel_slice)
+      return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
     
-    cutout = self._boss_cutout(requested_bbox, steps, channel_slice)      
-
-    if self.bounded or self.autocrop:
-      return cutout
-    elif cutout.bounds == requested_bbox:
-      return cutout
-
-    # This section below covers the case where the requested volume is bigger
-    # than the dataset volume and the bounds guards have been switched 
-    # off. This is useful for Marching Cubes where a 1px excess boundary
-    # is needed.
-    shape = list(requested_bbox.size3()) + [ cutout.shape[3] ]
-    renderbuffer = np.zeros(shape=shape, dtype=self.dtype)
-    txrx.shade(renderbuffer, requested_bbox, cutout, cutout.bounds)
-    return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
+    return self._boss_cutout(requested_bbox, steps, channel_slice)
 
   def flush_cache(self, preserve=None):
     """See vol.cache.flush"""
@@ -753,7 +768,17 @@ class CloudVolume(object):
     if len(cutout.shape) == 3:
       cutout = cutout.reshape(tuple(list(cutout.shape) + [ 1 ]))
 
-    return VolumeCutout.from_volume(self, cutout, bounds)
+    if self.bounded or self.autocrop or bounds == requested_bbox:
+      return VolumeCutout.from_volume(self, cutout, bounds)
+
+    # This section below covers the case where the requested volume is bigger
+    # than the dataset volume and the bounds guards have been switched 
+    # off. This is useful for Marching Cubes where a 1px excess boundary
+    # is needed.
+    shape = list(requested_bbox.size3()) + [ cutout.shape[3] ]
+    renderbuffer = np.zeros(shape=shape, dtype=self.dtype)
+    txrx.shade(renderbuffer, requested_bbox, cutout, bounds)
+    return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
   def __setitem__(self, slices, img):
     imgshape = list(img.shape)

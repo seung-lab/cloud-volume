@@ -1,5 +1,7 @@
-import os
 from functools import partial
+import math
+import multiprocessing as mp
+import os
 
 import numpy as np
 from six.moves import range
@@ -13,9 +15,10 @@ from .lib import (
   Bbox, min2, max2, check_bounds, 
   jsonify, generate_slices
 )
-from .storage import Storage, SimpleStorage, DEFAULT_THREADS
+from .storage import Storage, SimpleStorage, DEFAULT_THREADS, reset_connection_pools
 from .threaded_queue import ThreadedQueue
 from .volumecutout import VolumeCutout
+from . import sharedmemory as shm
 
 class EmptyVolumeException(Exception):
   """Raised upon finding a missing chunk."""
@@ -59,22 +62,66 @@ NON_ALIGNED_WRITE = yellow(
     Nearest Aligned: {check}
 """)
 
-def cutout(vol, requested_bbox, steps, channel_slice=slice(None)):
+def multi_process_download(cv, bufferbbox, caching, cloudpaths):
+  reset_connection_pools() # otherwise multi-process hangs
+  cv.init_submodules(caching)
+
+  array_like, renderbuffer = shm.bbox2array(cv, bufferbbox)
+  def process(img3d, bbox):
+    shade(renderbuffer, bufferbbox, img3d, bbox)
+  download_multiple(cv, cloudpaths, fn=process)
+  array_like.close()
+
+def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
+  cloudpaths_by_process = []
+  length = int(math.ceil(len(cloudpaths) / float(parallel)) or 1)
+  for i in range(0, len(cloudpaths), length):
+    cloudpaths_by_process.append(
+      cloudpaths[i:i+length]
+    )
+
+  provenance = vol.provenance 
+  vol.provenance = None
+  spd = partial(multi_process_download, vol, requested_bbox, vol.cache.enabled)
+  pool = mp.Pool(parallel)
+  pool.map(spd, cloudpaths_by_process)
+  pool.close()
+  vol.provenance = provenance
+  
+  mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox)
+  if not vol.output_to_shared_memory:
+    renderbuffer = np.copy(renderbuffer)
+    mmap_handle.close()
+    shm.unlink(vol.shared_memory_id)
+  else:
+    shm.track_mmap(mmap_handle)
+
+  return mmap_handle, renderbuffer
+
+def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   cloudpath_bbox = requested_bbox.expand_to_chunk_size(vol.underlying, offset=vol.voxel_offset)
   cloudpath_bbox = Bbox.clamp(cloudpath_bbox, vol.bounds)
   cloudpaths = chunknames(cloudpath_bbox, vol.bounds, vol.key, vol.underlying)
-
   shape = list(requested_bbox.size3()) + [ vol.num_channels ]
-  renderbuffer = np.zeros(shape=shape, dtype=vol.dtype)
 
-  def process(img3d, bbox):
-    shade(renderbuffer, requested_bbox, img3d, bbox)
+  handle = None
 
-  download_multiple(vol, cloudpaths, fn=process)
+  if parallel == 1:
+    if vol.output_to_shared_memory:
+      array_like, renderbuffer = shm.bbox2array(vol, requested_bbox)
+      shm.track_mmap(array_like)
+    else:
+      renderbuffer = np.zeros(shape=shape, dtype=vol.dtype)
+
+    def process(img3d, bbox):
+      shade(renderbuffer, requested_bbox, img3d, bbox)
+    download_multiple(vol, cloudpaths, fn=process)
+  else:
+    handle, renderbuffer = multi_process_cutout(vol, requested_bbox, cloudpaths, parallel)
   
   renderbuffer = renderbuffer[ ::steps.x, ::steps.y, ::steps.z, channel_slice ]
-  return VolumeCutout.from_volume(vol, renderbuffer, requested_bbox)
+  return VolumeCutout.from_volume(vol, renderbuffer, requested_bbox, handle=handle)
 
 def download_single(vol, cloudpath, filename, cache):
   with SimpleStorage(cloudpath) as stor:
