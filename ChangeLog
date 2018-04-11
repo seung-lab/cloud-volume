@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.15.0
+------
+
+* feat: parallel download + shared memory output (#94)
+* refactor: use txrx.shade instead of reinventing the wheel + BOSS tests
+
 0.14.0
 ------
 

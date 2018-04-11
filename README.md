@@ -80,6 +80,21 @@ vol.mesh.save(12345) # save 12345 as ./12345.obj
 vol.mesh.save([12345, 12346, 12347]) # merge three segments into one obj
 vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
 
+# Parallel Operation
+vol.parallel = 4 # e.g. any number > 1
+data = vol[:] # uses shared memory to coordinate processes
+del data # closes mmap file handle
+vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
+vol.shared_memory_id # get/set the shared memory location for this instance
+
+# Shared Memory Output
+vol = CloudVolume(..., output_to_shared_memory=True)
+vol = CloudVolume(..., output_to_shared_memory='my-shared-memory-location')
+data = vol[:] # data now is a shared memory buffer
+vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
+vol.shared_memory_id # get/set the shared memory location for this instance
+vol.output_to_shared_memory = True/False # Turn this feature on/off
+
 # Caching, located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
 vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
 image = vol[0:10,0:10,0:10] # Download partial image and cache
@@ -124,7 +139,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 
 ### CloudVolume Constructor
 
-`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, autocrop=False, cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None)`  
+`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, autocrop=False, cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None, compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False)`  
 
 * mip - Which mip level to access
 * bounded - Whether access is allowed outside the bounds defined in the info file
@@ -135,6 +150,15 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 * progress - Show progress bars. Defaults to True if in python interactive mode else default False.
 * info - Use this info object rather than pulling from the cloud (useful for creating new layers).
 * provenance - Use this object as the provenance file.
+* compress - None or 'gzip', force this compression algorithm to be used for upload
+* non_aligned_writes - True/False. If False, non-chunk-aligned writes will trigger an error with a helpful message. If True,
+    Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing
+    environment, are subject to an ugly race condition.
+* parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
+   that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
+* otuput_to_shared_memory - True/False/string. Instead of using ordinary numpy memory allocations, download to shared memory.
+    Be careful, shared memory is like a file and doesn't disappear unless explicitly unlinked. (`vol.unlink_shared_memory()`)
+    A string input specifies a possibly preexisting shared memory location.
 
 ### CloudVolume Methods
 
@@ -161,7 +185,8 @@ Better documentation coming later, but for now, here's a summary of the most use
 	* flush_region - Delete a spatial region at this mip level
 * exists - Generate a report on which chunks within a bounding box exist.
 * delete - Delete the chunks within this bounding box.
-
+* unlink_shared_memory - Delete shared memory associated with this instance (`vol.shared_memory_id`)
+* generate_shared_memory_location - Create a new unique shared memory identifier string. No side effects.
 
 ### CloudVolume Properties
 
@@ -192,6 +217,8 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * underlying (Vec3, r)† - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
 * key (str, r)† - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
 * bounds (Bbox, r)† - A Bbox object that represents the bounds of the entire volume.
+* shared_memory_id (str, rw) - Shared memory location used for parallel operation or for output.
+* output_to_shared_memory (bool, rw) - Turn on/off outputing to shared memory.
 
 † These properties can also be accessed with a function named like `vol.mip_$PROPERTY($MIP)`. By default they return the current mip level assigned to the CloudVolume, but any mip level can be accessed via the corresponding `mip_` function. Example: `vol.mip_resolution(2)` would return the resolution of mip 2.
 
