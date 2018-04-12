@@ -1,10 +1,12 @@
 CHANGES
 =======
 
-0.15.1
+0.15.2
 ------
 
+* fix: errors closing mmap handle (\_\_del\_\_ not existing as a superclass method?)
 * feat: added \_\_version\_\_ to cloudvolume
+* Update README.md
 * docs: updated README to discuss parallel, shared memory, non\_aligned\_writes
 
 0.15.0
