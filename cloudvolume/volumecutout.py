@@ -22,10 +22,29 @@ class VolumeCutout(np.ndarray):
     self.bounds = bounds
     self.handle = handle
 
+  def close(self):
+    # This bizzare construction is because of this error:
+    # Traceback (most recent call last):
+    #   File "cloud-volume/cloudvolume/volumecutout.py", line 30, in __del__
+    #     self.close()
+    #   File "cloud-volume/cloudvolume/volumecutout.py", line 26, in close
+    #     if self.handle and not self.handle.closed:
+    # ValueError: mmap closed or invalid
+
+    # However testing if it is closed does not throw an error. So we test
+    # for closure and capture the exception if self.handle is None.
+
+    try:
+      if not self.handle.closed:
+        self.handle.close()
+    except AttributeError:
+      pass
+
   def __del__(self):
-    super(VolumeCutout, self).__del__()
-    if self.handle:
-      self.handle.close()
+    sup = super(VolumeCutout, self)
+    if hasattr(sup, '__del__'):
+      sup.__del__()
+    self.close()
 
   @classmethod
   def from_volume(cls, volume, buf, bounds, handle=None):
