@@ -134,6 +134,7 @@ def decode_chunk_into(chunk, buf, block_size):
     gz = ceil_div(chunk.shape[1], block_size[2])
 
     if len(buf) < num_channels * (4 + 8 * gx * gy * gz):
+        print(gx,gy,gz,len(buf),num_channels)
         raise InvalidFormatError("compressed_segmentation file too short")
 
     channel_offsets = [

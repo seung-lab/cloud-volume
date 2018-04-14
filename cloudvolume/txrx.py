@@ -178,7 +178,11 @@ def decode(vol, filename, content):
 
   try:
     return chunks.decode(
-      content, vol.encoding, shape, vol.dtype, vol.compressed_segmentation_block_size
+      content, 
+      encoding=vol.encoding, 
+      shape=shape, 
+      dtype=vol.dtype, 
+      block_size=vol.compressed_segmentation_block_size,
     )
   except Exception as error:
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(

@@ -92,27 +92,27 @@ def encode_compressed_segmentation(subvol, block_size):
     assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
     return compressed_segmentation.encode_chunk(subvol.T, block_size=block_size)
 
+def encode_raw(subvol):
+    return subvol.tostring('F')
+
+def decode_npz(string):
+    fileobj = io.BytesIO(zlib.decompress(string))
+    return np.load(fileobj)
+
 def decode_jpeg(bytestring, shape=(64,64,64), dtype=np.uint8):
     img = Image.open(io.BytesIO(bytestring))
     data = np.array(img.getdata(), dtype=dtype)
 
     return data.reshape(shape[::-1]).T
 
-
-def decode_npz(string):
-    fileobj = io.BytesIO(zlib.decompress(string))
-    return np.load(fileobj)
-
-def encode_raw(subvol):
-    return subvol.tostring('F')
-
 def decode_raw(bytestring, shape=(64,64,64), dtype=np.uint32):
     return np.frombuffer(bytestring, dtype=dtype).reshape(shape[::-1]).T
 
-def decode_compressed_segmentation(subvol, shape, dtype, block_size):
+def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
     assert block_size is not None
-    chunk = np.empty(shape=shape, dtype=dtype)
-    return compressed_segmentation.decode_chunk_into(chunk, buf, block_size=block_size).T
+    chunk = np.empty(shape=shape[::-1], dtype=dtype)
+    compressed_segmentation.decode_chunk_into(chunk, bytestring, block_size=block_size)
+    return chunk.T
 
 
 

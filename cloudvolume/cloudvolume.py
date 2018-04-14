@@ -486,7 +486,7 @@ class CloudVolume(object):
 
   @property
   def compressed_segmentation_block_size(self):
-    return self.compressed_segmentation_block_size(self.mip)
+    return self.mip_compressed_segmentation_block_size(self.mip)
 
   def mip_compressed_segmentation_block_size(self, mip):
     if 'compressed_segmentation_block_size' in self.info['scales'][mip]:
