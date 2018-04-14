@@ -17,7 +17,11 @@ import io
 import numpy as np
 from PIL import Image
 
-def encode(img_chunk, encoding):
+from . import compressed_segmentation
+
+def encode(img_chunk, encoding, block_size=None):
+  if encoding == "compressed_segmentation":
+    return encode_compressed_segmentation(img_chunk, block_size=block_size)
   if encoding == "jpeg":
     return encode_jpeg(img_chunk)
   elif encoding == "npz":
@@ -31,12 +35,14 @@ def encode(img_chunk, encoding):
   else:
     raise NotImplementedError(encoding)
 
-def decode(filedata, encoding, shape=None, dtype=None):
+def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
   if (shape is None or dtype is None) and encoding is not 'npz':
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
     return np.zeros(shape=shape, dtype=dtype)
+  elif encoding == 'compressed_segmentation':
+    return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
   elif encoding == 'jpeg':
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
   elif encoding == 'raw':
@@ -66,12 +72,6 @@ def encode_jpeg(arr):
     img.save(f, "JPEG")
     return f.getvalue()
 
-def decode_jpeg(bytestring, shape=(64,64,64), dtype=np.uint8):
-    img = Image.open(io.BytesIO(bytestring))
-    data = np.array(img.getdata(), dtype=dtype)
-
-    return data.reshape(shape[::-1]).T
-
 def encode_npz(subvol):
     """
     This file format is unrelated to np.savez
@@ -88,6 +88,17 @@ def encode_npz(subvol):
     cdz = zlib.compress(fileobj.getvalue())
     return cdz
 
+def encode_compressed_segmentation(subvol, block_size):
+    assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
+    return compressed_segmentation.encode_chunk(subvol.T, block_size=block_size)
+
+def decode_jpeg(bytestring, shape=(64,64,64), dtype=np.uint8):
+    img = Image.open(io.BytesIO(bytestring))
+    data = np.array(img.getdata(), dtype=dtype)
+
+    return data.reshape(shape[::-1]).T
+
+
 def decode_npz(string):
     fileobj = io.BytesIO(zlib.decompress(string))
     return np.load(fileobj)
@@ -97,4 +108,11 @@ def encode_raw(subvol):
 
 def decode_raw(bytestring, shape=(64,64,64), dtype=np.uint32):
     return np.frombuffer(bytestring, dtype=dtype).reshape(shape[::-1]).T
+
+def decode_compressed_segmentation(subvol, shape, dtype, block_size):
+    assert block_size is not None
+    chunk = np.empty(shape=shape, dtype=dtype)
+    return compressed_segmentation.decode_chunk_into(chunk, buf, block_size=block_size).T
+
+
 

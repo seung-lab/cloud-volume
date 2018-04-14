@@ -304,6 +304,21 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       return self 
 
+    for scale in self.scales:
+      if scale['encoding'] == 'compressed_segmentation':
+        if 'compressed_segmentation_block_size' not in scale.keys():
+          raise KeyError("""
+            'compressed_segmentation_block_size' must be set if 
+            compressed_segmentation is set as the encoding.
+
+            A typical value for compressed_segmentation_block_size is (8,8,8)
+
+            Info file specification:
+            https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/README.md#info-json-file-specification
+          """)
+        elif self.dtype not in ('uint32', 'uint64'):
+          raise ValueError("compressed_segmentation can only be used with uint32 and uint64 data types.")
+
     infojson = jsonify(self.info, 
       sort_keys=True,
       indent=2, 
@@ -468,6 +483,15 @@ class CloudVolume(object):
 
   def mip_encoding(self, mip):
     return self.info['scales'][mip]['encoding']
+
+  @property
+  def compressed_segmentation_block_size(self):
+    return self.compressed_segmentation_block_size(self.mip)
+
+  def mip_compressed_segmentation_block_size(self, mip):
+    if 'compressed_segmentation_block_size' in self.info['scales'][mip]:
+      return self.info['scales'][mip]['compressed_segmentation_block_size']
+    return None
 
   @property
   def num_channels(self):
