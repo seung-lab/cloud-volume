@@ -21,7 +21,7 @@ SHM_DIRECTORY = '/dev/shm/'
 OSX_SHM_DIRECTORY = '/tmp/cloudvolume-shm'
 
 PLATFORM_SHM_DIRECTORY = SHM_DIRECTORY
-if sys.platform == 'darwin':
+if not os.path.isdir(SHM_DIRECTORY):
   PLATFORM_SHM_DIRECTORY = OSX_SHM_DIRECTORY
 
 class MemoryAllocationError(Exception):
