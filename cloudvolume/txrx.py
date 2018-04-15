@@ -62,11 +62,17 @@ NON_ALIGNED_WRITE = yellow(
     Nearest Aligned: {check}
 """)
 
+# Used in sharedmemory to emulate shared memory on 
+# OS X using a file, which has that facility but is 
+# more limited than on Linux.
+fs_lock = mp.Lock()
+
 def multi_process_download(cv, bufferbbox, caching, cloudpaths):
+  global fs_lock
   reset_connection_pools() # otherwise multi-process hangs
   cv.init_submodules(caching)
 
-  array_like, renderbuffer = shm.bbox2array(cv, bufferbbox)
+  array_like, renderbuffer = shm.bbox2array(cv, bufferbbox, fs_lock)
   def process(img3d, bbox):
     shade(renderbuffer, bufferbbox, img3d, bbox)
   download_multiple(cv, cloudpaths, fn=process)
@@ -87,7 +93,7 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
   pool.map(spd, cloudpaths_by_process)
   pool.close()
   vol.provenance = provenance
-  
+
   mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox)
   if not vol.output_to_shared_memory:
     renderbuffer = np.copy(renderbuffer)
