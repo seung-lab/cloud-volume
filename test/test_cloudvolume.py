@@ -290,6 +290,14 @@ def test_write_compressed_segmentation():
 
     assert np.all(data == data2)
 
+    cv.info['data_type'] = 'uint64'
+    cv.commit_info()
+
+    cv[:] = data.astype(np.uint64)
+    data2 = cv[:]
+    
+    assert np.all(data == data2)
+
 # def test_reader_negative_indexing():
 #     """negative indexing is supported"""
 #     delete_layer()
