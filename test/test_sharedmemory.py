@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 import posix_ipc
@@ -17,14 +18,21 @@ def test_ndarray():
 	assert np.all(array[:] == 100)
 	array_like.close()
 
-	assert os.path.exists('/dev/shm/' + location)
-	assert os.path.getsize('/dev/shm/' + location) == 8
+	filename = os.path.join(shm.PLATFORM_SHM_DIRECTORY, location)
+
+	assert os.path.exists(filename)
+	assert os.path.getsize(filename) == 8
 
 	assert shm.unlink(location) == True
 	assert shm.unlink(location) == False
 
-	assert not os.path.exists('/dev/shm/' + location)
+	assert not os.path.exists(filename)
 
+	# OS X uses on disk emulation
+	# no point in testing based on available memory
+	if sys.platform == 'darwin':
+		return
+	
 	available = psutil.virtual_memory().available
 	array_like, array = shm.ndarray(shape=(available // 10,2,2), dtype=np.uint8, location=location)
 	array_like.close()
