@@ -276,6 +276,20 @@ def test_writer_last_chunk_smaller():
     assert np.array_equal(ept, (100,64,64))
     assert img.shape == (36,64,64,1)
 
+def test_write_compressed_segmentation():
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+    cv.info['data_type'] = 'uint32'
+    cv.scale['encoding'] = 'compressed_segmentation'
+    cv.scale['compressed_segmentation_block_size'] = (8,8,8)
+    cv.commit_info()
+
+    cv[:] = data.astype(np.uint32)
+    data2 = cv[:]
+
+    assert np.all(data == data2)
+
 # def test_reader_negative_indexing():
 #     """negative indexing is supported"""
 #     delete_layer()
