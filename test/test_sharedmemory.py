@@ -30,7 +30,7 @@ def test_ndarray():
 
 	# OS X uses on disk emulation
 	# no point in testing based on available memory
-	if sys.platform == 'darwin':
+	if shm.EMULATE_SHM:
 		return
 	
 	available = psutil.virtual_memory().available

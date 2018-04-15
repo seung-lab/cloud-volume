@@ -18,11 +18,11 @@ from .lib import Bbox, Vec, mkdir
 mmaps = []
 
 SHM_DIRECTORY = '/dev/shm/'
-OSX_SHM_DIRECTORY = '/tmp/cloudvolume-shm'
+EMULATED_SHM_DIRECTORY = '/tmp/cloudvolume-shm'
 
-PLATFORM_SHM_DIRECTORY = SHM_DIRECTORY
-if not os.path.isdir(SHM_DIRECTORY):
-  PLATFORM_SHM_DIRECTORY = OSX_SHM_DIRECTORY
+EMULATE_SHM = not os.path.isdir(SHM_DIRECTORY)
+PLATFORM_SHM_DIRECTORY = SHM_DIRECTORY if not EMULATE_SHM else EMULATED_SHM_DIRECTORY
+
 
 class MemoryAllocationError(Exception):
   pass
@@ -39,13 +39,13 @@ def bbox2array(vol, bbox, lock=None):
 def ndarray(shape, dtype, location, lock=None):
   # OS X has problems with shared memory so 
   # emulate it using a file on disk
-  if sys.platform == 'darwin':
+  if EMULATE_SHM:
     return ndarray_fs(shape, dtype, location, lock)
   return ndarray_shm(shape, dtype, location)
 
 def ndarray_fs(shape, dtype, location, lock):
   nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
-  directory = mkdir(OSX_SHM_DIRECTORY)
+  directory = mkdir(EMULATED_SHM_DIRECTORY)
   filename = os.path.join(directory, location)
 
   if lock:
@@ -57,7 +57,10 @@ def ndarray_fs(shape, dtype, location, lock):
       with open(filename, 'wb') as f:
         os.ftruncate(fd, nbytes)
     elif size < nbytes:
-      os.unlink(filename) # too small? just remake it below
+      # too small? just remake it below
+      # if we were being more efficient
+      # we could just append zeros
+      os.unlink(filename) 
 
   if not os.path.exists(filename):
     # this could be made much more memory efficient
@@ -129,8 +132,8 @@ def cleanup():
   mmaps = []
 
 def unlink(location):
-  if sys.platform == 'darwin':
-    directory = mkdir(OSX_SHM_DIRECTORY)
+  if EMULATE_SHM:
+    directory = mkdir(EMULATED_SHM_DIRECTORY)
     try:
       filename = os.path.join(directory, location)
       os.unlink(filename)
