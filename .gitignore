@@ -103,6 +103,7 @@ ENV/
 # OS X 
 .DS_Store
 
+.pytest_cache
 test.py
 
 # Saved Images Cache

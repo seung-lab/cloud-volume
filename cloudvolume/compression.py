@@ -1,6 +1,7 @@
 from six import StringIO, BytesIO
 
 import gzip
+import sys
 
 class DecodingError(Exception):
   pass
@@ -56,6 +57,10 @@ def compress(content, method='gzip'):
 def gzip_compress(content):
   stringio = BytesIO()
   gzip_obj = gzip.GzipFile(mode='wb', fileobj=stringio)
+
+  if sys.version_info < (3,):
+    content = str(content)
+
   gzip_obj.write(content)
   gzip_obj.close()
   return stringio.getvalue()

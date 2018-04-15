@@ -5,9 +5,11 @@
 #
 # This software is made available under the MIT license, see bottom of file.
 
+from six.moves import zip_longest
 import functools
 import itertools
 import struct
+import sys
 
 import numpy as np
 
@@ -134,16 +136,19 @@ def decode_chunk_into(chunk, buf, block_size):
     gz = ceil_div(chunk.shape[1], block_size[2])
 
     if len(buf) < num_channels * (4 + 8 * gx * gy * gz):
-        print(gx,gy,gz,len(buf),num_channels)
         raise InvalidFormatError("compressed_segmentation file too short")
 
-    channel_offsets = [
-        4 * ret[0]
-        for ret in struct.iter_unpack("<I", buf[:4*num_channels])
-    ]
-    for channel, (offset, next_offset) in enumerate(
-            itertools.zip_longest(channel_offsets,
-                                  channel_offsets[1:])):
+    if sys.version_info < (3,):
+        channel_offsets = struct.unpack("<I", buf[:4*num_channels])
+        channel_offsets = [ 4 * ret for ret in channel_offsets ]
+    else:
+        channel_offsets = [
+            4 * ret[0] for ret in struct.iter_unpack("<I", buf[:4*num_channels])
+        ]
+
+    for channel, (offset, next_offset) in \
+        enumerate(zip_longest(channel_offsets, channel_offsets[1:])):
+
         # next_offset will be None for the last channel
         if offset + 8 * gx * gy * gz > len(buf):
             raise InvalidFormatError("compressed_segmentation channel offset "
