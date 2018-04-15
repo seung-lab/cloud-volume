@@ -83,6 +83,17 @@ def test_parallel_read():
     del data
     vol2.unlink_shared_memory()
 
+def test_parallel_write():
+    delete_layer()
+    cv, data = create_layer(size=(512,512,128,1), offset=(0,0,0))
+    
+    cv.parallel = 2
+    cv[:] = np.zeros(shape=(512,512,128,1), dtype=cv.dtype) + 5
+    data = cv[:]
+    assert np.all(data == 5)
+    del data
+    cv.unlink_shared_memory()
+
 
 def test_non_aligned_read():
     delete_layer()
