@@ -294,7 +294,7 @@ def upload_image(vol, img, offset):
     # we're throwing them away so safe to write
     img3d.setflags(write=1) 
     shade(img3d, bbox, img, bounds)
-    single_process_upload(vol, img3d, (( Vec(0,0,0), Vec(*img.shape[:3]), bbox.minpt, bbox.maxpt),), n_threads=0)
+    single_process_upload(vol, img3d, (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), n_threads=0)
 
   download_multiple(vol, shell_chunks, fn=shade_and_upload)
 
@@ -347,6 +347,10 @@ def single_process_upload(vol, img, chunk_ranges, n_threads=DEFAULT_THREADS):
 
   cloudstorage = Storage(vol.layer_cloudpath, progress=vol.progress, n_threads=n_threads)
   iterator = tqdm(chunk_ranges, desc='Rechunking image', disable=(not vol.progress))
+
+  if len(img.shape) == 3:
+    img = img[:, :, :, np.newaxis ]
+
   for startpt, endpt, spt, ept in iterator:
     if np.array_equal(spt, ept):
       continue
