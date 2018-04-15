@@ -72,13 +72,15 @@ def multi_process_download(cv, bufferbbox, caching, cloudpaths):
   reset_connection_pools() # otherwise multi-process hangs
   cv.init_submodules(caching)
 
-  array_like, renderbuffer = shm.bbox2array(cv, bufferbbox, fs_lock)
+  array_like, renderbuffer = shm.bbox2array(cv, bufferbbox, lock=fs_lock)
   def process(img3d, bbox):
     shade(renderbuffer, bufferbbox, img3d, bbox)
   download_multiple(cv, cloudpaths, fn=process)
   array_like.close()
 
 def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
+  global fs_lock
+
   cloudpaths_by_process = []
   length = int(math.ceil(len(cloudpaths) / float(parallel)) or 1)
   for i in range(0, len(cloudpaths), length):
@@ -94,7 +96,7 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
   pool.close()
   vol.provenance = provenance
 
-  mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox)
+  mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock)
   if not vol.output_to_shared_memory:
     renderbuffer = np.copy(renderbuffer)
     mmap_handle.close()
@@ -106,6 +108,8 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
 
 def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
+  global fs_lock
+
   cloudpath_bbox = requested_bbox.expand_to_chunk_size(vol.underlying, offset=vol.voxel_offset)
   cloudpath_bbox = Bbox.clamp(cloudpath_bbox, vol.bounds)
   cloudpaths = chunknames(cloudpath_bbox, vol.bounds, vol.key, vol.underlying)
@@ -115,7 +119,7 @@ def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
 
   if parallel == 1:
     if vol.output_to_shared_memory:
-      array_like, renderbuffer = shm.bbox2array(vol, requested_bbox)
+      array_like, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock)
       shm.track_mmap(array_like)
     else:
       renderbuffer = np.zeros(shape=shape, dtype=vol.dtype)
