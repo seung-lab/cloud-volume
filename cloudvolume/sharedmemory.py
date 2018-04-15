@@ -45,14 +45,22 @@ def ndarray(shape, dtype, location, lock=None):
 
 def ndarray_fs(shape, dtype, location, lock):
   nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
-  block = 10 * 1024 * 1024 # 10 MiB
   directory = mkdir(OSX_SHM_DIRECTORY)
   filename = os.path.join(directory, location)
 
   if lock:
-    lock.acquire(timeout=2)
+    lock.acquire()
+
+  if os.path.exists(filename): 
+    size = os.path.getsize(filename)
+    if size > nbytes:
+      with open(filename, 'wb') as f:
+        os.ftruncate(fd, nbytes)
+    elif size < nbytes:
+      os.unlink(filename) # too small? just remake it below
 
   if not os.path.exists(filename):
+    # this could be made much more memory efficient
     zeros = np.zeros(shape=shape, dtype=dtype)
     with open(filename, 'wb') as f:
       f.write(zeros.tostring('F'))
