@@ -178,7 +178,11 @@ def decode(vol, filename, content):
 
   try:
     return chunks.decode(
-      content, vol.encoding, shape, vol.dtype
+      content, 
+      encoding=vol.encoding, 
+      shape=shape, 
+      dtype=vol.dtype, 
+      block_size=vol.compressed_segmentation_block_size,
     )
   except Exception as error:
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
@@ -318,7 +322,7 @@ def upload_chunks(vol, iterator, n_threads=DEFAULT_THREADS):
     )
 
     cloudpath = os.path.join(vol.key, filename)
-    encoded = chunks.encode(imgchunk, vol.encoding)
+    encoded = chunks.encode(imgchunk, vol.encoding, vol.compressed_segmentation_block_size)
 
     cloudstorage.put_file(
       file_path=cloudpath, 
