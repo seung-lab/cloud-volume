@@ -91,7 +91,7 @@ def ndarray_fs(shape, dtype, location, lock):
 
   if not os.path.exists(filename):
     blocksize = 1024 * 1024 * 10 * dbytes
-    steps = int(math.ceil(nbytes / blocksize))
+    steps = int(math.ceil(float(nbytes) / float(blocksize)))
     total = 0
     with open(filename, 'wb') as f:
       for i in range(0, steps):
