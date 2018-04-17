@@ -233,3 +233,8 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 * `num_channels` - Alias for `vol.shape[3]`
 * `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
 
+### Acknowledgments
+
+Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.  
+Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. 
+

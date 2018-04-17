@@ -1,7 +1,7 @@
 # Copyright (c) 2016, 2017, 2018 Forschungszentrum Juelich GmbH
 # Author: Yann Leprince <y.leprince@fz-juelich.de>
 # 
-# Later modifications (c) 2018 by William Silversmith <ws9@princeton.edu>
+# Minor later modifications (c) 2018 by William Silversmith <ws9@princeton.edu>
 #
 # This software is made available under the MIT license, see bottom of file.
 
