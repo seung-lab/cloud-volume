@@ -1,9 +1,14 @@
 CHANGES
 =======
 
-0.15.2
+0.16.0
 ------
 
+* fix: updated setversion.py to not clobber
+* Python Compressed Segmentation Codec (#95)
+* feat: shared memory emulation using the filesystem for OSX (#97)
+* feat: script to help set versions and tags
+* fix: errors closing mmap handle (\_\_del\_\_ not existing as a superclass method?)
 * fix: errors closing mmap handle (\_\_del\_\_ not existing as a superclass method?)
 * feat: added \_\_version\_\_ to cloudvolume
 * Update README.md

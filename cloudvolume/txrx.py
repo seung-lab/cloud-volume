@@ -72,13 +72,15 @@ def multi_process_download(cv, bufferbbox, caching, cloudpaths):
   reset_connection_pools() # otherwise multi-process hangs
   cv.init_submodules(caching)
 
-  array_like, renderbuffer = shm.bbox2array(cv, bufferbbox, fs_lock)
+  array_like, renderbuffer = shm.bbox2array(cv, bufferbbox, lock=fs_lock)
   def process(img3d, bbox):
     shade(renderbuffer, bufferbbox, img3d, bbox)
   download_multiple(cv, cloudpaths, fn=process)
   array_like.close()
 
 def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
+  global fs_lock
+
   cloudpaths_by_process = []
   length = int(math.ceil(len(cloudpaths) / float(parallel)) or 1)
   for i in range(0, len(cloudpaths), length):
@@ -94,7 +96,7 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
   pool.close()
   vol.provenance = provenance
 
-  mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox)
+  mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock)
   if not vol.output_to_shared_memory:
     renderbuffer = np.copy(renderbuffer)
     mmap_handle.close()
@@ -106,6 +108,8 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
 
 def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
+  global fs_lock
+
   cloudpath_bbox = requested_bbox.expand_to_chunk_size(vol.underlying, offset=vol.voxel_offset)
   cloudpath_bbox = Bbox.clamp(cloudpath_bbox, vol.bounds)
   cloudpaths = chunknames(cloudpath_bbox, vol.bounds, vol.key, vol.underlying)
@@ -115,7 +119,7 @@ def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
 
   if parallel == 1:
     if vol.output_to_shared_memory:
-      array_like, renderbuffer = shm.bbox2array(vol, requested_bbox)
+      array_like, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock)
       shm.track_mmap(array_like)
     else:
       renderbuffer = np.zeros(shape=shape, dtype=vol.dtype)
@@ -290,15 +294,51 @@ def upload_image(vol, img, offset):
     # we're throwing them away so safe to write
     img3d.setflags(write=1) 
     shade(img3d, bbox, img, bounds)
-    upload_chunks(vol, ((img3d, bbox.minpt, bbox.maxpt),), n_threads=0)
+    single_process_upload(vol, img3d, (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), n_threads=0)
 
   download_multiple(vol, shell_chunks, fn=shade_and_upload)
 
 def upload_aligned(vol, img, offset):
-  iterator = tqdm(generate_chunks(vol, img, offset), desc='Rechunking image', disable=(not vol.progress))
-  upload_chunks(vol, iterator)
+  global fs_lock
 
-def upload_chunks(vol, iterator, n_threads=DEFAULT_THREADS):
+  chunk_ranges = list(generate_chunks(vol, img, offset))
+
+  if vol.parallel == 1:
+    single_process_upload(vol, img, chunk_ranges)
+    return
+
+  length = (len(chunk_ranges) // vol.parallel) or 1
+  chunk_ranges_by_process = []
+  for i in range(0, len(chunk_ranges), length):
+    chunk_ranges_by_process.append(
+      chunk_ranges[i:i+length]
+    )
+
+  array_like, renderbuffer = shm.ndarray(shape=img.shape, dtype=img.dtype, 
+      location=vol.shared_memory_id, lock=fs_lock)
+  renderbuffer[:] = img
+
+  pool = mp.Pool(vol.parallel)
+  provenance = vol.provenance 
+  vol.provenance = None
+  mpu = partial(multi_process_upload, vol, img.shape, vol.cache.enabled)
+  pool.map(mpu, chunk_ranges_by_process)
+  pool.close()
+  vol.provenance = provenance
+
+  array_like.close()
+  shm.unlink(vol.shared_memory_id)
+
+def multi_process_upload(vol, img_shape, caching, chunk_ranges):
+  global fs_lock
+  reset_connection_pools()
+  vol.init_submodules(caching)
+  array_like, renderbuffer = shm.ndarray(shape=img_shape, dtype=vol.dtype, 
+      location=vol.shared_memory_id, lock=fs_lock)
+  single_process_upload(vol, renderbuffer, chunk_ranges)
+  array_like.close()
+
+def single_process_upload(vol, img, chunk_ranges, n_threads=DEFAULT_THREADS):
   if vol.cache.enabled:
     mkdir(vol.cache.path)
     if vol.progress:
@@ -306,9 +346,16 @@ def upload_chunks(vol, iterator, n_threads=DEFAULT_THREADS):
     cachestorage = Storage('file://' + vol.cache.path, progress=vol.progress, n_threads=n_threads)
 
   cloudstorage = Storage(vol.layer_cloudpath, progress=vol.progress, n_threads=n_threads)
-  for imgchunk, spt, ept in iterator:
+  iterator = tqdm(chunk_ranges, desc='Rechunking image', disable=(not vol.progress))
+
+  if len(img.shape) == 3:
+    img = img[:, :, :, np.newaxis ]
+
+  for startpt, endpt, spt, ept in iterator:
     if np.array_equal(spt, ept):
       continue
+
+    imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
 
     # handle the edge of the dataset
     clamp_ept = min2(ept, vol.bounds.maxpt)
@@ -355,22 +402,25 @@ def generate_chunks(vol, img, offset):
   offset = Vec(*offset)[:3]
 
   bounds = Bbox( offset, shape + offset)
+
+  alignment_check = bounds.round_to_chunk_size(vol.underlying, vol.voxel_offset)
+
+  if not np.all(alignment_check.minpt == bounds.minpt):
+    raise ValueError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
+      bounds, vol.voxel_offset, alignment_check)
+    )
+
   bounds = Bbox.clamp(bounds, vol.bounds)
 
   img_offset = bounds.minpt - offset
   img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
 
-  if len(img.shape) == 3:
-    img = img[:, :, :, np.newaxis ]
-
   for startpt in xyzrange( img_offset, img_end, vol.underlying ):
+    startpt = startpt.clone()
     endpt = min2(startpt + vol.underlying, shape)
-    chunkimg = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
-
     spt = (startpt + bounds.minpt).astype(int)
     ept = (endpt + bounds.minpt).astype(int)
-  
-    yield chunkimg, spt, ept 
+    yield (startpt, endpt, spt, ept)
 
 def chunknames(bbox, volume_bbox, key, chunk_size):
   paths = []

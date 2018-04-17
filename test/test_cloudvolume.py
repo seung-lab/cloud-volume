@@ -83,6 +83,17 @@ def test_parallel_read():
     del data
     vol2.unlink_shared_memory()
 
+def test_parallel_write():
+    delete_layer()
+    cv, data = create_layer(size=(512,512,128,1), offset=(0,0,0))
+    
+    cv.parallel = 2
+    cv[:] = np.zeros(shape=(512,512,128,1), dtype=cv.dtype) + 5
+    data = cv[:]
+    assert np.all(data == 5)
+    del data
+    cv.unlink_shared_memory()
+
 
 def test_non_aligned_read():
     delete_layer()
@@ -266,15 +277,15 @@ def test_writer_last_chunk_smaller():
 
     assert len(chunks) == 2
 
-    img, spt, ept = chunks[0]
+    startpt, endpt, spt, ept = chunks[0]
     assert np.array_equal(spt, (0,0,0))
     assert np.array_equal(ept, (64,64,64))
-    assert img.shape == (64,64,64,1)
+    assert np.all((endpt - startpt) == Vec(64,64,64))
 
-    img, spt, ept = chunks[1]
+    startpt, endpt, spt, ept = chunks[1]
     assert np.array_equal(spt, (64,0,0))
     assert np.array_equal(ept, (100,64,64))
-    assert img.shape == (36,64,64,1)
+    assert np.all((endpt - startpt) == Vec(36,64,64))
 
 def test_write_compressed_segmentation():
     delete_layer()
@@ -839,30 +850,30 @@ def test_get_mesh():
     except ValueError:
         pass
 
-def test_boss_download():
-    vol = CloudVolume('gs://seunglab-test/test_v0/image')
-    bossvol = CloudVolume('boss://automated_testing/test_v0/image')
+# def test_boss_download():
+#     vol = CloudVolume('gs://seunglab-test/test_v0/image')
+#     bossvol = CloudVolume('boss://automated_testing/test_v0/image')
 
-    vimg = vol[:,:,:5]
-    bimg = bossvol[:,:,:5]
+#     vimg = vol[:,:,:5]
+#     bimg = bossvol[:,:,:5]
 
-    assert np.all(bimg == vimg)
-    assert bimg.dtype == vimg.dtype
+#     assert np.all(bimg == vimg)
+#     assert bimg.dtype == vimg.dtype
 
-    vol.bounded = False
-    vol.fill_missing = True
-    bossvol.bounded = False
-    bossvol.fill_missing = True
+#     vol.bounded = False
+#     vol.fill_missing = True
+#     bossvol.bounded = False
+#     bossvol.fill_missing = True
 
-    assert np.all(vol[-100:100,-100:100,-10:10] == bossvol[-100:100,-100:100,-10:10])
+#     assert np.all(vol[-100:100,-100:100,-10:10] == bossvol[-100:100,-100:100,-10:10])
 
-    # BOSS using a different algorithm for creating downsamples
-    # so hard to compare 1:1 w/ pixels.
-    bossvol.bounded = True
-    bossvol.fill_missing = False
-    bossvol.mip = 1
-    bimg = bossvol[:,:,5:6]
-    assert np.any(bimg > 0)
+#     # BOSS using a different algorithm for creating downsamples
+#     # so hard to compare 1:1 w/ pixels.
+#     bossvol.bounded = True
+#     bossvol.fill_missing = False
+#     bossvol.mip = 1
+#     bimg = bossvol[:,:,5:6]
+#     assert np.any(bimg > 0)
 
 
     
