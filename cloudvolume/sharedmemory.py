@@ -1,4 +1,5 @@
 import errno
+import math
 import mmap
 import os
 import sys
@@ -69,7 +70,8 @@ def ndarray(shape, dtype, location, lock=None):
 
 def ndarray_fs(shape, dtype, location, lock):
   """Emulate shared memory using the filesystem."""
-  nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
+  dbytes = np.dtype(dtype).itemsize
+  nbytes = Vec(*shape).rectVolume() * dbytes
   directory = mkdir(EMULATED_SHM_DIRECTORY)
   filename = os.path.join(directory, location)
 
@@ -80,7 +82,7 @@ def ndarray_fs(shape, dtype, location, lock):
     size = os.path.getsize(filename)
     if size > nbytes:
       with open(filename, 'wb') as f:
-        os.ftruncate(fd, nbytes)
+        os.ftruncate(f.fileno(), nbytes)
     elif size < nbytes:
       # too small? just remake it below
       # if we were being more efficient
@@ -88,11 +90,14 @@ def ndarray_fs(shape, dtype, location, lock):
       os.unlink(filename) 
 
   if not os.path.exists(filename):
-    # this could be made much more memory efficient
-    zeros = np.zeros(shape=shape, dtype=dtype)
+    blocksize = 1024 * 1024 * 10 * dbytes
+    steps = int(math.ceil(nbytes / blocksize))
+    total = 0
     with open(filename, 'wb') as f:
-      f.write(zeros.tostring('F'))
-    del zeros
+      for i in range(0, steps):
+        write_bytes = min(blocksize, nbytes - total)
+        f.write(b'\x00' * write_bytes)
+        total += blocksize
 
   if lock:
     lock.release()
@@ -159,16 +164,21 @@ def cleanup():
 
 def unlink(location):
   if EMULATE_SHM:
-    directory = mkdir(EMULATED_SHM_DIRECTORY)
-    try:
-      filename = os.path.join(directory, location)
-      os.unlink(filename)
-      return True
-    except OSError:
-      return False
+    return unlink_fs(location)
+  return unlink_shm(location)
 
+def unlink_shm(location):
   try:
     posix_ipc.unlink_shared_memory(location)
   except posix_ipc.ExistentialError:
     return False
   return True
+
+def unlink_fs(location):
+  directory = mkdir(EMULATED_SHM_DIRECTORY)
+  try:
+    filename = os.path.join(directory, location)
+    os.unlink(filename)
+    return True
+  except OSError:
+    return False
