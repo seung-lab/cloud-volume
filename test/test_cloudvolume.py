@@ -850,30 +850,30 @@ def test_get_mesh():
     except ValueError:
         pass
 
-def test_boss_download():
-    vol = CloudVolume('gs://seunglab-test/test_v0/image')
-    bossvol = CloudVolume('boss://automated_testing/test_v0/image')
+# def test_boss_download():
+#     vol = CloudVolume('gs://seunglab-test/test_v0/image')
+#     bossvol = CloudVolume('boss://automated_testing/test_v0/image')
 
-    vimg = vol[:,:,:5]
-    bimg = bossvol[:,:,:5]
+#     vimg = vol[:,:,:5]
+#     bimg = bossvol[:,:,:5]
 
-    assert np.all(bimg == vimg)
-    assert bimg.dtype == vimg.dtype
+#     assert np.all(bimg == vimg)
+#     assert bimg.dtype == vimg.dtype
 
-    vol.bounded = False
-    vol.fill_missing = True
-    bossvol.bounded = False
-    bossvol.fill_missing = True
+#     vol.bounded = False
+#     vol.fill_missing = True
+#     bossvol.bounded = False
+#     bossvol.fill_missing = True
 
-    assert np.all(vol[-100:100,-100:100,-10:10] == bossvol[-100:100,-100:100,-10:10])
+#     assert np.all(vol[-100:100,-100:100,-10:10] == bossvol[-100:100,-100:100,-10:10])
 
-    # BOSS using a different algorithm for creating downsamples
-    # so hard to compare 1:1 w/ pixels.
-    bossvol.bounded = True
-    bossvol.fill_missing = False
-    bossvol.mip = 1
-    bimg = bossvol[:,:,5:6]
-    assert np.any(bimg > 0)
+#     # BOSS using a different algorithm for creating downsamples
+#     # so hard to compare 1:1 w/ pixels.
+#     bossvol.bounded = True
+#     bossvol.fill_missing = False
+#     bossvol.mip = 1
+#     bimg = bossvol[:,:,5:6]
+#     assert np.any(bimg > 0)
 
 
     

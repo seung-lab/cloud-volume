@@ -33,17 +33,42 @@ def reinit():
   mmaps = []
 
 def bbox2array(vol, bbox, lock=None):
+  """Convenince method for creating a 
+  shared memory numpy array based on a CloudVolume
+  and Bbox. c.f. sharedmemory.ndarray for information
+  on the optional lock parameter."""
   shape = list(bbox.size3()) + [ vol.num_channels ]
   return ndarray(shape=shape, dtype=vol.dtype, location=vol.shared_memory_id, lock=lock)
 
 def ndarray(shape, dtype, location, lock=None):
-  # OS X has problems with shared memory so 
-  # emulate it using a file on disk
+  """
+  Create a shared memory numpy array. 
+  Lock is only necessary while doing multiprocessing on 
+  platforms without /dev/shm type  shared memory as 
+  filesystem emulation will be used instead.
+
+  Allocating the shared array requires cleanup on your part.
+  A shared memory file will be located at sharedmemory.PLATFORM_SHM_DIRECTORY + location
+  and must be unlinked when you're done. It will outlive the program.
+
+  You should also call .close() on the mmap file handle when done. However,
+  this is less of a problem because the operating system will close the
+  file handle on process termination.
+
+  Parameters:
+  shape: same as numpy.ndarray
+  dtype: same as numpy.ndarray
+  location: the shared memory filename 
+  lock: (optional) multiprocessing.Lock
+
+  Returns: (mmap filehandle, shared ndarray)
+  """
   if EMULATE_SHM:
     return ndarray_fs(shape, dtype, location, lock)
   return ndarray_shm(shape, dtype, location)
 
 def ndarray_fs(shape, dtype, location, lock):
+  """Emulate shared memory using the filesystem."""
   nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
   directory = mkdir(EMULATED_SHM_DIRECTORY)
   filename = os.path.join(directory, location)
@@ -79,6 +104,7 @@ def ndarray_fs(shape, dtype, location, lock):
   return array_like, renderbuffer
 
 def ndarray_shm(shape, dtype, location):
+  """Create a shared memory numpy array. Requires """
   nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
   available = psutil.virtual_memory().available
 
