@@ -33,15 +33,15 @@ def reinit():
   global mmaps
   mmaps = []
 
-def bbox2array(vol, bbox, lock=None):
+def bbox2array(vol, bbox, order='F', lock=None):
   """Convenince method for creating a 
   shared memory numpy array based on a CloudVolume
   and Bbox. c.f. sharedmemory.ndarray for information
   on the optional lock parameter."""
   shape = list(bbox.size3()) + [ vol.num_channels ]
-  return ndarray(shape=shape, dtype=vol.dtype, location=vol.shared_memory_id, lock=lock)
+  return ndarray(shape=shape, dtype=vol.dtype, location=vol.shared_memory_id, lock=lock, order=order)
 
-def ndarray(shape, dtype, location, lock=None):
+def ndarray(shape, dtype, location, order='F', lock=None, **kwargs):
   """
   Create a shared memory numpy array. 
   Lock is only necessary while doing multiprocessing on 
@@ -65,10 +65,10 @@ def ndarray(shape, dtype, location, lock=None):
   Returns: (mmap filehandle, shared ndarray)
   """
   if EMULATE_SHM:
-    return ndarray_fs(shape, dtype, location, lock)
-  return ndarray_shm(shape, dtype, location)
+    return ndarray_fs(shape, dtype, location, lock, order, **kwargs)
+  return ndarray_shm(shape, dtype, location, order, **kwargs)
 
-def ndarray_fs(shape, dtype, location, lock):
+def ndarray_fs(shape, dtype, location, lock, order='F', **kwargs):
   """Emulate shared memory using the filesystem."""
   dbytes = np.dtype(dtype).itemsize
   nbytes = Vec(*shape).rectVolume() * dbytes
@@ -105,10 +105,10 @@ def ndarray_fs(shape, dtype, location, lock):
   with open(filename, 'r+b') as f:
     array_like = mmap.mmap(f.fileno(), 0) # map entire file
   
-  renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order='F')
+  renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order=order, **kwargs)
   return array_like, renderbuffer
 
-def ndarray_shm(shape, dtype, location):
+def ndarray_shm(shape, dtype, location, order='F', **kwargs):
   """Create a shared memory numpy array. Requires """
   nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
   available = psutil.virtual_memory().available
@@ -142,7 +142,7 @@ def ndarray_shm(shape, dtype, location):
     shared = posix_ipc.SharedMemory(location, flags=O_CREAT, size=int(nbytes))
     array_like = mmap.mmap(shared.fd, shared.size)
     os.close(shared.fd)
-    renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order='F')
+    renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order=order, **kwargs)
   except OSError as err:
     if err.errno == errno.ENOMEM: # Out of Memory
       posix_ipc.unlink_shared_memory(location)      
