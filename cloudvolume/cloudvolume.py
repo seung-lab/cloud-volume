@@ -800,7 +800,7 @@ class CloudVolume(object):
     # off. This is useful for Marching Cubes where a 1px excess boundary
     # is needed.
     shape = list(requested_bbox.size3()) + [ cutout.shape[3] ]
-    renderbuffer = np.zeros(shape=shape, dtype=self.dtype)
+    renderbuffer = np.zeros(shape=shape, dtype=self.dtype, order='F')
     txrx.shade(renderbuffer, requested_bbox, cutout, bounds)
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
@@ -863,7 +863,7 @@ class CloudVolume(object):
 
     rmt = BossRemote(boss_credentials)
     img = img.T
-    img = np.ascontiguousarray(img.astype(self.dtype))
+    img = np.asfortranarray(img.astype(self.dtype))
 
     rmt.create_cutout(chan, self.mip, x_rng, y_rng, z_rng, img)
 
