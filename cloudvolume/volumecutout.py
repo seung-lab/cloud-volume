@@ -10,7 +10,7 @@ from .lib import mkdir
 class VolumeCutout(np.ndarray):
 
   def __new__(cls, buf, dataset_name, layer, mip, layer_type, bounds, handle, *args, **kwargs):
-    return super(VolumeCutout, cls).__new__(cls, shape=buf.shape, buffer=np.ascontiguousarray(buf), dtype=buf.dtype)
+    return super(VolumeCutout, cls).__new__(cls, shape=buf.shape, buffer=np.asfortranarray(buf), dtype=buf.dtype, order='F')
 
   def __init__(self, buf, dataset_name, layer, mip, layer_type, bounds, handle, *args, **kwargs):
     super(VolumeCutout, self).__init__()

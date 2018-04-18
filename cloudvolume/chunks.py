@@ -99,14 +99,14 @@ def decode_npz(string):
     fileobj = io.BytesIO(zlib.decompress(string))
     return np.load(fileobj)
 
-def decode_jpeg(bytestring, shape=(64,64,64), dtype=np.uint8):
+def decode_jpeg(bytestring, shape, dtype):
     img = Image.open(io.BytesIO(bytestring))
     data = np.array(img.getdata(), dtype=dtype)
 
-    return data.reshape(shape[::-1]).T
+    return data.reshape(shape, order='F')
 
-def decode_raw(bytestring, shape=(64,64,64), dtype=np.uint32):
-    return np.frombuffer(bytestring, dtype=dtype).reshape(shape[::-1]).T
+def decode_raw(bytestring, shape, dtype):
+    return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
 
 def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
     assert block_size is not None
