@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.18.0
+------
+
+* Version 0.18.0
+* perf: use fortran order internally in numpy arrays (#99)
+* docs: added some acknowledgements for important code and intellectual contributions by third parties
+
 0.17.0
 ------
 
