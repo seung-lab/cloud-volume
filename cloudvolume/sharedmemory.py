@@ -105,7 +105,7 @@ def ndarray_fs(shape, dtype, location, lock):
   with open(filename, 'r+b') as f:
     array_like = mmap.mmap(f.fileno(), 0) # map entire file
   
-  renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape)
+  renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order='F')
   return array_like, renderbuffer
 
 def ndarray_shm(shape, dtype, location):
@@ -142,7 +142,7 @@ def ndarray_shm(shape, dtype, location):
     shared = posix_ipc.SharedMemory(location, flags=O_CREAT, size=int(nbytes))
     array_like = mmap.mmap(shared.fd, shared.size)
     os.close(shared.fd)
-    renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape)
+    renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order='F')
   except OSError as err:
     if err.errno == errno.ENOMEM: # Out of Memory
       posix_ipc.unlink_shared_memory(location)      

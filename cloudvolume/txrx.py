@@ -122,7 +122,7 @@ def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
       array_like, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock)
       shm.track_mmap(array_like)
     else:
-      renderbuffer = np.zeros(shape=shape, dtype=vol.dtype)
+      renderbuffer = np.zeros(shape=shape, dtype=vol.dtype, order='F')
 
     def process(img3d, bbox):
       shade(renderbuffer, requested_bbox, img3d, bbox)
