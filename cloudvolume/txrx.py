@@ -344,7 +344,12 @@ def multi_process_upload(vol, img_shape, offset, shared_memory_id, manual_shared
   global fs_lock
   reset_connection_pools()
   vol.init_submodules(caching)
-  array_like, renderbuffer = shm.ndarray(shape=img_shape, dtype=vol.dtype, 
+
+  shared_shape = img_shape
+  if manual_shared_memory_bbox:
+    shared_shape = list(manual_shared_memory_bbox.size3()) + [ vol.num_channels ]
+
+  array_like, renderbuffer = shm.ndarray(shape=shared_shape, dtype=vol.dtype, 
       location=shared_memory_id, lock=fs_lock, readonly=True)
 
   if manual_shared_memory_bbox:

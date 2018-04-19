@@ -118,6 +118,14 @@ def test_parallel_shared_memory_write():
     assert np.all(cv[:,:,:64] == 3)    
     assert np.all(cv[:,:,64:128] == 2)    
 
+    shareddata[:,:,:69] = 4
+    cv.autocrop = True
+    cv.upload_from_shared_memory(shm_location, bbox=Bbox((-5,-5,-5), (251,251,123)), 
+        cutout_bbox=Bbox((-5,-5,-5), (128,128,64)))
+    assert np.all(cv[:128,:128,:63] == 4)    
+    assert np.all(cv[128:,128:,:64] == 3)    
+    assert np.all(cv[:,:,64:128] == 2)    
+
     mmapfh.close()
     shm.unlink(shm_location)
 

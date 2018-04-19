@@ -896,8 +896,8 @@ class CloudVolume(object):
 
     delta_box = cutout_bbox.clone() - bbox.minpt
     cutout_image = shared_image[ delta_box.to_slices() ]
-
-    txrx.upload_image(self, shared_image, cutout_bbox.minpt, parallel=self.parallel, 
+    
+    txrx.upload_image(self, cutout_image, cutout_bbox.minpt, parallel=self.parallel, 
       manual_shared_memory_id=location, manual_shared_memory_bbox=bbox)
     mmap_handle.close() 
 
