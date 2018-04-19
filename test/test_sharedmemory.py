@@ -26,6 +26,22 @@ def test_ndarray_fs():
 	assert shm.unlink_fs(location) == True
 	assert shm.unlink_fs(location) == False
 
+	try:
+		array_like, array = shm.ndarray_fs(shape=(2,2,2), dtype=np.uint8, location=location, lock=None, readonly=True)
+		assert False
+	except shm.SharedMemoryReadError:
+		pass
+
+	array_like, array = shm.ndarray_fs(shape=(2,2,2), dtype=np.uint8, location=location, lock=None)
+	try:
+		array_like, array = shm.ndarray_fs(shape=(200,200,200), dtype=np.uint8, location=location, lock=None, readonly=True)
+		assert False
+	except shm.SharedMemoryReadError:
+		pass
+
+	assert shm.unlink_fs(location) == True
+	assert shm.unlink_fs(location) == False
+
 	assert not os.path.exists(filename)
 
 def test_ndarray_sh():
@@ -59,7 +75,23 @@ def test_ndarray_sh():
 	try:
 		array_like, array = shm.ndarray_shm(shape=(available,2,2), dtype=np.uint8, location=location)
 		assert False
-	except shm.MemoryAllocationError:
+	except shm.SharedMemoryAllocationError:
+		pass
+
+	assert shm.unlink_shm(location) == True
+	assert shm.unlink_shm(location) == False
+
+	try:
+		array_like, array = shm.ndarray_shm(shape=(2,2,2), dtype=np.uint8, location=location, readonly=True)
+		assert False
+	except shm.SharedMemoryReadError:
+		pass
+
+	array_like, array = shm.ndarray_shm(shape=(2,2,2), dtype=np.uint8, location=location)
+	try:
+		array_like, array = shm.ndarray_shm(shape=(200,200,200), dtype=np.uint8, location=location, readonly=True)
+		assert False
+	except shm.SharedMemoryReadError:
 		pass
 
 	assert shm.unlink_shm(location) == True
