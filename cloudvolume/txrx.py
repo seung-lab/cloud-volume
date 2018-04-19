@@ -345,7 +345,7 @@ def multi_process_upload(vol, img_shape, offset, shared_memory_id, manual_shared
   reset_connection_pools()
   vol.init_submodules(caching)
   array_like, renderbuffer = shm.ndarray(shape=img_shape, dtype=vol.dtype, 
-      location=shared_memory_id, lock=fs_lock)
+      location=shared_memory_id, lock=fs_lock, readonly=True)
 
   if manual_shared_memory_bbox:
     cutout_bbox = Bbox( offset, offset + img_shape[:3] )
