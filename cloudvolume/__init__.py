@@ -9,4 +9,4 @@ from .txrx import EmptyVolumeException, EmptyRequestException, AlignmentError
 from . import secrets
 from . import txrx
 
-__version__ = '0.18.0'
+__version__ = '0.19.0'
