@@ -120,6 +120,7 @@ def ndarray_fs(shape, dtype, location, lock, readonly=False, order='F', **kwargs
     array_like = mmap.mmap(f.fileno(), 0) # map entire file
   
   renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order=order, **kwargs)
+  renderbuffer.setflags(write=(not readonly))
   return array_like, renderbuffer
 
 def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
@@ -176,6 +177,7 @@ def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
       posix_ipc.unlink_shared_memory(location)      
     raise
 
+  renderbuffer.setflags(write=(not readonly))
   return array_like, renderbuffer
 
 def track_mmap(array_like):
