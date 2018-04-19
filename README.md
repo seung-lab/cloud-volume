@@ -204,22 +204,22 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * layer_cloudpath (str, r) - The cloud path to the data layer e.g. gs://bucket/dataset/image
 * info_cloudpath (str, r) - Generate the cloud path to this data layer's info file.
 * scales (dict, r) - Shortcut to the 'scales' property of the info object
-* scale (dict, r)† - Shortcut to the working scale of the current mip level
-* shape (Vec4, r)† - Like numpy.ndarray.shape for the entire data layer. 
-* volume_size (Vec3, r)† - Like shape, but omits channel (x,y,z only). 
+* scale (dict, r) - Shortcut to the working scale of the current mip level
+* shape (Vec4, r) - Like numpy.ndarray.shape for the entire data layer. 
+* volume_size (Vec3, r) - Like shape, but omits channel (x,y,z only). 
 * num_channels (int, r) - The number of channels, the last element of shape. 
 * layer_type (str, r) - The neuroglancer info type, 'image' or 'segmentation'.
 * dtype (str, r) - The info data_type of the volume, e.g. uint8, uint32, etc. Similar to numpy.ndarray.dtype.
 * encoding (str, r) - The neuroglancer info encoding. e.g. 'raw', 'jpeg', 'npz'
-* resolution (Vec3, r)† - The 3D physical resolution of a voxel in nanometers at the working mip level.
+* resolution (Vec3, r) - The 3D physical resolution of a voxel in nanometers at the working mip level.
 * downsample_ratio (Vec3, r) - Ratio of the current resolution to the highest resolution mip available.
-* underlying (Vec3, r)† - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
-* key (str, r)† - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
-* bounds (Bbox, r)† - A Bbox object that represents the bounds of the entire volume.
+* underlying (Vec3, r) - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
+* key (str, r) - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
+* bounds (Bbox, r) - A Bbox object that represents the bounds of the entire volume.
 * shared_memory_id (str, rw) - Shared memory location used for parallel operation or for output.
 * output_to_shared_memory (bool, rw) - Turn on/off outputing to shared memory.
 
-† These properties can also be accessed with a function named like `vol.mip_$PROPERTY($MIP)`. By default they return the current mip level assigned to the CloudVolume, but any mip level can be accessed via the corresponding `mip_` function. Example: `vol.mip_resolution(2)` would return the resolution of mip 2.
+ These properties can also be accessed with a function named like `vol.mip_$PROPERTY($MIP)`. By default they return the current mip level assigned to the CloudVolume, but any mip level can be accessed via the corresponding `mip_` function. Example: `vol.mip_resolution(2)` would return the resolution of mip 2.
 
 ### VolumeCutout Functions
 
@@ -237,4 +237,4 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 
 Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.  
 Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. 
-
+Thanks to Brian Matejek, Daniel Haehn, Fritz Lekschas, Michael Mitzenmacher, and Hanspeter Pfister for providing the [Compresso](https://github.com/VCG/compresso) algorithm and implementation.

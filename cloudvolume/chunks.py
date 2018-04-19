@@ -19,10 +19,19 @@ from PIL import Image
 
 from . import compressed_segmentation
 
+try:
+  from compresso import Compresso
+except ImportError:
+  pass
+
 def encode(img_chunk, encoding, block_size=None):
-  if encoding == "compressed_segmentation":
+  if encoding == "raw":
+    return encode_raw(img_chunk)
+  elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
-  if encoding == "jpeg":
+  elif encoding == "compresso":
+    return encode_compresso(img_chunk)
+  elif encoding == "jpeg":
     return encode_jpeg(img_chunk)
   elif encoding == "npz":
     return encode_npz(img_chunk)
@@ -30,8 +39,6 @@ def encode(img_chunk, encoding, block_size=None):
     chunk = img_chunk * 255
     chunk = chunk.astype(np.uint8)
     return encode_npz(chunk)
-  elif encoding == "raw":
-    return encode_raw(img_chunk)
   else:
     raise NotImplementedError(encoding)
 
@@ -41,12 +48,14 @@ def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
 
   if filedata is None or len(filedata) == 0:
     return np.zeros(shape=shape, dtype=dtype)
+  if encoding == 'raw':
+    return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == 'compressed_segmentation':
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
+  elif encoding == 'compresso':
+    return decode_compresso(filedata, shape=shape, dtype=dtype)
   elif encoding == 'jpeg':
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
-  elif encoding == 'raw':
-    return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == 'npz':
     return decode_npz(filedata)
   else:
@@ -92,6 +101,10 @@ def encode_compressed_segmentation(subvol, block_size):
     assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
     return compressed_segmentation.encode_chunk(subvol.T, block_size=block_size)
 
+def encode_compresso(subvol):
+  assert subvol.shape[3] == 1
+  return Compresso.compress(np.squeeze(subvol), subvol.shape[:3], (4,4,1))
+
 def encode_raw(subvol):
     return subvol.tostring('F')
 
@@ -114,5 +127,7 @@ def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
     compressed_segmentation.decode_chunk_into(chunk, bytestring, block_size=block_size)
     return chunk.T
 
-
+def decode_compresso(bytestring, shape, dtype):
+  prearray = decode_raw(bytestring, (len(bytestring),), dtype)
+  return Compresso.decompress(prearray).reshape(shape)
 

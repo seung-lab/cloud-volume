@@ -16,6 +16,10 @@ def test_raw():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
   encode_decode(random_data, 'raw')
 
+def test_compresso():
+  random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
+  encode_decode(random_data, 'compresso')  
+
 def test_npz():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
   encode_decode(random_data, 'npz')

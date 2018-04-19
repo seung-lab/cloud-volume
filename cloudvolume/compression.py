@@ -24,10 +24,12 @@ def decompress(content, encoding, filename='N/A'):
 
   Return: decompressed content
   """
+  encoding = encoding.lower()
+
   try:
     if encoding in (None, False, ''):
       return content
-    elif encoding.lower() == 'gzip':
+    elif encoding == 'gzip':
       return gunzip(content)
   except DecodingError as err:
     print("Filename: " + str(filename))
