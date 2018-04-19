@@ -833,7 +833,73 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       self.upload_boss_image(img, bbox.minpt)
     else:
-      txrx.upload_image(self, img, bbox.minpt)
+      txrx.upload_image(self, img, bbox.minpt, parallel=self.parallel)
+
+  def upload_from_shared_memory(self, location, bbox, cutout_bbox=None):
+    """
+    Upload from a shared memory array. 
+
+    MEMORY LIFECYCLE WARNING: You are responsible for managing the lifecycle of the 
+      shared memory. CloudVolume will merely read from it, it will not unlink the 
+      memory automatically. To fully clear the shared memory you must unlink the 
+      location and close any mmap file handles. You can use `cloudvolume.sharedmemory.unlink(...)`
+      to help you unlink the shared memory file.
+
+    EXPERT MODE WARNING: If you aren't sure you need this function (e.g. to relieve 
+      memory pressure or improve performance in some way) you should use the ordinary 
+      upload method of vol[:] = img. A typical use case it transferring arrays between 
+      different processes without making copies. For reference, this feature was created
+      for uploading a 62 GB array that originated in Julia.
+
+    Required:
+      location: (str) Shared memory location e.g. 'cloudvolume-shm-RANDOM-STRING'
+        This typically corresponds to a file in `/dev/shm` or `/run/shm/`. It can 
+        also be a file if you're using that for mmap.
+      bbox: (Bbox or list of slices) the bounding box the shared array represents. For instance
+        if you have a 1024x1024x128 volume and you're uploading only a 512x512x64 corner
+        touching the origin, your Bbox would be `Bbox( (0,0,0), (512,512,64) )`.
+    Optional:
+      cutout_bbox: (bbox or list of slices) If you only want to upload a section of the
+        array, give the bbox in volume coordinates (not image coordinates) that should 
+        be cut out. For example, if you only want to upload 256x256x32 of the upper 
+        rightmost corner of the above example but the entire 512x512x64 array is stored 
+        in memory, you would provide: `Bbox( (256, 256, 32), (512, 512, 64) )`
+
+        By default, just upload the entire image.
+
+    Returns: void
+    """
+    def tobbox(x):
+      if type(x) == Bbox:
+        return x 
+      return Bbox.from_slices(x)
+        
+    bbox = tobbox(bbox)
+    cutout_bbox = tobbox(cutout_bbox) if cutout_bbox else bbox.clone()
+
+    if not bbox.contains_bbox(cutout_bbox):
+      raise IndexError("""
+        The provided cutout is not wholly contained in the given array. 
+        Bbox:        {}
+        Cutout:      {}
+      """.format(bbox, cutout_bbox))
+
+    if self.autocrop:
+      cutout_bbox = Bbox.intersection(cutout_bbox, self.bounds)
+
+    if cutout_bbox.volume() < 1:
+      return
+
+    shape = list(bbox.size3()) + [ self.num_channels ]
+    mmap_handle, shared_image = sharedmemory.ndarray(
+      location=location, shape=shape, dtype=self.dtype, readonly=True)
+
+    delta_box = cutout_bbox.clone() - bbox.minpt
+    cutout_image = shared_image[ delta_box.to_slices() ]
+    
+    txrx.upload_image(self, cutout_image, cutout_bbox.minpt, parallel=self.parallel, 
+      manual_shared_memory_id=location, manual_shared_memory_bbox=bbox)
+    mmap_handle.close() 
 
   def upload_boss_image(self, img, offset):
     shape = Vec(*img.shape[:3])

@@ -262,7 +262,8 @@ def check_grid_aligned(vol, img, offset):
   is_aligned = np.all(alignment_check.minpt == bounds.minpt) and np.all(alignment_check.maxpt == bounds.maxpt)
   return (is_aligned, bounds, alignment_check) 
 
-def upload_image(vol, img, offset):
+def upload_image(vol, img, offset, parallel=1, 
+  manual_shared_memory_id=None, manual_shared_memory_bbox=None):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
 
@@ -272,7 +273,8 @@ def upload_image(vol, img, offset):
   (is_aligned, bounds, expanded) = check_grid_aligned(vol, img, offset)
 
   if is_aligned:
-    upload_aligned(vol, img, offset)
+    upload_aligned(vol, img, offset, parallel=parallel, 
+      manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox)
     return
   elif vol.non_aligned_writes == False:
     msg = NON_ALIGNED_WRITE.format(offset=vol.voxel_offset, got=bounds, check=expanded)
@@ -282,7 +284,8 @@ def upload_image(vol, img, offset):
   retracted = bounds.shrink_to_chunk_size(vol.underlying, vol.voxel_offset)
   core_bbox = retracted.clone() - bounds.minpt
   core_img = img[ core_bbox.to_slices() ] 
-  upload_aligned(vol, core_img, retracted.minpt)
+  upload_aligned(vol, core_img, retracted.minpt, parallel=parallel, 
+    manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox)
 
   # Download the shell, paint, and upload
   all_chunks = set(chunknames(expanded, vol.bounds, vol.key, vol.underlying))
@@ -298,43 +301,62 @@ def upload_image(vol, img, offset):
 
   download_multiple(vol, shell_chunks, fn=shade_and_upload)
 
-def upload_aligned(vol, img, offset):
+def upload_aligned(vol, img, offset, parallel=1, 
+  manual_shared_memory_id=None, manual_shared_memory_bbox=None):
   global fs_lock
 
   chunk_ranges = list(generate_chunks(vol, img, offset))
 
-  if vol.parallel == 1:
+  if parallel == 1:
     single_process_upload(vol, img, chunk_ranges)
     return
 
-  length = (len(chunk_ranges) // vol.parallel) or 1
+  length = (len(chunk_ranges) // parallel) or 1
   chunk_ranges_by_process = []
   for i in range(0, len(chunk_ranges), length):
     chunk_ranges_by_process.append(
       chunk_ranges[i:i+length]
     )
 
-  array_like, renderbuffer = shm.ndarray(shape=img.shape, dtype=img.dtype, 
-      location=vol.shared_memory_id, lock=fs_lock)
-  renderbuffer[:] = img
+  if manual_shared_memory_id:
+    shared_memory_id = manual_shared_memory_id
+  else:
+    shared_memory_id = vol.shared_memory_id
+    array_like, renderbuffer = shm.ndarray(shape=img.shape, dtype=img.dtype, 
+      location=shared_memory_id, lock=fs_lock)
+    renderbuffer[:] = img
 
-  pool = mp.Pool(vol.parallel)
+  pool = mp.Pool(parallel)
   provenance = vol.provenance 
   vol.provenance = None
-  mpu = partial(multi_process_upload, vol, img.shape, vol.cache.enabled)
+  mpu = partial(multi_process_upload, vol, img.shape, offset, shared_memory_id, manual_shared_memory_bbox, vol.cache.enabled)
   pool.map(mpu, chunk_ranges_by_process)
   pool.close()
   vol.provenance = provenance
 
-  array_like.close()
-  shm.unlink(vol.shared_memory_id)
+  # If manual mode is enabled, it's the 
+  # responsibilty of the user to clean up
+  if not manual_shared_memory_id:
+    array_like.close()
+    shm.unlink(vol.shared_memory_id)
 
-def multi_process_upload(vol, img_shape, caching, chunk_ranges):
+def multi_process_upload(vol, img_shape, offset, shared_memory_id, manual_shared_memory_bbox, caching, chunk_ranges):
   global fs_lock
   reset_connection_pools()
   vol.init_submodules(caching)
-  array_like, renderbuffer = shm.ndarray(shape=img_shape, dtype=vol.dtype, 
-      location=vol.shared_memory_id, lock=fs_lock)
+
+  shared_shape = img_shape
+  if manual_shared_memory_bbox:
+    shared_shape = list(manual_shared_memory_bbox.size3()) + [ vol.num_channels ]
+
+  array_like, renderbuffer = shm.ndarray(shape=shared_shape, dtype=vol.dtype, 
+      location=shared_memory_id, lock=fs_lock, readonly=True)
+
+  if manual_shared_memory_bbox:
+    cutout_bbox = Bbox( offset, offset + img_shape[:3] )
+    delta_box = cutout_bbox.clone() - manual_shared_memory_bbox.minpt
+    renderbuffer = renderbuffer[ delta_box.to_slices() ]
+
   single_process_upload(vol, renderbuffer, chunk_ranges)
   array_like.close()
 

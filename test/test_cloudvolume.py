@@ -10,6 +10,7 @@ import json
 
 from cloudvolume import CloudVolume, chunks, Storage
 from cloudvolume.lib import mkdir, Bbox, Vec
+import cloudvolume.sharedmemory as shm
 from layer_harness import (
     TEST_NUMBER, create_image, 
     delete_layer, create_layer,
@@ -94,6 +95,39 @@ def test_parallel_write():
     del data
     cv.unlink_shared_memory()
 
+def test_parallel_shared_memory_write():
+    delete_layer()
+    cv, data = create_layer(size=(256,256,128,1), offset=(0,0,0))
+
+    shm_location = 'cloudvolume-test-shm-parallel-write'
+    mmapfh, shareddata = shm.ndarray(shape=(256,256,128), dtype=np.uint8, location=shm_location)
+    shareddata[:] = 1
+
+    cv.parallel = 1
+    cv.upload_from_shared_memory(shm_location, Bbox((0,0,0), (256,256,128)))
+    assert np.all(cv[:] == 1)
+
+    shareddata[:] = 2
+    cv.parallel = 2
+    cv.upload_from_shared_memory(shm_location, Bbox((0,0,0), (256,256,128)))
+    assert np.all(cv[:] == 2)
+
+    shareddata[:,:,:64] = 3
+    cv.upload_from_shared_memory(shm_location, bbox=Bbox((0,0,0), (256,256,128)), 
+        cutout_bbox=Bbox((0,0,0), (256,256,64)))
+    assert np.all(cv[:,:,:64] == 3)    
+    assert np.all(cv[:,:,64:128] == 2)    
+
+    shareddata[:,:,:69] = 4
+    cv.autocrop = True
+    cv.upload_from_shared_memory(shm_location, bbox=Bbox((-5,-5,-5), (251,251,123)), 
+        cutout_bbox=Bbox((-5,-5,-5), (128,128,64)))
+    assert np.all(cv[:128,:128,:63] == 4)    
+    assert np.all(cv[128:,128:,:64] == 3)    
+    assert np.all(cv[:,:,64:128] == 2)    
+
+    mmapfh.close()
+    shm.unlink(shm_location)
 
 def test_non_aligned_read():
     delete_layer()
