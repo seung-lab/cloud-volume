@@ -847,7 +847,7 @@ class CloudVolume(object):
 
     EXPERT MODE WARNING: If you aren't sure you need this function (e.g. to relieve 
       memory pressure or improve performance in some way) you should use the ordinary 
-      upload method of vol[:] = img. A typical use case it transferring arrays between 
+      upload method of vol[:] = img. A typical use case is transferring arrays between 
       different processes without making copies. For reference, this feature was created
       for uploading a 62 GB array that originated in Julia.
 
