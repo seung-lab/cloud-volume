@@ -29,40 +29,84 @@ def secretpath(filepath):
 
   return preferred
 
-PROJECT_NAME = None 
 project_name_paths = [ 
   secretpath('secrets/project_name'),
   secretpath('project_name')
 ]
 
-google_credentials_path = secretpath('secrets/google-secret.json')
-if os.path.exists(google_credentials_path):
-  google_credentials = service_account.Credentials \
-    .from_service_account_file(google_credentials_path)
-else:
-  google_credentials = ''
+def default_google_project_name():
+  if 'GOOGLE_PROJECT_NAME' in os.environ: 
+    return os.environ['GOOGLE_PROJECT_NAME']
+  else: 
+    for path in project_name_paths:
+      if os.path.exists(path):
+        with open(path, 'r') as f:
+          return f.read().strip()
 
+  default_credentials_path = secretpath('secrets/google-secret.json')
+  if os.path.exists(default_credentials_path):
+    with open(default_credentials_path, 'rt') as f:
+      return json.loads(f.read())['project_id']
 
-if 'GOOGLE_PROJECT_NAME' in os.environ: 
-  PROJECT_NAME = os.environ['GOOGLE_PROJECT_NAME']
-else: 
-  for path in project_name_paths:
-    if os.path.exists(path):
-      with open(path, 'r') as f:
-        PROJECT_NAME = f.read().strip()
-      break
+  return None
 
-if not PROJECT_NAME and google_credentials_path:
-  if os.path.exists(google_credentials_path):
-    with open(google_credentials_path, 'rt') as f:
-      PROJECT_NAME = json.loads(f.read())['project_id']
+PROJECT_NAME = default_google_project_name()
+GOOGLE_CREDENTIALS_CACHE = {}
 
-aws_credentials_path = secretpath('secrets/aws-secret.json')
-if os.path.exists(aws_credentials_path):
-  with open(aws_credentials_path, 'r') as f:
-    aws_credentials = json.loads(f.read())
-else:
+def google_credentials(bucket = ''):
+  global PROJECT_NAME
+  global GOOGLE_CREDENTIALS_CACHE
+
+  if bucket in GOOGLE_CREDENTIALS_CACHE.keys():
+    return GOOGLE_CREDENTIALS_CACHE[bucket]
+
+  paths = [
+    secretpath('secrets/google-secret.json')
+  ]
+
+  if bucket:
+    paths = [ secretpath('secrets/{}-google-secret.json'.format(bucket)) ] + paths
+
+  google_credentials = None
+  project_name = PROJECT_NAME
+  for google_credentials_path in paths:
+    if os.path.exists(google_credentials_path):
+      google_credentials = service_account.Credentials \
+        .from_service_account_file(google_credentials_path)
+      
+      with open(google_credentials_path, 'rt') as f:
+        project_name = json.loads(f.read())['project_id']
+
+  GOOGLE_CREDENTIALS_CACHE[bucket] = (project_name, google_credentials)
+
+  if google_credentials == None:
+    print(colorize('yellow', 'Using default Google credentials. There is no ~/.cloudvolume/secrets/google-secret.json set.'))  
+  return project_name, google_credentials
+
+AWS_CREDENTIALS_CACHE = {}
+def aws_credentials(bucket = ''):
+  global AWS_CREDENTIALS_CACHE
+
+  if bucket in AWS_CREDENTIALS_CACHE.keys():
+    return AWS_CREDENTIALS_CACHE[bucket]
+
+  paths = [
+    secretpath('secrets/aws-secret.json')
+  ]
+
+  if bucket:
+    paths = [ secretpath('secrets/{}-aws-secret.json'.format(bucket)) ] + paths
+
   aws_credentials = ''
+  aws_credentials_path = secretpath('secrets/aws-secret.json')
+  for aws_credentials_path in paths:
+    if os.path.exists(aws_credentials_path):
+      with open(aws_credentials_path, 'r') as f:
+        aws_credentials = json.loads(f.read())
+
+  AWS_CREDENTIALS_CACHE[bucket] = aws_credentials
+  return aws_credentials
+    
 
 boss_credentials_path = secretpath('secrets/boss-secret.json')
 if os.path.exists(boss_credentials_path):
