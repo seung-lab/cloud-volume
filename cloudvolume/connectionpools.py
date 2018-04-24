@@ -6,7 +6,7 @@ from functools import partial
 from google.cloud.storage import Client
 import boto3 
 
-from .secrets import PROJECT_NAME, google_credentials, aws_credentials
+from .secrets import google_credentials, aws_credentials
 
 class ConnectionPool(object):
     """
@@ -83,11 +83,15 @@ class ConnectionPool(object):
         self.reset_pool()
 
 class S3ConnectionPool(ConnectionPool):
+    def __init__(self, bucket):
+        self.credentials = aws_credentials(bucket)
+        super(S3ConnectionPool, self).__init__()
+
     def _create_connection(self):
         return boto3.client(
             's3',
-            aws_access_key_id=aws_credentials['AWS_ACCESS_KEY_ID'],
-            aws_secret_access_key=aws_credentials['AWS_SECRET_ACCESS_KEY'],
+            aws_access_key_id=self.credentials['AWS_ACCESS_KEY_ID'],
+            aws_secret_access_key=self.credentials['AWS_SECRET_ACCESS_KEY'],
             region_name='us-east-1',
         )
         
@@ -97,12 +101,13 @@ class S3ConnectionPool(ConnectionPool):
 class GCloudBucketPool(ConnectionPool):
     def __init__(self, bucket):
         self.bucket = bucket
+        self.project, self.credentials = google_credentials(bucket)
         super(GCloudBucketPool, self).__init__()
 
     def _create_connection(self):
         client = Client(
-            credentials=google_credentials,
-            project=PROJECT_NAME
+            credentials=self.credentials,
+            project=self.project,
         )
 
         return client.get_bucket(self.bucket)

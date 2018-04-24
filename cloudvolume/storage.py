@@ -33,7 +33,7 @@ GC_POOL = None
 def reset_connection_pools():
     global S3_POOL
     global GC_POOL
-    S3_POOL = S3ConnectionPool()
+    S3_POOL = keydefaultdict(lambda bucket_name: S3ConnectionPool(bucket_name))
     GC_POOL = keydefaultdict(lambda bucket_name: GCloudBucketPool(bucket_name))
 
 reset_connection_pools()
@@ -606,7 +606,7 @@ class S3Interface(object):
     def __init__(self, path):
         global S3_POOL
         self._path = path
-        self._conn = S3_POOL.get_connection()
+        self._conn = S3_POOL[path.bucket].get_connection()
 
     def get_path_to_file(self, file_path):
         clean = filter(None,[self._path.intermediate_path,
@@ -725,7 +725,7 @@ class S3Interface(object):
 
     def release_connection(self):
         global S3_POOL
-        S3_POOL.release_connection(self._conn)
+        S3_POOL[self._path.bucket].release_connection(self._conn)
 
 def _radix_sort(L, i=0):
     """
