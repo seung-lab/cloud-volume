@@ -87,6 +87,11 @@ class SimpleStorage(object):
     def get_path_to_file(self, file_path):
         return os.path.join(self._layer_path, file_path)
 
+    def put_json(self, file_path, content, content_type='application/json', *args, **kwargs):
+        if type(content) != str:
+            content = json.dumps(content)
+        return self.put_file(file_path, content, content_type=content_type, *args, **kwargs)
+        
     def put_file(self, file_path, content, content_type=None, compress=None, cache_control=None):
         """ 
         Args:
@@ -235,6 +240,11 @@ class Storage(ThreadedQueue):
     def get_path_to_file(self, file_path):
         return os.path.join(self._layer_path, file_path)
 
+    def put_json(self, file_path, content, content_type='application/json', *args, **kwargs):
+        if type(content) != str:
+            content = json.dumps(content)
+        return self.put_file(file_path, content, content_type=content_type, *args, **kwargs)
+    
     def put_file(self, file_path, content, content_type=None, compress=None, cache_control=None):
         """ 
         Args:

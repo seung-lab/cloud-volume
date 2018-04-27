@@ -37,6 +37,12 @@ def test_read_write():
                 assert s.get_files([ 'nonexistentfile' ])[0]['content'] is None
 
                 s.delete_file('info')
+                s.wait()
+
+                s.put_json('info', { 'omg': 'wow' })
+                s.wait()
+                results = s.get_json('info')
+                assert results == { 'omg': 'wow' }
 
     delete_layer("/tmp/removeme/read_write")
 
