@@ -96,6 +96,11 @@ class VolumeCutout(np.ndarray):
       for channel_index in range(num_channels):
         img2d = img[:, :, channel_index]
 
+        if img2d.dtype in (np.float32, np.float64):
+          lower, upper = img2d.min(), img2d.max()
+          img2d = (img2d - lower) / (upper - lower) * 255.0
+          img2d = img2d.astype(np.uint8)
+
         # discovered that downloaded cube is in a weird rotated state.
         # it requires a 90deg counterclockwise rotation on xy plane (leaving z alone)
         # followed by a flip on Y
