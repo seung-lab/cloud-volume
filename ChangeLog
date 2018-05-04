@@ -1,6 +1,19 @@
 CHANGES
 =======
 
+0.20.1
+------
+
+* Version 0.20.1
+* feat: supporting bucket specific secrets for aws and google
+* fix: add save\_images visualization support for float32 and float64
+
+0.20.0
+------
+
+* Version 0.20.0
+* feat: Storage now has put\_json and get\_json
+
 0.19.1
 ------
 

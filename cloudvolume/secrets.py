@@ -52,6 +52,7 @@ def default_google_project_name():
 
 PROJECT_NAME = default_google_project_name()
 GOOGLE_CREDENTIALS_CACHE = {}
+google_credentials_path = secretpath('secrets/google-secret.json')
 
 def google_credentials(bucket = ''):
   global PROJECT_NAME
@@ -85,6 +86,7 @@ def google_credentials(bucket = ''):
   return project_name, google_credentials
 
 AWS_CREDENTIALS_CACHE = {}
+aws_credentials_path = secretpath('secrets/aws-secret.json')
 def aws_credentials(bucket = ''):
   global AWS_CREDENTIALS_CACHE
 
