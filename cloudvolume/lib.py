@@ -54,7 +54,7 @@ ExtractedPath = namedtuple('ExtractedPath',
 
 def extract_path(cloudpath):
   """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
-  protocol_re = r'^(gs|file|s3|boss)://'
+  protocol_re = r'^(gs|file|s3|boss|https?)://'
   bucket_re = r'^(/?[~\d\w_\.\-]+)/'
   tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
 
@@ -62,7 +62,7 @@ def extract_path(cloudpath):
     Cloud path must conform to PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
     Example: gs://test_bucket/mouse_dataset/em
 
-    Supported protocols: gs, s3, file, boss
+    Supported protocols: gs, s3, file, boss, http, https
 
     Received: {}
     """.format(cloudpath))

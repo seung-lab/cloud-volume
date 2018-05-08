@@ -11,6 +11,7 @@ import botocore
 from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Client
+import requests
 import tenacity
 from tqdm import tqdm
 
@@ -46,6 +47,9 @@ retry = tenacity.retry(
 
 DEFAULT_THREADS = 20
 
+class UnsupportedProtocol(Exception):
+    pass
+
 class SimpleStorage(object):
     """
     Access files stored in Google Storage (gs), Amazon S3 (s3), 
@@ -77,6 +81,8 @@ class SimpleStorage(object):
             self._interface_cls = GoogleCloudStorageInterface
         elif self._path.protocol == 's3':
             self._interface_cls = S3Interface
+        elif self._path.protocol in ('http', 'https'):
+            self._interface_cls = HttpInterface
 
         self._interface = self._interface_cls(self._path)
 
@@ -218,6 +224,10 @@ class Storage(ThreadedQueue):
             self._interface_cls = GoogleCloudStorageInterface
         elif self._path.protocol == 's3':
             self._interface_cls = S3Interface
+        elif self._path.protocol in ('http', 'https'):
+            self._interface_cls = HttpInterface
+        else:
+            raise UnsupportedProtocol(str(self._path))
 
         self._interface = self._interface_cls(self._path)
 
@@ -601,6 +611,46 @@ class GoogleCloudStorageInterface(object):
         global GC_POOL
         GC_POOL[self._path.bucket].release_connection(self._bucket)
 
+class HttpInterface(object):
+    def __init__(self, path):
+        self._path = path
+
+    def get_path_to_file(self, file_path):
+        clean = filter(None, [
+            self._path.bucket,
+            self._path.intermediate_path,
+            self._path.dataset,
+            self._path.layer,
+            file_path
+        ])
+        clean = os.path.join(*clean)
+        return self._path.protocol + '://' + clean
+
+    # @retry
+    def delete_file(self, file_path):
+        raise NotImplementedError()
+
+    # @retry
+    def put_file(self, file_path, content, content_type, compress, cache_control=None):
+        raise NotImplementedError()
+
+    @retry
+    def get_file(self, file_path):
+        key = self.get_path_to_file(file_path)
+        resp = requests.get(key)
+        return resp.content, resp.encoding
+
+    def exists(self, file_path):
+        key = self.get_path_to_file(file_path)
+        resp = requests.get(key, stream=True)
+        return resp.ok
+
+    def list_files(self, prefix, flat=False):
+        raise NotImplementedError()
+
+    def release_connection(self):
+        pass
+
 class S3Interface(object):
 
     def __init__(self, path):
@@ -613,7 +663,7 @@ class S3Interface(object):
                              self._path.dataset,
                              self._path.layer,
                              file_path])
-        return  os.path.join(*clean)
+        return os.path.join(*clean)
 
     @retry
     def put_file(self, file_path, content, content_type, compress, cache_control=None):
