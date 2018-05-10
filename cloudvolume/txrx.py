@@ -1,6 +1,7 @@
 from functools import partial
 import math
 import multiprocessing as mp
+import concurrent.futures
 import os
 
 import numpy as np
@@ -91,9 +92,9 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
   provenance = vol.provenance 
   vol.provenance = None
   spd = partial(multi_process_download, vol, requested_bbox, vol.cache.enabled)
-  pool = mp.Pool(parallel)
-  pool.map(spd, cloudpaths_by_process)
-  pool.close()
+
+  with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
+    executor.map(spd, cloudpaths_by_process)
   vol.provenance = provenance
 
   mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock)
@@ -326,12 +327,12 @@ def upload_aligned(vol, img, offset, parallel=1,
       location=shared_memory_id, lock=fs_lock)
     renderbuffer[:] = img
 
-  pool = mp.Pool(parallel)
   provenance = vol.provenance 
   vol.provenance = None
   mpu = partial(multi_process_upload, vol, img.shape, offset, shared_memory_id, manual_shared_memory_bbox, vol.cache.enabled)
-  pool.map(mpu, chunk_ranges_by_process)
-  pool.close()
+
+  with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
+    executor.map(mpu, chunk_ranges_by_process)
   vol.provenance = provenance
 
   # If manual mode is enabled, it's the 

@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.21.0
+------
+
+* Version 0.21.0
+* feat: Http(s) Storage interface
+
 0.20.2
 ------
 
