@@ -1,39 +1,29 @@
-[![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume)
+[![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume) [![PyPI version](https://badge.fury.io/py/cloud-volume.svg)](https://badge.fury.io/py/cloud-volume)
 
 # cloud-volume
 
-Cloud-Volume is a library for writing services that work with the "precomputed" volume type for Neuroglancer. These volumes are typically stored in AWS S3 or Google GS (and the library can work with those services given appropriate credentials), but they can also be stored on a regular webserver, and the library can generate the appropriate file hierarchies for that as well. (https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)
+CloudVolume is a Python library for reading and writing [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a simple hackable representation for arbitrarily large volumetric images. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, and other dependency free tasks that might be applied to petavoxel scale images.
 
-A typical dataset for Neuroglancer might be an EM scan of a mouse, fish, or fly brain. It is normally stored that as a grayscale data layer accessible to neuroglancer. You may store additional labelings and processing results (such as segmentation) as other layers.
+Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports hierarchical file system paths (or simulates them via path strings).
+
+The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) of petascale datasets within and between laboratories. A typical example use case might be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize the montaged image, and CloudVolume would enable the various steps of fine alignment, writing segmentation layers, ROI masks, or performing other types of analysis.  
+
+CloudVolume can be used in single or multi-process capacity and can be optimized to use no more than a little over a single cutout's worth of memory. It supports reading and writing the `compressed_segmentation` format via a pure python library provided by Yann Leprince.  
 
 ## Setup
 
 Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. 
 
-### Credentials
-
-```
-mkdir -p ~/.cloudvolume/secrets/
-mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
-mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
-mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
-```
-
-The format for the aws-secret.json file is as follows:
-```
-{
-	"AWS_ACCESS_KEY_ID": "",
-	"AWS_SECRET_ACCESS_KEY_ID": ""
-}
-```
-(adjust key name for your service, and fill in the values with your credentials)
-### pip
+#### `pip` Installation
 
 ```
 pip install cloud-volume
 ```
 
-### Manual
+#### Manual Installation
+
+This can be desirable if you want to hack on CloudVolume itself.  
+
 ```
 git clone git@github.com:seung-lab/cloud-volume.git
 cd cloud-volume
@@ -48,13 +38,50 @@ source venv/bin/activate
 pip install -e .
 ```
 
-## Other Languages
+### Credentials
 
-Julia - https://github.com/seung-lab/CloudVolume.jl
+You'll only need credentials for 
+
+```
+mkdir -p ~/.cloudvolume/secrets/
+mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
+mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
+mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
+```
+
+#### `aws-secret.json` 
+
+Create an [IAM user service account](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html) that can read, write, and delete objects from at least one bucket.
+
+```
+{
+	"AWS_ACCESS_KEY_ID": "$MY_AWS_ACCESS_KEY_ID",
+	"AWS_SECRET_ACCESS_KEY_ID": "$MY_SECRET_ACCESS_TOKEN"
+}
+```
+
+#### `google-secret.json`
+
+You can create the `google-secret.json` file [here](https://console.cloud.google.com/iam-admin/serviceaccounts). You don't need to manually fill in JSON by hand, the below example is provided to show you what the end result should look like. You should be able to read, write, and delete objects from at least one bucket.
+
+```
+{
+  "type": "service_account",
+  "project_id": "$YOUR_GOOGLE_PROJECT_ID",
+  "private_key_id": "...",
+  "private_key": "...",
+  "client_email": "...",
+  "client_id": "...",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": ""
+}
+```
 
 ## Usage
 
-Supports reading and writing to neuroglancer data layers on Amazon S3, Google Storage, and the local file system.
+CloudVolume supports reading and writing to Neuroglancer data layers on Amazon S3, Google Storage, The BOSS, and the local file system.
 
 Supported URLs are of the forms:
 
@@ -81,7 +108,8 @@ vol.mesh.save([12345, 12346, 12347]) # merge three segments into one obj
 vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
 
 # Parallel Operation
-vol.parallel = 4 # e.g. any number > 1
+vol = CloudVolume('gs://mybucket/retina/image', parallel=True) # Use all cores
+vol.parallel = 4 # e.g. any number > 1, use this many cores
 data = vol[:] # uses shared memory to coordinate processes
 del data # closes mmap file handle
 vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
@@ -94,6 +122,11 @@ data = vol[:] # data now is a shared memory buffer
 vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
 vol.shared_memory_id # get/set the shared memory location for this instance
 vol.output_to_shared_memory = True/False # Turn this feature on/off
+
+# Shared Memory Upload
+vol = CloudVolume(...)
+vol.upload_from_shared_memory('my-shared-memory-id', # do not prefix with /dev/shm
+    bbox=Bbox( (0,0,0), (10000, 7500, 64) )) 
 
 # Caching, located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
 vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
@@ -117,20 +150,19 @@ vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files i
 
 ```
 
-Loading a segmentation as a new volume,
-assume you have a 3d numpy array as "rawdata" and various cfg values:
+Loading a segmentation as a new volume, assume you have a 3d numpy array as "rawdata" and various cfg values:
 ```
 metadata = cloudvolume.CloudVolume.create_new_info(
-        num_channels    = 1,
-        layer_type      = 'segmentation',
-        data_type       = 'uint64',
-        encoding        = 'raw',
-        resolution      = [8, 8, 8], # Pick scaling for your data!
-        voxel_offset    = [cfg.x, cfg.y, cfg.z],
-        mesh            = 'mesh',
-        chunk_size      = [cfg.chunksize, cfg.chunksize, cfg.chunksize], # This must divide evenly into image length or you won't cover the whole cube
-        volume_size     = [cfg.length, cfg.length, cfg.length]
-        )
+    num_channels    = 1,
+    layer_type      = 'segmentation',
+    data_type       = 'uint64',
+    encoding        = 'raw',
+    resolution      = [8, 8, 8], # Pick scaling for your data!
+    voxel_offset    = [cfg.x, cfg.y, cfg.z],
+    mesh            = 'mesh',
+    chunk_size      = [cfg.chunksize, cfg.chunksize, cfg.chunksize], # This must divide evenly into image length or you won't cover the whole cube
+    volume_size     = [cfg.length, cfg.length, cfg.length]
+)
 vol = cloudvolume.CloudVolume(cfg.path, mip=cfg.compression, info=metadata)
 vol.commit_info()
 vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:] # Be wary of XYZ-versus-ZYX issues
@@ -186,6 +218,7 @@ Better documentation coming later, but for now, here's a summary of the most use
 * delete - Delete the chunks within this bounding box.
 * unlink_shared_memory - Delete shared memory associated with this instance (`vol.shared_memory_id`)
 * generate_shared_memory_location - Create a new unique shared memory identifier string. No side effects.
+* upload_from_shared_memory - Upload from a given shared memory block without making a copy.
 
 ### CloudVolume Properties
 
@@ -204,26 +237,26 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * layer_cloudpath (str, r) - The cloud path to the data layer e.g. gs://bucket/dataset/image
 * info_cloudpath (str, r) - Generate the cloud path to this data layer's info file.
 * scales (dict, r) - Shortcut to the 'scales' property of the info object
-* scale (dict, r)† - Shortcut to the working scale of the current mip level
-* shape (Vec4, r)† - Like numpy.ndarray.shape for the entire data layer. 
-* volume_size (Vec3, r)† - Like shape, but omits channel (x,y,z only). 
+* scale (dict, r)* - Shortcut to the working scale of the current mip level
+* shape (Vec4, r)* - Like numpy.ndarray.shape for the entire data layer. 
+* volume_size (Vec3, r)* - Like shape, but omits channel (x,y,z only). 
 * num_channels (int, r) - The number of channels, the last element of shape. 
 * layer_type (str, r) - The neuroglancer info type, 'image' or 'segmentation'.
 * dtype (str, r) - The info data_type of the volume, e.g. uint8, uint32, etc. Similar to numpy.ndarray.dtype.
 * encoding (str, r) - The neuroglancer info encoding. e.g. 'raw', 'jpeg', 'npz'
-* resolution (Vec3, r)† - The 3D physical resolution of a voxel in nanometers at the working mip level.
+* resolution (Vec3, r)* - The 3D physical resolution of a voxel in nanometers at the working mip level.
 * downsample_ratio (Vec3, r) - Ratio of the current resolution to the highest resolution mip available.
-* underlying (Vec3, r)† - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
-* key (str, r)† - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
-* bounds (Bbox, r)† - A Bbox object that represents the bounds of the entire volume.
+* underlying (Vec3, r)* - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
+* key (str, r)* - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
+* bounds (Bbox, r)* - A Bbox object that represents the bounds of the entire volume.
 * shared_memory_id (str, rw) - Shared memory location used for parallel operation or for output.
 * output_to_shared_memory (bool, rw) - Turn on/off outputing to shared memory.
 
-† These properties can also be accessed with a function named like `vol.mip_$PROPERTY($MIP)`. By default they return the current mip level assigned to the CloudVolume, but any mip level can be accessed via the corresponding `mip_` function. Example: `vol.mip_resolution(2)` would return the resolution of mip 2.
+\* These properties can also be accessed with a function named like `vol.mip_$PROPERTY($MIP)`. By default they return the current mip level assigned to the CloudVolume, but any mip level can be accessed via the corresponding `mip_` function. Example: `vol.mip_resolution(2)` would return the resolution of mip 2.
 
 ### VolumeCutout Functions
 
-When you download an image using CloudVolume it gives you a `VolumeCutout`. These are `numpy.ndarray` subclasses that support a few extra properties to help make book keeping easier. The major advantage is `save_images()` which can help you debug your dataset.
+When you download an image using CloudVolume it gives you a `VolumeCutout`. These are `numpy.ndarray` subclasses that support a few extra properties to help make book keeping easier. The major advantage is `save_images()` which can help you view your dataset as PNG slices.
 
 * `dataset_name` - The dataset this image came from.
 * `layer` - Which layer it came from.
@@ -233,7 +266,11 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 * `num_channels` - Alias for `vol.shape[3]`
 * `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
 
-### Acknowledgments
+## Other Languages
+
+Julia - https://github.com/seung-lab/CloudVolume.jl
+
+## Acknowledgments
 
 Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.  
 Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. 
