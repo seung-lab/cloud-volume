@@ -2,6 +2,15 @@
 
 # cloud-volume
 
+```
+from cloudvolume import CloudVolume
+
+vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
+image = vol[:,:,:] # Download a whole image stack into a numpy array from the cloud
+vol[:,:,:] = image # Upload an entire image stack from a numpy array to the cloud
+```
+
+
 CloudVolume is a Python library for reading and writing [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a simple hackable representation for arbitrarily large volumetric images. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, and other dependency free tasks that might be applied to petavoxel scale images.
 
 Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports hierarchical file system paths (or simulates them via path strings).
@@ -95,6 +104,31 @@ $PROTOCOL://$BUCKET/$DATASET/$LAYER
 * boss: The BOSS (https://docs.theboss.io/docs)
 * file: Local File System (absolute path)
 
+### `info` Files - New Dataset
+
+Neuroglancer relies on an [`info`](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed#info-json-file-specification) file located at the root of a dataset layer to tell it how to compute file locations and interpret the data in each file. CloudVolume piggy-backs on this functionality.
+
+In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`.
+
+```
+info = cloudvolume.CloudVolume.create_new_info(
+    num_channels    = 1,
+    layer_type      = 'segmentation',
+    data_type       = 'uint64', # Channel images might be 'uint8'
+    encoding        = 'raw', # raw, jpeg, compressed_segmentation are all options
+    resolution      = [4, 4, 40], # Voxel scaling, units are in nanometers
+    voxel_offset    = [0, 0, 0], # x,y,z offset in voxels from the origin
+    mesh            = 'mesh',
+    # Pick a convenient size for your underlying chunk representation
+    # Powers of two are recommended, doesn't need to cover image exactly
+    chunk_size      = [ 512, 512, 16 ], # units are voxels
+    volume_size     = [ 250000, 250000, 25000 ], # e.g. a cubic millimeter dataset
+)
+vol = cloudvolume.CloudVolume(cfg.path, info=info)
+vol.commit_info()
+vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:] 
+```
+
 ### Examples
 
 ```
@@ -149,25 +183,6 @@ vol.cache.enabled = True/False/Path # Turn the cache on/off
 vol.cache.flush() # Delete local cache for this layer at this mip level  
 vol.cache.flush(preserve=Bbox(...)) # Same, but presere cache in a region of space  
 vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)  
-
-```
-
-Loading a segmentation as a new volume, assume you have a 3d numpy array as "rawdata" and various cfg values:
-```
-metadata = cloudvolume.CloudVolume.create_new_info(
-    num_channels    = 1,
-    layer_type      = 'segmentation',
-    data_type       = 'uint64',
-    encoding        = 'raw',
-    resolution      = [8, 8, 8], # Pick scaling for your data!
-    voxel_offset    = [cfg.x, cfg.y, cfg.z],
-    mesh            = 'mesh',
-    chunk_size      = [cfg.chunksize, cfg.chunksize, cfg.chunksize], # This must divide evenly into image length or you won't cover the whole cube
-    volume_size     = [cfg.length, cfg.length, cfg.length]
-)
-vol = cloudvolume.CloudVolume(cfg.path, mip=cfg.compression, info=metadata)
-vol.commit_info()
-vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:] # Be wary of XYZ-versus-ZYX issues
 
 ```
 
