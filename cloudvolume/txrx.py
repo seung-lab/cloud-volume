@@ -79,7 +79,8 @@ def multi_process_download(cv, bufferbbox, caching, cloudpaths):
   download_multiple(cv, cloudpaths, fn=process)
   array_like.close()
 
-def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
+def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel, 
+  shared_memory_location, output_to_shared_memory):
   global fs_lock
 
   cloudpaths_by_process = []
@@ -97,8 +98,8 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
     executor.map(spd, cloudpaths_by_process)
   vol.provenance = provenance
 
-  mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock)
-  if not vol.output_to_shared_memory:
+  mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock, location=shared_memory_location)
+  if not output_to_shared_memory:
     renderbuffer = np.copy(renderbuffer)
     mmap_handle.close()
     shm.unlink(vol.shared_memory_id)
@@ -107,7 +108,8 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel):
 
   return mmap_handle, renderbuffer
 
-def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
+def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1, 
+  shared_memory_location=None, output_to_shared_memory=False):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   global fs_lock
 
@@ -119,8 +121,9 @@ def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
   handle = None
 
   if parallel == 1:
-    if vol.output_to_shared_memory:
-      array_like, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock)
+    if output_to_shared_memory:
+      array_like, renderbuffer = shm.bbox2array(vol, requested_bbox, 
+        location=shared_memory_location, lock=fs_lock)
       shm.track_mmap(array_like)
     else:
       renderbuffer = np.zeros(shape=shape, dtype=vol.dtype, order='F')
@@ -129,7 +132,8 @@ def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1):
       shade(renderbuffer, requested_bbox, img3d, bbox)
     download_multiple(vol, cloudpaths, fn=process)
   else:
-    handle, renderbuffer = multi_process_cutout(vol, requested_bbox, cloudpaths, parallel)
+    handle, renderbuffer = multi_process_cutout(vol, requested_bbox, cloudpaths, parallel, 
+      shared_memory_location, output_to_shared_memory)
   
   renderbuffer = renderbuffer[ ::steps.x, ::steps.y, ::steps.z, channel_slice ]
   return VolumeCutout.from_volume(vol, renderbuffer, requested_bbox, handle=handle)
