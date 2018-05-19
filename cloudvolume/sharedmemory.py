@@ -35,13 +35,14 @@ def reinit():
   global mmaps
   mmaps = []
 
-def bbox2array(vol, bbox, order='F', readonly=False, lock=None):
+def bbox2array(vol, bbox, order='F', readonly=False, lock=None, location=None):
   """Convenince method for creating a 
   shared memory numpy array based on a CloudVolume
   and Bbox. c.f. sharedmemory.ndarray for information
   on the optional lock parameter."""
+  location = location or vol.shared_memory_id
   shape = list(bbox.size3()) + [ vol.num_channels ]
-  return ndarray(shape=shape, dtype=vol.dtype, location=vol.shared_memory_id, 
+  return ndarray(shape=shape, dtype=vol.dtype, location=location, 
     readonly=readonly, lock=lock, order=order)
 
 def ndarray(shape, dtype, location, order='F', readonly=False, lock=None, **kwargs):

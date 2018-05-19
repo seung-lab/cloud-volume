@@ -1,6 +1,16 @@
 CHANGES
 =======
 
+0.21.2
+------
+
+* Version 0.21.2
+* fix: make futures conditional on python 2 (#110)
+* docs: made the roles of Igneous and CloudVolume more clear
+* docs: reorganized new dataset creation
+* docs: added information on bucket-specific credentials
+* docs: updated README.md narrative
+
 0.21.1
 ------
 

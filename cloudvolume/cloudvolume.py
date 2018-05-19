@@ -120,6 +120,9 @@ class CloudVolume(object):
       self.shared_memory_id = str(output_to_shared_memory)
     self.output_to_shared_memory = bool(output_to_shared_memory)
 
+    if self.output_to_shared_memory:
+      warn("output_to_shared_memory as an attribute is deprecated. Please use vol.download_to_shared_memory(slices_or_bbox) instead.")
+
     if type(parallel) == bool:
       self.parallel = mp.cpu_count() if parallel == True else 1
     else:
@@ -755,9 +758,56 @@ class CloudVolume(object):
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
     if self.path.protocol != 'boss':
-      return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
-    
+      return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel,
+        shared_memory_location=self.shared_memory_id, output_to_shared_memory=self.output_to_shared_memory)
+
     return self._boss_cutout(requested_bbox, steps, channel_slice)
+
+  def download_to_shared_memory(self, slices, location=None):
+    """
+    Download images to a shared memory array. 
+
+    https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Shared-Memory
+
+    tip: If you want to use slice notation, np.s_[...] will help in a pinch.
+
+    MEMORY LIFECYCLE WARNING: You are responsible for managing the lifecycle of the 
+      shared memory. CloudVolume will merely write to it, it will not unlink the 
+      memory automatically. To fully clear the shared memory you must unlink the 
+      location and close any mmap file handles. You can use `cloudvolume.sharedmemory.unlink(...)`
+      to help you unlink the shared memory file or `vol.unlink_shared_memory()` if you do 
+      not specify location (meaning the default instance location is used).
+
+    EXPERT MODE WARNING: If you aren't sure you need this function (e.g. to relieve 
+      memory pressure or improve performance in some way) you should use the ordinary 
+      download method of img = vol[:]. A typical use case is transferring arrays between 
+      different processes without making copies. For reference, this  feature was created 
+      for downloading a 62 GB array and working with it in Julia.
+
+    Required:
+      slices: (Bbox or list of slices) the bounding box the shared array represents. For instance
+        if you have a 1024x1024x128 volume and you're uploading only a 512x512x64 corner
+        touching the origin, your Bbox would be `Bbox( (0,0,0), (512,512,64) )`.
+    Optional:
+      location: (str) Defaults to self.shared_memory_id. Shared memory location 
+        e.g. 'cloudvolume-shm-RANDOM-STRING' This typically corresponds to a file 
+        in `/dev/shm` or `/run/shm/`. It can also be a file if you're using that for mmap. 
+    
+    Returns: void
+    """
+    if self.path.protocol == 'boss':
+      raise NotImplementedError('BOSS protocol does not support shared memory download.')
+
+    if type(slices) == Bbox:
+      slices = slices.to_slices()
+    (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
+
+    if self.autocrop:
+      requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
+    
+    location = location or self.shared_memory_id
+    return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel, 
+      shared_memory_location=location, output_to_shared_memory=True)
 
   def flush_cache(self, preserve=None):
     """See vol.cache.flush"""
@@ -838,6 +888,10 @@ class CloudVolume(object):
   def upload_from_shared_memory(self, location, bbox, cutout_bbox=None):
     """
     Upload from a shared memory array. 
+
+    https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Shared-Memory
+
+    tip: If you want to use slice notation, np.s_[...] will help in a pinch.
 
     MEMORY LIFECYCLE WARNING: You are responsible for managing the lifecycle of the 
       shared memory. CloudVolume will merely read from it, it will not unlink the 
