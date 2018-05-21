@@ -100,11 +100,8 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel,
 
   mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock, location=shared_memory_location)
   if not output_to_shared_memory:
-    renderbuffer = np.copy(renderbuffer)
-    mmap_handle.close()
     shm.unlink(vol.shared_memory_id)
-  else:
-    shm.track_mmap(mmap_handle)
+  shm.track_mmap(mmap_handle)
 
   return mmap_handle, renderbuffer
 
