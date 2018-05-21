@@ -96,7 +96,7 @@ CloudVolume supports reading and writing to Neuroglancer data layers on Amazon S
 
 Supported URLs are of the forms:
 
-$PROTOCOL://$BUCKET/$DATASET/$LAYER  
+`$PROTOCOL://$BUCKET/$DATASET/$LAYER`
 
 ### Supported Protocols 
 * gs:   Google Storage
@@ -151,13 +151,13 @@ del data # closes mmap file handle
 vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
 vol.shared_memory_id # get/set the shared memory location for this instance
 
-# Shared Memory Output
-vol = CloudVolume(..., output_to_shared_memory=True)
-vol = CloudVolume(..., output_to_shared_memory='my-shared-memory-location')
-data = vol[:] # data now is a shared memory buffer
+# Shared Memory Output (can be used by other processes)
+vol = CloudVolume(...)
+# data backed by a shared memory buffer
+# location is optional (defaults to vol.shared_memory_id)
+data = vol.download_to_shared_memory(np.s_[:], location='some-example') 
 vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
-vol.shared_memory_id # get/set the shared memory location for this instance
-vol.output_to_shared_memory = True/False # Turn this feature on/off
+vol.shared_memory_id # get/set the default shared memory location for this instance
 
 # Shared Memory Upload
 vol = CloudVolume(...)
@@ -188,7 +188,7 @@ vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files i
 
 ### CloudVolume Constructor
 
-`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, autocrop=False, cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None, compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False)`  
+`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, autocrop=False, cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None, compress=None, non_aligned_writes=False, parallel=1)`  
 
 * mip - Which mip level to access
 * bounded - Whether access is allowed outside the bounds defined in the info file
@@ -204,9 +204,6 @@ vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files i
     Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/issues/87)
 * parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
    that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
-* otuput_to_shared_memory - True/False/string. Instead of using ordinary numpy memory allocations, download to shared memory.
-    Be careful, shared memory is like a file and doesn't disappear unless explicitly unlinked. (`vol.unlink_shared_memory()`)
-    A string input specifies a possibly preexisting shared memory location.
 
 ### CloudVolume Methods
 
@@ -235,6 +232,8 @@ Better documentation coming later, but for now, here's a summary of the most use
 * delete - Delete the chunks within this bounding box.
 * unlink_shared_memory - Delete shared memory associated with this instance (`vol.shared_memory_id`)
 * generate_shared_memory_location - Create a new unique shared memory identifier string. No side effects.
+* download_to_shared_memory - Instead of using ordinary numpy memory allocations, download to shared memory.
+    Be careful, shared memory is like a file and doesn't disappear unless explicitly unlinked. (`vol.unlink_shared_memory()`)
 * upload_from_shared_memory - Upload from a given shared memory block without making a copy.
 
 ### CloudVolume Properties
@@ -267,7 +266,6 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * key (str, r)* - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
 * bounds (Bbox, r)* - A Bbox object that represents the bounds of the entire volume.
 * shared_memory_id (str, rw) - Shared memory location used for parallel operation or for output.
-* output_to_shared_memory (bool, rw) - Turn on/off outputing to shared memory.
 
 \* These properties can also be accessed with a function named like `vol.mip_$PROPERTY($MIP)`. By default they return the current mip level assigned to the CloudVolume, but any mip level can be accessed via the corresponding `mip_` function. Example: `vol.mip_resolution(2)` would return the resolution of mip 2.
 
