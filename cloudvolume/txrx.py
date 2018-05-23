@@ -265,7 +265,7 @@ def check_grid_aligned(vol, img, offset):
   return (is_aligned, bounds, alignment_check) 
 
 def upload_image(vol, img, offset, parallel=1, 
-  manual_shared_memory_id=None, manual_shared_memory_bbox=None):
+  manual_shared_memory_id=None, manual_shared_memory_bbox=None, manual_shared_memory_order='F'):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
 
@@ -276,7 +276,8 @@ def upload_image(vol, img, offset, parallel=1,
 
   if is_aligned:
     upload_aligned(vol, img, offset, parallel=parallel, 
-      manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox)
+      manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox,
+      manual_shared_memory_order=manual_shared_memory_order)
     return
   elif vol.non_aligned_writes == False:
     msg = NON_ALIGNED_WRITE.format(offset=vol.voxel_offset, got=bounds, check=expanded)
@@ -287,7 +288,8 @@ def upload_image(vol, img, offset, parallel=1,
   core_bbox = retracted.clone() - bounds.minpt
   core_img = img[ core_bbox.to_slices() ] 
   upload_aligned(vol, core_img, retracted.minpt, parallel=parallel, 
-    manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox)
+    manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox,
+    manual_shared_memory_order=manual_shared_memory_order)
 
   # Download the shell, paint, and upload
   all_chunks = set(chunknames(expanded, vol.bounds, vol.key, vol.underlying))
@@ -304,7 +306,7 @@ def upload_image(vol, img, offset, parallel=1,
   download_multiple(vol, shell_chunks, fn=shade_and_upload)
 
 def upload_aligned(vol, img, offset, parallel=1, 
-  manual_shared_memory_id=None, manual_shared_memory_bbox=None):
+  manual_shared_memory_id=None, manual_shared_memory_bbox=None, manual_shared_memory_order='F'):
   global fs_lock
 
   chunk_ranges = list(generate_chunks(vol, img, offset))
@@ -325,12 +327,13 @@ def upload_aligned(vol, img, offset, parallel=1,
   else:
     shared_memory_id = vol.shared_memory_id
     array_like, renderbuffer = shm.ndarray(shape=img.shape, dtype=img.dtype, 
-      location=shared_memory_id, lock=fs_lock)
+      location=shared_memory_id, order=manual_shared_memory_order, lock=fs_lock)
     renderbuffer[:] = img
 
   provenance = vol.provenance 
   vol.provenance = None
-  mpu = partial(multi_process_upload, vol, img.shape, offset, shared_memory_id, manual_shared_memory_bbox, vol.cache.enabled)
+  mpu = partial(multi_process_upload, vol, img.shape, offset, 
+    shared_memory_id, manual_shared_memory_bbox, manual_shared_memory_order, vol.cache.enabled)
 
   with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
     executor.map(mpu, chunk_ranges_by_process)
@@ -342,7 +345,8 @@ def upload_aligned(vol, img, offset, parallel=1,
     array_like.close()
     shm.unlink(vol.shared_memory_id)
 
-def multi_process_upload(vol, img_shape, offset, shared_memory_id, manual_shared_memory_bbox, caching, chunk_ranges):
+def multi_process_upload(vol, img_shape, offset, 
+  shared_memory_id, manual_shared_memory_bbox, manual_shared_memory_order, caching, chunk_ranges):
   global fs_lock
   reset_connection_pools()
   vol.init_submodules(caching)
@@ -352,7 +356,7 @@ def multi_process_upload(vol, img_shape, offset, shared_memory_id, manual_shared
     shared_shape = list(manual_shared_memory_bbox.size3()) + [ vol.num_channels ]
 
   array_like, renderbuffer = shm.ndarray(shape=shared_shape, dtype=vol.dtype, 
-      location=shared_memory_id, lock=fs_lock, readonly=True)
+      location=shared_memory_id, order=manual_shared_memory_order, lock=fs_lock, readonly=True)
 
   if manual_shared_memory_bbox:
     cutout_bbox = Bbox( offset, offset + img_shape[:3] )

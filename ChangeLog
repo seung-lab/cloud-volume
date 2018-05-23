@@ -1,6 +1,14 @@
 CHANGES
 =======
 
+0.22.0
+------
+
+* Version 0.22.0
+* docs: updated README with new download\_to\_shared\_memory method
+* perf: 1x memory usage for parallel downloads (#112)
+* refactor: output\_to\_shared\_memory -> download\_to\_shared\_memory() (#111)
+
 0.21.2
 ------
 

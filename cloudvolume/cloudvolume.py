@@ -885,7 +885,7 @@ class CloudVolume(object):
     else:
       txrx.upload_image(self, img, bbox.minpt, parallel=self.parallel)
 
-  def upload_from_shared_memory(self, location, bbox, cutout_bbox=None):
+  def upload_from_shared_memory(self, location, bbox, order='F', cutout_bbox=None):
     """
     Upload from a shared memory array. 
 
@@ -946,13 +946,13 @@ class CloudVolume(object):
 
     shape = list(bbox.size3()) + [ self.num_channels ]
     mmap_handle, shared_image = sharedmemory.ndarray(
-      location=location, shape=shape, dtype=self.dtype, readonly=True)
+      location=location, shape=shape, dtype=self.dtype, order=order, readonly=True)
 
     delta_box = cutout_bbox.clone() - bbox.minpt
     cutout_image = shared_image[ delta_box.to_slices() ]
     
     txrx.upload_image(self, cutout_image, cutout_bbox.minpt, parallel=self.parallel, 
-      manual_shared_memory_id=location, manual_shared_memory_bbox=bbox)
+      manual_shared_memory_id=location, manual_shared_memory_bbox=bbox, manual_shared_memory_order=order)
     mmap_handle.close() 
 
   def upload_boss_image(self, img, offset):
