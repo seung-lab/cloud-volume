@@ -127,6 +127,12 @@ def test_parallel_shared_memory_write():
     assert np.all(cv[128:,128:,:64] == 3)    
     assert np.all(cv[:,:,64:128] == 2)    
 
+    shareddata[:] = 0
+    shareddata[:,0,0] = 1
+    cv.upload_from_shared_memory(shm_location, bbox=Bbox((0,0,0), (256,256,128)), order='C')
+    assert np.all(cv[0,0,:] == 1)
+    assert np.all(cv[1,0,:] == 0)
+
     mmapfh.close()
     shm.unlink(shm_location)
 
