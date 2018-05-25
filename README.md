@@ -132,9 +132,10 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 ### Examples
 
 ```
-vol = CloudVolume('gs://mybucket/retina/image') # Basic Example
-vol = CloudVolume('gs://buck/ds/chan', mip=0, bounded=True, fill_missing=False) # Using multiple initialization options
-vol = CloudVolume('gs://buck/ds/chan', info=info) # Creating a new volume's info file from scratch
+# Basic Examples
+vol = CloudVolume('gs://mybucket/retina/image') 
+vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missing=False) 
+vol = CloudVolume('gs://bucket/datasset/channel', info=info) # New info file from scratch
 image = vol[:,:,:] # Download the entire image stack into a numpy array
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
@@ -146,10 +147,7 @@ vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing t
 # Parallel Operation
 vol = CloudVolume('gs://mybucket/retina/image', parallel=True) # Use all cores
 vol.parallel = 4 # e.g. any number > 1, use this many cores
-data = vol[:] # uses shared memory to coordinate processes
-del data # closes mmap file handle
-vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
-vol.shared_memory_id # get/set the shared memory location for this instance
+data = vol[:] # uses shared memory to coordinate processes under the hood
 
 # Shared Memory Output (can be used by other processes)
 vol = CloudVolume(...)
