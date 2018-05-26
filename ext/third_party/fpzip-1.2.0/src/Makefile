@@ -23,7 +23,7 @@ FPZIP_CONV = -DWITH_UNION
 # no changes should be necessary below ----------------------------------------
 
 CXX = g++
-CXXFLAGS += -ansi -Wall -g
+CXXFLAGS += -ansi -Wall -g -fPIC
 CXXFLAGS += -O3
 DEFS += -DFPZIP_BLOCK_SIZE=$(FPZIP_BLOCK_SIZE) -DFPZIP_FP=$(FPZIP_FP) $(FPZIP_CONV)
 

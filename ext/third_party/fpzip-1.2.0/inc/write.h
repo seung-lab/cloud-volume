@@ -1,6 +1,8 @@
 #ifndef FPZIP_WRITE_H
 #define FPZIP_WRITE_H
 
+#include "rcencoder.h"
+
 #define subsize(T, n) (CHAR_BIT * sizeof(T) * (n) / 32)
 
 // file writer for compressed data

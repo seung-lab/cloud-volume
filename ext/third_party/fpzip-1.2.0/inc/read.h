@@ -1,6 +1,8 @@
 #ifndef FPZIP_READ_H
 #define FPZIP_READ_H
 
+#include "rcdecoder.h"
+
 #define subsize(T, n) (CHAR_BIT * sizeof(T) * (n) / 32)
 
 // file reader for compressed data

@@ -11,6 +11,9 @@ def encode_decode(data, format):
   assert np.all(result.shape == data.shape)
   assert np.all(data == result)
 
+def test_fpzip():
+  random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
+  encode_decode(random_data, 'fpzip')
 
 def test_raw():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)

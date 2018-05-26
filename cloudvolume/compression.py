@@ -25,10 +25,14 @@ def decompress(content, encoding, filename='N/A'):
   Return: decompressed content
   """
   try:
-    if encoding in (None, False, ''):
+    encoding = (encoding or '').lower()
+    if encoding == '':
       return content
     elif encoding.lower() == 'gzip':
       return gunzip(content)
+    elif method == 'fpzip':
+      import fpzip
+      return fpzip.decompress(content)
   except DecodingError as err:
     print("Filename: " + str(filename))
     raise
@@ -52,6 +56,9 @@ def compress(content, method='gzip'):
     return content
   elif method == True or method.lower() == 'gzip': # method == True is for backwards compatibility
     return gzip_compress(content)
+  elif method == 'fpzip':
+    import fpzip
+    return fpzip.compress(content)
   raise NotImplementedError(str(method) + ' is not currently supported. Supported Options: None, gzip')
 
 def gzip_compress(content):
