@@ -71,14 +71,16 @@ def compress(data, precision=0):
   if len(data.shape) == 3:
     data = data[:,:,:, np.newaxis ]
 
+  header_bytes = 24
+
   fptype = 'f' if data.dtype == np.float32 else 'd'
-  cdef array.array compression_buf = allocate(fptype, max(data.size, 1024*1024))
-  
+  cdef array.array compression_buf = allocate(fptype, max(data.size + header_bytes, 1024*1024))
+
   cdef FPZ* fpz_ptr
   if fptype == 'f':
-    fpz_ptr = fpzip_write_to_buffer(compression_buf.data.as_floats, data.nbytes)
+    fpz_ptr = fpzip_write_to_buffer(compression_buf.data.as_floats, data.nbytes + header_bytes)
   else:
-    fpz_ptr = fpzip_write_to_buffer(compression_buf.data.as_doubles, data.nbytes)
+    fpz_ptr = fpzip_write_to_buffer(compression_buf.data.as_doubles, data.nbytes + header_bytes)
 
   if data.dtype == np.float32:
     fpz_ptr[0].type = 0 # float
@@ -91,44 +93,39 @@ def compress(data, precision=0):
   fpz_ptr[0].nz = data.shape[2]
   fpz_ptr[0].nf = data.shape[3]
 
-  print(fpz_ptr[0])
-  print("1", data.nbytes)
-
   if fpzip_write_header(fpz_ptr) == 0:
     raise FpzipWriteError("Cannot write header. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
 
-  print("2", len(compression_buf))
-
   cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>data.data)
-  print("3", outbytes)
   if outbytes == 0:
     raise FpzipWriteError("Compression failed. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
 
   fpzip_write_close(fpz_ptr)
-  print("5", type(compression_buf), len(compression_buf))
-  return bytes(compression_buf)[:outbytes] 
+  return bytes(compression_buf)[:100] 
 
-# def decompress(encoded):
-#   cdef FPZ* fpz_ptr = fpzip_read_from_buffer(<void*>encoded[0])
+def decompress(bytes encoded):
+  cdef FPZ* fpz_ptr = fpzip_read_from_buffer(<void*>encoded)
 
-#   if fpzip_read_header(fpz_ptr) == 0:
-#     raise FpzipReadError("cannot read header: %s" % FPZ_ERROR_STRINGS[fpzip_errno])
+  if fpzip_read_header(fpz_ptr) == 0:
+    raise FpzipReadError("cannot read header: %s" % FPZ_ERROR_STRINGS[fpzip_errno])
 
-#   fptype = 'f' if fpz_ptr[0].type == 0 else 'd'
-#   nx, ny, nz, nf = fpz_ptr[0].nx, fpz_ptr[0].ny, fpz_ptr[0].nz, fpz_ptr[0].nf
+  fptype = 'f' if fpz_ptr[0].type == 0 else 'd'
+  nx, ny, nz, nf = fpz_ptr[0].nx, fpz_ptr[0].ny, fpz_ptr[0].nz, fpz_ptr[0].nf
 
-#   cdef array.array buf = allocate(fptype, nx * ny * nz * nf)
+  cdef array.array buf = allocate(fptype, nx * ny * nz * nf)
 
-#   cdef size_t read_bytes = 0;
-#   if fptype == 'f':
-#     read_bytes = fpzip_read(fpz_ptr, buf.data.as_floats)
-#   else:
-#     read_bytes = fpzip_read(fpz_ptr, buf.data.as_doubles)
+  cdef size_t read_bytes = 0;
+  if fptype == 'f':
+    read_bytes = fpzip_read(fpz_ptr, buf.data.as_floats)
+  else:
+    read_bytes = fpzip_read(fpz_ptr, buf.data.as_doubles)
 
-#   if read_bytes == 0:
-#     raise FpzipReadError("decompression failed: %s" % FPZ_ERROR_STRINGS[fpzip_errno])
+  if read_bytes == 0:
+    raise FpzipReadError("decompression failed: %s" % FPZ_ERROR_STRINGS[fpzip_errno])
 
-#   fpzip_read_close(fpz_ptr)
+  fpzip_read_close(fpz_ptr)
 
-#   dtype = np.float32 if fptype == 'f' else np.float64
-#   return np.asarray(buf, dtype=dtype, order='F').reshape( (nx, ny, nz, nf) )
+  dtype = np.float32 if fptype == 'f' else np.float64
+  return np.asarray(buf, dtype=dtype, order='C').reshape( (nx, ny, nz, nf) )
+
+
