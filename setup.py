@@ -9,10 +9,10 @@ fpzipdir = join(third_party_dir, 'fpzip-1.2.0')
 # cython -3 --fast-fail -v --cplus ./ext/src/third_party/fpzip-1.2.0/src/fpzip.pyx
 # if fpzip.cpp does not exist.
 
-os.system("pip install numpy")
+import numpy as np
 
 setuptools.setup(
-    setup_requires=['pbr'],
+    setup_requires=['pbr', 'numpy'],
     extras_require={
     	':python_version == "2.7"': ['futures'],
     	':python_version == "2.6"': ['futures'],
@@ -26,7 +26,7 @@ setuptools.setup(
             	'rcqsmodel.cpp', 'write.cpp', 'read.cpp', 'fpzip.cpp'
             )],
             language='c++',
-            include_dirs=[ join(fpzipdir, 'inc') ],
+            include_dirs=[ join(fpzipdir, 'inc'), np.get_include() ],
             extra_compile_args=[
               '-std=c++11', 
               '-DFPZIP_FP=FPZIP_FP_FAST', '-DFPZIP_BLOCK_SIZE=0x1000', '-DWITH_UNION',
