@@ -71,10 +71,12 @@ def compress(data, precision=0):
   if len(data.shape) == 3:
     data = data[:,:,:, np.newaxis ]
 
-  header_bytes = 24
+  data = np.ascontiguousarray(data)
+
+  header_bytes = 28
 
   fptype = 'f' if data.dtype == np.float32 else 'd'
-  cdef array.array compression_buf = allocate(fptype, max(data.size + header_bytes, 1024*1024))
+  cdef array.array compression_buf = allocate(fptype, data.size + header_bytes)
 
   cdef FPZ* fpz_ptr
   if fptype == 'f':
@@ -96,7 +98,9 @@ def compress(data, precision=0):
   if fpzip_write_header(fpz_ptr) == 0:
     raise FpzipWriteError("Cannot write header. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
 
-  cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>data.data)
+  # float or double shouldn't matter since we're about to cast to void pointer
+  cdef float[:,:,:,:] arr_memview = data 
+  cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>&arr_memview[0,0,0,0])
   if outbytes == 0:
     raise FpzipWriteError("Compression failed. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
 
