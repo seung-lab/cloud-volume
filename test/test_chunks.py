@@ -11,9 +11,12 @@ def encode_decode(data, format):
   assert np.all(result.shape == data.shape)
   assert np.all(data == result)
 
-def test_fpzip():
-  random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
-  encode_decode(random_data, 'fpzip')
+def test_kempression():
+  data = np.random.random_sample(size=1024 * 3).reshape( (64, 4, 4, 3) ).astype(np.float32)
+  encoded = encode(data, 'kempressed')
+  result = decode(encoded, 'kempressed', shape=(64, 4, 4, 3), dtype=np.float32)
+  assert np.all(result.shape == data.shape)
+  assert np.all(np.abs(data - result) <= np.finfo(np.float32).eps)
 
 def test_raw():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)

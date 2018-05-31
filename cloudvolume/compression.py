@@ -3,6 +3,18 @@ from six import StringIO, BytesIO
 import gzip
 import sys
 
+from .lib import yellow
+
+try:
+  from cloudvolume import fpzip
+except ImportError:
+  print(yellow("fpzip codec is not available. Was it compiled? Try CloudVolume's python setup.py build_ext"))
+  class fpzip():
+    def compress(self):
+      raise NotImplementedError("Please compile the fpzip C extension.")
+    def decompress(self):
+      raise NotImplementedError("Please compile the fpzip C extension.")
+
 class DecodingError(Exception):
   pass
 
@@ -28,10 +40,9 @@ def decompress(content, encoding, filename='N/A'):
     encoding = (encoding or '').lower()
     if encoding == '':
       return content
-    elif encoding.lower() == 'gzip':
+    elif encoding == 'gzip':
       return gunzip(content)
-    elif method == 'fpzip':
-      import fpzip
+    elif encoding == 'fpzip':
       return fpzip.decompress(content)
   except DecodingError as err:
     print("Filename: " + str(filename))
@@ -52,12 +63,16 @@ def compress(content, method='gzip'):
 
   Return: compressed content
   """
-  if method in (None, False, ''):
+  if method == True:
+    method = 'gzip' # backwards compatibility
+
+  method = (method or '').lower()
+
+  if method == '':
     return content
-  elif method == True or method.lower() == 'gzip': # method == True is for backwards compatibility
+  elif method == 'gzip': 
     return gzip_compress(content)
   elif method == 'fpzip':
-    import fpzip
     return fpzip.compress(content)
   raise NotImplementedError(str(method) + ' is not currently supported. Supported Options: None, gzip')
 
