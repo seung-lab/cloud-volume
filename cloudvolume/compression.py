@@ -10,9 +10,11 @@ try:
 except ImportError:
   print(yellow("fpzip codec is not available. Was it compiled? Try CloudVolume's python setup.py build_ext"))
   class fpzip():
-    def compress(self):
+    @classmethod
+    def compress(cls, content):
       raise NotImplementedError("Please compile the fpzip C extension.")
-    def decompress(self):
+    @classmethod
+    def decompress(cls, content):
       raise NotImplementedError("Please compile the fpzip C extension.")
 
 class DecodingError(Exception):
