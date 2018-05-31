@@ -101,10 +101,12 @@ def compress(data, precision=0):
     raise FpzipWriteError("Compression failed. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
 
   fpzip_write_close(fpz_ptr)
-  return bytes(compression_buf)[:100] 
+  return bytes(compression_buf)[:outbytes] 
 
 def decompress(bytes encoded):
-  cdef FPZ* fpz_ptr = fpzip_read_from_buffer(<void*>encoded)
+  # line below necessary to convert from PyObject to a naked pointer
+  cdef unsigned char *encodedptr = <unsigned char*>encoded 
+  cdef FPZ* fpz_ptr = fpzip_read_from_buffer(<void*>encodedptr)
 
   if fpzip_read_header(fpz_ptr) == 0:
     raise FpzipReadError("cannot read header: %s" % FPZ_ERROR_STRINGS[fpzip_errno])
@@ -126,6 +128,6 @@ def decompress(bytes encoded):
   fpzip_read_close(fpz_ptr)
 
   dtype = np.float32 if fptype == 'f' else np.float64
-  return np.asarray(buf, dtype=dtype, order='C').reshape( (nx, ny, nz, nf) )
+  return np.frombuffer(buf, dtype=dtype).reshape( (nx, ny, nz, nf) )
 
 
