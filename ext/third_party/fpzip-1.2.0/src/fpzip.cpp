@@ -1511,6 +1511,14 @@ static CYTHON_INLINE void __Pyx_ErrFetchInState(PyThreadState *tstate, PyObject 
 /* RaiseException.proto */
 static void __Pyx_Raise(PyObject *type, PyObject *value, PyObject *tb, PyObject *cause);
 
+/* PyIntBinop.proto */
+#if !CYTHON_COMPILING_IN_PYPY
+static PyObject* __Pyx_PyInt_EqObjC(PyObject *op1, PyObject *op2, long intval, int inplace);
+#else
+#define __Pyx_PyInt_EqObjC(op1, op2, intval, inplace)\
+    PyObject_RichCompare(op1, op2, Py_EQ)
+    #endif
+
 /* BufferIndexError.proto */
 static void __Pyx_RaiseBufferIndexError(int axis);
 
@@ -3059,7 +3067,7 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
  * 
  *   data = np.ascontiguousarray(data)             # <<<<<<<<<<<<<<
  * 
- *   header_bytes = 28
+ *   header_bytes = 28 # read.cpp:fpzip_read_header + 4 for some reason
  */
   __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 74, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
@@ -3115,7 +3123,7 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
   /* "fpzip.pyx":76
  *   data = np.ascontiguousarray(data)
  * 
- *   header_bytes = 28             # <<<<<<<<<<<<<<
+ *   header_bytes = 28 # read.cpp:fpzip_read_header + 4 for some reason             # <<<<<<<<<<<<<<
  * 
  *   fptype = 'f' if data.dtype == np.float32 else 'd'
  */
@@ -3123,7 +3131,7 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
   __pyx_v_header_bytes = __pyx_int_28;
 
   /* "fpzip.pyx":78
- *   header_bytes = 28
+ *   header_bytes = 28 # read.cpp:fpzip_read_header + 4 for some reason
  * 
  *   fptype = 'f' if data.dtype == np.float32 else 'd'             # <<<<<<<<<<<<<<
  *   cdef array.array compression_buf = allocate(fptype, data.size + header_bytes)
@@ -3367,7 +3375,7 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
  *   if fpzip_write_header(fpz_ptr) == 0:
  *     raise FpzipWriteError("Cannot write header. %s" % FPZ_ERROR_STRINGS[fpzip_errno])             # <<<<<<<<<<<<<<
  * 
- *   # float or double shouldn't matter since we're about to cast to void pointer
+ *   if data.size == 0:
  */
     __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_FpzipWriteError); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 99, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
@@ -3441,19 +3449,71 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
  */
   }
 
-  /* "fpzip.pyx":102
+  /* "fpzip.pyx":101
+ *     raise FpzipWriteError("Cannot write header. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
  * 
+ *   if data.size == 0:             # <<<<<<<<<<<<<<
+ *     fpzip_write_close(fpz_ptr)
+ *     return bytes(compression_buf)[:header_bytes]
+ */
+  __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_v_data, __pyx_n_s_size); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 101, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_7);
+  __pyx_t_1 = __Pyx_PyInt_EqObjC(__pyx_t_7, __pyx_int_0, 0, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 101, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+  __pyx_t_5 = __Pyx_PyObject_IsTrue(__pyx_t_1); if (unlikely(__pyx_t_5 < 0)) __PYX_ERR(0, 101, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+  if (__pyx_t_5) {
+
+    /* "fpzip.pyx":102
+ * 
+ *   if data.size == 0:
+ *     fpzip_write_close(fpz_ptr)             # <<<<<<<<<<<<<<
+ *     return bytes(compression_buf)[:header_bytes]
+ * 
+ */
+    fpzip_write_close(__pyx_v_fpz_ptr);
+
+    /* "fpzip.pyx":103
+ *   if data.size == 0:
+ *     fpzip_write_close(fpz_ptr)
+ *     return bytes(compression_buf)[:header_bytes]             # <<<<<<<<<<<<<<
+ * 
+ *   # can't get raw ptr from numpy object directly, implicit magic
+ */
+    __Pyx_XDECREF(__pyx_r);
+    __pyx_t_1 = __Pyx_PyObject_CallOneArg(((PyObject *)(&PyBytes_Type)), ((PyObject *)__pyx_v_compression_buf)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 103, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    __pyx_t_6 = __Pyx_PyIndex_AsSsize_t(__pyx_v_header_bytes); if (unlikely((__pyx_t_6 == (Py_ssize_t)-1) && PyErr_Occurred())) __PYX_ERR(0, 103, __pyx_L1_error)
+    __pyx_t_7 = PySequence_GetSlice(__pyx_t_1, 0, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 103, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __pyx_r = __pyx_t_7;
+    __pyx_t_7 = 0;
+    goto __pyx_L0;
+
+    /* "fpzip.pyx":101
+ *     raise FpzipWriteError("Cannot write header. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
+ * 
+ *   if data.size == 0:             # <<<<<<<<<<<<<<
+ *     fpzip_write_close(fpz_ptr)
+ *     return bytes(compression_buf)[:header_bytes]
+ */
+  }
+
+  /* "fpzip.pyx":107
+ *   # can't get raw ptr from numpy object directly, implicit magic
  *   # float or double shouldn't matter since we're about to cast to void pointer
  *   cdef float[:,:,:,:] arr_memview = data             # <<<<<<<<<<<<<<
  *   cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>&arr_memview[0,0,0,0])
  *   if outbytes == 0:
  */
-  __pyx_t_11 = __Pyx_PyObject_to_MemoryviewSlice_dsdsdsds_float(__pyx_v_data, PyBUF_WRITABLE); if (unlikely(!__pyx_t_11.memview)) __PYX_ERR(0, 102, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyObject_to_MemoryviewSlice_dsdsdsds_float(__pyx_v_data, PyBUF_WRITABLE); if (unlikely(!__pyx_t_11.memview)) __PYX_ERR(0, 107, __pyx_L1_error)
   __pyx_v_arr_memview = __pyx_t_11;
   __pyx_t_11.memview = NULL;
   __pyx_t_11.data = NULL;
 
-  /* "fpzip.pyx":103
+  /* "fpzip.pyx":108
  *   # float or double shouldn't matter since we're about to cast to void pointer
  *   cdef float[:,:,:,:] arr_memview = data
  *   cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>&arr_memview[0,0,0,0])             # <<<<<<<<<<<<<<
@@ -3483,11 +3543,11 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
   } else if (unlikely(__pyx_t_15 >= __pyx_v_arr_memview.shape[3])) __pyx_t_9 = 3;
   if (unlikely(__pyx_t_9 != -1)) {
     __Pyx_RaiseBufferIndexError(__pyx_t_9);
-    __PYX_ERR(0, 103, __pyx_L1_error)
+    __PYX_ERR(0, 108, __pyx_L1_error)
   }
   __pyx_v_outbytes = fpzip_write(__pyx_v_fpz_ptr, ((void *)(&(*((float *) ( /* dim=3 */ (( /* dim=2 */ (( /* dim=1 */ (( /* dim=0 */ (__pyx_v_arr_memview.data + __pyx_t_12 * __pyx_v_arr_memview.strides[0]) ) + __pyx_t_13 * __pyx_v_arr_memview.strides[1]) ) + __pyx_t_14 * __pyx_v_arr_memview.strides[2]) ) + __pyx_t_15 * __pyx_v_arr_memview.strides[3]) ))))));
 
-  /* "fpzip.pyx":104
+  /* "fpzip.pyx":109
  *   cdef float[:,:,:,:] arr_memview = data
  *   cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>&arr_memview[0,0,0,0])
  *   if outbytes == 0:             # <<<<<<<<<<<<<<
@@ -3497,24 +3557,24 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
   __pyx_t_5 = ((__pyx_v_outbytes == 0) != 0);
   if (unlikely(__pyx_t_5)) {
 
-    /* "fpzip.pyx":105
+    /* "fpzip.pyx":110
  *   cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>&arr_memview[0,0,0,0])
  *   if outbytes == 0:
  *     raise FpzipWriteError("Compression failed. %s" % FPZ_ERROR_STRINGS[fpzip_errno])             # <<<<<<<<<<<<<<
  * 
  *   fpzip_write_close(fpz_ptr)
  */
-    __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_FpzipWriteError); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 105, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_FpzipWriteError); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 110, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_3 = __Pyx_GetModuleGlobalName(__pyx_n_s_FPZ_ERROR_STRINGS); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 105, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_GetModuleGlobalName(__pyx_n_s_FPZ_ERROR_STRINGS); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 110, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = __Pyx_PyInt_From_fpzipError(fpzip_errno); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 105, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyInt_From_fpzipError(fpzip_errno); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 110, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_10 = __Pyx_PyObject_GetItem(__pyx_t_3, __pyx_t_4); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 105, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyObject_GetItem(__pyx_t_3, __pyx_t_4); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 110, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __pyx_t_4 = PyUnicode_Format(__pyx_kp_u_Compression_failed_s, __pyx_t_10); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 105, __pyx_L1_error)
+    __pyx_t_4 = PyUnicode_Format(__pyx_kp_u_Compression_failed_s, __pyx_t_10); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 110, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __pyx_t_10 = NULL;
@@ -3528,14 +3588,14 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
       }
     }
     if (!__pyx_t_10) {
-      __pyx_t_7 = __Pyx_PyObject_CallOneArg(__pyx_t_1, __pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 105, __pyx_L1_error)
+      __pyx_t_7 = __Pyx_PyObject_CallOneArg(__pyx_t_1, __pyx_t_4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 110, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_GOTREF(__pyx_t_7);
     } else {
       #if CYTHON_FAST_PYCALL
       if (PyFunction_Check(__pyx_t_1)) {
         PyObject *__pyx_temp[2] = {__pyx_t_10, __pyx_t_4};
-        __pyx_t_7 = __Pyx_PyFunction_FastCall(__pyx_t_1, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 105, __pyx_L1_error)
+        __pyx_t_7 = __Pyx_PyFunction_FastCall(__pyx_t_1, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 110, __pyx_L1_error)
         __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
         __Pyx_GOTREF(__pyx_t_7);
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
@@ -3544,20 +3604,20 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
       #if CYTHON_FAST_PYCCALL
       if (__Pyx_PyFastCFunction_Check(__pyx_t_1)) {
         PyObject *__pyx_temp[2] = {__pyx_t_10, __pyx_t_4};
-        __pyx_t_7 = __Pyx_PyCFunction_FastCall(__pyx_t_1, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 105, __pyx_L1_error)
+        __pyx_t_7 = __Pyx_PyCFunction_FastCall(__pyx_t_1, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 110, __pyx_L1_error)
         __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
         __Pyx_GOTREF(__pyx_t_7);
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       } else
       #endif
       {
-        __pyx_t_3 = PyTuple_New(1+1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 105, __pyx_L1_error)
+        __pyx_t_3 = PyTuple_New(1+1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 110, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
         __Pyx_GIVEREF(__pyx_t_10); PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_10); __pyx_t_10 = NULL;
         __Pyx_GIVEREF(__pyx_t_4);
         PyTuple_SET_ITEM(__pyx_t_3, 0+1, __pyx_t_4);
         __pyx_t_4 = 0;
-        __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_1, __pyx_t_3, NULL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 105, __pyx_L1_error)
+        __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_1, __pyx_t_3, NULL); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 110, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_7);
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       }
@@ -3565,9 +3625,9 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     __Pyx_Raise(__pyx_t_7, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-    __PYX_ERR(0, 105, __pyx_L1_error)
+    __PYX_ERR(0, 110, __pyx_L1_error)
 
-    /* "fpzip.pyx":104
+    /* "fpzip.pyx":109
  *   cdef float[:,:,:,:] arr_memview = data
  *   cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>&arr_memview[0,0,0,0])
  *   if outbytes == 0:             # <<<<<<<<<<<<<<
@@ -3576,7 +3636,7 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
  */
   }
 
-  /* "fpzip.pyx":107
+  /* "fpzip.pyx":112
  *     raise FpzipWriteError("Compression failed. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
  * 
  *   fpzip_write_close(fpz_ptr)             # <<<<<<<<<<<<<<
@@ -3585,7 +3645,7 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
  */
   fpzip_write_close(__pyx_v_fpz_ptr);
 
-  /* "fpzip.pyx":108
+  /* "fpzip.pyx":113
  * 
  *   fpzip_write_close(fpz_ptr)
  *   return bytes(compression_buf)[:outbytes]             # <<<<<<<<<<<<<<
@@ -3593,9 +3653,9 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
  * def decompress(bytes encoded):
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_7 = __Pyx_PyObject_CallOneArg(((PyObject *)(&PyBytes_Type)), ((PyObject *)__pyx_v_compression_buf)); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 108, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyObject_CallOneArg(((PyObject *)(&PyBytes_Type)), ((PyObject *)__pyx_v_compression_buf)); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 113, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
-  __pyx_t_1 = PySequence_GetSlice(__pyx_t_7, 0, __pyx_v_outbytes); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 108, __pyx_L1_error)
+  __pyx_t_1 = PySequence_GetSlice(__pyx_t_7, 0, __pyx_v_outbytes); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 113, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
   __pyx_r = __pyx_t_1;
@@ -3631,7 +3691,7 @@ static PyObject *__pyx_pf_5fpzip_2compress(CYTHON_UNUSED PyObject *__pyx_self, P
   return __pyx_r;
 }
 
-/* "fpzip.pyx":110
+/* "fpzip.pyx":115
  *   return bytes(compression_buf)[:outbytes]
  * 
  * def decompress(bytes encoded):             # <<<<<<<<<<<<<<
@@ -3646,7 +3706,7 @@ static PyObject *__pyx_pw_5fpzip_5decompress(PyObject *__pyx_self, PyObject *__p
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("decompress (wrapper)", 0);
-  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_encoded), (&PyBytes_Type), 1, "encoded", 1))) __PYX_ERR(0, 110, __pyx_L1_error)
+  if (unlikely(!__Pyx_ArgTypeTest(((PyObject *)__pyx_v_encoded), (&PyBytes_Type), 1, "encoded", 1))) __PYX_ERR(0, 115, __pyx_L1_error)
   __pyx_r = __pyx_pf_5fpzip_4decompress(__pyx_self, ((PyObject*)__pyx_v_encoded));
 
   /* function exit code */
@@ -3681,7 +3741,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
   int __pyx_t_8;
   __Pyx_RefNannySetupContext("decompress", 0);
 
-  /* "fpzip.pyx":112
+  /* "fpzip.pyx":117
  * def decompress(bytes encoded):
  *   # line below necessary to convert from PyObject to a naked pointer
  *   cdef unsigned char *encodedptr = <unsigned char*>encoded             # <<<<<<<<<<<<<<
@@ -3690,12 +3750,12 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
  */
   if (unlikely(__pyx_v_encoded == Py_None)) {
     PyErr_SetString(PyExc_TypeError, "expected bytes, NoneType found");
-    __PYX_ERR(0, 112, __pyx_L1_error)
+    __PYX_ERR(0, 117, __pyx_L1_error)
   }
-  __pyx_t_1 = __Pyx_PyBytes_AsWritableUString(__pyx_v_encoded); if (unlikely((!__pyx_t_1) && PyErr_Occurred())) __PYX_ERR(0, 112, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBytes_AsWritableUString(__pyx_v_encoded); if (unlikely((!__pyx_t_1) && PyErr_Occurred())) __PYX_ERR(0, 117, __pyx_L1_error)
   __pyx_v_encodedptr = ((unsigned char *)__pyx_t_1);
 
-  /* "fpzip.pyx":113
+  /* "fpzip.pyx":118
  *   # line below necessary to convert from PyObject to a naked pointer
  *   cdef unsigned char *encodedptr = <unsigned char*>encoded
  *   cdef FPZ* fpz_ptr = fpzip_read_from_buffer(<void*>encodedptr)             # <<<<<<<<<<<<<<
@@ -3704,7 +3764,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
  */
   __pyx_v_fpz_ptr = fpzip_read_from_buffer(((void *)__pyx_v_encodedptr));
 
-  /* "fpzip.pyx":115
+  /* "fpzip.pyx":120
  *   cdef FPZ* fpz_ptr = fpzip_read_from_buffer(<void*>encodedptr)
  * 
  *   if fpzip_read_header(fpz_ptr) == 0:             # <<<<<<<<<<<<<<
@@ -3714,24 +3774,24 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
   __pyx_t_2 = ((fpzip_read_header(__pyx_v_fpz_ptr) == 0) != 0);
   if (unlikely(__pyx_t_2)) {
 
-    /* "fpzip.pyx":116
+    /* "fpzip.pyx":121
  * 
  *   if fpzip_read_header(fpz_ptr) == 0:
  *     raise FpzipReadError("cannot read header: %s" % FPZ_ERROR_STRINGS[fpzip_errno])             # <<<<<<<<<<<<<<
  * 
  *   fptype = 'f' if fpz_ptr[0].type == 0 else 'd'
  */
-    __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_FpzipReadError); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 116, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_FpzipReadError); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 121, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_5 = __Pyx_GetModuleGlobalName(__pyx_n_s_FPZ_ERROR_STRINGS); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 116, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_GetModuleGlobalName(__pyx_n_s_FPZ_ERROR_STRINGS); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 121, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_6 = __Pyx_PyInt_From_fpzipError(fpzip_errno); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 116, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyInt_From_fpzipError(fpzip_errno); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 121, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_7 = __Pyx_PyObject_GetItem(__pyx_t_5, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 116, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_GetItem(__pyx_t_5, __pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 121, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    __pyx_t_6 = PyUnicode_Format(__pyx_kp_u_cannot_read_header_s, __pyx_t_7); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 116, __pyx_L1_error)
+    __pyx_t_6 = PyUnicode_Format(__pyx_kp_u_cannot_read_header_s, __pyx_t_7); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 121, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     __pyx_t_7 = NULL;
@@ -3745,14 +3805,14 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
       }
     }
     if (!__pyx_t_7) {
-      __pyx_t_3 = __Pyx_PyObject_CallOneArg(__pyx_t_4, __pyx_t_6); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 116, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_PyObject_CallOneArg(__pyx_t_4, __pyx_t_6); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 121, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_GOTREF(__pyx_t_3);
     } else {
       #if CYTHON_FAST_PYCALL
       if (PyFunction_Check(__pyx_t_4)) {
         PyObject *__pyx_temp[2] = {__pyx_t_7, __pyx_t_6};
-        __pyx_t_3 = __Pyx_PyFunction_FastCall(__pyx_t_4, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 116, __pyx_L1_error)
+        __pyx_t_3 = __Pyx_PyFunction_FastCall(__pyx_t_4, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 121, __pyx_L1_error)
         __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
         __Pyx_GOTREF(__pyx_t_3);
         __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
@@ -3761,20 +3821,20 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
       #if CYTHON_FAST_PYCCALL
       if (__Pyx_PyFastCFunction_Check(__pyx_t_4)) {
         PyObject *__pyx_temp[2] = {__pyx_t_7, __pyx_t_6};
-        __pyx_t_3 = __Pyx_PyCFunction_FastCall(__pyx_t_4, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 116, __pyx_L1_error)
+        __pyx_t_3 = __Pyx_PyCFunction_FastCall(__pyx_t_4, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 121, __pyx_L1_error)
         __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
         __Pyx_GOTREF(__pyx_t_3);
         __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
       } else
       #endif
       {
-        __pyx_t_5 = PyTuple_New(1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 116, __pyx_L1_error)
+        __pyx_t_5 = PyTuple_New(1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 121, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_5);
         __Pyx_GIVEREF(__pyx_t_7); PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_t_7); __pyx_t_7 = NULL;
         __Pyx_GIVEREF(__pyx_t_6);
         PyTuple_SET_ITEM(__pyx_t_5, 0+1, __pyx_t_6);
         __pyx_t_6 = 0;
-        __pyx_t_3 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_t_5, NULL); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 116, __pyx_L1_error)
+        __pyx_t_3 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_t_5, NULL); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 121, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
         __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
       }
@@ -3782,9 +3842,9 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __PYX_ERR(0, 116, __pyx_L1_error)
+    __PYX_ERR(0, 121, __pyx_L1_error)
 
-    /* "fpzip.pyx":115
+    /* "fpzip.pyx":120
  *   cdef FPZ* fpz_ptr = fpzip_read_from_buffer(<void*>encodedptr)
  * 
  *   if fpzip_read_header(fpz_ptr) == 0:             # <<<<<<<<<<<<<<
@@ -3793,7 +3853,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
  */
   }
 
-  /* "fpzip.pyx":118
+  /* "fpzip.pyx":123
  *     raise FpzipReadError("cannot read header: %s" % FPZ_ERROR_STRINGS[fpzip_errno])
  * 
  *   fptype = 'f' if fpz_ptr[0].type == 0 else 'd'             # <<<<<<<<<<<<<<
@@ -3810,20 +3870,20 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
   __pyx_v_fptype = ((PyObject*)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "fpzip.pyx":119
+  /* "fpzip.pyx":124
  * 
  *   fptype = 'f' if fpz_ptr[0].type == 0 else 'd'
  *   nx, ny, nz, nf = fpz_ptr[0].nx, fpz_ptr[0].ny, fpz_ptr[0].nz, fpz_ptr[0].nf             # <<<<<<<<<<<<<<
  * 
  *   cdef array.array buf = allocate(fptype, nx * ny * nz * nf)
  */
-  __pyx_t_3 = __Pyx_PyInt_From_int((__pyx_v_fpz_ptr[0]).nx); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 119, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyInt_From_int((__pyx_v_fpz_ptr[0]).nx); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 124, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_4 = __Pyx_PyInt_From_int((__pyx_v_fpz_ptr[0]).ny); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 119, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyInt_From_int((__pyx_v_fpz_ptr[0]).ny); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 124, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = __Pyx_PyInt_From_int((__pyx_v_fpz_ptr[0]).nz); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 119, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyInt_From_int((__pyx_v_fpz_ptr[0]).nz); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 124, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  __pyx_t_6 = __Pyx_PyInt_From_int((__pyx_v_fpz_ptr[0]).nf); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 119, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyInt_From_int((__pyx_v_fpz_ptr[0]).nf); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 124, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __pyx_v_nx = __pyx_t_3;
   __pyx_t_3 = 0;
@@ -3834,29 +3894,29 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
   __pyx_v_nf = __pyx_t_6;
   __pyx_t_6 = 0;
 
-  /* "fpzip.pyx":121
+  /* "fpzip.pyx":126
  *   nx, ny, nz, nf = fpz_ptr[0].nx, fpz_ptr[0].ny, fpz_ptr[0].nz, fpz_ptr[0].nf
  * 
  *   cdef array.array buf = allocate(fptype, nx * ny * nz * nf)             # <<<<<<<<<<<<<<
  * 
  *   cdef size_t read_bytes = 0;
  */
-  __pyx_t_6 = PyNumber_Multiply(__pyx_v_nx, __pyx_v_ny); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 121, __pyx_L1_error)
+  __pyx_t_6 = PyNumber_Multiply(__pyx_v_nx, __pyx_v_ny); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 126, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_5 = PyNumber_Multiply(__pyx_t_6, __pyx_v_nz); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 121, __pyx_L1_error)
+  __pyx_t_5 = PyNumber_Multiply(__pyx_t_6, __pyx_v_nz); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 126, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_6 = PyNumber_Multiply(__pyx_t_5, __pyx_v_nf); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 121, __pyx_L1_error)
+  __pyx_t_6 = PyNumber_Multiply(__pyx_t_5, __pyx_v_nf); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 126, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-  __pyx_t_5 = __pyx_f_5fpzip_allocate(__pyx_v_fptype, __pyx_t_6, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 121, __pyx_L1_error)
+  __pyx_t_5 = __pyx_f_5fpzip_allocate(__pyx_v_fptype, __pyx_t_6, 0); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 126, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  if (!(likely(((__pyx_t_5) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_5, __pyx_ptype_7cpython_5array_array))))) __PYX_ERR(0, 121, __pyx_L1_error)
+  if (!(likely(((__pyx_t_5) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_5, __pyx_ptype_7cpython_5array_array))))) __PYX_ERR(0, 126, __pyx_L1_error)
   __pyx_v_buf = ((arrayobject *)__pyx_t_5);
   __pyx_t_5 = 0;
 
-  /* "fpzip.pyx":123
+  /* "fpzip.pyx":128
  *   cdef array.array buf = allocate(fptype, nx * ny * nz * nf)
  * 
  *   cdef size_t read_bytes = 0;             # <<<<<<<<<<<<<<
@@ -3865,18 +3925,18 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
  */
   __pyx_v_read_bytes = 0;
 
-  /* "fpzip.pyx":124
+  /* "fpzip.pyx":129
  * 
  *   cdef size_t read_bytes = 0;
  *   if fptype == 'f':             # <<<<<<<<<<<<<<
  *     read_bytes = fpzip_read(fpz_ptr, buf.data.as_floats)
  *   else:
  */
-  __pyx_t_2 = (__Pyx_PyUnicode_Equals(__pyx_v_fptype, __pyx_n_u_f, Py_EQ)); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 124, __pyx_L1_error)
+  __pyx_t_2 = (__Pyx_PyUnicode_Equals(__pyx_v_fptype, __pyx_n_u_f, Py_EQ)); if (unlikely(__pyx_t_2 < 0)) __PYX_ERR(0, 129, __pyx_L1_error)
   __pyx_t_8 = (__pyx_t_2 != 0);
   if (__pyx_t_8) {
 
-    /* "fpzip.pyx":125
+    /* "fpzip.pyx":130
  *   cdef size_t read_bytes = 0;
  *   if fptype == 'f':
  *     read_bytes = fpzip_read(fpz_ptr, buf.data.as_floats)             # <<<<<<<<<<<<<<
@@ -3885,7 +3945,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
  */
     __pyx_v_read_bytes = fpzip_read(__pyx_v_fpz_ptr, __pyx_v_buf->data.as_floats);
 
-    /* "fpzip.pyx":124
+    /* "fpzip.pyx":129
  * 
  *   cdef size_t read_bytes = 0;
  *   if fptype == 'f':             # <<<<<<<<<<<<<<
@@ -3895,7 +3955,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
     goto __pyx_L4;
   }
 
-  /* "fpzip.pyx":127
+  /* "fpzip.pyx":132
  *     read_bytes = fpzip_read(fpz_ptr, buf.data.as_floats)
  *   else:
  *     read_bytes = fpzip_read(fpz_ptr, buf.data.as_doubles)             # <<<<<<<<<<<<<<
@@ -3907,7 +3967,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
   }
   __pyx_L4:;
 
-  /* "fpzip.pyx":129
+  /* "fpzip.pyx":134
  *     read_bytes = fpzip_read(fpz_ptr, buf.data.as_doubles)
  * 
  *   if read_bytes == 0:             # <<<<<<<<<<<<<<
@@ -3917,24 +3977,24 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
   __pyx_t_8 = ((__pyx_v_read_bytes == 0) != 0);
   if (unlikely(__pyx_t_8)) {
 
-    /* "fpzip.pyx":130
+    /* "fpzip.pyx":135
  * 
  *   if read_bytes == 0:
  *     raise FpzipReadError("decompression failed: %s" % FPZ_ERROR_STRINGS[fpzip_errno])             # <<<<<<<<<<<<<<
  * 
  *   fpzip_read_close(fpz_ptr)
  */
-    __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_FpzipReadError); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 130, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_FpzipReadError); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 135, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_FPZ_ERROR_STRINGS); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 130, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_FPZ_ERROR_STRINGS); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 135, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_3 = __Pyx_PyInt_From_fpzipError(fpzip_errno); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 130, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PyInt_From_fpzipError(fpzip_errno); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 135, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_7 = __Pyx_PyObject_GetItem(__pyx_t_4, __pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 130, __pyx_L1_error)
+    __pyx_t_7 = __Pyx_PyObject_GetItem(__pyx_t_4, __pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 135, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_7);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = PyUnicode_Format(__pyx_kp_u_decompression_failed_s, __pyx_t_7); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 130, __pyx_L1_error)
+    __pyx_t_3 = PyUnicode_Format(__pyx_kp_u_decompression_failed_s, __pyx_t_7); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 135, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     __pyx_t_7 = NULL;
@@ -3948,14 +4008,14 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
       }
     }
     if (!__pyx_t_7) {
-      __pyx_t_5 = __Pyx_PyObject_CallOneArg(__pyx_t_6, __pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 130, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyObject_CallOneArg(__pyx_t_6, __pyx_t_3); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 135, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       __Pyx_GOTREF(__pyx_t_5);
     } else {
       #if CYTHON_FAST_PYCALL
       if (PyFunction_Check(__pyx_t_6)) {
         PyObject *__pyx_temp[2] = {__pyx_t_7, __pyx_t_3};
-        __pyx_t_5 = __Pyx_PyFunction_FastCall(__pyx_t_6, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 130, __pyx_L1_error)
+        __pyx_t_5 = __Pyx_PyFunction_FastCall(__pyx_t_6, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 135, __pyx_L1_error)
         __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
         __Pyx_GOTREF(__pyx_t_5);
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
@@ -3964,20 +4024,20 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
       #if CYTHON_FAST_PYCCALL
       if (__Pyx_PyFastCFunction_Check(__pyx_t_6)) {
         PyObject *__pyx_temp[2] = {__pyx_t_7, __pyx_t_3};
-        __pyx_t_5 = __Pyx_PyCFunction_FastCall(__pyx_t_6, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 130, __pyx_L1_error)
+        __pyx_t_5 = __Pyx_PyCFunction_FastCall(__pyx_t_6, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 135, __pyx_L1_error)
         __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
         __Pyx_GOTREF(__pyx_t_5);
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       } else
       #endif
       {
-        __pyx_t_4 = PyTuple_New(1+1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 130, __pyx_L1_error)
+        __pyx_t_4 = PyTuple_New(1+1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 135, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_4);
         __Pyx_GIVEREF(__pyx_t_7); PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_7); __pyx_t_7 = NULL;
         __Pyx_GIVEREF(__pyx_t_3);
         PyTuple_SET_ITEM(__pyx_t_4, 0+1, __pyx_t_3);
         __pyx_t_3 = 0;
-        __pyx_t_5 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_4, NULL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 130, __pyx_L1_error)
+        __pyx_t_5 = __Pyx_PyObject_Call(__pyx_t_6, __pyx_t_4, NULL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 135, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_5);
         __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       }
@@ -3985,9 +4045,9 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_Raise(__pyx_t_5, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    __PYX_ERR(0, 130, __pyx_L1_error)
+    __PYX_ERR(0, 135, __pyx_L1_error)
 
-    /* "fpzip.pyx":129
+    /* "fpzip.pyx":134
  *     read_bytes = fpzip_read(fpz_ptr, buf.data.as_doubles)
  * 
  *   if read_bytes == 0:             # <<<<<<<<<<<<<<
@@ -3996,7 +4056,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
  */
   }
 
-  /* "fpzip.pyx":132
+  /* "fpzip.pyx":137
  *     raise FpzipReadError("decompression failed: %s" % FPZ_ERROR_STRINGS[fpzip_errno])
  * 
  *   fpzip_read_close(fpz_ptr)             # <<<<<<<<<<<<<<
@@ -4005,26 +4065,26 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
  */
   fpzip_read_close(__pyx_v_fpz_ptr);
 
-  /* "fpzip.pyx":134
+  /* "fpzip.pyx":139
  *   fpzip_read_close(fpz_ptr)
  * 
  *   dtype = np.float32 if fptype == 'f' else np.float64             # <<<<<<<<<<<<<<
  *   return np.frombuffer(buf, dtype=dtype).reshape( (nx, ny, nz, nf) )
  * 
  */
-  __pyx_t_8 = (__Pyx_PyUnicode_Equals(__pyx_v_fptype, __pyx_n_u_f, Py_EQ)); if (unlikely(__pyx_t_8 < 0)) __PYX_ERR(0, 134, __pyx_L1_error)
+  __pyx_t_8 = (__Pyx_PyUnicode_Equals(__pyx_v_fptype, __pyx_n_u_f, Py_EQ)); if (unlikely(__pyx_t_8 < 0)) __PYX_ERR(0, 139, __pyx_L1_error)
   if ((__pyx_t_8 != 0)) {
-    __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 134, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 139, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_float32); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 134, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_float32); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 139, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __pyx_t_5 = __pyx_t_4;
     __pyx_t_4 = 0;
   } else {
-    __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 134, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 139, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_float64); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 134, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_float64); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 139, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_t_5 = __pyx_t_6;
@@ -4033,7 +4093,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
   __pyx_v_dtype = __pyx_t_5;
   __pyx_t_5 = 0;
 
-  /* "fpzip.pyx":135
+  /* "fpzip.pyx":140
  * 
  *   dtype = np.float32 if fptype == 'f' else np.float64
  *   return np.frombuffer(buf, dtype=dtype).reshape( (nx, ny, nz, nf) )             # <<<<<<<<<<<<<<
@@ -4041,28 +4101,28 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
  * 
  */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 140, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_frombuffer); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_n_s_frombuffer); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 140, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __pyx_t_6 = PyTuple_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_6 = PyTuple_New(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 140, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_INCREF(((PyObject *)__pyx_v_buf));
   __Pyx_GIVEREF(((PyObject *)__pyx_v_buf));
   PyTuple_SET_ITEM(__pyx_t_6, 0, ((PyObject *)__pyx_v_buf));
-  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 140, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_dtype, __pyx_v_dtype) < 0) __PYX_ERR(0, 135, __pyx_L1_error)
-  __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_t_6, __pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 135, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_3, __pyx_n_s_dtype, __pyx_v_dtype) < 0) __PYX_ERR(0, 140, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_t_6, __pyx_t_3); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 140, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_reshape); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_7, __pyx_n_s_reshape); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 140, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
-  __pyx_t_7 = PyTuple_New(4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 135, __pyx_L1_error)
+  __pyx_t_7 = PyTuple_New(4); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 140, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __Pyx_INCREF(__pyx_v_nx);
   __Pyx_GIVEREF(__pyx_v_nx);
@@ -4087,14 +4147,14 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
     }
   }
   if (!__pyx_t_6) {
-    __pyx_t_5 = __Pyx_PyObject_CallOneArg(__pyx_t_3, __pyx_t_7); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 135, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyObject_CallOneArg(__pyx_t_3, __pyx_t_7); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 140, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     __Pyx_GOTREF(__pyx_t_5);
   } else {
     #if CYTHON_FAST_PYCALL
     if (PyFunction_Check(__pyx_t_3)) {
       PyObject *__pyx_temp[2] = {__pyx_t_6, __pyx_t_7};
-      __pyx_t_5 = __Pyx_PyFunction_FastCall(__pyx_t_3, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 135, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyFunction_FastCall(__pyx_t_3, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 140, __pyx_L1_error)
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_GOTREF(__pyx_t_5);
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
@@ -4103,20 +4163,20 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
     #if CYTHON_FAST_PYCCALL
     if (__Pyx_PyFastCFunction_Check(__pyx_t_3)) {
       PyObject *__pyx_temp[2] = {__pyx_t_6, __pyx_t_7};
-      __pyx_t_5 = __Pyx_PyCFunction_FastCall(__pyx_t_3, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 135, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyCFunction_FastCall(__pyx_t_3, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 140, __pyx_L1_error)
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
       __Pyx_GOTREF(__pyx_t_5);
       __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     } else
     #endif
     {
-      __pyx_t_4 = PyTuple_New(1+1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 135, __pyx_L1_error)
+      __pyx_t_4 = PyTuple_New(1+1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 140, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_GIVEREF(__pyx_t_6); PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_6); __pyx_t_6 = NULL;
       __Pyx_GIVEREF(__pyx_t_7);
       PyTuple_SET_ITEM(__pyx_t_4, 0+1, __pyx_t_7);
       __pyx_t_7 = 0;
-      __pyx_t_5 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_4, NULL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 135, __pyx_L1_error)
+      __pyx_t_5 = __Pyx_PyObject_Call(__pyx_t_3, __pyx_t_4, NULL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 140, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_5);
       __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     }
@@ -4126,7 +4186,7 @@ static PyObject *__pyx_pf_5fpzip_4decompress(CYTHON_UNUSED PyObject *__pyx_self,
   __pyx_t_5 = 0;
   goto __pyx_L0;
 
-  /* "fpzip.pyx":110
+  /* "fpzip.pyx":115
  *   return bytes(compression_buf)[:outbytes]
  * 
  * def decompress(bytes encoded):             # <<<<<<<<<<<<<<
@@ -21404,17 +21464,17 @@ static int __Pyx_InitCachedConstants(void) {
   __Pyx_GIVEREF(__pyx_tuple__34);
   __pyx_codeobj__35 = (PyObject*)__Pyx_PyCode_New(2, 0, 8, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__34, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_fpzip_pyx, __pyx_n_s_compress, 68, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__35)) __PYX_ERR(0, 68, __pyx_L1_error)
 
-  /* "fpzip.pyx":110
+  /* "fpzip.pyx":115
  *   return bytes(compression_buf)[:outbytes]
  * 
  * def decompress(bytes encoded):             # <<<<<<<<<<<<<<
  *   # line below necessary to convert from PyObject to a naked pointer
  *   cdef unsigned char *encodedptr = <unsigned char*>encoded
  */
-  __pyx_tuple__36 = PyTuple_Pack(11, __pyx_n_s_encoded, __pyx_n_s_encodedptr, __pyx_n_s_fpz_ptr, __pyx_n_s_fptype, __pyx_n_s_nx, __pyx_n_s_ny, __pyx_n_s_nz, __pyx_n_s_nf, __pyx_n_s_buf, __pyx_n_s_read_bytes, __pyx_n_s_dtype); if (unlikely(!__pyx_tuple__36)) __PYX_ERR(0, 110, __pyx_L1_error)
+  __pyx_tuple__36 = PyTuple_Pack(11, __pyx_n_s_encoded, __pyx_n_s_encodedptr, __pyx_n_s_fpz_ptr, __pyx_n_s_fptype, __pyx_n_s_nx, __pyx_n_s_ny, __pyx_n_s_nz, __pyx_n_s_nf, __pyx_n_s_buf, __pyx_n_s_read_bytes, __pyx_n_s_dtype); if (unlikely(!__pyx_tuple__36)) __PYX_ERR(0, 115, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_tuple__36);
   __Pyx_GIVEREF(__pyx_tuple__36);
-  __pyx_codeobj__37 = (PyObject*)__Pyx_PyCode_New(1, 0, 11, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__36, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_fpzip_pyx, __pyx_n_s_decompress, 110, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__37)) __PYX_ERR(0, 110, __pyx_L1_error)
+  __pyx_codeobj__37 = (PyObject*)__Pyx_PyCode_New(1, 0, 11, 0, CO_OPTIMIZED|CO_NEWLOCALS, __pyx_empty_bytes, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_tuple__36, __pyx_empty_tuple, __pyx_empty_tuple, __pyx_kp_s_fpzip_pyx, __pyx_n_s_decompress, 115, __pyx_empty_bytes); if (unlikely(!__pyx_codeobj__37)) __PYX_ERR(0, 115, __pyx_L1_error)
 
   /* "View.MemoryView":285
  *         return self.name
@@ -21963,16 +22023,16 @@ if (!__Pyx_RefNanny) {
   if (PyDict_SetItem(__pyx_d, __pyx_n_s_compress, __pyx_t_1) < 0) __PYX_ERR(0, 68, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "fpzip.pyx":110
+  /* "fpzip.pyx":115
  *   return bytes(compression_buf)[:outbytes]
  * 
  * def decompress(bytes encoded):             # <<<<<<<<<<<<<<
  *   # line below necessary to convert from PyObject to a naked pointer
  *   cdef unsigned char *encodedptr = <unsigned char*>encoded
  */
-  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_5fpzip_5decompress, NULL, __pyx_n_s_fpzip); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 110, __pyx_L1_error)
+  __pyx_t_1 = PyCFunction_NewEx(&__pyx_mdef_5fpzip_5decompress, NULL, __pyx_n_s_fpzip); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 115, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_d, __pyx_n_s_decompress, __pyx_t_1) < 0) __PYX_ERR(0, 110, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_d, __pyx_n_s_decompress, __pyx_t_1) < 0) __PYX_ERR(0, 115, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
   /* "fpzip.pyx":1
@@ -23058,6 +23118,97 @@ static void __Pyx_Raise(PyObject *type, PyObject *value, PyObject *tb, PyObject 
 bad:
     Py_XDECREF(owned_instance);
     return;
+}
+#endif
+
+/* PyIntBinop */
+    #if !CYTHON_COMPILING_IN_PYPY
+static PyObject* __Pyx_PyInt_EqObjC(PyObject *op1, PyObject *op2, CYTHON_UNUSED long intval, CYTHON_UNUSED int inplace) {
+    if (op1 == op2) {
+        Py_RETURN_TRUE;
+    }
+    #if PY_MAJOR_VERSION < 3
+    if (likely(PyInt_CheckExact(op1))) {
+        const long b = intval;
+        long a = PyInt_AS_LONG(op1);
+        if (a == b) {
+            Py_RETURN_TRUE;
+        } else {
+            Py_RETURN_FALSE;
+        }
+    }
+    #endif
+    #if CYTHON_USE_PYLONG_INTERNALS
+    if (likely(PyLong_CheckExact(op1))) {
+        const long b = intval;
+        long a;
+        const digit* digits = ((PyLongObject*)op1)->ob_digit;
+        const Py_ssize_t size = Py_SIZE(op1);
+        if (likely(__Pyx_sst_abs(size) <= 1)) {
+            a = likely(size) ? digits[0] : 0;
+            if (size == -1) a = -a;
+        } else {
+            switch (size) {
+                case -2:
+                    if (8 * sizeof(long) - 1 > 2 * PyLong_SHIFT) {
+                        a = -(long) (((((unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+                    }
+                    CYTHON_FALLTHROUGH;
+                case 2:
+                    if (8 * sizeof(long) - 1 > 2 * PyLong_SHIFT) {
+                        a = (long) (((((unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+                    }
+                    CYTHON_FALLTHROUGH;
+                case -3:
+                    if (8 * sizeof(long) - 1 > 3 * PyLong_SHIFT) {
+                        a = -(long) (((((((unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+                    }
+                    CYTHON_FALLTHROUGH;
+                case 3:
+                    if (8 * sizeof(long) - 1 > 3 * PyLong_SHIFT) {
+                        a = (long) (((((((unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+                    }
+                    CYTHON_FALLTHROUGH;
+                case -4:
+                    if (8 * sizeof(long) - 1 > 4 * PyLong_SHIFT) {
+                        a = -(long) (((((((((unsigned long)digits[3]) << PyLong_SHIFT) | (unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+                    }
+                    CYTHON_FALLTHROUGH;
+                case 4:
+                    if (8 * sizeof(long) - 1 > 4 * PyLong_SHIFT) {
+                        a = (long) (((((((((unsigned long)digits[3]) << PyLong_SHIFT) | (unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0]));
+                        break;
+                    }
+                    CYTHON_FALLTHROUGH;
+                #if PyLong_SHIFT < 30 && PyLong_SHIFT != 15
+                default: return PyLong_Type.tp_richcompare(op1, op2, Py_EQ);
+                #else
+                default: Py_RETURN_FALSE;
+                #endif
+            }
+        }
+            if (a == b) {
+                Py_RETURN_TRUE;
+            } else {
+                Py_RETURN_FALSE;
+            }
+    }
+    #endif
+    if (PyFloat_CheckExact(op1)) {
+        const long b = intval;
+        double a = PyFloat_AS_DOUBLE(op1);
+            if ((double)a == (double)b) {
+                Py_RETURN_TRUE;
+            } else {
+                Py_RETURN_FALSE;
+            }
+    }
+    return PyObject_RichCompare(op1, op2, Py_EQ);
 }
 #endif
 

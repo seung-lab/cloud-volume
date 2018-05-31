@@ -73,7 +73,7 @@ def compress(data, precision=0):
 
   data = np.ascontiguousarray(data)
 
-  header_bytes = 28
+  header_bytes = 28 # read.cpp:fpzip_read_header + 4 for some reason
 
   fptype = 'f' if data.dtype == np.float32 else 'd'
   cdef array.array compression_buf = allocate(fptype, data.size + header_bytes)
@@ -98,6 +98,11 @@ def compress(data, precision=0):
   if fpzip_write_header(fpz_ptr) == 0:
     raise FpzipWriteError("Cannot write header. %s" % FPZ_ERROR_STRINGS[fpzip_errno])
 
+  if data.size == 0:
+    fpzip_write_close(fpz_ptr)
+    return bytes(compression_buf)[:header_bytes] 
+
+  # can't get raw ptr from numpy object directly, implicit magic
   # float or double shouldn't matter since we're about to cast to void pointer
   cdef float[:,:,:,:] arr_memview = data 
   cdef size_t outbytes = fpzip_write(fpz_ptr, <void*>&arr_memview[0,0,0,0])
