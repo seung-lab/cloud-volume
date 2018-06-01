@@ -6,16 +6,16 @@ import sys
 from .lib import yellow
 
 try:
-  from cloudvolume import fpzip
+  import fpzip 
 except ImportError:
   print(yellow("fpzip codec is not available. Was it compiled? Try CloudVolume's python setup.py build_ext"))
   class fpzip():
     @classmethod
     def compress(cls, content):
-      raise NotImplementedError("Please compile the fpzip C extension.")
+      raise NotImplementedError("Please compile the fpzip C++ extension.")
     @classmethod
     def decompress(cls, content):
-      raise NotImplementedError("Please compile the fpzip C extension.")
+      raise NotImplementedError("Please compile the fpzip C++ extension.")
 
 class DecodingError(Exception):
   pass

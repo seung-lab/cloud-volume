@@ -1,8 +1,12 @@
 import pytest
 
+import sys
+
 import numpy as np
 
 from cloudvolume.compression import compress, decompress
+
+SUPPORTED_PYTHON_VERSION = (sys.version_info[0] == 3)
 
 def test_gzip():
 	for N in range(100):
@@ -14,6 +18,10 @@ def test_gzip():
 
 
 def test_fpzip():
+	# extension only supports python 3
+	if not SUPPORTED_PYTHON_VERSION:
+		return
+	
 	for N in range(100):
 		flts = np.array(range(N), dtype=np.float32).reshape( (N,1,1,1) )
 		compressed = compress(flts, 'fpzip')

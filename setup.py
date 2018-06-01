@@ -19,7 +19,7 @@ setuptools.setup(
     },
     ext_modules=[
         setuptools.Extension(
-            'cloudvolume.fpzip',
+            'fpzip',
             optional=True,
             sources=[ join(fpzipdir, 'src', x) for x in ( 
             	'error.cpp', 'rcdecoder.cpp', 'rcencoder.cpp', 

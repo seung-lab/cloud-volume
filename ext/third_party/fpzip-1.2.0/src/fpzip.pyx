@@ -2,12 +2,15 @@ from libc.stdio cimport FILE, fopen, fwrite, fclose
 from libc.stdlib cimport calloc, free
 from cpython cimport array 
 import array
+import sys
 
 cimport numpy as numpy
 
 import numpy as np
 
 __VERSION__ = '1.2.0'
+
+SUPPORTED_PYTHON_VERSION = (sys.version_info[0] == 3)
 
 FPZ_ERROR_STRINGS = [
   "success",
@@ -60,12 +63,21 @@ class FpzipWriteError(FpzipError):
 class FpzipReadError(FpzipError):
   pass
 
-cpdef allocate(dtype, ct):
-  cdef array.array array_template = array.array(dtype, [])
+cpdef allocate(typecode, ct):
+  cdef array.array array_template = array.array(typecode, [])
   # create an array with 3 elements with same type as template
   return array.clone(array_template, ct, zero=True)
 
 def compress(data, precision=0):
+  """
+  fpzip.compress(data, precision=0)
+
+  Takes a 3d or 4d numpy array of floats or doubles and returns
+  a compressed bytestring.
+  """
+  if not SUPPORTED_PYTHON_VERSION:
+    raise NotImplementedError("This fpzip extension only supports Python 3.")
+
   assert data.dtype in (np.float32, np.float64)
 
   if len(data.shape) == 3:
@@ -113,6 +125,15 @@ def compress(data, precision=0):
   return bytes(compression_buf)[:outbytes] 
 
 def decompress(bytes encoded):
+  """
+  fpzip.decompress(encoded)
+
+  Accepts an fpzip encoded bytestring (e.g. b'fpy)....') and 
+  returns the 4d numpy array that generated it.
+  """
+  if not SUPPORTED_PYTHON_VERSION:
+    raise NotImplementedError("This fpzip extension only supports Python 3.")
+  
   # line below necessary to convert from PyObject to a naked pointer
   cdef unsigned char *encodedptr = <unsigned char*>encoded 
   cdef FPZ* fpz_ptr = fpzip_read_from_buffer(<void*>encodedptr)
