@@ -5,18 +5,6 @@ import sys
 
 from .lib import yellow
 
-try:
-  import fpzip 
-except ImportError:
-  print(yellow("fpzip codec is not available. Was it compiled? Try CloudVolume's python setup.py build_ext"))
-  class fpzip():
-    @classmethod
-    def compress(cls, content):
-      raise NotImplementedError("Please compile the fpzip C++ extension.")
-    @classmethod
-    def decompress(cls, content):
-      raise NotImplementedError("Please compile the fpzip C++ extension.")
-
 class DecodingError(Exception):
   pass
 
@@ -44,8 +32,6 @@ def decompress(content, encoding, filename='N/A'):
       return content
     elif encoding == 'gzip':
       return gunzip(content)
-    elif encoding == 'fpzip':
-      return fpzip.decompress(content)
   except DecodingError as err:
     print("Filename: " + str(filename))
     raise
@@ -74,8 +60,6 @@ def compress(content, method='gzip'):
     return content
   elif method == 'gzip': 
     return gzip_compress(content)
-  elif method == 'fpzip':
-    return fpzip.compress(content)
   raise NotImplementedError(str(method) + ' is not currently supported. Supported Options: None, gzip')
 
 def gzip_compress(content):

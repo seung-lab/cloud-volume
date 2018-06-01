@@ -17,13 +17,29 @@ import io
 import numpy as np
 from PIL import Image
 
+from .lib import yellow
 from . import compressed_segmentation
+
+try:
+  import fpzip 
+except ImportError:
+  print(yellow("CloudVolume: fpzip codec is not available. Was it compiled? python setup.py build_ext --inplace"))
+  class fpzip():
+    @classmethod
+    def compress(cls, content):
+      raise NotImplementedError("Please compile the fpzip C++ extension.")
+    @classmethod
+    def decompress(cls, content):
+      raise NotImplementedError("Please compile the fpzip C++ extension.")
+
 
 def encode(img_chunk, encoding, block_size=None):
   if encoding == "raw":
     return encode_raw(img_chunk)
   elif encoding == "kempressed":
     return encode_kempressed(img_chunk)
+  elif encoding == "fpzip":
+    return fpzip.compress(img_chunk)
   elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
   elif encoding == "jpeg":
@@ -38,20 +54,22 @@ def encode(img_chunk, encoding, block_size=None):
     raise NotImplementedError(encoding)
 
 def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
-  if (shape is None or dtype is None) and encoding is not 'npz':
+  if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed'):
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
     return np.zeros(shape=shape, dtype=dtype)
-  elif encoding == 'raw':
+  elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == "kempressed":
     return decode_kempressed(filedata)
-  elif encoding == 'compressed_segmentation':
+  elif encoding == "fpzip":
+    return fpzip.decompress(filedata)
+  elif encoding == "compressed_segmentation":
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
-  elif encoding == 'jpeg':
+  elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
-  elif encoding == 'npz':
+  elif encoding == "npz":
     return decode_npz(filedata)
   else:
     raise NotImplementedError(encoding)
@@ -100,10 +118,12 @@ def encode_raw(subvol):
   return subvol.tostring('F')
 
 def encode_kempressed(subvol):
-  return 2.0 + np.swapaxes(subvol, 2,3)
+  data = 2.0 + np.swapaxes(subvol, 2,3)
+  return fpzip.compress(data)
 
-def decode_kempressed(subvol):
+def decode_kempressed(bytestring):
   """subvol not bytestring since numpy conversion is done inside fpzip extension."""
+  subvol = fpzip.decompress(bytestring)
   return np.swapaxes(subvol, 3,2) - 2.0
 
 def decode_npz(string):

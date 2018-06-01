@@ -220,6 +220,8 @@ def shade(renderbuffer, bufferbbox, img3d, bbox):
 def content_type(vol):
   if vol.encoding == 'jpeg':
     return 'image/jpeg'
+  elif vol.encoding in ('compressed_segmentation', 'fpzip', 'kempressed'):
+    return 'image/x.' + vol.encoding 
   return 'application/octet-stream'
 
 def should_compress(vol):
