@@ -23,14 +23,14 @@ from . import compressed_segmentation
 try:
   import fpzip 
 except ImportError:
-  print(yellow("CloudVolume: fpzip codec is not available. Was it compiled? python setup.py build_ext --inplace"))
+  fpziperrormsg = yellow("CloudVolume: fpzip codec is not available. Was it compiled? python setup.py build_ext --inplace")
   class fpzip():
     @classmethod
     def compress(cls, content):
-      raise NotImplementedError("Please compile the fpzip C++ extension.")
+      raise NotImplementedError(fpziperrormsg)
     @classmethod
     def decompress(cls, content):
-      raise NotImplementedError("Please compile the fpzip C++ extension.")
+      raise NotImplementedError(fpziperrormsg)
 
 
 def encode(img_chunk, encoding, block_size=None):
