@@ -2,7 +2,7 @@
 
 # cloud-volume
 
-```
+```python3
 from cloudvolume import CloudVolume
 
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
@@ -25,7 +25,7 @@ Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster 
 
 #### `pip` Installation
 
-```
+```bash
 pip install cloud-volume
 ```
 
@@ -33,7 +33,7 @@ pip install cloud-volume
 
 This can be desirable if you want to hack on CloudVolume itself.  
 
-```
+```bash
 git clone git@github.com:seung-lab/cloud-volume.git
 cd cloud-volume
 
@@ -53,7 +53,7 @@ You'll need credentials only for the services you'll use. If you plan to use the
 
 If neither of those two conditions apply, you need a service account credential. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
 
-```
+```bash
 mkdir -p ~/.cloudvolume/secrets/
 mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
 mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
@@ -110,7 +110,7 @@ Neuroglancer relies on an [`info`](https://github.com/google/neuroglancer/tree/m
 
 In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`.
 
-```
+```python3
 info = cloudvolume.CloudVolume.create_new_info(
     num_channels    = 1,
     layer_type      = 'segmentation',
@@ -131,7 +131,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 
 ### Examples
 
-```
+```python3
 # Basic Examples
 vol = CloudVolume('gs://mybucket/retina/image') 
 vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missing=False) 
@@ -186,7 +186,12 @@ vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files i
 
 ### CloudVolume Constructor
 
-`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, autocrop=False, cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None, compress=None, non_aligned_writes=False, parallel=1)`  
+```python3
+CloudVolume(cloudpath, 
+     mip=0, bounded=True, fill_missing=False, autocrop=False, 
+     cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, 
+     provenance=None, compress=None, non_aligned_writes=False, parallel=1)
+```
 
 * mip - Which mip level to access
 * bounded - Whether access is allowed outside the bounds defined in the info file
