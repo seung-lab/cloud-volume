@@ -14,17 +14,17 @@
  */
 
 /*
-  Debugging compilation:
+Debugging compilation:
 
-  emcc --bind -g4 -std=c++11 -DFPZIP_FP=FPZIP_FP_FAST -DFPZIP_BLOCK_SIZE=0x1000 -DWITH_UNION \
-    -fPIC -Iinc src/read.cpp src/fpzip_emscripten.cpp src/rcdecoder.cpp src/rcqsmodel.cpp \
-    -s EXPORTED_FUNCTIONS="[ '_decompress', '_dekempress' ]" -s SIMD=0 -o fpzip.js
+emcc --bind -g4 -std=c++11 -DFPZIP_FP=FPZIP_FP_FAST -DFPZIP_BLOCK_SIZE=0x1000 -DWITH_UNION \
+  -fPIC -Iinc src/read.cpp src/fpzip_emscripten.cpp src/rcdecoder.cpp src/rcqsmodel.cpp \
+  -s EXPORTED_FUNCTIONS="[ '_decompress', '_dekempress' ]" -s SIMD=0 -o fpzip.js
 
-  Production compilation:
+Production compilation:
 
-  emcc -O2 --bind -std=c++11 -DFPZIP_FP=FPZIP_FP_FAST -DFPZIP_BLOCK_SIZE=0x1000 -DWITH_UNION \
-    -fPIC -Iinc src/read.cpp src/fpzip_emscripten.cpp src/rcdecoder.cpp src/rcqsmodel.cpp \
-    -s EXPORTED_FUNCTIONS="[ '_decompress', '_dekempress' ]" -s SIMD=1 -o fpzip.js
+emcc -O2 -s SIMD=1 --bind -std=c++11 -DFPZIP_FP=FPZIP_FP_FAST -DFPZIP_BLOCK_SIZE=0x1000 -DWITH_UNION \
+  -fPIC -Iinc src/read.cpp src/fpzip_emscripten.cpp src/rcdecoder.cpp src/rcqsmodel.cpp \
+  -s EXPORTED_FUNCTIONS="[ '_decompress', '_dekempress' ]" -o fpzip.js
 */
 
 #include <stdio.h>
@@ -35,6 +35,8 @@
 #include <emscripten/bind.h>
 
 using namespace emscripten;
+
+/* PROTOTYPES */
 
 struct DecodedImage {
   int type;
@@ -47,43 +49,33 @@ struct DecodedImage {
   void* data;
 };
 
-/* fpzip decompression + dekempression.
- *  
- * 1) fpzip decompress
- * 2) Subtract 2.0 from all elements.  
- * 3) XYCZ -> XYZC
- * 
- * Example:
- * DecodedImage *di = dekempress(buffer);
- * float* img = (float*)di->data;
- */
-DecodedImage* dekempress(void *buffer) {
-  DecodedImage* di = decompress(buffer);
+DecodedImage* decompress(void* buffer);
+DecodedImage* dekempress(void* buffer);
 
+/* IMPLEMENTATION */
+
+template <typename T>
+DecodedImage* dekempress_algo(DecodedImage *di) {
   int nx = di->nx;
   int ny = di->ny;
   int nz = di->nz;
-  int nf = di->nf; // assumed to be 3
+  int nf = di->nf; 
 
-  const void* data = di->data;
+  T *data = (T*)di->data;
   const int nbytes = di->nbytes;
   for (int i = 0; i < nbytes; i++) {
     data[i] -= 2.0;
   }
 
-  size_t dtype_size = (di->type == FPZIP_TYPE_FLOAT) 
-    ? sizeof(float) 
-    : sizeof(double);
+  T *dekempressed = (T*)calloc(nx * ny * nz * nf, sizeof(T));
+  T *src;
+  T *dest;
 
-  void *dekempressed = calloc(nx * ny * nz * nf, dtype_size);
-  void *src;
-  void *dest;
-
-  const int xysize = nx * ny * dtype_size;
+  const int xysize = nx * ny;
   int offset = 0;
   
   for (int channel = 0; channel < nf; channel++) {
-    offset = nx * ny * nz * channel * dtype_size;
+    offset = nx * ny * nz * channel;
 
     for (int z = 0; z < nz; z++) {
       src = &data[ z * xysize * (nf + channel) ];
@@ -98,6 +90,25 @@ DecodedImage* dekempress(void *buffer) {
   return di;
 }
 
+/* fpzip decompression + dekempression.
+ *  
+ * 1) fpzip decompress
+ * 2) Subtract 2.0 from all elements.  
+ * 3) XYCZ -> XYZC
+ * 
+ * Example:
+ * DecodedImage *di = dekempress(buffer);
+ * float* img = (float*)di->data;
+ */
+DecodedImage* dekempress(void *buffer) {
+  DecodedImage* di = decompress(buffer);
+
+  if (di->type == FPZIP_TYPE_FLOAT) {
+    return dekempress_algo<float>(di);
+  }
+
+  return dekempress_algo<double>(di);
+}
 
 /* Standard fpzip decompression. 
  * 
