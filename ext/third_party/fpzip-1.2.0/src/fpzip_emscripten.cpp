@@ -162,7 +162,7 @@ DecodedImage* decompress(void *buffer) {
   res->ny = ny;
   res->nz = nz;
   res->nf = nf;
-  res->nbytes = (int)count * (type + 1) * (int)sizeof(float);
+  res->nbytes = (int)count * (int)size;
   res->data = data;
 
   return res;
