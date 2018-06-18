@@ -80,7 +80,7 @@ DecodedImage* dekempress_algo(DecodedImage *di) {
     for (int z = 0; z < nz; z++) {
       src = &data[ z * xysize * (nf + channel) ];
       dest = &dekempressed[ z * xysize + offset ];
-      memcpy(dest, src, xysize); 
+      memcpy(dest, src, xysize * sizeof(T)); 
     }  
   }
 
