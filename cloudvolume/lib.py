@@ -372,6 +372,22 @@ class Bbox(object):
   def center(self):
     return (self.minpt + self.maxpt) / 2.0
 
+  def grow(self, amt):
+    assert amt >= 0
+    self.minpt -= amt
+    self.maxpt += amt
+    return self
+
+  def shrink(self, amt):
+    assert amt >= 0
+    self.minpt += amt
+    self.maxpt -= amt
+
+    if np.any(self.minpt > self.maxpt):
+      raise ValueError("Cannot shrink bbox below zero volume.")
+
+    return self
+
   def expand_to_chunk_size(self, chunk_size, offset=Vec(0,0,0, dtype=int)):
     """
     Align a potentially non-axis aligned bbox to the grid by growing it

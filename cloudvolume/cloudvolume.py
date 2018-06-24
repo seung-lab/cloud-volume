@@ -29,6 +29,7 @@ from .lib import (
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
+from .skeletonservice import PrecomputedSkeletonService
 from .storage import SimpleStorage, Storage
 from . import txrx
 from .volumecutout import VolumeCutout
@@ -154,7 +155,8 @@ class CloudVolume(object):
 
   def init_submodules(self, cache):
     self.cache = CacheService(cache, weakref.proxy(self)) 
-    self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
+    self.mesh = PrecomputedMeshService(weakref.proxy(self))
+    self.skeleton = PrecomputedSkeletonService(weakref.proxy(self)) 
 
   def generate_shared_memory_location(self):
     return 'cloudvolume-shm-' + str(uuid.uuid4())
@@ -177,7 +179,11 @@ class CloudVolume(object):
       raise
       
   @classmethod
-  def create_new_info(cls, num_channels, layer_type, data_type, encoding, resolution, voxel_offset, volume_size, mesh=None, chunk_size=(64,64,64)):
+  def create_new_info(cls, 
+    num_channels, layer_type, data_type, encoding, 
+    resolution, voxel_offset, volume_size, 
+    mesh=None, skeletons=None, chunk_size=(64,64,64)
+  ):
     """
     Used for creating new neuroglancer info files.
 
@@ -192,6 +198,7 @@ class CloudVolume(object):
     
     Optional:
       mesh: (str) name of mesh directory, typically "mesh"
+      skeletons: (str) name of skeletons directory, typically "skeletons"
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
 
     Returns: dict representing a single mip level that's JSON encodable
@@ -212,6 +219,9 @@ class CloudVolume(object):
 
     if mesh:
       info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
+
+    if skeletons:
+      info['skeletons'] = 'skeletons' if not isinstance(mesh, string_types) else mesh      
 
     return info
 

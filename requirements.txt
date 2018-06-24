@@ -13,7 +13,7 @@ python-jsonschema-objects==0.2.1
 Pillow>=4.2.1
 protobuf>=3.3.0
 requests>=2.18.4
-six==1.10.0
+six>=1.10.0
 tenacity==4.4.0
 -e git+https://github.com/seung-lab/tqdm.git#egg=tqdm
 urllib3[secure]

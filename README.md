@@ -140,9 +140,16 @@ image = vol[:,:,:] # Download the entire image stack into a numpy array
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
+
+# Meshes
 vol.mesh.save(12345) # save 12345 as ./12345.obj
 vol.mesh.save([12345, 12346, 12347]) # merge three segments into one obj
 vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
+
+# Skeletons
+skel = vol.skeleton.get(12345)
+vol.skeleton.upload(12345, skel.vertices, skel.edges) # upload neuroglancer visualization
+vol.get_point_cloud(12345) # download the object's point cloud
 
 # Parallel Operation
 vol = CloudVolume('gs://mybucket/retina/image', parallel=True) # Use all cores
@@ -223,6 +230,10 @@ Better documentation coming later, but for now, here's a summary of the most use
 * mesh - Access mesh operations
 	* get - Download an object. Can merge multiple segmentids
 	* save - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
+* skeleton - Access Skeletons
+  * get - Download an object.
+  * upload - Save a skeleton object to the cloud.
+  * get_point_cloud - Download the point cloud, a skeleton precursor, for an object. 
 * cache - Access cache operations
 	* enabled - Boolean switch to enable/disable cache. If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
 	* path - Property that shows the current filesystem path to the cache
