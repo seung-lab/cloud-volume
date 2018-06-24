@@ -81,6 +81,10 @@ class PrecomputedSkeletonService(object):
     with SimpleStorage(self.vol.layer_cloudpath) as stor:
       path = os.path.join(self.path, str(segid))
       skelbuf = stor.get_file(path)
+
+    if skelbuf is None:
+      raise SkeletonDecodeError("File does not exist: {}".format(path))
+
     return PrecomputedSkeleton.decode(skelbuf, segid=segid)
 
   def upload(self, segid, vertices, edges):

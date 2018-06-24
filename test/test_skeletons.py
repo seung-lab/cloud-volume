@@ -12,6 +12,8 @@ from cloudvolume import CloudVolume, chunks, Storage, PrecomputedSkeleton
 from cloudvolume.storage import SimpleStorage
 from cloudvolume.lib import mkdir, Bbox, Vec
 
+from cloudvolume.skeletonservice import SkeletonDecodeError
+
 info = CloudVolume.create_new_info(
   num_channels=1, # Increase this number when we add more tests for RGB
   layer_type='segmentation', 
@@ -73,6 +75,11 @@ def test_skeletons():
     assert len(rawskel) == 228 # 8 + 11 * 12 + 11 * 8
     stor.delete_file('skeletons/1')
   
+  try:
+    vol.skeleton.get(5)
+    assert False
+  except SkeletonDecodeError:
+    pass
 
 def test_no_edges():
   vertices = np.array([
@@ -112,3 +119,4 @@ def test_no_vertices():
     rawskel = stor.get_file('skeletons/3')
     assert len(rawskel) == 8 + 0 * 12 + 0 * 8
     stor.delete_file('skeletons/3')
+

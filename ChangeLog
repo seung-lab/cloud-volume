@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+0.24.0
+------
+
+* Version 0.24.0
+* feat: vol.skeleton for accessing Neuroglancer skeletons (#120)
+* Update README.md
+* feat: cleanup shared memory on SIGTERM or SIGINT (#115)
+* Update README.md
+* Version 0.23.0
+* feat: specify C or Fortran order in upload\_from\_shared\_memory (#113)
+
 0.22.0
 ------
 
