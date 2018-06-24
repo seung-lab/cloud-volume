@@ -29,7 +29,7 @@ class PrecomputedSkeleton(object):
     result = BytesIO()
 
     # Write number of positions and edges as first two uint32s
-    result.write(struct.pack('<II', vertices.shape[0], edges.shape[0] // 2))
+    result.write(struct.pack('<II', vertices.size // 3, edges.size // 2))
     result.write(vertices.tobytes('C'))
     result.write(edges.tobytes('C'))
     return result.getvalue()
