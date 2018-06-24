@@ -1,0 +1,80 @@
+import pytest
+
+import copy
+import json
+import os
+import numpy as np
+import shutil
+import gzip
+import json
+
+from cloudvolume import CloudVolume, chunks, Storage, PrecomputedSkeleton
+from cloudvolume.storage import SimpleStorage
+from cloudvolume.lib import mkdir, Bbox, Vec
+
+def test_skeletons():
+  
+  # Skeleton of my initials
+  # z=0: W ; z=1 S
+  vertices = np.array([
+    [ 0, 1, 0 ],
+    [ 1, 0, 0 ],
+    [ 1, 1, 0 ],
+
+    [ 2, 0, 0 ],
+    [ 2, 1, 0 ],
+    [ 0, 0, 1 ],
+
+    [ 1, 0, 1 ],
+    [ 1, 1, 1 ],
+    [ 0, 1, 1 ],
+
+    [ 0, 2, 1 ],
+    [ 1, 2, 1 ],
+  ], np.float32)
+
+  edges = np.array([
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [3, 4],
+    [4, 5],
+    [5, 6],
+    [6, 7],
+    [7, 8],
+    [8, 9],
+    [9, 10],
+    [10, 11],
+  ], dtype=np.uint32)
+
+  info = CloudVolume.create_new_info(
+    num_channels=1, # Increase this number when we add more tests for RGB
+    layer_type='segmentation', 
+    data_type='uint16', 
+    encoding='raw',
+    resolution=[1,1,1], 
+    voxel_offset=(0,0,0), 
+    skeletons=True,
+    volume_size=(100, 100, 100),
+    chunk_size=(64, 64, 64),
+  )
+
+  vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
+  vol.commit_info()
+  vol.skeleton.save(segid=1, vertices=vertices, edges=edges)
+  skel = vol.skeleton.get(1)
+
+  assert skel.id == 1
+  assert np.all(skel.vertices == vertices)
+  assert np.all(skel.edges == edges)
+  assert vol.skeleton.path == 'skeletons'
+
+  with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:
+    rawskel = stor.get_file('skeletons/1')
+    assert len(rawskel) == 228 # 8 + 11 * 12 + 11 * 8
+    stor.delete_file('skeletons/1')
+  
+
+  
+
+

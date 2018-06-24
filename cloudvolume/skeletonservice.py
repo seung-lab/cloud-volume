@@ -40,7 +40,6 @@ class PrecomputedSkeleton(object):
       raise SkeletonDecodeError("{} bytes is fewer than needed to specify the number of verices and edges.".format(len(skelbuf)))
 
     num_vertices, num_edges = struct.unpack('<II', skelbuf[:8])
-
     format_length = 8 + 12 * num_vertices + 8 * num_edges
 
     if len(skelbuf) < format_length:
@@ -52,13 +51,13 @@ class PrecomputedSkeleton(object):
     vend = vstart + num_vertices * 3 * 4 # float32s
     vertbuf = skelbuf[ vstart : vend ]
 
-    estart = vend + 1 
+    estart = vend
     eend = estart + num_edges * 4 * 2 # 2x uint32s
 
     edgebuf = skelbuf[ estart : eend ]
 
     vertices = np.frombuffer(vertbuf, dtype='<f4').reshape( (num_vertices, 3) )
-    edges = np.frombuffer(vertbuf, dtype='<u4').reshape( (num_edges, 2) )
+    edges = np.frombuffer(edgebuf, dtype='<u4').reshape( (num_edges, 2) )
 
     return PrecomputedSkeleton(vertices, edges, segid=segid)
 
@@ -85,7 +84,7 @@ class PrecomputedSkeletonService(object):
       skel = PrecomputedSkeleton(vertices, edges, segid=segid).encode()
       
       stor.put_file(
-        file_path='{}/{}'.format(self.skeldir, segid),
+        file_path='{}/{}'.format(self.path, segid),
         content=skel,
         compress='gzip',
       )
