@@ -19,9 +19,14 @@ class SkeletonDecodeError(Exception):
 class PrecomputedSkeleton(object):
   def __init__(self, vertices, edges, segid=None):
     self.id = segid
-    self.vertices = vertices.astype(np.float32)
-    self.edges = edges.astype(np.uint32)
 
+    self.vertices = vertices.astype(np.float32)
+
+    if edges is None:
+      self.edges = np.array([[]], dtype=np.uint32)
+    else:
+      self.edges = edges.astype(np.uint32)
+      
   def encode(self):
     edges = self.edges
     vertices = self.vertices
