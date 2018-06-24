@@ -60,7 +60,7 @@ def test_skeletons():
   ], dtype=np.uint32)
 
   vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
-  vol.skeleton.save(segid=1, vertices=vertices, edges=edges)
+  vol.skeleton.upload(segid=1, vertices=vertices, edges=edges)
   skel = vol.skeleton.get(1)
 
   assert skel.id == 1
@@ -82,7 +82,7 @@ def test_no_edges():
 
   edges = None
   vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
-  vol.skeleton.save(2, vertices, edges)
+  vol.skeleton.upload(2, vertices, edges)
   skel = vol.skeleton.get(2)
 
   assert skel.id == 2
@@ -100,14 +100,14 @@ def test_no_vertices():
 
   edges = None
   vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
-  vol.skeleton.save(3, vertices, edges)
+  vol.skeleton.upload(3, vertices, edges)
   skel = vol.skeleton.get(3)
 
   assert skel.id == 3
   assert np.all(skel.vertices == vertices)
   assert np.all(skel.edges.shape == (0, 2))
   assert vol.skeleton.path == 'skeletons'
-  
+
   with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:
     rawskel = stor.get_file('skeletons/3')
     assert len(rawskel) == 8 + 0 * 12 + 0 * 8

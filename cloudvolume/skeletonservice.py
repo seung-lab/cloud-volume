@@ -26,7 +26,7 @@ class PrecomputedSkeleton(object):
       self.edges = np.array([[]], dtype=np.uint32)
     else:
       self.edges = edges.astype(np.uint32)
-      
+
   def encode(self):
     edges = self.edges
     vertices = self.vertices
@@ -83,7 +83,7 @@ class PrecomputedSkeletonService(object):
       skelbuf = stor.get_file(path)
     return PrecomputedSkeleton.decode(skelbuf, segid=segid)
 
-  def save(self, segid, vertices, edges):
+  def upload(self, segid, vertices, edges):
     with SimpleStorage(self.vol.layer_cloudpath) as stor:
       path = os.path.join(self.path, str(segid))
       skel = PrecomputedSkeleton(vertices, edges, segid=segid).encode()
@@ -94,7 +94,7 @@ class PrecomputedSkeletonService(object):
         compress='gzip',
       )
     
-  def point_cloud(self, segid):
+  def get_point_cloud(self, segid):
     with SimpleStorage(self.vol.layer_cloudpath) as stor:
       path = os.path.join(self.path, '{}.ptc').format(segid)
       buf = stor.get_file(path)
