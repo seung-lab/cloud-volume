@@ -13,6 +13,9 @@ from . import lib
 from .lib import red
 from .storage import Storage, SimpleStorage
 
+class SkeletonDecodeError(Exception):
+  pass
+
 class PrecomputedSkeleton(object):
   def __init__(self, vertices, edges, segid=None):
     self.id = segid
@@ -33,7 +36,17 @@ class PrecomputedSkeleton(object):
 
   @classmethod
   def decode(kls, skelbuf, segid=None):
+    if len(skelbuf) < 8:
+      raise SkeletonDecodeError("{} bytes is fewer than needed to specify the number of verices and edges.".format(len(skelbuf)))
+
     num_vertices, num_edges = struct.unpack('<II', skelbuf[:8])
+
+    format_length = 8 + 12 * num_vertices + 8 * num_edges
+
+    if len(skelbuf) < format_length:
+      raise SkeletonDecodeError("The input skeleton was {} bytes but the format requires {} bytes.".format(
+        len(skelbuf), format_length
+      ))
 
     vstart = 2 * 4 # two uint32s in
     vend = vstart + num_vertices * 3 * 4 # float32s
