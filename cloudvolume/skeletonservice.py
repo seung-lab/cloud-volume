@@ -58,7 +58,7 @@ class PrecomputedSkeleton(object):
     edgebuf = skelbuf[ estart : eend ]
 
     vertices = np.frombuffer(vertbuf, dtype='<f4').reshape( (num_vertices, 3) )
-    edges = np.frombuffer(vertbuf, dtype='<u4')
+    edges = np.frombuffer(vertbuf, dtype='<u4').reshape( (num_edges, 2) )
 
     return PrecomputedSkeleton(vertices, edges, segid=segid)
 
