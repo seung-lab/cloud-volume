@@ -29,6 +29,7 @@ from .lib import (
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
+from .skeletonservice import PrecomputedSkeletonService
 from .storage import SimpleStorage, Storage
 from . import txrx
 from .volumecutout import VolumeCutout
@@ -154,7 +155,8 @@ class CloudVolume(object):
 
   def init_submodules(self, cache):
     self.cache = CacheService(cache, weakref.proxy(self)) 
-    self.mesh = PrecomputedMeshService(weakref.proxy(self)) 
+    self.mesh = PrecomputedMeshService(weakref.proxy(self))
+    self.skeleton = PrecomputedSkeletonService(weakref.proxy(self)) 
 
   def generate_shared_memory_location(self):
     return 'cloudvolume-shm-' + str(uuid.uuid4())
