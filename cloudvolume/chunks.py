@@ -18,7 +18,13 @@ import numpy as np
 from PIL import Image
 
 from .lib import yellow
-from . import compressed_segmentation
+
+try:
+  import _compressed_segmentation as cseg
+  ACCELERATED_CSEG = True # C extension version
+except ImportError:
+  from . import compressed_segmentation as csegpy
+  ACCELERATED_CSEG = False # Pure Python implementation
 
 try:
   import fpzip 
@@ -112,7 +118,10 @@ def encode_npz(subvol):
 
 def encode_compressed_segmentation(subvol, block_size):
   assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
-  return compressed_segmentation.encode_chunk(subvol.T, block_size=block_size)
+
+  if ACCELERATED_CSEG:
+    return cseg.compress(subvol.T, block_size=block_size)
+  return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
   return subvol.tostring('F')
@@ -141,8 +150,12 @@ def decode_raw(bytestring, shape, dtype):
 
 def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
   assert block_size is not None
-  chunk = np.empty(shape=shape[::-1], dtype=dtype)
-  compressed_segmentation.decode_chunk_into(chunk, bytestring, block_size=block_size)
+
+  if ACCELERATED_CSEG:
+    chunk = cseg.decompress(bytestring, shape, dtype, block_size)
+  else:
+    chunk = np.empty(shape=shape[::-1], dtype=dtype)
+    csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)
   return chunk.T
 
 

@@ -4,6 +4,7 @@ import setuptools
 join = os.path.join
 third_party_dir = './ext/third_party'
 fpzipdir = join(third_party_dir, 'fpzip-1.2.0')
+compressedsegdir = join(third_party_dir, 'compressed_segmentation')
 
 # NOTE: You must run 
 # cython -3 --fast-fail -v --cplus ./ext/src/third_party/fpzip-1.2.0/src/fpzip.pyx
@@ -30,6 +31,18 @@ setuptools.setup(
             extra_compile_args=[
               '-std=c++11', 
               '-DFPZIP_FP=FPZIP_FP_FAST', '-DFPZIP_BLOCK_SIZE=0x1000', '-DWITH_UNION',
+            ]),
+        setuptools.Extension(
+            '_compressed_segmentation',
+            optional=True,
+            sources=[ join(compressedsegdir, 'src', x) for x in ( 
+                'compress_segmentation.cc', 'decompress_segmentation.cc',
+                '_compressed_segmentation.cpp'
+            )],
+            language='c++',
+            include_dirs=[ join(compressedsegdir, 'include'), np.get_include() ],
+            extra_compile_args=[
+              '-std=c++11', 
             ]) 
     ],
     pbr=True)
