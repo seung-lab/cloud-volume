@@ -32,7 +32,7 @@ DEFAULT_BLOCK_SIZE = (8,8,8)
 def compress(data, block_size=DEFAULT_BLOCK_SIZE):
   cdef vector[uint32_t] *output = new vector[uint32_t]()
 
-  cdef uint32_t[:,:,:,:] arr_memview = data 
+  cdef uint32_t[:,:,:,:] arr_memview = data
   cdef ptrdiff_t volume_size[4] 
   volume_size[:] = data.shape[:4]
 
@@ -40,7 +40,19 @@ def compress(data, block_size=DEFAULT_BLOCK_SIZE):
   block_sizeptr[:] = block_size[:3]
 
   cdef ptrdiff_t input_strides[3]
-  input_strides[:] = [ 1, 1, 1 ]
+
+  if data.flags['C_CONTIGUOUS']:
+    input_strides[:] = [ 
+      1,
+      volume_size[1], 
+      volume_size[1] * volume_size[2]
+    ]
+  else:
+    input_strides[:] = [ 
+      volume_size[1] * volume_size[2],
+      volume_size[1], 
+      1
+    ]
 
   if data.dtype == np.uint32:
     CompressChannels[uint32_t](
@@ -68,7 +80,7 @@ cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   cdef uint32_t* uintencodedptr = <uint32_t*>encodedptr;
   cdef ptrdiff_t[4] volsize = volume_size
   cdef ptrdiff_t[3] blksize = blksize
-  
+
   cdef vector[uint32_t] *output = new vector[uint32_t]()
 
   DecompressChannels[uint32_t](

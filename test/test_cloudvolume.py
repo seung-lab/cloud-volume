@@ -338,6 +338,7 @@ def test_write_compressed_segmentation():
     cv.commit_info()
 
     cv[:] = data.astype(np.uint32)
+    print("wrote it")
     data2 = cv[:]
 
     assert np.all(data == data2)

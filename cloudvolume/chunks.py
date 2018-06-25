@@ -23,8 +23,9 @@ try:
   import _compressed_segmentation as cseg
   ACCELERATED_CSEG = True # C extension version
 except ImportError:
-  from . import compressed_segmentation as csegpy
   ACCELERATED_CSEG = False # Pure Python implementation
+
+from . import compressed_segmentation as csegpy
 
 try:
   import fpzip 
@@ -120,7 +121,7 @@ def encode_compressed_segmentation(subvol, block_size):
   assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
 
   if ACCELERATED_CSEG:
-    return cseg.compress(subvol.T, block_size=block_size)
+    return cseg.compress(subvol, block_size=block_size)
   return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
