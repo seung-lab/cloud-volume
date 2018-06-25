@@ -79,7 +79,7 @@ cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   cdef unsigned char *encodedptr = <unsigned char*>encoded
   cdef uint32_t* uintencodedptr = <uint32_t*>encodedptr;
   cdef ptrdiff_t[4] volsize = volume_size
-  cdef ptrdiff_t[3] blksize = blksize
+  cdef ptrdiff_t[3] blksize = block_size
 
   cdef vector[uint32_t] *output = new vector[uint32_t]()
 
@@ -92,14 +92,13 @@ cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   
   cdef uint32_t* output_ptr = <uint32_t*>&output[0]
   cdef uint32_t[:] vec_view = <uint32_t[:output.size()]>output_ptr
-
   return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size )
 
 cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
   cdef unsigned char *encodedptr = <unsigned char*>encoded
   cdef uint32_t* uintencodedptr = <uint32_t*>encodedptr;
   cdef ptrdiff_t[4] volsize = volume_size
-  cdef ptrdiff_t[3] blksize = blksize
+  cdef ptrdiff_t[3] blksize = block_size
 
   cdef vector[uint64_t] *output = new vector[uint64_t]()
 
