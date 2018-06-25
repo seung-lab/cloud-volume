@@ -6,9 +6,13 @@ third_party_dir = './ext/third_party'
 fpzipdir = join(third_party_dir, 'fpzip-1.2.0')
 compressedsegdir = join(third_party_dir, 'compressed_segmentation')
 
-# NOTE: You must run 
+# NOTE: If fpzip.cpp does not exist:
 # cython -3 --fast-fail -v --cplus ./ext/src/third_party/fpzip-1.2.0/src/fpzip.pyx
-# if fpzip.cpp does not exist.
+
+# NOTE: Run if _compressed_segmentation.cpp does not exist:
+# cython -3 --fast-fail -v --cplus \
+#    -I./ext/src/third_party/compressed_segmentation/include \
+#    ./ext/src/third_party/compressed_segmentation/src/_compressed_segmentation.pyx
 
 import numpy as np
 
