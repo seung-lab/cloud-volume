@@ -188,6 +188,8 @@ vol.cache.enabled = True/False/Path # Turn the cache on/off
 vol.cache.flush() # Delete local cache for this layer at this mip level  
 vol.cache.flush(preserve=Bbox(...)) # Same, but presere cache in a region of space  
 vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)  
+vol.cache.flush_info()
+vol.cache.flush_provenance()
 
 ```
 
