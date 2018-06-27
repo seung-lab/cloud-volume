@@ -81,6 +81,18 @@ class CacheService(object):
 
     return os.listdir(path)
 
+  def flush_info(self):
+    path = os.path.join(self.path , 'info')
+    if not os.path.exists(path):
+      return
+    os.remove(path)
+
+  def flush_provenance(self):
+    path = os.path.join(self.path , 'provenance')
+    if not os.path.exists(path):
+      return
+    os.remove(path)
+
   def flush(self, preserve=None):
     """
     Delete the cache for this dataset. Optionally preserve

@@ -468,6 +468,14 @@ def test_info_provenance_cache():
     info = vol.refresh_info()
     assert info != { 'wow': 'amaze' }
 
+    infopath = os.path.join(vol.cache.path, 'info')
+    assert os.path.exists(infopath)
+
+    vol.cache.flush_info()
+    assert not os.path.exists(infopath)
+    vol.cache.flush_info() # assert no error by double delete
+
+
     # Test Provenance
     vol.cache.enabled = True
     vol.cache.flush()
@@ -487,6 +495,12 @@ def test_info_provenance_cache():
     vol.cache.enabled = False
     prov = vol.refresh_provenance()
     assert prov['description'] == ''
+
+    provpath = os.path.join(vol.cache.path, 'provenance')
+    vol.cache.flush_provenance()
+    assert not os.path.exists(provpath)
+    vol.cache.flush_provenance() # assert no error by double delete
+    
 
 
 def test_caching():
