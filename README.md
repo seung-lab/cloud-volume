@@ -132,7 +132,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 |-------------------------|----------------------------|----------|-------------|------------------------------------------------------------------------------------------| 
 | raw                     | Any                        | Y        | Y           | Serialized numpy arrays.                                                                 | 
 | jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              | 
-| compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to deduce data width. Also used by Neuroglancer internally.      | 
+| compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      | 
 | fpzip                   | Floating Point             | Y        | N*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  | 
 | kempressed              | Anisotropic Floating Point | N        | N*           | Adds manipulations on top of fpzip to achieve higher compression.                        | 
 
