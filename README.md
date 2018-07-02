@@ -21,11 +21,12 @@ CloudVolume can be used in single or multi-process capacity and can be optimized
 
 ## Setup
 
-Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. 
+Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. If you need `fpzip` support (you know who you are, most of you don't), you must install numpy first to allow it to compile.
 
 #### `pip` Installation
 
 ```bash
+pip install numpy # additional step only needed for fpzip
 pip install cloud-volume
 ```
 
@@ -44,6 +45,7 @@ workon cv
 virtualenv venv
 source venv/bin/activate
 
+pip install numpy # additional step only needed for fpzip
 pip install -e .
 ```
 
@@ -315,5 +317,5 @@ Julia - https://github.com/seung-lab/CloudVolume.jl
 
 Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.  
 Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format.  
-Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip and assistance. 
-
+Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.  
+Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him). 
