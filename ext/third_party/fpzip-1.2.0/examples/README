@@ -1,0 +1,99 @@
+These two example programs show how to use the fpzip library with single- or
+double-precision data.  The 'testfpzip' program verifies that fpzip works as
+intended, and in particular that it compresses floating-point data losslessly.
+The 'fpzip' executable is useful for compressing and decompressing binary
+floating-point files much in the spirit of Unix gzip.
+
+
+TESTFPZIP
+
+testfpzip accepts a number of command-line arguments, most of which are
+optional:
+
+  testfpzip <-f|-d> [nx [ny [nz [nf [prec [infile [outfile [reconfile]]]]]]]]
+
+where -f specifies floats and -d doubles, nx, ny, and nz specify the size of
+a 3D array (in C array layout)
+
+  f[nz][ny][nx]
+
+and nf specifies the number of contiguous scalar fields (3D arrays) in the
+file.  For single- and multi-field 2D arrays, set nz = 1; for 1D arrays, set
+ny = nz = 1.
+
+When prec is specified and is less than the floating-point precision (32 for
+float, 64 for double), it determines the number of most significant bits to
+retain for each value, with the least significant bits being zeroed.  infile
+is the name of the file of uncompressed values, while outfile when specified
+stores the compressed stream.  The reconstructed values (the result of
+compression followed by decompression) can optionally be written to reconfile.
+If no input file is specified, a sinusoidal field is generated.
+
+To run the program on the single-precision example data set in lossless mode:
+
+  testfpzip -f 16 16 16 1 32 float16x16x16x1 output.fpz
+
+Alternatively, one may consider compressing this 3D scalar field as a stack
+of 16 2D fields:
+
+  testfpzip -f 16 16 1 16 32 float16x16x16x1 output.fpz
+
+or as a single 1D field:
+
+  testfpzip -f 4096 1 1 1 32 float16x16x16x1 output.fpz
+
+As expected, compression usually degrades with lower dimensionality.
+
+To test the compressor in lossy mode with 40 bits of precision on the
+double-precision data:
+
+  testfpzip -d 16 16 16 1 40 double16x16x16x1 output.fpz
+
+This should result in a root mean square error rmse=5.3253e-10.
+
+
+FPZIP
+
+The fpzip program takes similar arguments as testfpzip does, but can also be
+used to read and decompress compressed files.  The usage is:
+
+  fpzip [options] [<infile] [>outfile]
+
+with these options:
+
+  -d : decompress
+  -q : quiet mode
+  -i <path> : input file (default=stdin)
+  -o <path> : output file (default=stdout)
+  -t <float|double> : scalar type (default=float)
+  -p <precision> : number of bits of precision (default=full)
+  -1 <nx> : dimensions of 1D array a[nx]
+  -2 <nx> <ny> : dimensions of 2D array a[ny][nx]
+  -3 <nx> <ny> <nz> : dimensions of 3D array a[nz][ny][nx]
+  -4 <nx> <ny> <nz> <nf> : dimensions of multi-field 3D array a[nf][nz][ny][nx]
+
+For example, using the Unix pipe mechanism, one may compress and decompress
+the sample data as follows:
+
+  fpzip -t float -3 16 16 16 < float16x16x16x1 | fpzip -d > reconfile
+
+This should produce an identical output file and these statistics on the
+intermediate compressed file:
+
+  type=float nx=16 ny=16 nz=16 nf=1 prec=32
+  outbytes=8909 ratio=1.84
+
+In other words, the compressed file is 1.84 times smaller than the uncompressed
+file.
+
+One may also force lossy compression via the -p option by using less than
+32 respectively 64 bits of precision for single- and double-precision data.
+The precision argument can be specified in increments of 1 and 2 bits,
+respectively, for single- and double-precision data.
+
+Note that fpzip assumes that the raw, binary floating-point data is stored in
+the native byte order of the machine on which it is run.  The sample data
+provided here is stored in little-endian byte order.  fpzip compressed files
+are byte order independent and can safely be interchanged between machines of
+different byte order.  However, note that fpzip will always decompress files
+to floating-point data in the native byte order.

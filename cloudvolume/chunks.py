@@ -17,12 +17,32 @@ import io
 import numpy as np
 from PIL import Image
 
+from .lib import yellow
 from . import compressed_segmentation
 
+try:
+  import fpzip 
+except ImportError:
+  fpziperrormsg = yellow("CloudVolume: fpzip codec is not available. Was it compiled? python setup.py build_ext --inplace")
+  class fpzip():
+    @classmethod
+    def compress(cls, content):
+      raise NotImplementedError(fpziperrormsg)
+    @classmethod
+    def decompress(cls, content):
+      raise NotImplementedError(fpziperrormsg)
+
+
 def encode(img_chunk, encoding, block_size=None):
-  if encoding == "compressed_segmentation":
+  if encoding == "raw":
+    return encode_raw(img_chunk)
+  elif encoding == "kempressed":
+    return encode_kempressed(img_chunk)
+  elif encoding == "fpzip":
+    return fpzip.compress(img_chunk)
+  elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
-  if encoding == "jpeg":
+  elif encoding == "jpeg":
     return encode_jpeg(img_chunk)
   elif encoding == "npz":
     return encode_npz(img_chunk)
@@ -30,89 +50,100 @@ def encode(img_chunk, encoding, block_size=None):
     chunk = img_chunk * 255
     chunk = chunk.astype(np.uint8)
     return encode_npz(chunk)
-  elif encoding == "raw":
-    return encode_raw(img_chunk)
   else:
     raise NotImplementedError(encoding)
 
 def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
-  if (shape is None or dtype is None) and encoding is not 'npz':
+  if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed'):
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
     return np.zeros(shape=shape, dtype=dtype)
-  elif encoding == 'compressed_segmentation':
-    return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
-  elif encoding == 'jpeg':
-    return decode_jpeg(filedata, shape=shape, dtype=dtype)
-  elif encoding == 'raw':
+  elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
-  elif encoding == 'npz':
+  elif encoding == "kempressed":
+    return decode_kempressed(filedata)
+  elif encoding == "fpzip":
+    return fpzip.decompress(filedata)
+  elif encoding == "compressed_segmentation":
+    return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
+  elif encoding == "jpeg":
+    return decode_jpeg(filedata, shape=shape, dtype=dtype)
+  elif encoding == "npz":
     return decode_npz(filedata)
   else:
     raise NotImplementedError(encoding)
 
 def encode_jpeg(arr):
-    assert arr.dtype == np.uint8
+  assert arr.dtype == np.uint8
 
-    # simulate multi-channel array for single channel arrays
-    if len(arr.shape) == 3:
-        arr = np.expand_dims(arr, 3) # add channels to end of x,y,z
+  # simulate multi-channel array for single channel arrays
+  if len(arr.shape) == 3:
+    arr = np.expand_dims(arr, 3) # add channels to end of x,y,z
 
-    arr = arr.transpose((3,2,1,0)) # channels, z, y, x
-    reshaped = arr.reshape(arr.shape[3] * arr.shape[2], arr.shape[1] * arr.shape[0])
-    if arr.shape[0] == 1:
-        img = Image.fromarray(reshaped, mode='L')
-    elif arr.shape[0] == 3:
-        img = Image.fromarray(reshaped, mode='RGB')
-    else:
-        raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
+  arr = arr.T # channels, z, y, x
+  reshaped = arr.reshape(arr.shape[3] * arr.shape[2], arr.shape[1] * arr.shape[0])
+  if arr.shape[0] == 1:
+    img = Image.fromarray(reshaped, mode='L')
+  elif arr.shape[0] == 3:
+    img = Image.fromarray(reshaped, mode='RGB')
+  else:
+    raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
-    f = io.BytesIO()
-    img.save(f, "JPEG")
-    return f.getvalue()
+  f = io.BytesIO()
+  img.save(f, "JPEG")
+  return f.getvalue()
 
 def encode_npz(subvol):
-    """
-    This file format is unrelated to np.savez
-    We are just saving as .npy and the compressing
-    using zlib. 
-    The .npy format contains metadata indicating
-    shape and dtype, instead of np.tobytes which doesn't
-    contain any metadata.
-    """
-    fileobj = io.BytesIO()
-    if len(subvol.shape) == 3:
-        subvol = np.expand_dims(subvol, 0)
-    np.save(fileobj, subvol)
-    cdz = zlib.compress(fileobj.getvalue())
-    return cdz
+  """
+  This file format is unrelated to np.savez
+  We are just saving as .npy and the compressing
+  using zlib. 
+  The .npy format contains metadata indicating
+  shape and dtype, instead of np.tobytes which doesn't
+  contain any metadata.
+  """
+  fileobj = io.BytesIO()
+  if len(subvol.shape) == 3:
+    subvol = np.expand_dims(subvol, 0)
+  np.save(fileobj, subvol)
+  cdz = zlib.compress(fileobj.getvalue())
+  return cdz
 
 def encode_compressed_segmentation(subvol, block_size):
-    assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
-    return compressed_segmentation.encode_chunk(subvol.T, block_size=block_size)
+  assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
+  return compressed_segmentation.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
-    return subvol.tostring('F')
+  return subvol.tostring('F')
+
+def encode_kempressed(subvol):
+  data = 2.0 + np.swapaxes(subvol, 2,3)
+  return fpzip.compress(data)
+
+def decode_kempressed(bytestring):
+  """subvol not bytestring since numpy conversion is done inside fpzip extension."""
+  subvol = fpzip.decompress(bytestring)
+  return np.swapaxes(subvol, 3,2) - 2.0
 
 def decode_npz(string):
-    fileobj = io.BytesIO(zlib.decompress(string))
-    return np.load(fileobj)
+  fileobj = io.BytesIO(zlib.decompress(string))
+  return np.load(fileobj)
 
 def decode_jpeg(bytestring, shape, dtype):
-    img = Image.open(io.BytesIO(bytestring))
-    data = np.array(img.getdata(), dtype=dtype)
+  img = Image.open(io.BytesIO(bytestring))
+  data = np.array(img.getdata(), dtype=dtype)
 
-    return data.reshape(shape, order='F')
+  return data.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
-    return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
+  return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
 
 def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
-    assert block_size is not None
-    chunk = np.empty(shape=shape[::-1], dtype=dtype)
-    compressed_segmentation.decode_chunk_into(chunk, bytestring, block_size=block_size)
-    return chunk.T
+  assert block_size is not None
+  chunk = np.empty(shape=shape[::-1], dtype=dtype)
+  compressed_segmentation.decode_chunk_into(chunk, bytestring, block_size=block_size)
+  return chunk.T
 
 
 

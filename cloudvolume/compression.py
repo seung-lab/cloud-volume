@@ -3,6 +3,8 @@ from six import StringIO, BytesIO
 import gzip
 import sys
 
+from .lib import yellow
+
 class DecodingError(Exception):
   pass
 
@@ -25,9 +27,10 @@ def decompress(content, encoding, filename='N/A'):
   Return: decompressed content
   """
   try:
-    if encoding in (None, False, ''):
+    encoding = (encoding or '').lower()
+    if encoding == '':
       return content
-    elif encoding.lower() == 'gzip':
+    elif encoding == 'gzip':
       return gunzip(content)
   except DecodingError as err:
     print("Filename: " + str(filename))
@@ -48,9 +51,14 @@ def compress(content, method='gzip'):
 
   Return: compressed content
   """
-  if method in (None, False, ''):
+  if method == True:
+    method = 'gzip' # backwards compatibility
+
+  method = (method or '').lower()
+
+  if method == '':
     return content
-  elif method == True or method.lower() == 'gzip': # method == True is for backwards compatibility
+  elif method == 'gzip': 
     return gzip_compress(content)
   raise NotImplementedError(str(method) + ' is not currently supported. Supported Options: None, gzip')
 
