@@ -115,7 +115,7 @@ info = cloudvolume.CloudVolume.create_new_info(
     num_channels    = 1,
     layer_type      = 'segmentation',
     data_type       = 'uint64', # Channel images might be 'uint8'
-    encoding        = 'raw', # raw, jpeg, compressed_segmentation are all options
+    encoding        = 'raw', # raw, jpeg, compressed_segmentation, fpzip, kempressed
     resolution      = [4, 4, 40], # Voxel scaling, units are in nanometers
     voxel_offset    = [0, 0, 0], # x,y,z offset in voxels from the origin
     mesh            = 'mesh',
@@ -128,6 +128,16 @@ vol = cloudvolume.CloudVolume(cfg.path, info=info)
 vol.commit_info()
 vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:] 
 ```
+| Encoding                | Image Type                 | Lossless | Neuroglancer Viewable | Description                                                                              | 
+|-------------------------|----------------------------|----------|-------------|------------------------------------------------------------------------------------------| 
+| raw                     | Any                        | Y        | Y           | Serialized numpy arrays.                                                                 | 
+| jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              | 
+| compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to deduce data width. Also used by Neuroglancer internally.      | 
+| fpzip                   | Floating Point             | Y        | N*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  | 
+| kempressed              | Anisotropic Floating Point | N        | N*           | Adds manipulations on top of fpzip to achieve higher compression.                        | 
+
+\* Coming soon.
+
 
 ### Examples
 
@@ -304,5 +314,6 @@ Julia - https://github.com/seung-lab/CloudVolume.jl
 ## Acknowledgments
 
 Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.  
-Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. 
+Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format.  
+Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip and assistance. 
 
