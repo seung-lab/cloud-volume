@@ -21,7 +21,7 @@ CloudVolume can be used in single or multi-process capacity and can be optimized
 
 ## Setup
 
-Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. If you need `fpzip` support (you know who you are, most of you don't), you must install numpy first to allow it to compile.
+Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. If you need `fpzip` support (you know who you are, most of you don't), you must install numpy first to allow it to compile and use Python 3.
 
 #### `pip` Installation
 
