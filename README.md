@@ -216,7 +216,7 @@ CloudVolume(cloudpath,
 
 * mip - Which mip level to access
 * bounded - Whether access is allowed outside the bounds defined in the info file
-* fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException?
+* fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException? Note that under conditions of high load, it's possible for fill_missing to be activated for existing files. Set to false for extra safety.
 * cache - Save uploads/downloads to disk. You can also provide a string path instead of a boolean to specify a custom cache location.
 * autocrop - If bounded is False, automatically crop requested uploads and downloads to the volume boundary.
 * cdn_cache - Set the HTTP Cache-Control header on uploaded image chunks.
