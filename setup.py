@@ -9,9 +9,10 @@ compressedsegdir = join(third_party_dir, 'compressed_segmentation')
 # NOTE: If fpzip.cpp does not exist:
 # cython -3 --fast-fail -v --cplus ./ext/src/third_party/fpzip-1.2.0/src/fpzip.pyx
 
-# NOTE: You must run 
-# cython -3 --fast-fail -v --cplus ./ext/src/third_party/fpzip-1.2.0/src/fpzip.pyx
-# if fpzip.cpp does not exist.
+# NOTE: Run if _compressed_segmentation.cpp does not exist:
+# cython -3 --fast-fail -v --cplus \
+#    -I./ext/third_party/compressed_segmentation/include \
+#    ./ext/third_party/compressed_segmentation/src/_compressed_segmentation.pyx
 
 try:
   import numpy as np
@@ -48,7 +49,7 @@ if np:
         language='c++',
         include_dirs=[ join(compressedsegdir, 'include'), np.get_include() ],
         extra_compile_args=[
-          '-O3', '-std=c++11', 
+          '-O3', '-std=c++11'
         ],
     ) 
   ]

@@ -2,6 +2,7 @@ from libc.stdio cimport FILE, fopen, fwrite, fclose
 from libc.stdlib cimport calloc, free
 from libc.stdint cimport uint32_t, uint64_t
 from cpython cimport array
+from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_SIMPLE, PyBUF_ANY_CONTIGUOUS
 import array
 import sys
 
@@ -29,10 +30,9 @@ cdef extern from "decompress_segmentation.h" namespace "compress_segmentation":
 
 DEFAULT_BLOCK_SIZE = (8,8,8)
 
-def compress(data, block_size=DEFAULT_BLOCK_SIZE):
+def compress(data, block_size=DEFAULT_BLOCK_SIZE, order='C'):
   cdef vector[uint32_t] *output = new vector[uint32_t]()
 
-  cdef uint32_t[:,:,:,:] arr_memview = data
   cdef ptrdiff_t volume_size[4] 
   volume_size[:] = data.shape[:4]
 
@@ -41,7 +41,7 @@ def compress(data, block_size=DEFAULT_BLOCK_SIZE):
 
   cdef ptrdiff_t input_strides[3]
 
-  if data.flags['C_CONTIGUOUS']:
+  if order == 'C':
     input_strides[:] = [ 
       1,
       volume_size[1], 
@@ -54,24 +54,29 @@ def compress(data, block_size=DEFAULT_BLOCK_SIZE):
       1
     ]
 
+  cdef uint32_t[:,:,:,:] arr_memview32
+  cdef uint64_t[:,:,:,:] arr_memview64
+
   if data.dtype == np.uint32:
+    arr_memview32 = data
     CompressChannels[uint32_t](
-      <uint32_t*>&arr_memview[0,0,0,0],
+      <uint32_t*>&arr_memview32[0,0,0,0],
       <ptrdiff_t*>input_strides,
       <ptrdiff_t*>volume_size,
       <ptrdiff_t*>block_sizeptr,
       output
     )
   else:
+    arr_memview64 = data
     CompressChannels[uint64_t](
-      <uint64_t*>&arr_memview[0,0,0,0],
+      <uint64_t*>&arr_memview64[0,0,0,0],
       <ptrdiff_t*>input_strides,
       <ptrdiff_t*>volume_size,
       <ptrdiff_t*>block_sizeptr,
       output
     )
 
-  cdef uint32_t* output_ptr = <uint32_t *>&output[0]
+  cdef uint32_t* output_ptr = <uint32_t *>&output[0][0]
   cdef uint32_t[:] vec_view = <uint32_t[:output.size()]>output_ptr
   return bytes(vec_view)
 
@@ -82,7 +87,7 @@ cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   cdef ptrdiff_t[3] blksize = block_size
 
   cdef vector[uint32_t] *output = new vector[uint32_t]()
-
+  
   DecompressChannels[uint32_t](
     uintencodedptr,
     volsize,
@@ -90,7 +95,7 @@ cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
     output
   )
   
-  cdef uint32_t* output_ptr = <uint32_t*>&output[0]
+  cdef uint32_t* output_ptr = <uint32_t*>&output[0][0]
   cdef uint32_t[:] vec_view = <uint32_t[:output.size()]>output_ptr
   return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size )
 
@@ -109,7 +114,7 @@ cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
     output
   )
   
-  cdef uint64_t* output_ptr = <uint64_t*>&output[0]
+  cdef uint64_t* output_ptr = <uint64_t*>&output[0][0]
   cdef uint64_t[:] vec_view = <uint64_t[:output.size()]>output_ptr
 
   return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size )

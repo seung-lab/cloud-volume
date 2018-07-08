@@ -121,7 +121,7 @@ def encode_compressed_segmentation(subvol, block_size):
   assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
 
   if ACCELERATED_CSEG:
-    return cseg.compress(subvol, block_size=block_size)
+    return cseg.compress(np.asfortranarray(subvol), block_size=block_size, order='F')
   return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
@@ -153,10 +153,11 @@ def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
   assert block_size is not None
 
   if ACCELERATED_CSEG:
-    chunk = cseg.decompress(bytestring, shape, dtype, block_size)
+    return cseg.decompress(bytestring, shape, dtype, block_size)
   else:
     chunk = np.empty(shape=shape[::-1], dtype=dtype)
     csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)
+  
   return chunk.T
 
 
