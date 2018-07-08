@@ -165,7 +165,8 @@ def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
   assert block_size is not None
 
   if ACCELERATED_CSEG:
-    return cseg.decompress(bytestring, shape, dtype, block_size)
+    chunk = cseg.decompress(bytestring, shape, dtype, block_size)
+    chunk = np.squeeze(chunk, axis=3)
   else:
     chunk = np.empty(shape=shape[::-1], dtype=dtype)
     csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)

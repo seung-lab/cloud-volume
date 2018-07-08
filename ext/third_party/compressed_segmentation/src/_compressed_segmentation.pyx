@@ -12,6 +12,8 @@ import numpy as np
 
 SUPPORTED_PYTHON_VERSION = (sys.version_info[0] == 3)
 
+# Python 2 incompatibility is probably related
+# to str vs bytes in decompress
 if not SUPPORTED_PYTHON_VERSION:
   raise ImportError("The compressed_segmentation C extension only supports Python 3.")
 
@@ -124,6 +126,11 @@ cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size )
 
 def decompress(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
+  volume_size = [ 
+    volume_size[2], volume_size[1], volume_size[0], 
+    volume_size[3]
+  ]
+
   dtype = np.dtype(dtype)
   if dtype == np.uint32:
     return decompress_helper32(encoded, volume_size, dtype, block_size)

@@ -14,6 +14,7 @@ import time
 from itertools import product
 
 import numpy as np
+from PIL import Image
 from tqdm import tqdm
 
 if sys.version_info < (3,):
@@ -582,3 +583,62 @@ def generate_slices(slices, minsize, maxsize, bounded=True):
       slices[index] = slice(start, end, step)
 
   return slices
+
+def save_images(image, axis='z', channel=None, directory=None, image_format='PNG'):
+  if directory is None:
+    directory = os.path.join('./saved_images', 'default', 'default', '0', Bbox( (0,0,0), image.shape[:3] ).to_filename())
+  
+  mkdir(directory)
+
+  print("Saving to {}".format(directory))
+
+  indexmap = {
+    'x': 0,
+    'y': 1,
+    'z': 2,
+  }
+
+  index = indexmap[axis]
+
+  channel = slice(None) if channel is None else channel
+
+  for level in tqdm(range(image.shape[index]), desc="Saving Images"):
+    if index == 0:
+      img = image[level, :, :, channel ]
+    elif index == 1:
+      img = image[:, level, :, channel ]
+    elif index == 2:
+      img = image[:, :, level, channel ]
+    else:
+      raise NotImplemented
+
+    num_channels = img.shape[2]
+
+    for channel_index in range(num_channels):
+      img2d = img[:, :, channel_index]
+
+      if img2d.dtype in (np.float32, np.float64):
+        lower, upper = img2d.min(), img2d.max()
+        img2d = (img2d - lower) / (upper - lower) * 255.0
+        img2d = img2d.astype(np.uint8)
+
+      # discovered that downloaded cube is in a weird rotated state.
+      # it requires a 90deg counterclockwise rotation on xy plane (leaving z alone)
+      # followed by a flip on Y
+      if axis == 'z':
+        img2d = np.flipud(np.rot90(img2d, 1)) 
+
+      if img2d.dtype == 'uint8':
+        img2d = Image.fromarray(img2d, 'L')
+      else:
+        img2d = img2d.astype('uint32')
+        img2d[:,:] |= 0xff000000 # for little endian abgr
+        img2d = Image.fromarray(img2d, 'RGBA')
+
+      file_index = str(level).zfill(2)
+      filename = '{}.{}'.format(file_index, image_format.lower())
+      if num_channels > 1:
+        filename = '{}-{}'.format(channel_index, filename)
+
+      path = os.path.join(directory, filename)
+      img2d.save(path, image_format)
