@@ -2,7 +2,6 @@ from libc.stdio cimport FILE, fopen, fwrite, fclose
 from libc.stdlib cimport calloc, free
 from libc.stdint cimport uint32_t, uint64_t
 from cpython cimport array
-from cpython.buffer cimport PyObject_GetBuffer, PyBuffer_Release, PyBUF_SIMPLE, PyBUF_ANY_CONTIGUOUS
 import array
 import sys
 
@@ -10,6 +9,11 @@ from libcpp.vector cimport vector
 
 cimport numpy as cnp
 import numpy as np
+
+SUPPORTED_PYTHON_VERSION = (sys.version_info[0] == 3)
+
+if not SUPPORTED_PYTHON_VERSION:
+  raise ImportError("The compressed_segmentation C extension only supports Python 3.")
 
 cdef extern from "compress_segmentation.h" namespace "compress_segmentation":
   cdef void CompressChannels[Label](
@@ -87,7 +91,7 @@ cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   cdef ptrdiff_t[3] blksize = block_size
 
   cdef vector[uint32_t] *output = new vector[uint32_t]()
-  
+
   DecompressChannels[uint32_t](
     uintencodedptr,
     volsize,
