@@ -2,7 +2,7 @@
 
 # cloud-volume
 
-```
+```python3
 from cloudvolume import CloudVolume
 
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
@@ -21,11 +21,12 @@ CloudVolume can be used in single or multi-process capacity and can be optimized
 
 ## Setup
 
-Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. 
+Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. If you need `fpzip` support (you know who you are, most of you don't), you must install numpy first to allow it to compile and use Python 3.
 
 #### `pip` Installation
 
-```
+```bash
+pip install numpy # additional step only needed for fpzip
 pip install cloud-volume
 ```
 
@@ -33,7 +34,7 @@ pip install cloud-volume
 
 This can be desirable if you want to hack on CloudVolume itself.  
 
-```
+```bash
 git clone git@github.com:seung-lab/cloud-volume.git
 cd cloud-volume
 
@@ -44,6 +45,7 @@ workon cv
 virtualenv venv
 source venv/bin/activate
 
+pip install numpy # additional step only needed for fpzip
 pip install -e .
 ```
 
@@ -53,7 +55,7 @@ You'll need credentials only for the services you'll use. If you plan to use the
 
 If neither of those two conditions apply, you need a service account credential. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
 
-```
+```bash
 mkdir -p ~/.cloudvolume/secrets/
 mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
 mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
@@ -110,12 +112,12 @@ Neuroglancer relies on an [`info`](https://github.com/google/neuroglancer/tree/m
 
 In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`.
 
-```
+```python3
 info = cloudvolume.CloudVolume.create_new_info(
     num_channels    = 1,
     layer_type      = 'segmentation',
     data_type       = 'uint64', # Channel images might be 'uint8'
-    encoding        = 'raw', # raw, jpeg, compressed_segmentation are all options
+    encoding        = 'raw', # raw, jpeg, compressed_segmentation, fpzip, kempressed
     resolution      = [4, 4, 40], # Voxel scaling, units are in nanometers
     voxel_offset    = [0, 0, 0], # x,y,z offset in voxels from the origin
     mesh            = 'mesh',
@@ -128,28 +130,43 @@ vol = cloudvolume.CloudVolume(cfg.path, info=info)
 vol.commit_info()
 vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:] 
 ```
+| Encoding                | Image Type                 | Lossless | Neuroglancer Viewable | Description                                                                              | 
+|-------------------------|----------------------------|----------|-------------|------------------------------------------------------------------------------------------| 
+| raw                     | Any                        | Y        | Y           | Serialized numpy arrays.                                                                 | 
+| jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              | 
+| compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      | 
+| fpzip                   | Floating Point             | Y        | N*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  | 
+| kempressed              | Anisotropic Z Floating Point | N        | N*           | Adds manipulations on top of fpzip to achieve higher compression.                        | 
+
+\* Coming soon.
+
 
 ### Examples
 
-```
-vol = CloudVolume('gs://mybucket/retina/image') # Basic Example
-vol = CloudVolume('gs://buck/ds/chan', mip=0, bounded=True, fill_missing=False) # Using multiple initialization options
-vol = CloudVolume('gs://buck/ds/chan', info=info) # Creating a new volume's info file from scratch
+```python3
+# Basic Examples
+vol = CloudVolume('gs://mybucket/retina/image') 
+vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missing=False) 
+vol = CloudVolume('gs://bucket/datasset/channel', info=info) # New info file from scratch
 image = vol[:,:,:] # Download the entire image stack into a numpy array
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
+
+# Meshes
 vol.mesh.save(12345) # save 12345 as ./12345.obj
 vol.mesh.save([12345, 12346, 12347]) # merge three segments into one obj
 vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
 
+# Skeletons
+skel = vol.skeleton.get(12345)
+vol.skeleton.upload(12345, skel.vertices, skel.edges) # upload neuroglancer visualization
+vol.get_point_cloud(12345) # download the object's point cloud
+
 # Parallel Operation
 vol = CloudVolume('gs://mybucket/retina/image', parallel=True) # Use all cores
 vol.parallel = 4 # e.g. any number > 1, use this many cores
-data = vol[:] # uses shared memory to coordinate processes
-del data # closes mmap file handle
-vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
-vol.shared_memory_id # get/set the shared memory location for this instance
+data = vol[:] # uses shared memory to coordinate processes under the hood
 
 # Shared Memory Output (can be used by other processes)
 vol = CloudVolume(...)
@@ -183,16 +200,23 @@ vol.cache.enabled = True/False/Path # Turn the cache on/off
 vol.cache.flush() # Delete local cache for this layer at this mip level  
 vol.cache.flush(preserve=Bbox(...)) # Same, but presere cache in a region of space  
 vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)  
+vol.cache.flush_info()
+vol.cache.flush_provenance()
 
 ```
 
 ### CloudVolume Constructor
 
-`CloudVolume(cloudpath, mip=0, bounded=True, fill_missing=False, autocrop=False, cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None, compress=None, non_aligned_writes=False, parallel=1)`  
+```python3
+CloudVolume(cloudpath, 
+     mip=0, bounded=True, fill_missing=False, autocrop=False, 
+     cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, 
+     provenance=None, compress=None, non_aligned_writes=False, parallel=1)
+```
 
 * mip - Which mip level to access
 * bounded - Whether access is allowed outside the bounds defined in the info file
-* fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException?
+* fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException? Note that under conditions of high load, it's possible for fill_missing to be activated for existing files. Set to false for extra safety.
 * cache - Save uploads/downloads to disk. You can also provide a string path instead of a boolean to specify a custom cache location.
 * autocrop - If bounded is False, automatically crop requested uploads and downloads to the volume boundary.
 * cdn_cache - Set the HTTP Cache-Control header on uploaded image chunks.
@@ -201,7 +225,7 @@ vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files i
 * provenance - Use this object as the provenance file.
 * compress - None or 'gzip', force this compression algorithm to be used for upload
 * non_aligned_writes - True/False. If False, non-chunk-aligned writes will trigger an error with a helpful message. If True,
-    Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/issues/87)
+    Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes)
 * parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
    that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
 
@@ -220,6 +244,10 @@ Better documentation coming later, but for now, here's a summary of the most use
 * mesh - Access mesh operations
 	* get - Download an object. Can merge multiple segmentids
 	* save - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
+* skeleton - Access Skeletons
+  * get - Download an object.
+  * upload - Save a skeleton object to the cloud.
+  * get_point_cloud - Download the point cloud, a skeleton precursor, for an object. 
 * cache - Access cache operations
 	* enabled - Boolean switch to enable/disable cache. If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
 	* path - Property that shows the current filesystem path to the cache
@@ -288,5 +316,6 @@ Julia - https://github.com/seung-lab/CloudVolume.jl
 ## Acknowledgments
 
 Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.  
-Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. 
-
+Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format.  
+Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.  
+Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him). 

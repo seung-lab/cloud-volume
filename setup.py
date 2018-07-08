@@ -51,7 +51,7 @@ if np:
         extra_compile_args=[
           '-O3', '-std=c++11'
         ],
-    ) 
+    ),
   ]
 
 setuptools.setup(

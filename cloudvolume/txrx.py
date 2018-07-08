@@ -3,6 +3,7 @@ import math
 import multiprocessing as mp
 import concurrent.futures
 import os
+import signal
 
 import numpy as np
 from six.moves import range
@@ -68,6 +69,24 @@ NON_ALIGNED_WRITE = yellow(
 # more limited than on Linux.
 fs_lock = mp.Lock()
 
+def parallel_execution(fn, items, parallel, cleanup_shm=None):
+  def cleanup(signum, frame):
+    if cleanup_shm:
+      shm.unlink(cleanup_shm)
+
+  prevsigint = signal.getsignal(signal.SIGINT)
+  prevsigterm = signal.getsignal(signal.SIGTERM)
+
+  signal.signal(signal.SIGINT, cleanup)
+  signal.signal(signal.SIGTERM, cleanup)
+
+  with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
+    executor.map(fn, items)
+
+  signal.signal(signal.SIGINT, prevsigint)
+  signal.signal(signal.SIGTERM, prevsigterm)
+
+
 def multi_process_download(cv, bufferbbox, caching, cloudpaths):
   global fs_lock
   reset_connection_pools() # otherwise multi-process hangs
@@ -93,9 +112,7 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel,
   provenance = vol.provenance 
   vol.provenance = None
   spd = partial(multi_process_download, vol, requested_bbox, vol.cache.enabled)
-
-  with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
-    executor.map(spd, cloudpaths_by_process)
+  parallel_execution(spd, cloudpaths_by_process, parallel, cleanup_shm=shared_memory_location)
   vol.provenance = provenance
 
   mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock, location=shared_memory_location)
@@ -337,8 +354,8 @@ def upload_aligned(vol, img, offset, parallel=1,
   mpu = partial(multi_process_upload, vol, img.shape, offset, 
     shared_memory_id, manual_shared_memory_bbox, manual_shared_memory_order, vol.cache.enabled)
 
-  with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
-    executor.map(mpu, chunk_ranges_by_process)
+  cleanup_shm = shared_memory_id if not manual_shared_memory_id else None
+  parallel_execution(mpu, chunk_ranges_by_process, parallel, cleanup_shm=cleanup_shm)
   vol.provenance = provenance
 
   # If manual mode is enabled, it's the 

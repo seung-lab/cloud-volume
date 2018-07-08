@@ -1,6 +1,26 @@
 CHANGES
 =======
 
+0.25.0
+------
+
+* Version 0.25.0
+* feat: add fpzip encoding C extension (+ "kempression") (#117)
+* docs: added flush\_info and flush\_provenance to examples
+* feat: added vol.cache.flush\_info() and vol.cache.flush\_provenance()
+* fix: add intelligible error when skeletons don't exist
+
+0.24.0
+------
+
+* Version 0.24.0
+* feat: vol.skeleton for accessing Neuroglancer skeletons (#120)
+* Update README.md
+* feat: cleanup shared memory on SIGTERM or SIGINT (#115)
+* Update README.md
+* Version 0.23.0
+* feat: specify C or Fortran order in upload\_from\_shared\_memory (#113)
+
 0.22.0
 ------
 
