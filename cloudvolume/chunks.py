@@ -133,7 +133,9 @@ def encode_compressed_segmentation(subvol, block_size):
   assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
 
   if ACCELERATED_CSEG:
-    return cseg.compress(np.asfortranarray(subvol), block_size=block_size, order='F')
+    subvol = np.squeeze(subvol, axis=3)
+    subvol = np.ascontiguousarray(subvol)
+    return cseg.compress(subvol.T, block_size=block_size, order='F')
   return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):

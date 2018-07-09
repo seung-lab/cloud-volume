@@ -39,6 +39,9 @@ DEFAULT_BLOCK_SIZE = (8,8,8)
 def compress(data, block_size=DEFAULT_BLOCK_SIZE, order='C'):
   cdef vector[uint32_t] *output = new vector[uint32_t]()
 
+  if len(data.shape) < 4:
+    data = data[ :, :, :, np.newaxis ]
+
   cdef ptrdiff_t volume_size[4] 
   volume_size[:] = data.shape[:4]
 
@@ -50,13 +53,13 @@ def compress(data, block_size=DEFAULT_BLOCK_SIZE, order='C'):
   if order == 'C':
     input_strides[:] = [ 
       1,
-      volume_size[1], 
-      volume_size[1] * volume_size[2]
+      volume_size[0], 
+      volume_size[0] * volume_size[1]
     ]
   else:
     input_strides[:] = [ 
-      volume_size[1] * volume_size[2],
-      volume_size[1], 
+      volume_size[0] * volume_size[1],
+      volume_size[0], 
       1
     ]
 
@@ -137,7 +140,7 @@ def decompress(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE)
   elif dtype == np.uint64:
     return decompress_helper64(encoded, volume_size, dtype, block_size)
   else:
-    raise TypeError("{} must be one of uint32 or uint64.")
+    raise TypeError("dtype ({}) must be one of uint32 or uint64.".format(dtype))
 
 
 

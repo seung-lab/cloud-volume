@@ -25,6 +25,32 @@ def test_kempression():
   assert np.all(result.shape == data.shape)
   assert np.all(np.abs(data - result) <= np.finfo(np.float32).eps)
 
+def test_compressed_segmentation():
+  data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint32)
+  encoded = encode(data, 'compressed_segmentation', block_size=(8,8,8))
+
+  compressed = np.frombuffer(encoded, dtype=np.uint32)
+
+  assert compressed[0] == 1 # one channel
+
+  # at least check headers for integrity
+  # 64 bit block header 
+  # encoded bits (8 bit), lookup table offset (24 bit), encodedValuesOffset (32)
+  for i in range(8*8*8):
+    assert ((compressed[2*i + 1] & 0xff000000) >> 24) in (0,1,2,4,8,16,32) 
+    assert (compressed[2*i + 1] & 0x00ffffff) < len(compressed)
+    assert compressed[2*i + 2] < len(compressed)
+
+  result = decode(encoded, 'compressed_segmentation', 
+    shape=(64,64,64,1),
+    dtype=np.uint32,
+    block_size=(8,8,8)) 
+
+  data = np.asfortranarray(data)
+  data=np.squeeze(data)
+
+  assert np.all(data == result)
+
 def test_fpzip():
   # fpzip extension only supports python 3
   if not SUPPORTED_PYTHON_VERSION:
