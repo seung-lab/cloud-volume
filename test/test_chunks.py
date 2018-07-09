@@ -38,12 +38,14 @@ def test_compressed_segmentation():
     # at least check headers for integrity
     # 64 bit block header 
     # encoded bits (8 bit), lookup table offset (24 bit), encodedValuesOffset (32)
-    for i in range(np.prod(block_size)):
+    grid = np.ceil(np.array(shape[3:], dtype=np.float32) / np.array(block_size, dtype=np.float32))
+    grid = grid.astype(np.uint32)
+    for i in range(np.prod(grid)):
       encodedbits = (compressed[2*i + 1] & 0xff000000) >> 24
       table_offset = compressed[2*i + 1] & 0x00ffffff
       encoded_offset = compressed[2*i + 2]
 
-      assert encodedbits in (0,1,2,4,8,16,32)
+      assert encodedbits in (0, 1, 2, 4, 8, 16, 32)
       assert table_offset < len(compressed)
       assert encoded_offset < len(compressed)
 
@@ -54,6 +56,7 @@ def test_compressed_segmentation():
 
     assert np.all(data == result)
 
+  run_test( ( 2, 2, 1, 1), (2,2,2) )
   run_test( (64,64,64,1), (8,8,8) )
   run_test( (16,16,16,1), (8,8,8) )
   run_test( (8,8,8,1), (8,8,8) )
