@@ -26,28 +26,43 @@ def test_kempression():
   assert np.all(np.abs(data - result) <= np.finfo(np.float32).eps)
 
 def test_compressed_segmentation():
-  data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint32)
-  encoded = encode(data, 'compressed_segmentation', block_size=(8,8,8))
 
-  compressed = np.frombuffer(encoded, dtype=np.uint32)
+  def run_test(shape, block_size):
+    data = np.random.randint(255, size=shape, dtype=np.uint32)
+    encoded = encode(data, 'compressed_segmentation', block_size=block_size)
 
-  assert compressed[0] == 1 # one channel
+    compressed = np.frombuffer(encoded, dtype=np.uint32)
 
-  # at least check headers for integrity
-  # 64 bit block header 
-  # encoded bits (8 bit), lookup table offset (24 bit), encodedValuesOffset (32)
-  for i in range(8*8*8):
-    assert ((compressed[2*i + 1] & 0xff000000) >> 24) in (0,1,2,4,8,16,32) 
-    assert (compressed[2*i + 1] & 0x00ffffff) < len(compressed)
-    assert compressed[2*i + 2] < len(compressed)
+    assert compressed[0] == 1 # one channel
 
-  result = decode(encoded, 'compressed_segmentation', 
-    shape=(64,64,64,1),
-    dtype=np.uint32,
-    block_size=(8,8,8)) 
+    # at least check headers for integrity
+    # 64 bit block header 
+    # encoded bits (8 bit), lookup table offset (24 bit), encodedValuesOffset (32)
+    for i in range(np.prod(block_size)):
+      encodedbits = (compressed[2*i + 1] & 0xff000000) >> 24
+      table_offset = compressed[2*i + 1] & 0x00ffffff
+      encoded_offset = compressed[2*i + 2]
 
-  data = np.asfortranarray(data)
-  assert np.all(data == result)
+      assert encodedbits in (0,1,2,4,8,16,32)
+      assert table_offset < len(compressed)
+      assert encoded_offset < len(compressed)
+
+    result = decode(encoded, 'compressed_segmentation', 
+      shape=shape,
+      dtype=np.uint32,
+      block_size=block_size) 
+
+    assert np.all(data == result)
+
+  run_test( (64,64,64,1), (8,8,8) )
+  run_test( (16,16,16,1), (8,8,8) )
+  run_test( (8,8,8,1), (8,8,8) )
+  run_test( (4,4,4,1), (8,8,8) )
+  run_test( (4,4,4,1), (2,2,2) )
+  run_test( (2,4,4,1), (2,2,2) )
+  run_test( (10,8,8,1), (10,8,8) )
+  run_test( (10,8,8,1), (0,8,8) )
+  run_test( (0,8,8,1), (8,8,8) )
 
 def test_fpzip():
   # fpzip extension only supports python 3

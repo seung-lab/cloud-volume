@@ -126,6 +126,11 @@ cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   cdef uint64_t* output_ptr = <uint64_t*>&output[0][0]
   cdef uint64_t[:] vec_view = <uint64_t[:output.size()]>output_ptr
 
+  # possible double free issue
+  # The buffer gets loaded into numpy, but not the vector<uint64_t>
+  # So when numpy clears the buffer, the vector object remains
+  # Maybe we should make a copy of the vector into a regular array.
+
   return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size )
 
 def decompress(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
