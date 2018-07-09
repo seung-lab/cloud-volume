@@ -87,7 +87,9 @@ def compress(data, block_size=DEFAULT_BLOCK_SIZE, order='C'):
 
   cdef uint32_t* output_ptr = <uint32_t *>&output[0][0]
   cdef uint32_t[:] vec_view = <uint32_t[:output.size()]>output_ptr
-  return bytes(vec_view)
+  bytestrout = bytes(vec_view)
+  del output
+  return bytestrout
 
 cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
   cdef unsigned char *encodedptr = <unsigned char*>encoded
