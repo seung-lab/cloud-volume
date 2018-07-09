@@ -169,6 +169,7 @@ def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
   if ACCELERATED_CSEG:
     chunk = cseg.decompress(bytestring, shape, dtype, block_size)
     chunk = np.squeeze(chunk, axis=3)
+    chunk = chunk[ np.newaxis, :, :, : ]
   else:
     chunk = np.empty(shape=shape[::-1], dtype=dtype)
     csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)

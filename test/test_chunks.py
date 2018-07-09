@@ -47,8 +47,6 @@ def test_compressed_segmentation():
     block_size=(8,8,8)) 
 
   data = np.asfortranarray(data)
-  data=np.squeeze(data)
-
   assert np.all(data == result)
 
 def test_fpzip():
