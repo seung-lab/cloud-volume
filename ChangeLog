@@ -1,6 +1,19 @@
 CHANGES
 =======
 
+0.25.1
+------
+
+* Version 0.25.1
+* chore: upgrade tenacity to 4.10.0 for python 3.7 compatibility (#125)
+* Update README.md
+* Update README.md
+* Update README.md
+* Update README.md
+* docs: added install info for fpzip and more acknowledgements
+* Update README.md
+* Update README.md
+
 0.25.0
 ------
 
