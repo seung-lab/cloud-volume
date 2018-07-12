@@ -1,6 +1,9 @@
 CHANGES
 =======
 
+* feat: compressed segmentation C extension (#121)
+* docs: changelog
+
 0.25.1
 ------
 
