@@ -1,3 +1,19 @@
+"""
+Cython binding for the C++ compressed_segmentation
+library by Jeremy Maitin-Shepard and Stephen Plaza.
+
+Image label encoding algorithm binding. Compatible with
+neuroglancer.
+
+Key methods: compress, decompress
+
+License: BSD 3-Clause
+
+Author: William Silversmith
+Affiliation: Seung Lab, Princeton Neuroscience Institute
+Date: July 2018
+"""
+
 from libc.stdio cimport FILE, fopen, fwrite, fclose
 from libc.stdlib cimport calloc, free
 from libc.stdint cimport uint32_t, uint64_t
@@ -30,6 +46,20 @@ cdef extern from "decompress_segmentation.h" namespace "compress_segmentation":
 DEFAULT_BLOCK_SIZE = (8,8,8)
 
 def compress(data, block_size=DEFAULT_BLOCK_SIZE, order='C'):
+  """
+  compress(data, block_size=DEFAULT_BLOCK_SIZE, order='C')
+
+  Compress a uint32 or uint64 3D or 4D numpy array using the
+  compressed_segmentation technique.
+
+  data: the numpy array
+  block_size: typically (8,8,8). Small enough to be considered
+    random access on a GPU, large enough to achieve compression.
+  order: 'C' (row-major, 'C', XYZ) or 'F' (column-major, fortran, ZYX)
+    memory layout.
+
+  Returns: byte string representing the encoded file
+  """
   cdef vector[uint32_t] *output = new vector[uint32_t]()
 
   if len(data.shape) < 4:
@@ -140,6 +170,19 @@ cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   return np.frombuffer(buf, dtype=dtype).reshape( volume_size, order='F' )
 
 def decompress(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
+  """
+  decompress(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE)
+
+  Decode a compressed_segmentation file into a numpy array.
+
+  encoded: the file as a byte string
+  volume_size: tuple with x,y,z dimensions
+  dtype: np.uint32 or np.uint64
+  block_size: typically (8,8,8), the block size the file was encoded with.
+
+  Returns: 4D numpy array with interface axes in XYZC order 
+    and internal memory layout in Fortran order.
+  """
   dtype = np.dtype(dtype)
   if dtype == np.uint32:
     return decompress_helper32(encoded, volume_size, dtype, block_size)
