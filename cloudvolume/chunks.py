@@ -138,8 +138,8 @@ def encode_compressed_segmentation(subvol, block_size, accelerated=ACCELERATED_C
   return encode_compressed_segmentation_pure_python(subvol, block_size)
 
 def encode_compressed_segmentation_c_ext(subvol, block_size):
-  # subvol = np.squeeze(subvol, axis=3)
-  # subvol = np.copy(subvol.T, order='F')
+  subvol = np.squeeze(subvol, axis=3)
+  subvol = np.copy(subvol, order='C')
   return cseg.compress(subvol, block_size=block_size, order='F')
 
 def encode_compressed_segmentation_pure_python(subvol, block_size):

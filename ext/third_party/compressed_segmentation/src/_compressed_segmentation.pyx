@@ -59,7 +59,7 @@ def compress(data, block_size=DEFAULT_BLOCK_SIZE, order='C'):
   else:
     input_strides[:] = [ 
       volume_size[1] * volume_size[2],
-      volume_size[1],
+      volume_size[2], 
       1
     ]
 

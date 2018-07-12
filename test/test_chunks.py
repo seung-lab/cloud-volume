@@ -26,16 +26,10 @@ def test_kempression():
   assert np.all(result.shape == data.shape)
   assert np.all(np.abs(data - result) <= np.finfo(np.float32).eps)
 
-# def test_compressed_segmentation_encoders():
-
-
 def test_compressed_segmentation():
-
   def run_test(shape, block_size, accelerated):
     data = np.random.randint(255, size=shape, dtype=np.uint32)
     encoded = chunks.encode_compressed_segmentation(data, block_size, accelerated)
-
-    # encode(data, 'compressed_segmentation', block_size=block_size)
 
     compressed = np.frombuffer(encoded, dtype=np.uint32)
 
@@ -70,9 +64,11 @@ def test_compressed_segmentation():
   except:
     test_options = (False,)
 
-  for accelerated in (True, False):
+  for accelerated in test_options:
     run_test( ( 2, 2, 2, 1), (2,2,2), accelerated )
     run_test( ( 1, 2, 2, 1), (2,2,2), accelerated )
+    run_test( ( 2, 1, 2, 1), (2,2,2), accelerated )
+    run_test( ( 2, 2, 1, 1), (2,2,2), accelerated )
     run_test( (64,64,64,1), (8,8,8), accelerated )
     run_test( (16,16,16,1), (8,8,8), accelerated )
     run_test( (8,8,8,1), (8,8,8), accelerated )
