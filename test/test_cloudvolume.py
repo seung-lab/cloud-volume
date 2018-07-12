@@ -332,6 +332,7 @@ def test_write_compressed_segmentation():
     delete_layer()
     cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
+    cv.info['num_channels'] = 1
     cv.info['data_type'] = 'uint32'
     cv.scale['encoding'] = 'compressed_segmentation'
     cv.scale['compressed_segmentation_block_size'] = (8,8,8)

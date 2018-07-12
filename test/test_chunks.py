@@ -5,6 +5,7 @@ import sys
 import numpy as np
 
 from cloudvolume.chunks import encode, decode
+from cloudvolume import chunks
 
 SUPPORTED_PYTHON_VERSION = (sys.version_info[0] == 3)
 
@@ -24,6 +25,59 @@ def test_kempression():
   result = decode(encoded, 'kempressed', shape=(64, 4, 4, 3), dtype=np.float32)
   assert np.all(result.shape == data.shape)
   assert np.all(np.abs(data - result) <= np.finfo(np.float32).eps)
+
+def test_compressed_segmentation():
+  def run_test(shape, block_size, accelerated):
+    data = np.random.randint(255, size=shape, dtype=np.uint32)
+    encoded = chunks.encode_compressed_segmentation(data, block_size, accelerated)
+
+    compressed = np.frombuffer(encoded, dtype=np.uint32)
+
+    assert compressed[0] == 1 # one channel
+
+    # at least check headers for integrity
+    # 64 bit block header 
+    # encoded bits (8 bit), lookup table offset (24 bit), encodedValuesOffset (32)
+    grid = np.ceil(np.array(shape[3:], dtype=np.float32) / np.array(block_size, dtype=np.float32))
+    grid = grid.astype(np.uint32)
+    for i in range(np.prod(grid)):
+      encodedbits = (compressed[2*i + 1] & 0xff000000) >> 24
+      table_offset = compressed[2*i + 1] & 0x00ffffff
+      encoded_offset = compressed[2*i + 2]
+
+      assert encodedbits in (0, 1, 2, 4, 8, 16, 32)
+      assert table_offset < len(compressed)
+      assert encoded_offset < len(compressed)
+
+    result = chunks.decode_compressed_segmentation(encoded, 
+      shape=shape,
+      dtype=np.uint32,
+      block_size=block_size,
+      accelerated=accelerated,
+    ) 
+
+    assert np.all(data == result)
+
+  try:
+    import _compressed_segmentation
+    test_options = (True, False)
+  except:
+    test_options = (False,)
+
+  for accelerated in test_options:
+    run_test( ( 2, 2, 2, 1), (2,2,2), accelerated )
+    run_test( ( 1, 2, 2, 1), (2,2,2), accelerated )
+    run_test( ( 2, 1, 2, 1), (2,2,2), accelerated )
+    run_test( ( 2, 2, 1, 1), (2,2,2), accelerated )
+    run_test( (64,64,64,1), (8,8,8), accelerated )
+    run_test( (16,16,16,1), (8,8,8), accelerated )
+    run_test( (8,8,8,1), (8,8,8), accelerated )
+    run_test( (4,4,4,1), (8,8,8), accelerated )
+    run_test( (4,4,4,1), (2,2,2), accelerated )
+    run_test( (2,4,4,1), (2,2,2), accelerated )
+  
+  if True in test_options:
+    run_test( (10,8,8,1), (10,8,8), True ) # known bug in pure python verison
 
 def test_fpzip():
   # fpzip extension only supports python 3
