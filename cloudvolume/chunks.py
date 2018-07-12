@@ -130,11 +130,19 @@ def encode_npz(subvol):
   cdz = zlib.compress(fileobj.getvalue())
   return cdz
 
-def encode_compressed_segmentation(subvol, block_size):
+def encode_compressed_segmentation(subvol, block_size, accelerated=ACCELERATED_CSEG):
   assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
 
-  if ACCELERATED_CSEG:
-    return cseg.compress(subvol, block_size=block_size, order='F')
+  if accelerated:
+    return encode_compressed_segmentation_c_ext(subvol, block_size)  
+  return encode_compressed_segmentation_pure_python(subvol, block_size)
+
+def encode_compressed_segmentation_c_ext(subvol, block_size):
+  # subvol = np.squeeze(subvol, axis=3)
+  # subvol = np.copy(subvol.T, order='F')
+  return cseg.compress(subvol, block_size=block_size, order='F')
+
+def encode_compressed_segmentation_pure_python(subvol, block_size):
   return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
@@ -162,15 +170,19 @@ def decode_jpeg(bytestring, shape, dtype):
 def decode_raw(bytestring, shape, dtype):
   return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
 
-def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
+def decode_compressed_segmentation(bytestring, shape, dtype, block_size, accelerated=ACCELERATED_CSEG):
   assert block_size is not None
 
-  if ACCELERATED_CSEG:
-    return cseg.decompress(bytes(bytestring), shape, dtype, block_size)
-  else:
-    chunk = np.empty(shape=shape[::-1], dtype=dtype)
-    csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)
-    return chunk.T
+  if accelerated:
+    return decode_compressed_segmentation_c_ext(bytestring, shape, dtype, block_size)
 
+  return decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_size)
 
+def decode_compressed_segmentation_c_ext(bytestring, shape, dtype, block_size):
+  return cseg.decompress(bytes(bytestring), shape, dtype, block_size)
+
+def decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_size):
+  chunk = np.empty(shape=shape[::-1], dtype=dtype)
+  csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)
+  return chunk.T
 
