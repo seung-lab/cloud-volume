@@ -3049,11 +3049,11 @@ static PyObject *__pyx_pf_24_compressed_segmentation_compress(CYTHON_UNUSED PyOb
  *   if order == 'C':
  *     input_strides[:] = [             # <<<<<<<<<<<<<<
  *       1,
- *       volume_size[1],
+ *       volume_size[0],
  */
     __pyx_t_7[0] = 1;
-    __pyx_t_7[1] = (__pyx_v_volume_size[1]);
-    __pyx_t_7[2] = ((__pyx_v_volume_size[1]) * (__pyx_v_volume_size[2]));
+    __pyx_t_7[1] = (__pyx_v_volume_size[0]);
+    __pyx_t_7[2] = ((__pyx_v_volume_size[0]) * (__pyx_v_volume_size[1]));
     memcpy(&(__pyx_v_input_strides[0]), __pyx_t_7, sizeof(__pyx_v_input_strides[0]) * (3));
 
     /* "_compressed_segmentation.pyx":46
