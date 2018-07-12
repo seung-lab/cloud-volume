@@ -56,7 +56,8 @@ def test_compressed_segmentation():
 
     assert np.all(data == result)
 
-  run_test( ( 2, 2, 1, 1), (2,2,2) )
+  run_test( ( 2, 2, 2, 1), (2,2,2) )
+  run_test( ( 1, 2, 2, 1), (2,2,2) )
   run_test( (64,64,64,1), (8,8,8) )
   run_test( (16,16,16,1), (8,8,8) )
   run_test( (8,8,8,1), (8,8,8) )
@@ -64,8 +65,6 @@ def test_compressed_segmentation():
   run_test( (4,4,4,1), (2,2,2) )
   run_test( (2,4,4,1), (2,2,2) )
   run_test( (10,8,8,1), (10,8,8) )
-  run_test( (10,8,8,1), (0,8,8) )
-  run_test( (0,8,8,1), (8,8,8) )
 
 def test_fpzip():
   # fpzip extension only supports python 3

@@ -24,6 +24,7 @@ try:
   ACCELERATED_CSEG = True # C extension version
 except ImportError:
   ACCELERATED_CSEG = False # Pure Python implementation
+# ACCELERATED_CSEG= False
 
 from . import compressed_segmentation as csegpy
 
@@ -134,8 +135,7 @@ def encode_compressed_segmentation(subvol, block_size):
 
   if ACCELERATED_CSEG:
     subvol = np.squeeze(subvol, axis=3)
-    subvol = np.ascontiguousarray(subvol)
-    return cseg.compress(subvol.T, block_size=block_size, order='F')
+    return cseg.compress(subvol, block_size=block_size, order='F')
   return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
@@ -167,14 +167,11 @@ def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
   assert block_size is not None
 
   if ACCELERATED_CSEG:
-    chunk = cseg.decompress(bytestring, shape, dtype, block_size)
-    chunk = np.squeeze(chunk, axis=3)
-    chunk = chunk[ np.newaxis, :, :, : ]
+    return cseg.decompress(bytestring, shape, dtype, block_size)
   else:
     chunk = np.empty(shape=shape[::-1], dtype=dtype)
     csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)
-  
-  return chunk.T
+    return chunk.T
 
 
 

@@ -53,13 +53,13 @@ def compress(data, block_size=DEFAULT_BLOCK_SIZE, order='C'):
   if order == 'C':
     input_strides[:] = [ 
       1,
-      volume_size[0], 
-      volume_size[0] * volume_size[1]
+      volume_size[1],
+      volume_size[1] * volume_size[2]
     ]
   else:
     input_strides[:] = [ 
-      volume_size[0] * volume_size[1],
-      volume_size[0], 
+      volume_size[1] * volume_size[2],
+      volume_size[1],
       1
     ]
 
@@ -108,7 +108,7 @@ cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   
   cdef uint32_t* output_ptr = <uint32_t*>&output[0][0]
   cdef uint32_t[:] vec_view = <uint32_t[:output.size()]>output_ptr
-  return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size )
+  return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size, order='F' )
 
 cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
   cdef unsigned char *encodedptr = <unsigned char*>encoded
@@ -133,14 +133,9 @@ cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   # So when numpy clears the buffer, the vector object remains
   # Maybe we should make a copy of the vector into a regular array.
 
-  return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size )
+  return np.frombuffer(vec_view, dtype=dtype).reshape( volume_size, order='F' )
 
 def decompress(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
-  volume_size = [ 
-    volume_size[2], volume_size[1], volume_size[0], 
-    volume_size[3]
-  ]
-
   dtype = np.dtype(dtype)
   if dtype == np.uint32:
     return decompress_helper32(encoded, volume_size, dtype, block_size)
