@@ -74,6 +74,20 @@ class PrecomputedSkeleton(object):
 
   @classmethod
   def decode(kls, skelbuf, segid=None):
+    """
+    Convert a buffer into a PrecomputedSkeleton object.
+
+    Format:
+    num vertices (Nv) (uint32)
+    num edges (Ne) (uint32)
+    XYZ x Nv (float32)
+    edge x Ne (2x uint32)
+    radii x Nv (optional, float32)
+    vertex_type x Nv (optional, req radii, uint8) (SWC definition)
+
+    More documentation: 
+    https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Skeletons-and-Point-Clouds
+    """
     if len(skelbuf) < 8:
       raise SkeletonDecodeError("{} bytes is fewer than needed to specify the number of verices and edges.".format(len(skelbuf)))
 
