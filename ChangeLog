@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+0.26.0
+------
+
+* Version 0.26.0
 * feat: compressed segmentation C extension (#121)
 * docs: changelog
 

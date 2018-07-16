@@ -665,6 +665,9 @@ class CloudVolume(object):
       u"size": downscale(fullres['size'], np.ceil),
     }
 
+    if newscale['encoding'] == 'compressed_segmentation':
+      newscale['compressed_segmentation_block_size'] = fullres['compressed_segmentation_block_size']
+
     newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
 
     new_res = np.array(newscale['resolution'], dtype=int)
