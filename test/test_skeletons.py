@@ -61,18 +61,34 @@ def test_skeletons():
     [10, 11],
   ], dtype=np.uint32)
 
+  radii = np.array([
+    1.0,
+    2.5,
+    3.0,
+    4.1,
+    1.2,
+    5.6,
+    2000.123123,
+    15.33332221,
+    8128.124,
+    -1,
+    1824.03
+  ], dtype=np.float32)
+
   vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
-  vol.skeleton.upload(segid=1, vertices=vertices, edges=edges)
+  vol.skeleton.upload(segid=1, vertices=vertices, edges=edges, radii=radii)
   skel = vol.skeleton.get(1)
 
   assert skel.id == 1
   assert np.all(skel.vertices == vertices)
   assert np.all(skel.edges == edges)
+  assert np.all(skel.radii == radii)
+  assert np.all(skel.vertex_types == 0)
   assert vol.skeleton.path == 'skeletons'
 
   with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:
     rawskel = stor.get_file('skeletons/1')
-    assert len(rawskel) == 228 # 8 + 11 * 12 + 11 * 8
+    assert len(rawskel) == 8 + 11 * (12 + 8 + 4 + 1) 
     stor.delete_file('skeletons/1')
   
   try:
@@ -99,7 +115,7 @@ def test_no_edges():
 
   with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:
     rawskel = stor.get_file('skeletons/2')
-    assert len(rawskel) == 8 + 2 * 12 + 0 * 8
+    assert len(rawskel) == 8 + 2 * (12 + 0 + 4 + 1) 
     stor.delete_file('skeletons/2')
 
 def test_no_vertices():
@@ -117,6 +133,6 @@ def test_no_vertices():
 
   with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:
     rawskel = stor.get_file('skeletons/3')
-    assert len(rawskel) == 8 + 0 * 12 + 0 * 8
+    assert len(rawskel) == 8 + 0 * (12 + 8 + 4 + 1)
     stor.delete_file('skeletons/3')
 
