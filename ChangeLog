@@ -1,6 +1,19 @@
 CHANGES
 =======
 
+0.26.2
+------
+
+* Version 0.26.2
+* feat: added radii and swc vertex attrs to skeleton binary format (#123)
+
+0.26.1
+------
+
+* Version 0.26.1
+* fix: support compressed\_segmentation\_block\_size in add\_scale
+* docs: thank C++ compressed\_segmentation authors
+
 0.26.0
 ------
 

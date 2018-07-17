@@ -182,7 +182,8 @@ class CloudVolume(object):
   def create_new_info(cls, 
     num_channels, layer_type, data_type, encoding, 
     resolution, voxel_offset, volume_size, 
-    mesh=None, skeletons=None, chunk_size=(64,64,64)
+    mesh=None, skeletons=None, chunk_size=(64,64,64),
+    compressed_segmentation_block_size=(8,8,8)
   ):
     """
     Used for creating new neuroglancer info files.
@@ -200,6 +201,8 @@ class CloudVolume(object):
       mesh: (str) name of mesh directory, typically "mesh"
       skeletons: (str) name of skeletons directory, typically "skeletons"
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
+      compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
+        (only used when encoding is 'compressed_segmentation')
 
     Returns: dict representing a single mip level that's JSON encodable
     """
@@ -216,6 +219,9 @@ class CloudVolume(object):
         "size": list(map(int, volume_size)),
       }],
     }
+
+    if encoding == 'compressed_segmentation':
+      info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
 
     if mesh:
       info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
