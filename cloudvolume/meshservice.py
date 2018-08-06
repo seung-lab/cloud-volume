@@ -18,7 +18,7 @@ class PrecomputedMeshService(object):
     mesh_json_file_name = str(segid) + ':0'
     return os.path.join(mesh_dir, mesh_json_file_name)
 
-  def _get_raw_frags(self, segid):
+  def _get_raw_frags(self, segid, sort_fragments=False):
     """Download the raw mesh fragments for this seg ID."""
     
     mesh_dir = self.vol.info['mesh']
@@ -31,10 +31,16 @@ class PrecomputedMeshService(object):
       # Older mesh manifest generation tasks had a bug where they
       # accidently included the manifest file in the list of mesh
       # fragments. Exclude these accidental files, no harm done.
-      fragments = [ f for f in fragments if f != mesh_json_file_name ] 
-
+      fragments = [ f for f in fragments if f != mesh_json_file_name ]
       paths = [ os.path.join(mesh_dir, fragment) for fragment in fragments ]
-      frag_datas = stor.get_files(paths)  
+
+      frag_datas = stor.get_files(paths)
+
+      if sort_fragments:
+        filenames = [frag_data["filename"] for frag_data in frag_datas]
+        frag_datas = [frag_data for _, frag_data in
+                      sorted(zip(filenames, frag_datas))]
+
     return frag_datas
 
   def get(self, segids):
@@ -68,11 +74,12 @@ class PrecomputedMeshService(object):
     # mesh data returned in fragments
     fragments = []
     for segid in segids:
-      fragments.extend( self._get_raw_frags(segid) )
+      fragments.extend( self._get_raw_frags(segid, sort_fragments=True) )
 
     # decode all the fragments
     meshdata = []
-    for frag in tqdm(fragments, disable=(not self.vol.progress), desc="Decoding Mesh Buffer"):
+    for frag in tqdm(fragments, disable=(not self.vol.progress),
+                     desc="Decoding Mesh Buffer"):
       mesh = decode_mesh_buffer(frag['filename'], frag['content'])
       meshdata.append(mesh)
 
