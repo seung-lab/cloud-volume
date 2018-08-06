@@ -466,6 +466,10 @@ class Bbox(object):
   def contains_bbox(self, bbox):
     return self.contains(bbox.minpt) and self.contains(bbox.maxpt)
 
+  def astype(self, typ):
+    self.minpt = self.minpt.astype(typ)
+    self.maxpt = self.maxpt.astype(typ)
+
   def clone(self):
     return Bbox(self.minpt, self.maxpt)
 
@@ -492,17 +496,24 @@ class Bbox(object):
 
     return tmp
 
+  def __iadd__(self, operand):
+    if isinstance(operand, Bbox):
+      self.minpt += operand.minpt
+      self.maxpt += operand.maxpt
+    else:
+      self.minpt += operand
+      self.maxpt += operand
+
+    return self
+
   def __add__(self, operand):
     tmp = self.clone()
-    
-    if isinstance(operand, Bbox):
-      tmp.minpt += operand.minpt
-      tmp.maxpt += operand.maxpt
-    else:
-      tmp.minpt += operand
-      tmp.maxpt += operand
+    return tmp.__iadd__(operand)
 
-    return tmp
+  def __imul__(self, operand):
+    self.minpt *= operand
+    self.maxpt *= operand
+    return self
 
   def __mul__(self, operand):
     tmp = self.clone()

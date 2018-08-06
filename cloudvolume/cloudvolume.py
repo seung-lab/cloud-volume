@@ -563,6 +563,22 @@ class CloudVolume(object):
     shape = self.mip_volume_size(mip)
     return Bbox( offset, offset + shape )
 
+  def bbox_to_mip(self, bbox, mip, to_mip):
+    downsample_ratio = self.mip_resolution(to_mip) / self.mip_resolution(mip) 
+    bbox.minpt = bbox.minpt.astype(np.float64)
+    bbox.maxpt = bbox.maxpt.astype(np.float64)
+
+    bbox *= downsample_ratio
+    bbox.minpt = np.floor(bbox.minpt)
+    bbox.maxpt = np.max(bbox.maxpt)
+
+    assert self.mip_bounds(to_mip).contains_bbox(bbox) 
+
+    bbox.minpt = bbox.minpt.astype(np.int64)
+    bbox.maxpt = bbox.maxpt.astype(np.int64)
+
+    return bbox
+
   def slices_to_global_coords(self, slices):
     """
     Used to convert from a higher mip level into mip 0 resolution.

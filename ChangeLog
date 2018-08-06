@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.26.3
+------
+
+* Version 0.26.3
+* fix: add compressed\_segmentation\_block\_size support to create\_new\_info
+
 0.26.2
 ------
 
