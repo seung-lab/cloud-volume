@@ -821,6 +821,66 @@ def test_cdn_cache_control():
     else:
         assert False
 
+def test_bbox_to_mip():
+  info = {
+    'data_type': 'uint8',
+    'mesh': '',
+    'num_channels': 1,
+    'scales': [
+      { 
+        'chunk_sizes': [[64, 64, 1]],
+        'encoding': 'raw',
+        'key': '4_4_40',
+        'resolution': [4, 4, 40],
+        'size': [1024, 1024, 32],
+        'voxel_offset': [35, 0, 1],
+      },
+      {
+        'chunk_sizes': [[64, 64, 1]],
+        'encoding': 'raw',
+        'key': '8_8_40',
+        'resolution': [8, 8, 40],
+        'size': [512, 512, 32],
+        'voxel_offset': [17, 0, 1],
+      },
+      {
+        'chunk_sizes': [[64, 64, 1]],
+        'encoding': 'raw',
+        'key': '16_16_40',
+        'resolution': [16, 16, 40],
+        'size': [256, 256, 32],
+        'voxel_offset': [8, 0, 1],
+      },
+      {
+        'chunk_sizes': [[64, 64, 1]],
+        'encoding': 'raw',
+        'key': '32_32_40',
+        'resolution': [32, 32, 40],
+        'size': [128, 128, 32],
+        'voxel_offset': [4, 0, 1],
+      },
+    ],
+    'type': 'image'
+  }
+  
+  cv = CloudVolume('file:///tmp/removeme/bbox_to_mip', info=info)
+
+  bbox = Bbox( (35,0,1), (1024, 1024, 32))
+  res = cv.bbox_to_mip(bbox, 0, 3)
+  assert res.minpt.x == 4
+  assert res.minpt.y == 0
+  assert res.minpt.z == 1
+
+  bbox = Bbox( (4, 0, 1), (128, 128, 32) )
+  res = cv.bbox_to_mip(bbox, 3, 0)
+  assert res.minpt.x == 32
+  assert res.minpt.y == 0
+  assert res.minpt.z == 1  
+
+  res = cv.bbox_to_mip(bbox, 0, 0)
+  assert res == bbox
+
+
 def test_slices_from_global_coords():
     delete_layer()
     cv, data = create_layer(size=(1024, 1024, 5, 1), offset=(7,0,0))
@@ -847,6 +907,10 @@ def test_slices_from_global_coords():
     slices = cv.slices_from_global_coords( Bbox( (100, 100, 1), (500, 512, 2) ) )
     result = Bbox.from_slices(slices)
     assert result == Bbox( (100, 100, 1), (500, 512, 2) )
+
+    slices = cv.slices_from_global_coords( np.s_[:,:,:] )
+    result = Bbox.from_slices(slices)
+    assert result == Bbox( (7, 0, 0), ( 1031, 1024, 5) )
 
 
 def test_slices_to_global_coords():

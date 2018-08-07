@@ -236,7 +236,8 @@ Better documentation coming later, but for now, here's a summary of the most use
 * create_new_info (class method) - Helper function for creating info files for creating new data layers.
 * refresh_info - Repull the info file.
 * refresh_provenance - Repull the provenance file.
-* slices_from_global_coords - Find the CloudVolume slice from MIP 0 coordinates if you're on a different MIP. Often used in combination with neuroglancer.
+* bbox_to_mip - Covert a bounding box or slice from one mip level to another.
+* slices_from_global_coords - *deprecated, why not use bbox_to_mip?* Find the CloudVolume slice from MIP 0 coordinates if you're on a different MIP. Often used in combination with neuroglancer. 
 * reset_scales - Delete mips other than 0 in the info file. Does not autocommit.
 * add_scale - Generate a new mip level in the info property. Does not autocommit.
 * commit_info - Push the current info property into the cloud as a JSON file.
