@@ -335,6 +335,11 @@ class Bbox(object):
   def from_list(cls, lst):
     return Bbox( lst[:3], lst[3:6] )
 
+  @property
+  def dtype(self):
+    return self.minpt.dtype
+  
+
   def to_filename(self):
     return '{}-{}_{}-{}_{}-{}'.format(
       self.minpt.x, self.maxpt.x,

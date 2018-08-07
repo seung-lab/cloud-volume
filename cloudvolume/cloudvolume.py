@@ -564,84 +564,45 @@ class CloudVolume(object):
     return Bbox( offset, offset + shape )
 
   def bbox_to_mip(self, bbox, mip, to_mip):
-    downsample_ratio = self.mip_resolution(to_mip) / self.mip_resolution(mip) 
-    bbox.minpt = bbox.minpt.astype(np.float64)
-    bbox.maxpt = bbox.maxpt.astype(np.float64)
+    def one_level(bbox, mip, to_mip):
+      original_dtype = bbox.dtype
+      downsample_ratio = self.mip_resolution(mip) / self.mip_resolution(to_mip) 
+      bbox = bbox.astype(np.float64)
+      bbox *= downsample_ratio
+      bbox.minpt = np.floor(bbox.minpt)
+      bbox.maxpt = np.ceil(bbox.maxpt)
+      bbox = bbox.astype(original_dtype)
+      return bbox
 
-    bbox *= downsample_ratio
-    bbox.minpt = np.floor(bbox.minpt)
-    bbox.maxpt = np.max(bbox.maxpt)
-
-    assert self.mip_bounds(to_mip).contains_bbox(bbox) 
-
-    bbox.minpt = bbox.minpt.astype(np.int64)
-    bbox.maxpt = bbox.maxpt.astype(np.int64)
+    delta = 1 if to_mip >= mip else -1
+    while (mip != to_mip):
+      bbox = one_level(bbox, mip, mip + delta)
+      mip += delta
 
     return bbox
 
-  def slices_to_global_coords(self, slices):
+  def slices_to_global_coords(self, bbox):
     """
     Used to convert from a higher mip level into mip 0 resolution.
     """
-    if type(slices) is Bbox:
-      slices = slices.to_slices()
+    if type(bbox) is list:
+      bbox = Bbox.from_slices(bbox)
 
-    maxsize = list(self.mip_volume_size(0) + self.mip_voxel_offset(0)) + [ self.num_channels ]
-    minsize = list(self.mip_voxel_offset(0)) + [ 0 ]
-
-    slices = generate_slices(slices, minsize, maxsize)[:3]
-    lower = Vec(*map(lambda x: x.start, slices), dtype=np.int64)
-    upper = Vec(*map(lambda x: x.stop, slices), dtype=np.int64)
-    step = Vec(*map(lambda x: x.step, slices), dtype=np.int64)
-
-    dsr = self.downsample_ratio.astype(np.int64)
-
-    lower *= dsr
-    upper *= dsr
-
-    signs = step / np.absolute(step)
-    step = signs * max2(np.absolute(step * dsr), Vec(1,1,1))
-    step = Vec(*np.round(step))
-
-    return [
-      slice(lower.x, upper.x, step.x),
-      slice(lower.y, upper.y, step.y),
-      slice(lower.z, upper.z, step.z)
-    ]
+    bbox = self.bbox_to_mip(bbox, self.mip, 0)
+    return bbox.to_slices()
 
 
-  def slices_from_global_coords(self, slices):
+  def slices_from_global_coords(self, bbox):
     """
     Used for converting from mip 0 coordinates to upper mip level
     coordinates. This is mainly useful for debugging since the neuroglancer
     client displays the mip 0 coordinates for your cursor.
     """
+    if type(bbox) is list:
+      bbox = Bbox.from_slices(bbox)
 
-    if type(slices) is Bbox:
-      slices = slices.to_slices()
-
-    maxsize = list(self.mip_volume_size(0) + self.mip_voxel_offset(0)) + [ self.num_channels ]
-    minsize = list(self.mip_voxel_offset(0)) + [ 0 ]
-
-    slices = generate_slices(slices, minsize, maxsize)[:3]
-    lower = Vec(*map(lambda x: x.start, slices), dtype=np.int64)
-    upper = Vec(*map(lambda x: x.stop, slices), dtype=np.int64)
-    step = Vec(*map(lambda x: x.step, slices), dtype=np.int64)
-
-    dsr = self.downsample_ratio.astype(np.int64)
-
-    lower //= dsr
-    upper //= dsr
-
-    signs = step / np.absolute(step)
-    step = signs * max2(np.absolute(step / dsr), Vec(1,1,1))
-    step = Vec(*np.round(step))
-
-    return [
-      slice(lower.x, upper.x, step.x),
-      slice(lower.y, upper.y, step.y),
-      slice(lower.z, upper.z, step.z)
-    ]
+    bbox = self.bbox_to_mip(bbox, 0, self.mip)
+    return bbox.to_slices()
 
   def reset_scales(self):
     """Used for manually resetting downsamples if something messed up."""
