@@ -564,6 +564,16 @@ class CloudVolume(object):
     return Bbox( offset, offset + shape )
 
   def bbox_to_mip(self, bbox, mip, to_mip):
+    """Convert bbox or slices from one mip level to another."""
+    if not type(bbox) is Bbox:
+      bbox = lib.generate_slices(
+        bbox, 
+        self.mip_bounds(mip).minpt, 
+        self.mip_bounds(mip).maxpt, 
+        bounded=False
+      )
+      bbox = Bbox.from_slices(bbox)
+
     def one_level(bbox, mip, to_mip):
       original_dtype = bbox.dtype
       downsample_ratio = self.mip_resolution(mip) / self.mip_resolution(to_mip) 
@@ -581,27 +591,20 @@ class CloudVolume(object):
 
     return bbox
 
-  def slices_to_global_coords(self, bbox):
+  def slices_to_global_coords(self, slices):
     """
     Used to convert from a higher mip level into mip 0 resolution.
     """
-    if type(bbox) is list:
-      bbox = Bbox.from_slices(bbox)
-
-    bbox = self.bbox_to_mip(bbox, self.mip, 0)
+    bbox = self.bbox_to_mip(slices, self.mip, 0)
     return bbox.to_slices()
 
-
-  def slices_from_global_coords(self, bbox):
+  def slices_from_global_coords(self, slices):
     """
     Used for converting from mip 0 coordinates to upper mip level
     coordinates. This is mainly useful for debugging since the neuroglancer
     client displays the mip 0 coordinates for your cursor.
     """
-    if type(bbox) is list:
-      bbox = Bbox.from_slices(bbox)
-
-    bbox = self.bbox_to_mip(bbox, 0, self.mip)
+    bbox = self.bbox_to_mip(slices, 0, self.mip)
     return bbox.to_slices()
 
   def reset_scales(self):

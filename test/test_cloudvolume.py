@@ -908,6 +908,10 @@ def test_slices_from_global_coords():
     result = Bbox.from_slices(slices)
     assert result == Bbox( (100, 100, 1), (500, 512, 2) )
 
+    slices = cv.slices_from_global_coords( np.s_[:,:,:] )
+    result = Bbox.from_slices(slices)
+    assert result == Bbox( (7, 0, 0), ( 1031, 1024, 5) )
+
 
 def test_slices_to_global_coords():
     delete_layer()

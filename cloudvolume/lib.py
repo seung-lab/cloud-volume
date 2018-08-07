@@ -339,7 +339,6 @@ class Bbox(object):
   def dtype(self):
     return self.minpt.dtype
   
-
   def to_filename(self):
     return '{}-{}_{}-{}_{}-{}'.format(
       self.minpt.x, self.maxpt.x,
