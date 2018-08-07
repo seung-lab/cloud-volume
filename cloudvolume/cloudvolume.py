@@ -576,7 +576,8 @@ class CloudVolume(object):
 
     def one_level(bbox, mip, to_mip):
       original_dtype = bbox.dtype
-      downsample_ratio = self.mip_resolution(mip) / self.mip_resolution(to_mip) 
+      # setting type required for Python2
+      downsample_ratio = self.mip_resolution(mip).astype(np.float32) / self.mip_resolution(to_mip).astype(np.float32)
       bbox = bbox.astype(np.float64)
       bbox *= downsample_ratio
       bbox.minpt = np.floor(bbox.minpt)
