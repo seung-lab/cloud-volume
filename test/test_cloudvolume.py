@@ -876,7 +876,10 @@ def test_bbox_to_mip():
   assert res.minpt.x == 32
   assert res.minpt.y == 0
   assert res.minpt.z == 1  
-  
+
+  res = cv.bbox_to_mip(bbox, 0, 0)
+  assert res == bbox
+
 
 def test_slices_from_global_coords():
     delete_layer()
