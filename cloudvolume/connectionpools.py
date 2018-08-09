@@ -35,9 +35,6 @@ class ConnectionPool(object):
     self.outstanding = 0
     self._lock = threading.Lock()
 
-    def handler(signum, frame):
-      self.reset_pool()
-
   def total_connections(self):
     return self.pool.qsize() + self.outstanding
 
@@ -64,17 +61,16 @@ class ConnectionPool(object):
     with self._lock:
       self.outstanding -= 1
 
-  def _close_function(self):
-    return lambda x: x # no-op
+  def close(self, conn):
+    return 
 
   def reset_pool(self):
-    closefn = self._close_function()
     while True:
       if not self.pool.qsize():
         break
       try:
         conn = self.pool.get()
-        closefn(conn)
+        self.close(conn)
         self.pool.task_done()
       except Queue.Empty:
         break
@@ -110,8 +106,11 @@ class S3ConnectionPool(ConnectionPool):
     else:
       raise ServiceUnknownException("{} unknown. Choose from 's3' or 'matrix'.")
       
-  def _close_function(self):
-    return lambda conn: conn.close()
+  def close(self, conn):
+    try:
+      return conn.close()
+    except AttributeError:
+      pass # AttributeError: 'S3' object has no attribute 'close' on shutdown
 
 
 class GCloudBucketPool(ConnectionPool):
