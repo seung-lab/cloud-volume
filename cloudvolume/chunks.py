@@ -31,7 +31,7 @@ from . import compressed_segmentation as csegpy
 try:
   import fpzip 
 except ImportError:
-  fpziperrormsg = yellow("CloudVolume: fpzip codec is not available. Was it compiled? python setup.py build_ext --inplace")
+  fpziperrormsg = yellow("CloudVolume: fpzip codec is not available. Was it installed? pip install fpzip")
   class fpzip():
     @classmethod
     def compress(cls, content):
@@ -39,19 +39,6 @@ except ImportError:
     @classmethod
     def decompress(cls, content):
       raise NotImplementedError(fpziperrormsg)
-
-try:
-  import fpzip 
-except ImportError:
-  fpziperrormsg = yellow("CloudVolume: fpzip codec is not available. Was it compiled? python setup.py build_ext --inplace")
-  class fpzip():
-    @classmethod
-    def compress(cls, content):
-      raise NotImplementedError(fpziperrormsg)
-    @classmethod
-    def decompress(cls, content):
-      raise NotImplementedError(fpziperrormsg)
-
 
 def encode(img_chunk, encoding, block_size=None):
   if encoding == "raw":
