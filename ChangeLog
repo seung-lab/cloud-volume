@@ -1,6 +1,10 @@
 CHANGES
 =======
 
+* refactor: change fpzip error message if not installed
+* refactor: switch to using fpzip from PyPI
+* feat: initialization of the "matrix" protocol. (#128)
+
 0.27.1
 ------
 
