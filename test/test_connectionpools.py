@@ -8,7 +8,7 @@ from cloudvolume.connectionpools import S3ConnectionPool, GCloudBucketPool
 from cloudvolume.threaded_queue import ThreadedQueue
 from cloudvolume.storage import Storage
 
-S3_POOL = S3ConnectionPool('seunglab-test')
+S3_POOL = S3ConnectionPool('s3', 'seunglab-test')
 GC_POOL = GCloudBucketPool('seunglab-test')
 
 retry = tenacity.retry(
