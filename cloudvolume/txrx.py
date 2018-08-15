@@ -162,7 +162,7 @@ def download_single(vol, cloudpath, filename, cache):
         file_path=filename, 
         content=(content or b''), 
         content_type=content_type(vol), 
-        compress=should_compress(vol),
+        compress=should_compress(vol, iscache=True),
       )
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
@@ -241,7 +241,10 @@ def content_type(vol):
     return 'image/x.' + vol.encoding 
   return 'application/octet-stream'
 
-def should_compress(vol):
+def should_compress(vol, iscache=False):
+  if iscache and vol.cache.compress != None:
+    return vol.cache.compress
+
   if vol.compress is None:
     return 'gzip' if vol.encoding in ('raw', 'compressed_segmentation') else None
   elif vol.compress == True:
@@ -431,7 +434,7 @@ def single_process_upload(vol, img, chunk_ranges, n_threads=DEFAULT_THREADS):
         file_path=cloudpath,
         content=encoded, 
         content_type=content_type(vol), 
-        compress=should_compress(vol)
+        compress=should_compress(vol, iscache=True)
       )
 
   desc = 'Uploading' if vol.progress else None

@@ -195,6 +195,7 @@ vol.cache.num_bytes() # number of bytes taken up by files, size on disk can be b
 vol.cache.num_bytes(all_mips=True) # Return num bytes for each mip level in a list  
 
 vol.cache.enabled = True/False/Path # Turn the cache on/off 
+vol.cache.compress = None/True/False # None: Link to cloud setting, Boolean: Force cache to compressed (True) or uncompressed (False)
 
 # Deleting Cache
 vol.cache.flush() # Delete local cache for this layer at this mip level  
@@ -210,7 +211,7 @@ vol.cache.flush_provenance()
 ```python3
 CloudVolume(cloudpath, 
      mip=0, bounded=True, fill_missing=False, autocrop=False, 
-     cache=False, cdn_cache=False, progress=INTERACTIVE, info=None, 
+     cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, 
      provenance=None, compress=None, non_aligned_writes=False, parallel=1)
 ```
 
@@ -218,6 +219,7 @@ CloudVolume(cloudpath,
 * bounded - Whether access is allowed outside the bounds defined in the info file
 * fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException? Note that under conditions of high load, it's possible for fill_missing to be activated for existing files. Set to false for extra safety.
 * cache - Save uploads/downloads to disk. You can also provide a string path instead of a boolean to specify a custom cache location.
+* compress_cache - Override default cache compression behavior if set to a boolean.
 * autocrop - If bounded is False, automatically crop requested uploads and downloads to the volume boundary.
 * cdn_cache - Set the HTTP Cache-Control header on uploaded image chunks.
 * progress - Show progress bars. Defaults to True if in python interactive mode else default False.

@@ -8,6 +8,8 @@ import shutil
 import gzip
 import json
 
+from functools import reduce
+
 from cloudvolume import CloudVolume, chunks, Storage
 from cloudvolume.lib import mkdir, Bbox, Vec
 import cloudvolume.sharedmemory as shm
@@ -647,6 +649,40 @@ def test_caching():
     assert len(files) == 4
 
     vol.cache.flush()
+
+def test_cache_compression_setting():
+    image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
+    dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
+    layer_path = 'file://' + dirpath
+
+    vol = create_volume_from_image(
+        image=image, 
+        offset=(1,1,1), 
+        layer_path=layer_path, 
+        layer_type='image', 
+        resolution=(1,1,1), 
+        encoding='raw'
+    )
+    vol.cache.enabled = True
+    vol.cache.flush()
+    vol.commit_info()
+
+    vol.cache.compress = None
+    vol[:] = image
+    assert all([ os.path.splitext(x)[1] == '.gz' for x in vol.cache.list() ])
+    vol.cache.flush()
+
+    vol.cache.compress = True
+    vol[:] = image
+    assert all([ os.path.splitext(x)[1] == '.gz' for x in vol.cache.list() ])
+    vol.cache.flush()
+
+    vol.cache.compress = False
+    vol[:] = image
+    assert all([ os.path.splitext(x)[1] == '' for x in vol.cache.list() ])
+    vol.cache.flush()
+
+    delete_layer(dirpath)
 
 def test_cache_validity():
     image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
