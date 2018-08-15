@@ -7,8 +7,6 @@ import numpy as np
 from cloudvolume.chunks import encode, decode
 from cloudvolume import chunks
 
-SUPPORTED_PYTHON_VERSION = (sys.version_info[0] == 3)
-
 def encode_decode(data, format):
   encoded = encode(data, format)
   result = decode(encoded, format, shape=(64,64,64,1), dtype=np.uint8)
@@ -17,9 +15,6 @@ def encode_decode(data, format):
   assert np.all(data == result)
 
 def test_kempression():
-  # fpzip extension only supports python 3
-  if not SUPPORTED_PYTHON_VERSION:
-    return
   data = np.random.random_sample(size=1024 * 3).reshape( (64, 4, 4, 3) ).astype(np.float32)
   encoded = encode(data, 'kempressed')
   result = decode(encoded, 'kempressed', shape=(64, 4, 4, 3), dtype=np.float32)
@@ -80,11 +75,7 @@ def test_compressed_segmentation():
     run_test( (10,8,8,1), (10,8,8), True ) # known bug in pure python verison
 
 def test_fpzip():
-  # fpzip extension only supports python 3
-  if not SUPPORTED_PYTHON_VERSION:
-    return
-  
-  for N in range(100):
+  for N in range(0,100):
     flts = np.array(range(N), dtype=np.float32).reshape( (N,1,1,1) )
     compressed = encode(flts, 'fpzip')
     assert compressed != flts
