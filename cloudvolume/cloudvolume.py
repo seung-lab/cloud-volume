@@ -78,6 +78,7 @@ class CloudVolume(object):
         - falsey value: no caching will occur.
         - True: cache will be located in a standard location.
         - non-empty string: cache is located at this file path
+    compress_cache: (None or bool) If not None, override default compression behavior for the cache.
     cdn_cache: (int, bool, or str) Sets the Cache-Control HTTP header on uploaded image files.
       Most cloud providers perform some kind of caching. As of this writing, Google defaults to
       3600 seconds. Most of the time you'll want to go with the default. 
@@ -104,7 +105,7 @@ class CloudVolume(object):
       When not enabled, a ValueError is thrown for non-aligned writes.
   """
   def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
-      cache=False, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
+      cache=False, compress_cache=None, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
       compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
 
     self.autocrop = bool(autocrop)
@@ -133,6 +134,7 @@ class CloudVolume(object):
       raise ValueError('Number of processes must be >= 1. Got: ' + str(self.parallel))
 
     self.init_submodules(cache)
+    self.cache.compress = compress_cache
 
     if info is None:
       self.refresh_info()

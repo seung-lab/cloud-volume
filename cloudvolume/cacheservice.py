@@ -11,10 +11,11 @@ def warn(text):
   print(colorize('yellow', text))
 
 class CacheService(object):
-
+  
   def __init__(self, path_or_bool, vol):
     self.vol = vol
     self.enabled = path_or_bool # on/off or path (on)
+    self.compress = None # None = linked, bool = force
 
     self.initialize()
 
