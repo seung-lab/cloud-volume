@@ -3,11 +3,7 @@ import setuptools
 
 join = os.path.join
 third_party_dir = './ext/third_party'
-fpzipdir = join(third_party_dir, 'fpzip-1.2.0')
 compressedsegdir = join(third_party_dir, 'compressed_segmentation')
-
-# NOTE: If fpzip.cpp does not exist:
-# cython -3 --fast-fail -v --cplus ./ext/src/third_party/fpzip-1.2.0/src/fpzip.pyx
 
 # NOTE: Run if _compressed_segmentation.cpp does not exist:
 # cython -3 --fast-fail -v --cplus \
@@ -25,20 +21,6 @@ extensions = []
 if np:
   setup_requires.append('numpy')
   extensions = [
-    setuptools.Extension(
-      'fpzip',
-      optional=True,
-      sources=[ join(fpzipdir, 'src', x) for x in ( 
-        'error.cpp', 'rcdecoder.cpp', 'rcencoder.cpp', 
-        'rcqsmodel.cpp', 'write.cpp', 'read.cpp', 'fpzip.cpp'
-      )],
-      language='c++',
-      include_dirs=[ join(fpzipdir, 'inc'), np.get_include() ],
-      extra_compile_args=[
-        '-std=c++11', 
-        '-DFPZIP_FP=FPZIP_FP_FAST', '-DFPZIP_BLOCK_SIZE=0x1000', '-DWITH_UNION',
-      ]
-    ),
     setuptools.Extension(
         '_compressed_segmentation',
         optional=True,
@@ -62,7 +44,6 @@ setuptools.setup(
   },
   ext_modules=extensions,
   pbr=True)
-
 
 if not np:
   yellow = "\033[1;93m"
