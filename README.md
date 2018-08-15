@@ -195,6 +195,7 @@ vol.cache.num_bytes() # number of bytes taken up by files, size on disk can be b
 vol.cache.num_bytes(all_mips=True) # Return num bytes for each mip level in a list  
 
 vol.cache.enabled = True/False/Path # Turn the cache on/off 
+vol.cache.compress = None/True/False # None: Link to cloud setting, Boolean: Force cache to compressed (True) or uncompressed (False)
 
 # Deleting Cache
 vol.cache.flush() # Delete local cache for this layer at this mip level  
