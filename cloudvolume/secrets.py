@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from collections import defaultdict
 import os
 import json
 
@@ -85,30 +86,35 @@ def google_credentials(bucket = ''):
     print(colorize('yellow', 'Using default Google credentials. There is no ~/.cloudvolume/secrets/google-secret.json set.'))  
   return project_name, google_credentials
 
-AWS_CREDENTIALS_CACHE = {}
+AWS_CREDENTIALS_CACHE = defaultdict(dict)
 aws_credentials_path = secretpath('secrets/aws-secret.json')
-def aws_credentials(bucket = ''):
+def aws_credentials(bucket = '', service = 'aws'):
   global AWS_CREDENTIALS_CACHE
+
+  if service == 's3':
+    service = 'aws'
 
   if bucket in AWS_CREDENTIALS_CACHE.keys():
     return AWS_CREDENTIALS_CACHE[bucket]
 
+  default_file_path = 'secrets/{}-secret.json'.format(service)
+
   paths = [
-    secretpath('secrets/aws-secret.json')
+    secretpath(default_file_path)
   ]
 
   if bucket:
-    paths = [ secretpath('secrets/{}-aws-secret.json'.format(bucket)) ] + paths
+    paths = [ secretpath('secrets/{}-{}-secret.json'.format(bucket, service)) ] + paths
 
   aws_credentials = ''
-  aws_credentials_path = secretpath('secrets/aws-secret.json')
+  aws_credentials_path = secretpath(default_file_path)
   for aws_credentials_path in paths:
     if os.path.exists(aws_credentials_path):
       with open(aws_credentials_path, 'r') as f:
         aws_credentials = json.loads(f.read())
       break
 
-  AWS_CREDENTIALS_CACHE[bucket] = aws_credentials
+  AWS_CREDENTIALS_CACHE[service][bucket] = aws_credentials
   return aws_credentials
     
 
