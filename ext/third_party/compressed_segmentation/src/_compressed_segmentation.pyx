@@ -139,6 +139,7 @@ cdef decompress_helper32(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   # This construct is required by python 2.
   # Python 3 can just do np.frombuffer(vec_view, ...)
   buf = bytearray(vec_view[:])
+  del output
   return np.frombuffer(buf, dtype=dtype).reshape( volume_size, order='F' )
 
 cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
@@ -167,6 +168,7 @@ cdef decompress_helper64(bytes encoded, volume_size, dtype, block_size=DEFAULT_B
   # This construct is required by python 2.
   # Python 3 can just do np.frombuffer(vec_view, ...)
   buf = bytearray(vec_view[:])
+  del output
   return np.frombuffer(buf, dtype=dtype).reshape( volume_size, order='F' )
 
 def decompress(bytes encoded, volume_size, dtype, block_size=DEFAULT_BLOCK_SIZE):
