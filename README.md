@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume) [![PyPI version](https://badge.fury.io/py/cloud-volume.svg)](https://badge.fury.io/py/cloud-volume)
 
-# cloud-volume
+# CloudVolume
 
 ```python3
 from cloudvolume import CloudVolume
@@ -17,7 +17,7 @@ Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/)
 
 The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers.
 
-CloudVolume can be used in single or multi-process capacity and can be optimized to use no more than a little over a single cutout's worth of memory. It supports reading and writing the `compressed_segmentation` format via a pure python library provided by Yann Leprince.  
+CloudVolume can be used in single or multi-process capacity and can be optimized to use no more than a little over a single cutout's worth of memory. It supports reading and writing the `compressed_segmentation` format via a C++ extension by Jeremy Maitin-Shepard, Stephen Plaza, and William Silversmith and a fallback to a pure python library provided by Yann Leprince.  
 
 ## Setup
 
@@ -26,7 +26,7 @@ Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster 
 #### `pip` Installation
 
 ```bash
-pip install numpy # additional step only needed for compressed_segmentation
+pip install numpy # additional step only needed for accelerated compressed_segmentation
 pip install cloud-volume
 ```
 
@@ -45,7 +45,7 @@ workon cv
 virtualenv venv
 source venv/bin/activate
 
-pip install numpy # additional step only needed for compressed_segmentation
+pip install numpy # additional step only needed for accelerated compressed_segmentation
 pip install -e .
 ```
 
@@ -113,7 +113,9 @@ Neuroglancer relies on an [`info`](https://github.com/google/neuroglancer/tree/m
 In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`.
 
 ```python3
-info = cloudvolume.CloudVolume.create_new_info(
+from cloudvolume import CloudVolume
+
+info = CloudVolume.create_new_info(
     num_channels    = 1,
     layer_type      = 'segmentation',
     data_type       = 'uint64', # Channel images might be 'uint8'
@@ -126,7 +128,7 @@ info = cloudvolume.CloudVolume.create_new_info(
     chunk_size      = [ 512, 512, 16 ], # units are voxels
     volume_size     = [ 250000, 250000, 25000 ], # e.g. a cubic millimeter dataset
 )
-vol = cloudvolume.CloudVolume(cfg.path, info=info)
+vol = CloudVolume(cfg.path, info=info)
 vol.commit_info()
 vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:] 
 ```
