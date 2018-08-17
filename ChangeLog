@@ -1,8 +1,19 @@
 CHANGES
 =======
 
-* refactor: change fpzip error message if not installed
-* refactor: switch to using fpzip from PyPI
+0.28.1
+------
+
+* Version 0.28.1
+* fix: memory leak in compressed\_segmentation.pyx decompression
+* Update README.md
+
+0.28.0
+------
+
+* Version 0.28.0
+* refactor: Use fpzip PyPI package (#133)
+* feat: independent control of cache compression (#132)
 * feat: initialization of the "matrix" protocol. (#128)
 
 0.27.1
@@ -35,10 +46,6 @@ CHANGES
 * Version 0.26.1
 * fix: support compressed\_segmentation\_block\_size in add\_scale
 * docs: thank C++ compressed\_segmentation authors
-
-0.26.0
-------
-
 * Version 0.26.0
 * feat: compressed segmentation C extension (#121)
 * docs: changelog

@@ -49,9 +49,18 @@ if not np:
   yellow = "\033[1;93m"
   reset = "\033[m"
   print(yellow \
-    + "WARNING: the fpzip extension has not been compiled. " \
-    + "Please reinstall after running \"pip install numpy\"." \
-    + reset)
+    + "WARNING: Several C/C++ extensions to cloud-volume require numpy C++ headers to install. " \
+    + "cloud-volume installs numpy automatically. Please rerun cloud-volume installation to access the following packages:")
+
+  print("Accelerated compressed_segmentation Compression (a pure python implementation is available)")
+
+  try:
+    import fpzip
+  except ImportError:
+    print("fpzip Floating Point Compression (you can also run `pip install fpzip`)")
+  print(reset)
+
+
 
 
 
