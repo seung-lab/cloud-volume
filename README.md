@@ -21,12 +21,14 @@ CloudVolume can be used in single or multi-process capacity and can be optimized
 
 ## Setup
 
-Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials. If you need `compressed_segmentation` support, you must install numpy first to allow it to compile.
+Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials.  
+
+CloudVolume uses several C/C++ extensions that require numpy header files to be pre-installed. As of this writing, they include accelerated `compressed_segmentation` (smaller and faster segmentation files) and `fpzip` (smaller and faster floating point files). To enable these extensions, please install as a seperate command line invocation prior to installing CloudVolume. 
 
 #### `pip` Installation
 
 ```bash
-pip install numpy # additional step only needed for accelerated compressed_segmentation
+pip install numpy # additional step needed for accelerated compressed_segmentation and fpzip
 pip install cloud-volume
 ```
 
@@ -45,7 +47,7 @@ workon cv
 virtualenv venv
 source venv/bin/activate
 
-pip install numpy # additional step only needed for accelerated compressed_segmentation
+pip install numpy # additional step needed for accelerated compressed_segmentation and fpzip
 pip install -e .
 ```
 
