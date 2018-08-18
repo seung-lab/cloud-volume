@@ -1,7 +1,7 @@
 backports-abc==0.5
 boto3>=1.4.7
 chardet==3.0.4
-fpzip==1.0.3
+fpzip>=1.0.4
 google-auth>=1.0.2
 google-cloud-storage>=1.10.0
 -e git+https://github.com/seung-lab/intern.git#egg=intern
