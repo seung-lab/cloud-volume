@@ -617,6 +617,9 @@ def save_images(image, axis='z', channel=None, directory=None, image_format='PNG
 
   channel = slice(None) if channel is None else channel
 
+  if len(image.shape) == 3:
+    image = image[:,:,:, np.newaxis ]
+
   for level in tqdm(range(image.shape[index]), desc="Saving Images"):
     if index == 0:
       img = image[level, :, :, channel ]
