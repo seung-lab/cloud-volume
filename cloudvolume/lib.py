@@ -643,7 +643,10 @@ def save_images(image, axis='z', channel=None, directory=None, image_format='PNG
       if axis == 'z':
         img2d = np.flipud(np.rot90(img2d, 1)) 
 
-      if img2d.dtype == 'uint8':
+      if img2d.dtype == np.uint8:
+        img2d = Image.fromarray(img2d, 'L')
+      elif img2d.dtype == np.bool:
+        img2d = img2d.astype(np.uint8) * 255
         img2d = Image.fromarray(img2d, 'L')
       else:
         img2d = img2d.astype('uint32')
