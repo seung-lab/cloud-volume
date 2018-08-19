@@ -10,4 +10,4 @@ from .volumecutout import VolumeCutout
 from . import secrets
 from . import txrx
 
-__version__ = '0.28.3'
+__version__ = '0.29.0'
