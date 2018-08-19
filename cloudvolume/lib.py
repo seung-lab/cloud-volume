@@ -599,7 +599,17 @@ def generate_slices(slices, minsize, maxsize, bounded=True):
 
   return slices
 
-def save_images(image, axis='z', channel=None, directory=None, global_norm=False, image_format='PNG'):
+def save_images(image, axis='z', channel=None, directory=None, global_norm=True, image_format='PNG'):
+  """
+  Serialize a 3D or 4D array into a series of PNGs for visualization.
+
+  image: A 3D or 4D numpy array. Supported dtypes: integer, float, boolean
+  axis: 'x', 'y', 'z'
+  channel: None, 0,1,2, etc, which channel to serialize. Does all by default.
+  directory: override the default output directory
+  global_norm: Normalize floating point volumes globally or per slice?
+  image_format: 'PNG', 'JPEG', etc
+  """
   if directory is None:
     directory = os.path.join('./saved_images', 'default', 'default', '0', Bbox( (0,0,0), image.shape[:3] ).to_filename())
   

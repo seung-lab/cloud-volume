@@ -61,7 +61,8 @@ class VolumeCutout(np.ndarray):
   def num_channels(self):
     return self.shape[3]
 
-  def save_images(self, axis='z', channel=None, directory=None, global_norm=False, image_format='PNG'):
+  def save_images(self, axis='z', channel=None, directory=None, global_norm=True, image_format='PNG'):
+    """See cloudvolume.lib.save_images for more information."""
     if directory is None:
       directory = os.path.join('./saved_images', self.dataset_name, self.layer, str(self.mip), self.bounds.to_filename())
 
