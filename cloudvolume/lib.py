@@ -599,7 +599,7 @@ def generate_slices(slices, minsize, maxsize, bounded=True):
 
   return slices
 
-def save_images(image, axis='z', channel=None, directory=None, image_format='PNG'):
+def save_images(image, axis='z', channel=None, directory=None, global_norm=False, image_format='PNG'):
   if directory is None:
     directory = os.path.join('./saved_images', 'default', 'default', '0', Bbox( (0,0,0), image.shape[:3] ).to_filename())
   
@@ -620,6 +620,17 @@ def save_images(image, axis='z', channel=None, directory=None, image_format='PNG
   if len(image.shape) == 3:
     image = image[:,:,:, np.newaxis ]
 
+  def normalize_float(img):
+    img = np.copy(img)
+    img[ img ==  np.inf ] = 0
+    img[ img == -np.inf ] = 0
+    lower, upper = img.min(), img.max()
+    img = (img - lower) / (upper - lower) * 255.0
+    return img.astype(np.uint8)
+
+  if global_norm and image.dtype in (np.float32, np.float64):
+    image = normalize_float(image)      
+
   for level in tqdm(range(image.shape[index]), desc="Saving Images"):
     if index == 0:
       img = image[level, :, :, channel ]
@@ -635,10 +646,8 @@ def save_images(image, axis='z', channel=None, directory=None, image_format='PNG
     for channel_index in range(num_channels):
       img2d = img[:, :, channel_index]
 
-      if img2d.dtype in (np.float32, np.float64):
-        lower, upper = img2d.min(), img2d.max()
-        img2d = (img2d - lower) / (upper - lower) * 255.0
-        img2d = img2d.astype(np.uint8)
+      if not global_norm and img2d.dtype in (np.float32, np.float64):
+        img2d = normalize_float(img2d)
 
       # discovered that downloaded cube is in a weird rotated state.
       # it requires a 90deg counterclockwise rotation on xy plane (leaving z alone)

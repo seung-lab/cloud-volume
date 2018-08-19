@@ -1,6 +1,21 @@
 CHANGES
 =======
 
+* feat: handle 3d arrays in save\_images
+* feat: support boolean images in save\_images
+
+0.28.3
+------
+
+* Version 0.28.3
+* chore: upgrade fpzip to 1.0.4
+
+0.28.2
+------
+
+* Version 0.28.2
+* Wms fix fpzip install (#134)
+
 0.28.1
 ------
 
