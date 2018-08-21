@@ -229,7 +229,7 @@ class CloudVolume(object):
       info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
 
     if skeletons:
-      info['skeletons'] = 'skeletons' if not isinstance(mesh, string_types) else mesh      
+      info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
 
     return info
 
