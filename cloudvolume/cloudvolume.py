@@ -802,7 +802,7 @@ class CloudVolume(object):
     num_blocks = int(np.ceil(num_blocks))
 
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
-    
+
     pbar = tqdm(
       desc='Transferring Blocks of {} Chunks'.format(step), 
       unit='blocks', 
@@ -813,11 +813,12 @@ class CloudVolume(object):
     with pbar:
       with Storage(self.layer_cloudpath) as src_stor:
         with Storage(cloudpath) as dest_stor:
-          srcpaths = list(itertools.islice(cloudpaths, step))
-          files = src_stor.get_files(srcpaths)
-          files = [ (f['filename'], f['content']) for f in files ]
-          dest_stor.put_files(files)
-          pbar.update()
+          for _ in range(num_blocks, 0, -1):
+            srcpaths = list(itertools.islice(cloudpaths, step))
+            files = src_stor.get_files(srcpaths)
+            files = [ (f['filename'], f['content']) for f in files ]
+            dest_stor.put_files(files)
+            pbar.update()
 
 
   def __getitem__(self, slices):
