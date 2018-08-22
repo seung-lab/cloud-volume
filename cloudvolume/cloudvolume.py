@@ -761,8 +761,9 @@ class CloudVolume(object):
     may be more appropriate. This method is provided for convenience. It
     may be optimized for better performance over time as demand requires.
 
-    
-
+    cloudpath (str): path to storage layer
+    bbox (Bbox object): ROI to transfer
+    block_size (int): number of file chunks to transfer per I/O batch.
     """
     if type(bbox) is Bbox:
       requested_bbox = bbox
