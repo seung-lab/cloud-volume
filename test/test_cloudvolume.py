@@ -838,6 +838,22 @@ def test_delete():
     else:
         assert False
 
+def test_transfer():
+    # Bbox version
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+    cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
+
+    ls = os.listdir('/tmp/removeme/transfer/1_1_1/')
+
+    assert '0-64_0-64_0-64' in ls
+    assert len(ls) == 2
+
+    assert os.path.exists('/tmp/removeme/transfer/info')
+    assert os.path.exists('/tmp/removeme/transfer/provenance')
+
+
 def test_cdn_cache_control():
     delete_layer()
     cv, data = create_layer(size=(128,10,10,1), offset=(0,0,0))

@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from functools import partial
+import itertools
 import json
 import json5
 import os
@@ -721,6 +722,7 @@ class CloudVolume(object):
       (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+    cloudpaths = list(cloudpaths)
 
     with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       existence_report = storage.files_exist(cloudpaths)
@@ -745,6 +747,7 @@ class CloudVolume(object):
       ))
 
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+    cloudpaths = list(cloudpaths)
 
     with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       storage.delete_files(cloudpaths)
@@ -752,6 +755,71 @@ class CloudVolume(object):
     if self.cache.enabled:
       with Storage('file://' + self.cache.path, progress=self.progress) as storage:
         storage.delete_files(cloudpaths)
+
+  def transfer_to(self, cloudpath, bbox, block_size=None):
+    """
+    Transfer files from one storage location to another, bypassing
+    volume painting. This enables using a single CloudVolume instance
+    to transfer big volumes. In some cases, gsutil or aws s3 cli tools
+    may be more appropriate. This method is provided for convenience. It
+    may be optimized for better performance over time as demand requires.
+
+    cloudpath (str): path to storage layer
+    bbox (Bbox object): ROI to transfer
+    block_size (int): number of file chunks to transfer per I/O batch.
+    """
+    if type(bbox) is Bbox:
+      requested_bbox = bbox
+    else:
+      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox)
+    realized_bbox = self.__realized_bbox(requested_bbox)
+
+    if requested_bbox != realized_bbox:
+      raise ValueError("Unable to transfer non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
+        requested_bbox, realized_bbox
+      ))
+
+    default_block_size_MB = 50 # MB
+    chunk_MB = self.underlying.rectVolume() * np.dtype(self.dtype).itemsize * self.num_channels
+    if self.layer_type == 'image':
+      # kind of an average guess for some EM datasets, have seen up to 1.9x and as low as 1.1
+      # affinites are also images, but have very different compression ratios. e.g. 3x for kempressed
+      chunk_MB /= 1.3 
+    else: # segmentation
+      chunk_MB /= 100.0 # compression ratios between 80 and 800....
+    chunk_MB /= 1024.0 * 1024.0
+
+    if block_size:
+      step = block_size
+    else:
+      step = int(default_block_size_MB // chunk_MB) + 1
+
+    destvol = CloudVolume(cloudpath, mip=self.mip, info=self.info, provenance=self.provenance.serialize())
+    destvol.commit_info()
+    destvol.commit_provenance()
+
+    num_blocks = np.ceil(self.bounds.volume() / self.underlying.rectVolume()) / step
+    num_blocks = int(np.ceil(num_blocks))
+
+    cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+
+    pbar = tqdm(
+      desc='Transferring Blocks of {} Chunks'.format(step), 
+      unit='blocks', 
+      disable=(not self.progress),
+      total=num_blocks,
+    )
+
+    with pbar:
+      with Storage(self.layer_cloudpath) as src_stor:
+        with Storage(cloudpath) as dest_stor:
+          for _ in range(num_blocks, 0, -1):
+            srcpaths = list(itertools.islice(cloudpaths, step))
+            files = src_stor.get_files(srcpaths)
+            files = [ (f['filename'], f['content']) for f in files ]
+            dest_stor.put_files(files)
+            pbar.update()
+
 
   def __getitem__(self, slices):
     (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
