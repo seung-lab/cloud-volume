@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from functools import partial
+import itertools
 import json
 import json5
 import os
@@ -721,6 +722,7 @@ class CloudVolume(object):
       (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+    cloudpaths = list(cloudpaths)
 
     with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       existence_report = storage.files_exist(cloudpaths)
@@ -745,6 +747,7 @@ class CloudVolume(object):
       ))
 
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+    cloudpaths = list(cloudpaths)
 
     with Storage(self.layer_cloudpath, progress=self.progress) as storage:
       storage.delete_files(cloudpaths)
@@ -776,8 +779,6 @@ class CloudVolume(object):
         requested_bbox, realized_bbox
       ))
 
-    cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
-
     default_block_size_MB = 50 # MB
     chunk_MB = self.underlying.rectVolume() * np.dtype(self.dtype).itemsize * self.num_channels
     if self.layer_type == 'image':
@@ -797,14 +798,26 @@ class CloudVolume(object):
     destvol.commit_info()
     destvol.commit_provenance()
 
-    with Storage(self.layer_cloudpath) as src_stor:
-      with Storage(cloudpath) as dest_stor:
-        for i in tqdm(range(0, len(cloudpaths), step), desc='Transferring Blocks of {} Chunks'.format(step), unit='blocks', disable=(not self.progress)):
+    num_blocks = np.ceil(self.bounds.volume() / self.underlying.rectVolume()) / step
+    num_blocks = int(np.ceil(num_blocks))
 
-          srcpaths = cloudpaths[ i : i+step ]
+    cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
+    
+    pbar = tqdm(
+      desc='Transferring Blocks of {} Chunks'.format(step), 
+      unit='blocks', 
+      disable=(not self.progress),
+      total=num_blocks,
+    )
+
+    with pbar:
+      with Storage(self.layer_cloudpath) as src_stor:
+        with Storage(cloudpath) as dest_stor:
+          srcpaths = list(itertools.islice(cloudpaths, step))
           files = src_stor.get_files(srcpaths)
           files = [ (f['filename'], f['content']) for f in files ]
           dest_stor.put_files(files)
+          pbar.update()
 
 
   def __getitem__(self, slices):

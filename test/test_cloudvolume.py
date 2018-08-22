@@ -854,8 +854,6 @@ def test_transfer():
     assert os.path.exists('/tmp/removeme/transfer/provenance')
 
 
-
-
 def test_cdn_cache_control():
     delete_layer()
     cv, data = create_layer(size=(128,10,10,1), offset=(0,0,0))

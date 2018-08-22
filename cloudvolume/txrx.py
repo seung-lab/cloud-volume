@@ -129,7 +129,7 @@ def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1,
 
   cloudpath_bbox = requested_bbox.expand_to_chunk_size(vol.underlying, offset=vol.voxel_offset)
   cloudpath_bbox = Bbox.clamp(cloudpath_bbox, vol.bounds)
-  cloudpaths = chunknames(cloudpath_bbox, vol.bounds, vol.key, vol.underlying)
+  cloudpaths = list(chunknames(cloudpath_bbox, vol.bounds, vol.key, vol.underlying))
   shape = list(requested_bbox.size3()) + [ vol.num_channels ]
 
   handle = None
@@ -473,8 +473,6 @@ def generate_chunks(vol, img, offset):
     yield (startpt, endpt, spt, ept)
 
 def chunknames(bbox, volume_bbox, key, chunk_size):
-  paths = []
-
   for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
     highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
     filename = "{}-{}_{}-{}_{}-{}".format(
@@ -482,6 +480,6 @@ def chunknames(bbox, volume_bbox, key, chunk_size):
       y, highpt.y, 
       z, highpt.z
     )
-    paths.append( os.path.join(key, filename) )
+    yield os.path.join(key, filename)
 
-  return paths
+
