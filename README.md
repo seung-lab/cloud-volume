@@ -180,6 +180,12 @@ data = vol.download_to_shared_memory(np.s_[:], location='some-example')
 vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
 vol.shared_memory_id # get/set the default shared memory location for this instance
 
+# Transfer w/o Excess Memory Allocation
+
+vol = CloudVolume(...)
+# single core, send all of vol to destination, no painting memory
+vol.transfer_to('gs://bucket/dataset/layer', vol.bounds) 
+
 # Shared Memory Upload
 vol = CloudVolume(...)
 vol.upload_from_shared_memory('my-shared-memory-id', # do not prefix with /dev/shm
@@ -265,6 +271,7 @@ Better documentation coming later, but for now, here's a summary of the most use
 	* flush_region - Delete a spatial region at this mip level
 * exists - Generate a report on which chunks within a bounding box exist.
 * delete - Delete the chunks within this bounding box.
+* transfer_to - Transfer data from a bounding box to another data storage location. Does not allocate memory and transfers in blocks, so can transfer large volumes of data. May be less efficient than a dedicated tool like `gsutil` or `aws s3`.
 * unlink_shared_memory - Delete shared memory associated with this instance (`vol.shared_memory_id`)
 * generate_shared_memory_location - Create a new unique shared memory identifier string. No side effects.
 * download_to_shared_memory - Instead of using ordinary numpy memory allocations, download to shared memory.
