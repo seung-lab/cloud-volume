@@ -12,6 +12,7 @@ import struct
 
 from . import lib
 from .lib import red
+from .txrx import cdn_cache_control
 from .storage import Storage, SimpleStorage
 
 
@@ -177,11 +178,12 @@ class PrecomputedSkeletonService(object):
     with SimpleStorage(self.vol.layer_cloudpath) as stor:
       path = os.path.join(self.path, str(segid))
       skel = PrecomputedSkeleton(vertices, edges, radii, segid=segid).encode()
-      
+
       stor.put_file(
         file_path='{}/{}'.format(self.path, segid),
         content=skel,
         compress='gzip',
+        cache_control=cdn_cache_control(self.vol.cdn_cache),
       )
     
   def get_point_cloud(self, segid):
