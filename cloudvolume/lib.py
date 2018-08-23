@@ -311,6 +311,20 @@ class Bbox(object):
     )
 
   @classmethod
+  def create(cls, obj):
+    typ = type(obj)
+    if typ is Bbox:
+      return obj
+    elif typ is list:
+      return Bbox.from_slices(obj)
+    elif typ is Vec:
+      return Bbox.from_vec(obj)
+    elif typ is str:
+      return Bbox.from_filename(obj)
+    else:
+      raise NotImplementedError("{} is not a Bbox convertible type.".format(typ))
+
+  @classmethod
   def from_vec(cls, vec):
     return Bbox( (0,0,0), vec )
 
