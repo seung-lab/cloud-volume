@@ -27,10 +27,18 @@ CloudVolume uses several C/C++ extensions that require numpy header files to be 
 
 #### `pip` Installation
 
+*C++ compiler recommended.*
+
 ```bash
-pip install numpy # additional step needed for accelerated compressed_segmentation and fpzip
+pip install numpy # extra step required for Cython extensions + Anaconda installations
 pip install cloud-volume
 ```
+
+Due to packaging problems endemic to Python, you'll want to explicitly install numpy prior to installing cloud-volume (i.e. as a totally seperate command). This is required because some CloudVolume capabilites depend on C++ Cython extensions which in turn depend on having numpy C headers present at compilation time. They are not recognized unless numpy is installed in a seperate process that runs first.  
+
+The libraries depending on numpy are:  
+- Accelerated compressed_segmentation: A slow pure python fallback is present. When the accelerated version is present, IO is faster than with gzip alone.
+- fpzip: A lossless compression library for 3D & 4D floating point data.
 
 #### Manual Installation
 
