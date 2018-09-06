@@ -756,7 +756,7 @@ class CloudVolume(object):
       with Storage('file://' + self.cache.path, progress=self.progress) as storage:
         storage.delete_files(cloudpaths)
 
-  def transfer_to(self, cloudpath, bbox, block_size=None):
+  def transfer_to(self, cloudpath, bbox, block_size=None, compress=True):
     """
     Transfer files from one storage location to another, bypassing
     volume painting. This enables using a single CloudVolume instance
@@ -767,6 +767,7 @@ class CloudVolume(object):
     cloudpath (str): path to storage layer
     bbox (Bbox object): ROI to transfer
     block_size (int): number of file chunks to transfer per I/O batch.
+    compress (bool): Set to False to upload as uncompressed
     """
     if type(bbox) is Bbox:
       requested_bbox = bbox
@@ -817,7 +818,7 @@ class CloudVolume(object):
             srcpaths = list(itertools.islice(cloudpaths, step))
             files = src_stor.get_files(srcpaths)
             files = [ (f['filename'], f['content']) for f in files ]
-            dest_stor.put_files(files)
+            dest_stor.put_files(files, compress=compress)
             pbar.update()
 
 
