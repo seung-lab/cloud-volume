@@ -186,6 +186,18 @@ class PrecomputedSkeletonService(object):
         cache_control=cdn_cache_control(self.vol.cdn_cache),
       )
     
+  def upload_multiple(self, skeletons):
+    with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+      for skel in skeletons:
+        path = os.path.join(self.path, str(skel.id))
+        stor.put_file(
+          file_path='{}/{}'.format(self.path, str(skel.id)),
+          content=skel.encode(),
+          compress='gzip',
+          cache_control=cdn_cache_control(self.vol.cdn_cache),
+        )
+    
+
   def get_point_cloud(self, segid):
     with SimpleStorage(self.vol.layer_cloudpath) as stor:
       path = os.path.join(self.path, "{}.json".format(segid))

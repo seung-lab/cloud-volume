@@ -1,6 +1,9 @@
 CHANGES
 =======
 
+* feat: add compress argument to transfer\_to
+* docs: updated changelog
+
 0.30.2
 ------
 
