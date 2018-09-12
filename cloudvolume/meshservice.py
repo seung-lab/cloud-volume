@@ -37,7 +37,7 @@ class PrecomputedMeshService(object):
       frag_datas = stor.get_files(paths)  
     return frag_datas
 
-  def get(self, segids):
+  def get(self, segids, remove_duplicate_vertices=True):
     """
     Merge fragments derived from these segids into a single vertex and face list.
 
@@ -45,6 +45,8 @@ class PrecomputedMeshService(object):
     segids that belong to the same neuron.
 
     segids: (list or int) segids to render into a single mesh
+
+    remove_duplicate_vertices: bool, fuse exactly matching vertices
 
     Returns: { 
       num_vertices: int, 
@@ -76,9 +78,6 @@ class PrecomputedMeshService(object):
       mesh = decode_mesh_buffer(frag['filename'], frag['content'])
       meshdata.append(mesh)
 
-    total_vertices = sum(map(lambda x: len(x['vertices']), meshdata))
-    total_faces = sum(map(lambda x: len(x['faces']), meshdata))
-
     vertices, faces = [], []
     vertexct = 0
     for mesh in meshdata:
@@ -87,8 +86,15 @@ class PrecomputedMeshService(object):
       faces.extend(f.tolist())
       vertexct += mesh['num_vertices']
 
+    if remove_duplicate_vertices:
+      all_vertices = np.array(vertices)[faces]
+      unique_vertices, unique_indices = np.unique(all_vertices,
+                                                  return_inverse=True, axis=0)
+      vertices = list(map(tuple, unique_vertices))
+      faces = list(unique_indices)
+
     output = {
-      'num_vertices': total_vertices // 3,
+      'num_vertices': len(vertices),
       'vertices': vertices,
       'faces': faces,
     }

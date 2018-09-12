@@ -1012,7 +1012,7 @@ def test_mesh_fragment_download():
 def test_get_mesh():
     vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
     mesh = vol.mesh.get(18)
-    assert mesh['num_vertices'] == 2041
+    assert mesh['num_vertices'] == 6123
     assert len(mesh['vertices']) == 6123
     assert len(mesh['faces']) == 36726
     
