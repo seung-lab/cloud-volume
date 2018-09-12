@@ -847,7 +847,7 @@ def test_transfer():
 
     ls = os.listdir('/tmp/removeme/transfer/1_1_1/')
 
-    assert '0-64_0-64_0-64' in ls
+    assert '0-64_0-64_0-64.gz' in ls
     assert len(ls) == 2
 
     assert os.path.exists('/tmp/removeme/transfer/info')
