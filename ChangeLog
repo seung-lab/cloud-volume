@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+0.31.0
+------
+
+* Version 0.31.0
+* feat: skeletonservice upload\_multiple
 * feat: add compress argument to transfer\_to
 * docs: updated changelog
 
