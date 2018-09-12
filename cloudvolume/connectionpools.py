@@ -101,7 +101,7 @@ class S3ConnectionPool(ConnectionPool):
         's3',
         aws_access_key_id=self.credentials['AWS_ACCESS_KEY_ID'],
         aws_secret_access_key=self.credentials['AWS_SECRET_ACCESS_KEY'],
-        endpoint_url='http://s3-hpcrc.rc.princeton.edu',
+        endpoint_url='https://s3-hpcrc.rc.princeton.edu',
       )
     else:
       raise ServiceUnknownException("{} unknown. Choose from 's3' or 'matrix'.")
