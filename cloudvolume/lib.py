@@ -689,7 +689,7 @@ def save_images(image, axis='z', channel=None, directory=None, global_norm=True,
         img2d[:,:] |= 0xff000000 # for little endian abgr
         img2d = Image.fromarray(img2d, 'RGBA')
 
-      file_index = str(level).zfill(2)
+      file_index = str(level).zfill(3)
       filename = '{}.{}'.format(file_index, image_format.lower())
       if num_channels > 1:
         filename = '{}-{}'.format(channel_index, filename)
