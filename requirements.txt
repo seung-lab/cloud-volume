@@ -4,7 +4,7 @@ chardet==3.0.4
 fpzip>=1.0.4
 google-auth>=1.0.2
 google-cloud-storage>=1.10.0
--e git+https://github.com/seung-lab/intern.git#egg=intern
+intern
 json5==0.5.1
 numpy>=1.13.3
 posix_ipc==1.0.4

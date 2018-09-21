@@ -1,6 +1,22 @@
 CHANGES
 =======
 
+* feat: bump zfill to 3 in save\_images
+
+0.31.2
+------
+
+* Version 0.31.2
+* feat(meshservice): Remove duplicate vertices (#137)
+
+0.31.1
+------
+
+* Version 0.31.1
+* fix: failing test for transfer\_to (the test was wrong)
+* docs: updated changelog
+* feat: upgrade 'matrix' protocol to encrypted (https)
+
 0.31.0
 ------
 
