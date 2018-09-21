@@ -906,7 +906,8 @@ class CloudVolume(object):
     )
 
     rmt = BossRemote(boss_credentials)
-    cutout = rmt.get_cutout(chan, self.mip, x_rng, y_rng, z_rng).T
+    cutout = rmt.get_cutout(chan, self.mip, x_rng, y_rng, z_rng, no_cache=True)
+    cutout = cutout.T
     cutout = cutout.astype(self.dtype)
     cutout = cutout[::steps.x, ::steps.y, ::steps.z]
 
