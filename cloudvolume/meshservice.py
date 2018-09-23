@@ -78,20 +78,14 @@ class PrecomputedMeshService(object):
       mesh = decode_mesh_buffer(frag['filename'], frag['content'])
       meshdata.append(mesh)
 
-    vertices, faces = [], []
-    vertexct = 0
-    for mesh in meshdata:
-      vertices.extend(mesh['vertices'])
-      f = np.array(mesh['faces'], dtype=np.uint32) + vertexct
-      faces.extend(f.tolist())
-      vertexct += mesh['num_vertices']
+    vertexct = np.zeros(len(meshdata) + 1, np.uint32)
+    vertexct[1:] = np.cumsum([x['num_vertices'] for x in meshdata])
+    vertices = np.concatenate([x['vertices'] for x in meshdata])
+    faces = np.concatenate([meshdata[i]['faces'] + vertexct[i] for i in range(len(meshdata))])
 
     if remove_duplicate_vertices:
-      all_vertices = np.array(vertices)[faces]
-      unique_vertices, unique_indices = np.unique(all_vertices,
-                                                  return_inverse=True, axis=0)
-      vertices = list(map(tuple, unique_vertices))
-      faces = list(unique_indices)
+      vertices, faces = np.unique(vertices[faces],
+                                  return_inverse=True, axis=0)
 
     output = {
       'num_vertices': len(vertices),
@@ -114,70 +108,51 @@ class PrecomputedMeshService(object):
         dne.append(segid)
     return dne
 
-  def save(self, segids, filename=None, file_format='obj'):
+  def save(self, segids, filename=None, file_format='ply'):
     """
     Save one or more segids into a common mesh format as a single file.
 
     segids: int, string, or list thereof
 
-    Supported Formats: 'obj'
+    Supported Formats: 'obj', 'ply'
     """
     if type(segids) != list:
       segids = [ segids ]
 
     meshdata = self.get(segids)
 
-    if file_format != 'obj':
-      raise NotImplementedError('Only .obj is currently supported.')
-
     if not filename:
       filename = str(segids[0])
       if len(segids) > 1:
         filename = "{}_{}".format(segids[0], segids[-1])
 
-    with open('./{}.obj'.format(filename), 'wb') as f:
-      objdata = mesh_to_obj(meshdata, progress=self.vol.progress)
-      objdata = '\n'.join(objdata) + '\n'
-      f.write(objdata.encode('utf8'))
-      
+    if file_format == 'obj':
+      with open('./{}.obj'.format(filename), 'wb') as f:
+        objdata = mesh_to_obj(meshdata, progress=self.vol.progress)
+        objdata = '\n'.join(objdata) + '\n'
+        f.write(objdata.encode('utf8'))
+    elif file_format == 'ply':
+      with open('./{}.ply'.format(filename), 'wb') as f:
+        f.write(mesh_to_ply(meshdata))
+    else:
+      raise NotImplementedError('Only .obj and .ply is currently supported.')
 
 def decode_mesh_buffer(filename, fragment):
-    num_vertices = struct.unpack("=I", fragment[0:4])[0]
-    vertex_data = fragment[4:4+(num_vertices*3)*4]
-    face_data = fragment[4+(num_vertices*3)*4:]
-    vertices = []
+  num_vertices = struct.unpack("=I", fragment[0:4])[0]
+  try:
+    vertices = np.frombuffer(fragment, 'float32, float32, float32', num_vertices, 4)
+    faces = np.frombuffer(fragment, np.uint32, -1, 4 + 12*num_vertices)
+  except ValueError:
+    raise ValueError("""Unable to process fragment {}. Violation: Input buffer too small.
+        Minimum size: Buffer Length: {}, Actual Size: {}
+      """.format(filename, 4 + 4*num_vertices, len(fragment)))
 
-    if len(vertex_data) != 12 * num_vertices:
-      raise ValueError("""Unable to process fragment {}. Violation: len vertex data != 12 * num vertices
-        Array Length: {}, Vertex Count: {}
-      """.format(filename, len(vertex_data), num_vertices))
-    elif len(face_data) % 12 != 0:
-      raise ValueError("""Unable to process fragment {}. Violation: len face data is not a multiple of 12.
-        Array Length: {}""".format(filename, len(face_data)))
-
-    for i in range(0, len(vertex_data), 12):
-      x = struct.unpack("=f", vertex_data[i:i+4])[0]
-      y = struct.unpack("=f", vertex_data[i+4:i+8])[0]
-      z = struct.unpack("=f", vertex_data[i+8:i+12])[0]
-      vertices.append((x,y,z))
-
-    faces = []
-    for i in range(0, len(face_data), 4):
-      vertex_number = struct.unpack("=I", face_data[i:i+4])[0]
-      if vertex_number >= num_vertices:
-        raise ValueError(
-          "Unable to process fragment {}. Vertex number {} greater than num_vertices {}.".format(
-            filename, vertex_number, num_vertices
-          )
-        )
-      faces.append(vertex_number)
-
-    return {
-      'filename': filename,
-      'num_vertices': num_vertices, 
-      'vertices': vertices, 
-      'faces': faces
-    }
+  return {
+    'filename': filename,
+    'num_vertices': num_vertices, 
+    'vertices': vertices, 
+    'faces': faces
+  }
 
 def mesh_to_obj(mesh, progress=False):
   objdata = []
@@ -190,3 +165,30 @@ def mesh_to_obj(mesh, progress=False):
     objdata.append('f %s %s %s' % (faces[i], faces[i+1], faces[i+2]))
   
   return objdata
+
+def mesh_to_ply(mesh):
+  # FIXME: Storing vertices per face (3) as uchar would save a bit storage
+  #        but I can't figure out how to mix uint8 with uint32 efficiently.
+  vertexct = mesh['num_vertices']
+  trianglect = len(mesh['faces']) // 3
+
+  # Header
+  plydata = bytearray(f"""ply
+format binary_little_endian 1.0
+element vertex {vertexct}
+property float x
+property float y
+property float z
+element face {trianglect}
+property list int int vertex_indices
+end_header
+""".encode('utf8'))
+
+  # Vertex data (x y z)
+  plydata.extend(mesh['vertices'].tobytes())
+
+  # Faces (3 f1 f2 f3)
+  plydata.extend(
+      np.insert(mesh['faces'].reshape(-1, 3), 0, 3, axis=1).tobytes())
+
+  return plydata
