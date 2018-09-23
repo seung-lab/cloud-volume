@@ -1,11 +1,10 @@
 import re
 import os
 
-import numpy as np
 import struct
+import numpy as np
 from tqdm import tqdm
 
-from . import lib
 from .lib import red
 from .storage import Storage
 
@@ -20,21 +19,21 @@ class PrecomputedMeshService(object):
 
   def _get_raw_frags(self, segid):
     """Download the raw mesh fragments for this seg ID."""
-    
+
     mesh_dir = self.vol.info['mesh']
     mesh_json_file_name = str(segid) + ':0'
     download_path = self._manifest_path(segid)
 
     with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
       fragments = stor.get_json(download_path)['fragments']
-      
+
       # Older mesh manifest generation tasks had a bug where they
       # accidently included the manifest file in the list of mesh
       # fragments. Exclude these accidental files, no harm done.
-      fragments = [ f for f in fragments if f != mesh_json_file_name ] 
+      fragments = [f for f in fragments if f != mesh_json_file_name]
 
-      paths = [ os.path.join(mesh_dir, fragment) for fragment in fragments ]
-      frag_datas = stor.get_files(paths)  
+      paths = [os.path.join(mesh_dir, fragment) for fragment in fragments]
+      frag_datas = stor.get_files(paths)
     return frag_datas
 
   def get(self, segids, remove_duplicate_vertices=True):
@@ -48,29 +47,29 @@ class PrecomputedMeshService(object):
 
     remove_duplicate_vertices: bool, fuse exactly matching vertices
 
-    Returns: { 
-      num_vertices: int, 
+    Returns: {
+      num_vertices: int,
       vertices: [ (x,y,z), ... ]  # floats
       faces: [ int, int, int, ... ] # int = vertex_index, 3 to a face
     }
 
     """
     if type(segids) != list:
-      segids = [ segids ]
+      segids = [segids]
 
     dne = self._check_missing_manifests(segids)
 
-    if len(dne) > 0:
-      missing = ', '.join([ str(segid) for segid in dne ])
+    if dne:
+      missing = ', '.join([str(segid) for segid in dne])
       raise ValueError(red(
-        'Segment ID(s) {} are missing corresponding mesh manifests.\nAborted.' \
+          'Segment ID(s) {} are missing corresponding mesh manifests.\nAborted.' \
           .format(missing)
       ))
 
     # mesh data returned in fragments
     fragments = []
     for segid in segids:
-      fragments.extend( self._get_raw_frags(segid) )
+      fragments.extend(self._get_raw_frags(segid))
 
     # decode all the fragments
     meshdata = []
@@ -88,9 +87,9 @@ class PrecomputedMeshService(object):
                                   return_inverse=True, axis=0)
 
     output = {
-      'num_vertices': len(vertices),
-      'vertices': vertices,
-      'faces': faces,
+        'num_vertices': len(vertices),
+        'vertices': vertices,
+        'faces': faces,
     }
 
     return output
@@ -100,11 +99,11 @@ class PrecomputedMeshService(object):
     manifest_paths = [ self._manifest_path(segid) for segid in segids ]
     with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
       exists = stor.files_exist(manifest_paths)
-    
+
     dne = []
     for path, there in exists.items():
       if not there:
-        (segid,) = re.search('(\d+):0$', path).groups()
+        (segid,) = re.search(r'(\d+):0$', path).groups()
         dne.append(segid)
     return dne
 
@@ -117,7 +116,7 @@ class PrecomputedMeshService(object):
     Supported Formats: 'obj', 'ply'
     """
     if type(segids) != list:
-      segids = [ segids ]
+      segids = [segids]
 
     meshdata = self.get(segids)
 
@@ -148,22 +147,22 @@ def decode_mesh_buffer(filename, fragment):
       """.format(filename, 4 + 4*num_vertices, len(fragment)))
 
   return {
-    'filename': filename,
-    'num_vertices': num_vertices, 
-    'vertices': vertices, 
-    'faces': faces
+      'filename': filename,
+      'num_vertices': num_vertices,
+      'vertices': vertices,
+      'faces': faces
   }
 
 def mesh_to_obj(mesh, progress=False):
   objdata = []
-  
+
   for vertex in tqdm(mesh['vertices'], disable=(not progress), desc='Vertex Representation'):
     objdata.append('v %s %s %s' % (vertex[0], vertex[1], vertex[2]))
-  
-  faces = [ face + 1 for face in mesh['faces'] ] # obj counts from 1 not 0 as in python
+
+  faces = [face + 1 for face in mesh['faces']] # obj counts from 1 not 0 as in python
   for i in tqdm(range(0, len(faces), 3), disable=(not progress), desc='Face Representation'):
     objdata.append('f %s %s %s' % (faces[i], faces[i+1], faces[i+2]))
-  
+
   return objdata
 
 def mesh_to_ply(mesh):
