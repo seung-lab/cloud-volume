@@ -172,16 +172,16 @@ def mesh_to_ply(mesh):
   trianglect = len(mesh['faces']) // 3
 
   # Header
-  plydata = bytearray(f"""ply
+  plydata = bytearray("""ply
 format binary_little_endian 1.0
-element vertex {vertexct}
+element vertex {}
 property float x
 property float y
 property float z
-element face {trianglect}
+element face {}
 property list int int vertex_indices
 end_header
-""".encode('utf8'))
+""".format(vertexct, trianglect).encode('utf8'))
 
   # Vertex data (x y z)
   plydata.extend(mesh['vertices'].tobytes())
