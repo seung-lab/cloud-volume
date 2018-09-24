@@ -85,6 +85,7 @@ class PrecomputedMeshService(object):
     if remove_duplicate_vertices:
       vertices, faces = np.unique(vertices[faces],
                                   return_inverse=True, axis=0)
+      faces = faces.astype(np.uint32)
 
     output = {
         'num_vertices': len(vertices),
