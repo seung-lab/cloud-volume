@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+0.32.0
+------
+
+* Version 0.32.0
+* feat(meshservice): Faster mesh processing + PLY support (#138)
+
+0.31.3
+------
+
+* Version 0.31.3
+* feat: use new no\_cache argument for BOSS
+* chore: upgrade intern
 * feat: bump zfill to 3 in save\_images
 
 0.31.2

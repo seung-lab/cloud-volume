@@ -71,13 +71,14 @@ mkdir -p ~/.cloudvolume/secrets/
 mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
 mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
 mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
+mv matrix-secret.json ~/.cloudvolume/secrets/ # needed for Matrix
 ```
 
-#### `aws-secret.json` 
+#### `aws-secret.json` and `matrix-secret.json`
 
 Create an [IAM user service account](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users.html) that can read, write, and delete objects from at least one bucket.
 
-```
+```json
 {
 	"AWS_ACCESS_KEY_ID": "$MY_AWS_ACCESS_KEY_ID",
 	"AWS_SECRET_ACCESS_KEY_ID": "$MY_SECRET_ACCESS_TOKEN"
@@ -88,7 +89,7 @@ Create an [IAM user service account](https://docs.aws.amazon.com/IAM/latest/User
 
 You can create the `google-secret.json` file [here](https://console.cloud.google.com/iam-admin/serviceaccounts). You don't need to manually fill in JSON by hand, the below example is provided to show you what the end result should look like. You should be able to read, write, and delete objects from at least one bucket.
 
-```
+```json
 {
   "type": "service_account",
   "project_id": "$YOUR_GOOGLE_PROJECT_ID",
@@ -115,7 +116,9 @@ Supported URLs are of the forms:
 * gs:   Google Storage
 * s3:   Amazon S3
 * boss: The BOSS (https://docs.theboss.io/docs)
+* http(s): (read-only) Ordinary Web Servers 
 * file: Local File System (absolute path)
+* matrix: Princeton Internal System
 
 ### `info` Files - New Dataset
 
