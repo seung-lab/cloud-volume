@@ -44,6 +44,9 @@ class PrecomputedSkeleton(object):
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
 
+  def empty(self):
+    return self.vertices.size == 0 or self.edges.size == 0
+
   def encode(self):
     edges = self.edges.astype(np.uint32)
     vertices = self.vertices.astype(np.float32)

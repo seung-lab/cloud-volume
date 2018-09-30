@@ -85,6 +85,7 @@ def test_skeletons():
   assert np.all(skel.radii == radii)
   assert np.all(skel.vertex_types == 0)
   assert vol.skeleton.path == 'skeletons'
+  assert not skel.empty()
 
   with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:
     rawskel = stor.get_file('skeletons/1')
@@ -112,6 +113,7 @@ def test_no_edges():
   assert np.all(skel.vertices == vertices)
   assert np.all(skel.edges.shape == (0, 2))
   assert vol.skeleton.path == 'skeletons'
+  assert skel.empty()
 
   with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:
     rawskel = stor.get_file('skeletons/2')
@@ -129,6 +131,7 @@ def test_no_vertices():
   assert skel.id == 3
   assert np.all(skel.vertices == vertices)
   assert np.all(skel.edges.shape == (0, 2))
+  assert skel.empty()
   assert vol.skeleton.path == 'skeletons'
 
   with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:
