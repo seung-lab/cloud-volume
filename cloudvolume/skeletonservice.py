@@ -33,8 +33,8 @@ class PrecomputedSkeleton(object):
 
     if vertices is None:
       self.vertices = np.array([[]], dtype=np.float32)
-
-    self.vertices = vertices.astype(np.float32)
+    else:
+      self.vertices = vertices.astype(np.float32)
 
     if edges is None:
       self.edges = np.array([[]], dtype=np.uint32)
@@ -42,13 +42,13 @@ class PrecomputedSkeleton(object):
       self.edges = edges.astype(np.uint32)
 
     if radii is None:
-      self.radii = -1 * np.ones(shape=vertices.shape[0], dtype=np.float32)
+      self.radii = -1 * np.ones(shape=self.vertices.shape[0], dtype=np.float32)
     else:
       self.radii = radii
 
     if vertex_types is None:
       # 0 = undefined in SWC (http://research.mssm.edu/cnic/swc.html)
-      self.vertex_types = np.zeros(shape=vertices.shape[0], dtype=np.uint8)
+      self.vertex_types = np.zeros(shape=self.vertices.shape[0], dtype=np.uint8)
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
 

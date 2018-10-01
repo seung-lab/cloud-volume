@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.33.1
+------
+
+* Version 0.33.1
+* fix: allow for empty skeleton creation
+
 0.33.0
 ------
 
