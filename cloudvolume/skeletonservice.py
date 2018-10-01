@@ -23,8 +23,16 @@ class SkeletonEncodeError(Exception):
   pass
 
 class PrecomputedSkeleton(object):
-  def __init__(self, vertices, edges, radii=None, vertex_types=None, segid=None):
+  def __init__(self, 
+    vertices=None, edges=None, 
+    radii=None, vertex_types=None, 
+    segid=None
+  ):
+
     self.id = segid
+
+    if vertices is None:
+      self.vertices = np.array([[]], dtype=np.float32)
 
     self.vertices = vertices.astype(np.float32)
 

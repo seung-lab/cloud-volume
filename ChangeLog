@@ -1,6 +1,14 @@
 CHANGES
 =======
 
+0.33.0
+------
+
+* Version 0.33.0
+* feat: PrecomputedSkeleton.empty()
+* docs: added http and matrix to documentation
+* Update README.md
+
 0.32.0
 ------
 
