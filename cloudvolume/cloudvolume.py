@@ -541,8 +541,16 @@ class CloudVolume(object):
     return self.resolution / self.mip_resolution(0)
 
   @property
+  def chunk_size(self):
+    """Underlying chunk size dimensions in voxels. Synonym for underlying."""
+    return self.underlying
+
+  def mip_chunk_size(self, mip):
+    return self.mip_underlying(mip)
+
+  @property
   def underlying(self):
-    """Underlying chunk size dimensions in voxels"""
+    """Underlying chunk size dimensions in voxels. Synonym for chunk_size."""
     return self.mip_underlying(self.mip)
 
   def mip_underlying(self, mip):

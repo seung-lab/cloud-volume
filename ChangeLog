@@ -1,6 +1,12 @@
 CHANGES
 =======
 
+0.33.2
+------
+
+* Version 0.33.2
+* fix: didn't handle vertices=None correctly in PrecomputedSkeleton
+
 0.33.1
 ------
 
