@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.33.3
+------
+
+* Version 0.33.3
+* feat: added "chunk\_size" attribute as synonym for "underlying"
+* chore: bump intern to no\_cache fixed version
+
 0.33.2
 ------
 
