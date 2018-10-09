@@ -624,7 +624,7 @@ class CloudVolume(object):
     self.info['scales'] = self.info['scales'][0:1]
     return self.commit_info()
 
-  def add_scale(self, factor, info=None):
+  def add_scale(self, factor, chunk_size=None, info=None):
     """
     Generate a new downsample scale to for the info file and return an updated dictionary.
     You'll still need to call self.commit_info() to make it permenant.
@@ -648,8 +648,8 @@ class CloudVolume(object):
     #    the mip 1 will have an offset of 5
     #    the mip 2 will have an offset of 2 instead of 2.5 
     #        meaning that it will be half a pixel to the left
-    
-    chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
+    if not chunk_size:
+      chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
 
     def downscale(size, roundingfn):
       smaller = Vec(*size, dtype=np.float32) / Vec(*factor)
