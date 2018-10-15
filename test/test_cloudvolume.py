@@ -1,17 +1,17 @@
 import pytest
 
 import copy
-import json
-import os
-import numpy as np
-import shutil
 import gzip
 import json
+import numpy as np
+import os
+import shutil
+import sys
 
 from functools import reduce
 
 from cloudvolume import CloudVolume, chunks, Storage
-from cloudvolume.lib import mkdir, Bbox, Vec
+from cloudvolume.lib import mkdir, Bbox, Vec, yellow
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
   TEST_NUMBER, create_image, 
@@ -761,19 +761,29 @@ def test_pickling():
 
 def test_multiprocess():
   from concurrent.futures import ProcessPoolExecutor, as_completed
-  
+
   delete_layer()
   cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
   cv.commit_info()
 
-  futures = []
-  with ProcessPoolExecutor(max_workers=4) as ppe:
-    for i in range(0, 5):
-      futures.append(ppe.submit(cv.refresh_info))
+  # "The ProcessPoolExecutor class has known (unfixable) 
+  # problems on Python 2 and should not be relied on 
+  # for mission critical work."
+  # https://pypi.org/project/futures/
 
-    for future in as_completed(futures):
-      # an error should be re-raised in one of the futures
-      future.result()
+  layer = cv.layer_cloudpath
+  if sys.version_info[0] < 3:
+    print(yellow("External multiprocessing not supported in Python 2."))
+    return
+  else:
+    futures = []
+    with ProcessPoolExecutor(max_workers=4) as ppe:
+      for i in range(0, 5):
+        futures.append(ppe.submit(cv.refresh_info))
+
+      for future in as_completed(futures):
+        # an error should be re-raised in one of the futures
+        future.result()
 
   delete_layer()
 
