@@ -759,6 +759,24 @@ def test_pickling():
   assert cv2.layer_cloudpath == cv.layer_cloudpath
   assert cv2.mip == cv.mip
 
+def test_multiprocess():
+  from concurrent.futures import ProcessPoolExecutor, as_completed
+  
+  delete_layer()
+  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv.commit_info()
+
+  futures = []
+  with ProcessPoolExecutor(max_workers=4) as ppe:
+    for i in range(0, 5):
+      futures.append(ppe.submit(cv.refresh_info))
+
+    for future in as_completed(futures):
+      # an error should be re-raised in one of the futures
+      future.result()
+  
+  delete_layer()
+
 def test_exists():
   # Bbox version
   delete_layer()
@@ -888,36 +906,36 @@ def test_bbox_to_mip():
     'num_channels': 1,
     'scales': [
       { 
-      'chunk_sizes': [[64, 64, 1]],
-      'encoding': 'raw',
-      'key': '4_4_40',
-      'resolution': [4, 4, 40],
-      'size': [1024, 1024, 32],
-      'voxel_offset': [35, 0, 1],
+        'chunk_sizes': [[64, 64, 1]],
+        'encoding': 'raw',
+        'key': '4_4_40',
+        'resolution': [4, 4, 40],
+        'size': [1024, 1024, 32],
+        'voxel_offset': [35, 0, 1],
       },
       {
-      'chunk_sizes': [[64, 64, 1]],
-      'encoding': 'raw',
-      'key': '8_8_40',
-      'resolution': [8, 8, 40],
-      'size': [512, 512, 32],
-      'voxel_offset': [17, 0, 1],
+        'chunk_sizes': [[64, 64, 1]],
+        'encoding': 'raw',
+        'key': '8_8_40',
+        'resolution': [8, 8, 40],
+        'size': [512, 512, 32],
+        'voxel_offset': [17, 0, 1],
       },
       {
-      'chunk_sizes': [[64, 64, 1]],
-      'encoding': 'raw',
-      'key': '16_16_40',
-      'resolution': [16, 16, 40],
-      'size': [256, 256, 32],
-      'voxel_offset': [8, 0, 1],
+        'chunk_sizes': [[64, 64, 1]],
+        'encoding': 'raw',
+        'key': '16_16_40',
+        'resolution': [16, 16, 40],
+        'size': [256, 256, 32],
+        'voxel_offset': [8, 0, 1],
       },
       {
-      'chunk_sizes': [[64, 64, 1]],
-      'encoding': 'raw',
-      'key': '32_32_40',
-      'resolution': [32, 32, 40],
-      'size': [128, 128, 32],
-      'voxel_offset': [4, 0, 1],
+        'chunk_sizes': [[64, 64, 1]],
+        'encoding': 'raw',
+        'key': '32_32_40',
+        'resolution': [32, 32, 40],
+        'size': [128, 128, 32],
+        'voxel_offset': [4, 0, 1],
       },
     ],
     'type': 'image'
