@@ -774,7 +774,7 @@ def test_multiprocess():
     for future in as_completed(futures):
       # an error should be re-raised in one of the futures
       future.result()
-  
+
   delete_layer()
 
 def test_exists():

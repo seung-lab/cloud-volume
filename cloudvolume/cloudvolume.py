@@ -31,7 +31,7 @@ from .lib import (
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
 from .skeletonservice import PrecomputedSkeletonService
-from .storage import SimpleStorage, Storage
+from .storage import SimpleStorage, Storage, reset_connection_pools
 from . import txrx
 from .volumecutout import VolumeCutout
 from . import sharedmemory
@@ -156,7 +156,20 @@ class CloudVolume(object):
     except:
       raise Exception("MIP {} has not been generated.".format(self.mip))
 
+  def __setstate__(self, d):
+    """Called when unpickling which is integral to multiprocessing."""
+    self.__dict__ = d 
+
+    if 'cache' in d:
+      self.init_submodules(d['cache'].enabled)
+    else:
+      self.init_submodules(False)
+    
+    # otherwise the pickle might have references to old connections
+    reset_connection_pools() 
+
   def init_submodules(self, cache):
+    """cache = path or bool"""
     self.cache = CacheService(cache, weakref.proxy(self)) 
     self.mesh = PrecomputedMeshService(weakref.proxy(self))
     self.skeleton = PrecomputedSkeletonService(weakref.proxy(self)) 

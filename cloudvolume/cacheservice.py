@@ -282,6 +282,9 @@ class CacheService(object):
 
     return { 'local': already_have, 'remote': download_paths }
     
-
+  def __repr__(self):
+    return "CacheService(enabled={}, compress={}, path='{}')".format(
+      self.enabled, self.compress, self.path
+    )
 
 
