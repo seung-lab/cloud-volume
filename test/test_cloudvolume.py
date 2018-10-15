@@ -422,20 +422,20 @@ def test_provenance():
   assert cv.provenance.sources == [ 'cooldude24@princeton.edu' ]
 
   # should not die
-  cv = CloudVolume(cv.layer_cloudpath, provenance={})
-  cv = CloudVolume(cv.layer_cloudpath, provenance={ 'sources': [] })
-  cv = CloudVolume(cv.layer_cloudpath, provenance={ 'owners': [] })
-  cv = CloudVolume(cv.layer_cloudpath, provenance={ 'processing': [] })
-  cv = CloudVolume(cv.layer_cloudpath, provenance={ 'description': '' })
+  cv = CloudVolume(cv.cloudpath, provenance={})
+  cv = CloudVolume(cv.cloudpath, provenance={ 'sources': [] })
+  cv = CloudVolume(cv.cloudpath, provenance={ 'owners': [] })
+  cv = CloudVolume(cv.cloudpath, provenance={ 'processing': [] })
+  cv = CloudVolume(cv.cloudpath, provenance={ 'description': '' })
 
   # should die
   try:
-    cv = CloudVolume(cv.layer_cloudpath, provenance={ 'sources': 3 })
+    cv = CloudVolume(cv.cloudpath, provenance={ 'sources': 3 })
     assert False
   except:
     pass
 
-  cv = CloudVolume(cv.layer_cloudpath, provenance="""{
+  cv = CloudVolume(cv.cloudpath, provenance="""{
     "sources": [ "wow" ]
   }""")
 
@@ -706,13 +706,13 @@ def test_cache_validity():
 
     if shoulderror:
       try:
-        CloudVolume(vol.layer_cloudpath, cache=True)
+        CloudVolume(vol.cloudpath, cache=True)
       except ValueError:
         pass
       else:
         assert False
     else:
-      CloudVolume(vol.layer_cloudpath, cache=True)
+      CloudVolume(vol.cloudpath, cache=True)
 
   test_with_mock_cache_info(vol.info, shoulderror=False)
 
@@ -744,7 +744,7 @@ def test_cache_validity():
   vol.cache.flush()
 
   # Test no info file at all    
-  CloudVolume(vol.layer_cloudpath, cache=True)
+  CloudVolume(vol.cloudpath, cache=True)
 
   vol.cache.flush()
 
@@ -756,7 +756,7 @@ def test_pickling():
   pckl = pickle.dumps(cv)
   cv2 = pickle.loads(pckl)
 
-  assert cv2.layer_cloudpath == cv.layer_cloudpath
+  assert cv2.cloudpath == cv.cloudpath
   assert cv2.mip == cv.mip
 
 def test_multiprocess():
@@ -771,7 +771,7 @@ def test_multiprocess():
   # for mission critical work."
   # https://pypi.org/project/futures/
 
-  layer = cv.layer_cloudpath
+  layer = cv.cloudpath
   if sys.version_info[0] < 3:
     print(yellow("External multiprocessing not supported in Python 2."))
     return
@@ -798,7 +798,7 @@ def test_exists():
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == True
 
-  fpath = os.path.join(cv.layer_cloudpath, cv.key, '64-128_0-64_0-64')
+  fpath = os.path.join(cv.cloudpath, cv.key, '64-128_0-64_0-64')
   fpath = fpath.replace('file://', '') + '.gz'
   os.remove(fpath)
 
@@ -818,7 +818,7 @@ def test_exists():
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == True
 
-  fpath = os.path.join(cv.layer_cloudpath, cv.key, '64-128_0-64_0-64')
+  fpath = os.path.join(cv.cloudpath, cv.key, '64-128_0-64_0-64')
   fpath = fpath.replace('file://', '') + '.gz'
   os.remove(fpath)
 

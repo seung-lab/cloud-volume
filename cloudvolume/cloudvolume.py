@@ -452,9 +452,17 @@ class CloudVolume(object):
   def scales(self):
     return self.info['scales']
 
+  @scales.setter
+  def scales(self, val):
+    self.info['scales'] = val
+
   @property
   def scale(self):
     return self.mip_scale(self.mip)
+
+  @scale.setter
+  def scale(self, val):
+    self.info['scales'][self.mip] = val
 
   def mip_scale(self, mip):
     return self.info['scales'][mip]
@@ -462,6 +470,10 @@ class CloudVolume(object):
   @property
   def base_cloudpath(self):
     return self.path.protocol + "://" + os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset_name)
+
+  @property 
+  def cloudpath(self):
+    return self.layer_cloudpath
 
   @property
   def layer_cloudpath(self):

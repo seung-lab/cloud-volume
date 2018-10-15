@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+0.34.1
+------
+
+* Version 0.34.1
+* Easy External Multiprocessing (#142)
+
+0.34.0
+------
+
+* Version 0.34.0
+* feat: chunk\_size argument for add\_scale
+
 0.33.4
 ------
 
