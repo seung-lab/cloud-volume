@@ -1,5 +1,6 @@
 import python_jsonschema_objects as pjs
 import json
+import json5
 
 __all__ = [ 'DatasetProvenance', 'DataLayerProvenance' ]
 
@@ -107,6 +108,11 @@ class DataLayerProvenance(dict):
 
   def serialize(self):
     return json.dumps(self)
+
+  def from_json(self, data):
+    data = json5.loads(data)
+    self.update(data)
+    return self
 
   @classmethod
   def create(cls, mydict):
