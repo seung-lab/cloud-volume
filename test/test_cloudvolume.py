@@ -775,15 +775,15 @@ def test_multiprocess():
   if sys.version_info[0] < 3:
     print(yellow("External multiprocessing not supported in Python 2."))
     return
-  else:
-    futures = []
-    with ProcessPoolExecutor(max_workers=4) as ppe:
-      for i in range(0, 5):
-        futures.append(ppe.submit(cv.refresh_info))
+  
+  futures = []
+  with ProcessPoolExecutor(max_workers=4) as ppe:
+    for i in range(0, 5):
+      futures.append(ppe.submit(cv.refresh_info))
 
-      for future in as_completed(futures):
-        # an error should be re-raised in one of the futures
-        future.result()
+    for future in as_completed(futures):
+      # an error should be re-raised in one of the futures
+      future.result()
 
   delete_layer()
 
