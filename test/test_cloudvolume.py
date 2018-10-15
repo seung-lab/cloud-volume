@@ -748,6 +748,17 @@ def test_cache_validity():
 
   vol.cache.flush()
 
+def test_picking():
+  import pickle
+  delete_layer()
+  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+  pckl = pickle.dumps(cv)
+  cv2 = pickle.loads(pckl)
+
+  assert cv2.layer_cloudpath == cv.layer_cloudpath
+  assert cv2.mip == cv.mip
+
 def test_exists():
   # Bbox version
   delete_layer()
