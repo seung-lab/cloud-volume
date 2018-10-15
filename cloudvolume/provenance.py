@@ -1,4 +1,6 @@
 import python_jsonschema_objects as pjs
+import json
+import json5
 
 __all__ = [ 'DatasetProvenance', 'DataLayerProvenance' ]
 
@@ -87,7 +89,65 @@ layer_provenance_schema = {
 
 builder = pjs.ObjectBuilder(layer_provenance_schema)
 classes = builder.build_classes()
-DataLayerProvenance = classes.DataLayerProvenance
+DataLayerProvenanceValidation = classes.DataLayerProvenance
+
+class DataLayerProvenance(dict):
+  def __init__(self, *args, **kwargs):
+    dict.__init__(self, *args, **kwargs)
+    if 'description' not in self:
+      self['description'] = ''
+    if 'owners' not in self:
+      self['owners'] = []
+    if 'processing' not in self:
+      self['processing'] = []
+    if 'sources' not in self:
+      self['sources'] = ''
+
+  def validate(self):
+    DataLayerProvenanceValidation(**self).validate()
+
+  def serialize(self):
+    return json.dumps(self)
+
+  def from_json(self, data):
+    data = json5.loads(data)
+    self.update(data)
+    return self
+
+  @classmethod
+  def create(cls, mydict):
+    return DatasetProvenance(**mydict)
+
+  @property 
+  def description(self):
+    return self['description']
+  @description.setter 
+  def description(self, val):
+    self['description'] = val
+  
+  @property 
+  def owners(self):
+    return self['owners']
+  @owners.setter 
+  def owners(self, val):
+    self['owners'] = val
+
+  @property 
+  def processing(self):
+    return self['processing']
+  @processing.setter 
+  def processing(self, val):
+    self['processing'] = val
+
+  @property 
+  def sources(self):
+    return self['sources']
+  @sources.setter 
+  def sources(self, val):
+    self['sources'] = val
+    
+
+
 
 
 

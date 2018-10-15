@@ -110,11 +110,8 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel,
       cloudpaths[i:i+length]
     )
 
-  provenance = vol.provenance 
-  vol.provenance = None
   spd = partial(multi_process_download, vol, requested_bbox, vol.cache.enabled)
   parallel_execution(spd, cloudpaths_by_process, parallel, cleanup_shm=shared_memory_location)
-  vol.provenance = provenance
 
   mmap_handle, renderbuffer = shm.bbox2array(vol, requested_bbox, lock=fs_lock, location=shared_memory_location)
   if not output_to_shared_memory:
@@ -353,14 +350,11 @@ def upload_aligned(vol, img, offset, parallel=1,
       location=shared_memory_id, order=manual_shared_memory_order, lock=fs_lock)
     renderbuffer[:] = img
 
-  provenance = vol.provenance 
-  vol.provenance = None
   mpu = partial(multi_process_upload, vol, img.shape, offset, 
     shared_memory_id, manual_shared_memory_bbox, manual_shared_memory_order, vol.cache.enabled)
 
   cleanup_shm = shared_memory_id if not manual_shared_memory_id else None
   parallel_execution(mpu, chunk_ranges_by_process, parallel, cleanup_shm=cleanup_shm)
-  vol.provenance = provenance
 
   # If manual mode is enabled, it's the 
   # responsibilty of the user to clean up
