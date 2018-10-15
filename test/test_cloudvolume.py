@@ -748,7 +748,7 @@ def test_cache_validity():
 
   vol.cache.flush()
 
-def test_picking():
+def test_pickling():
   import pickle
   delete_layer()
   cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
