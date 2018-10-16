@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+0.34.2
+------
+
+* Version 0.34.2
+* fix: only reset connection pool when unpicking on a new PID (#145)
+* feat: add setter for scales and scale property. vol.cloudpath alias of vol.layer\_cloudpath
+
 0.34.1
 ------
 
