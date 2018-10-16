@@ -156,6 +156,8 @@ class CloudVolume(object):
     except:
       raise Exception("MIP {} has not been generated.".format(self.mip))
 
+    self.pid = os.getpid()
+
   def __setstate__(self, d):
     """Called when unpickling which is integral to multiprocessing."""
     self.__dict__ = d 
@@ -165,9 +167,12 @@ class CloudVolume(object):
     else:
       self.init_submodules(False)
     
-    # otherwise the pickle might have references to old connections
-    reset_connection_pools() 
-
+    pid = os.getpid()
+    if 'pid' in d and d['pid'] != pid:
+      # otherwise the pickle might have references to old connections
+      reset_connection_pools() 
+      self.pid = pid
+  
   def init_submodules(self, cache):
     """cache = path or bool"""
     self.cache = CacheService(cache, weakref.proxy(self)) 
