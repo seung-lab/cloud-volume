@@ -367,7 +367,7 @@ class CloudVolume(object):
             Info file specification:
             https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/README.md#info-json-file-specification
           """)
-        elif info['dtype'] not in ('uint32', 'uint64'):
+        elif info['data_type'] not in ('uint32', 'uint64'):
           raise ValueError("compressed_segmentation can only be used with uint32 and uint64 data types.")
 
     infojson = jsonify(info, 
