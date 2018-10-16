@@ -45,6 +45,15 @@ except AttributeError:
 def warn(text):
   print(colorize('yellow', text))
 
+class WriteLockViolationError(Exception):
+  pass
+
+class WriteLockAcquisitionError(Exception):
+  pass
+
+class WriteLockReleaseError(Exception):
+  pass
+
 class CloudVolume(object):
   """
   CloudVolume represents an interface to a dataset layer at a given
@@ -105,9 +114,13 @@ class CloudVolume(object):
     non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing safe without careful design.
       When not enabled, a ValueError is thrown for non-aligned writes.
   """
-  def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
-      cache=False, compress_cache=None, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
+  def __init__(
+    self, cloudpath, mip=0, bounded=True, autocrop=False, 
+    fill_missing=False, cache=False, compress_cache=None, 
+    cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
+    compress=None, non_aligned_writes=False, parallel=1, 
+    output_to_shared_memory=False
+  ):
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
@@ -332,14 +345,17 @@ class CloudVolume(object):
     return info
 
   def commitInfo(self):
-    warn("WARNING: commitInfo is deprecated use commit_info instead.")
+    print(red("DANGER: commitInfo is deprecated and will be removed in one month use commit_info instead."))
     return self.commit_info()
 
-  def commit_info(self):
+  def commit_info(self, info=None):
     if self.path.protocol == 'boss':
       return self 
 
-    for scale in self.scales:
+    if info is None:
+      info = self.info
+
+    for scale in info['scales']:
       if scale['encoding'] == 'compressed_segmentation':
         if 'compressed_segmentation_block_size' not in scale.keys():
           raise KeyError("""
@@ -351,10 +367,10 @@ class CloudVolume(object):
             Info file specification:
             https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/README.md#info-json-file-specification
           """)
-        elif self.dtype not in ('uint32', 'uint64'):
+        elif info['dtype'] not in ('uint32', 'uint64'):
           raise ValueError("compressed_segmentation can only be used with uint32 and uint64 data types.")
 
-    infojson = jsonify(self.info, 
+    infojson = jsonify(info, 
       sort_keys=True,
       indent=2, 
       separators=(',', ': ')
@@ -439,6 +455,67 @@ class CloudVolume(object):
       )
     self.cache.maybe_cache_provenance()
     return self.provenance
+
+  def lock_mips(self, mips):
+    """
+    Establishes a write lock on the specified mip levels.
+    The lock is written to the cloud info file.
+    """
+    try:
+      mips = iter(mips)
+    except TypeError:
+      mips = [ mips ]
+
+    info = self._fetch_info()
+
+    if not 'write_locks' in self.info:
+      info['write_locks'] = {
+        'mips': [],
+      }
+
+    info['write_locks']['mips'].extend(mips)
+    self.info['write_locks'] = deepcopy(info['write_locks'])
+    try:
+      self.commit_info(info)
+    except Exception as err:
+      msg = red("Unable to acquire write lock on mips {}!".format(list(mips)))
+      raise WriteLockAcquisitionError(msg) from err
+
+  def unlock_mips(self, mips):
+    """
+    Releases a write lock on the specified mip levels.
+    The lock is written to the cloud info file.
+    """
+    try:
+      mips = iter(mips)
+    except TypeError:
+      mips = [ mips ]
+
+    info = self._fetch_info()
+
+    if not 'write_locks' in info:
+      info['write_locks'] = {
+        'mips': [],
+      }
+
+    for mip in mips:
+      try:
+        info['write_locks']['mips'].remove(mip)
+      except ValueError:
+        pass
+
+    self.info['write_locks'] = deepcopy(info['write_locks'])
+    try:
+      self.commit_info(info)
+    except Exception as err:
+      msg = yellow("Unable to release lock on mips {}".format(list(mips)))
+      raise WriteLockReleaseError(msg) from err
+
+  def locked_mips(self):
+    if 'write_locks' not in self.info:
+      return set()
+
+    return set(self.info['write_locks']['mips'])
 
   @property
   def dataset_name(self):
@@ -973,6 +1050,13 @@ class CloudVolume(object):
 
     if not np.array_equal(imgshape, slice_shape):
       raise ValueError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
+
+    if self.mip in self.locked_mips():
+      raise WriteLockViolationError(
+        "MIP {} is currently write locked. If this should not be the case, run vol.unlock_mip({}).".format(
+          self.mip, self.mip
+        )
+      )
 
     if self.autocrop:
       if not self.bounds.contains_bbox(bbox):
