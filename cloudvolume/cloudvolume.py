@@ -856,6 +856,13 @@ class CloudVolume(object):
         requested_bbox, realized_bbox
       ))
 
+    if self.mip in self.locked_mips():
+      raise WriteLockViolationError(
+        "MIP {} is currently write locked. If this should not be the case, run vol.unlock_mip({}).".format(
+          self.mip, self.mip
+        )
+      )
+
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
     cloudpaths = list(cloudpaths)
 
