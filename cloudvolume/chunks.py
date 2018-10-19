@@ -46,6 +46,7 @@ def encode(img_chunk, encoding, block_size=None):
   elif encoding == "kempressed":
     return encode_kempressed(img_chunk)
   elif encoding == "fpzip":
+    img_chunk = np.asfortranarray(img_chunk)
     return fpzip.compress(img_chunk)
   elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
@@ -71,7 +72,7 @@ def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
   elif encoding == "kempressed":
     return decode_kempressed(filedata)
   elif encoding == "fpzip":
-    return fpzip.decompress(filedata)
+    return fpzip.decompress(filedata, order='F')
   elif encoding == "compressed_segmentation":
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
   elif encoding == "jpeg":

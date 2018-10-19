@@ -311,6 +311,17 @@ class Bbox(object):
     )
 
   @classmethod
+  def near_edge(cls, bbx1, bbx2, distance=0):
+    return (
+         abs(bbx1.minpt.x - bbx2.minpt.x) <= distance
+      or abs(bbx1.minpt.y - bbx2.minpt.y) <= distance
+      or abs(bbx1.minpt.z - bbx2.minpt.z) <= distance
+      or abs(bbx1.maxpt.x - bbx2.maxpt.x) <= distance
+      or abs(bbx1.maxpt.y - bbx2.maxpt.y) <= distance
+      or abs(bbx1.maxpt.z - bbx2.maxpt.z) <= distance
+    )
+
+  @classmethod
   def create(cls, obj):
     typ = type(obj)
     if typ is Bbox:
