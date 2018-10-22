@@ -1,6 +1,14 @@
 CHANGES
 =======
 
+0.34.3
+------
+
+* Version 0.34.3
+* chore: comply with updated fpzip treatment of memory order
+* chore: bump version of python-jsonschema-objects
+* docs: update changelog
+
 0.34.2
 ------
 
