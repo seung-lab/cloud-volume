@@ -185,10 +185,13 @@ class PrecomputedSkeletonService(object):
 
     return PrecomputedSkeleton.decode(skelbuf, segid=segid)
 
-  def upload(self, segid, vertices, edges, radii=None):
+  def upload(self, segid, vertices, edges, radii=None, vertex_types=None):
     with SimpleStorage(self.vol.layer_cloudpath) as stor:
       path = os.path.join(self.path, str(segid))
-      skel = PrecomputedSkeleton(vertices, edges, radii, segid=segid).encode()
+      skel = PrecomputedSkeleton(
+        vertices, edges, radii, 
+        vertex_types, segid=segid
+      ).encode()
 
       stor.put_file(
         file_path='{}/{}'.format(self.path, segid),

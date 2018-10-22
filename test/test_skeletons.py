@@ -75,15 +75,32 @@ def test_skeletons():
     1824.03
   ], dtype=np.float32)
 
+  vertex_types = np.array([
+   1,
+   2,
+   3,
+   5,
+   8,
+   2,
+   0,
+   5,
+   9,
+   11,
+   22,
+  ], dtype=np.uint8)
+
   vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
-  vol.skeleton.upload(segid=1, vertices=vertices, edges=edges, radii=radii)
+  vol.skeleton.upload(
+    segid=1, vertices=vertices, edges=edges, 
+    radii=radii, vertex_types=vertex_types
+  )
   skel = vol.skeleton.get(1)
 
   assert skel.id == 1
   assert np.all(skel.vertices == vertices)
   assert np.all(skel.edges == edges)
   assert np.all(skel.radii == radii)
-  assert np.all(skel.vertex_types == 0)
+  assert np.all(skel.vertex_types == vertex_types)
   assert vol.skeleton.path == 'skeletons'
   assert not skel.empty()
 
