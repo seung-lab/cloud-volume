@@ -11,7 +11,7 @@ vol[:,:,:] = image # Upload an entire image stack from a numpy array to the clou
 ```
 
 
-CloudVolume is a Python library for reading and writing [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a simple hackable representation for arbitrarily large volumetric images. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, and other dependency free tasks that might be applied to petavoxel scale images.
+CloudVolume is a Python library for reading and writing chunked numpy arrays from [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a simple hackable representation for arbitrarily large volumetric images. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, and other dependency free tasks that might be applied to petavoxel scale images.
 
 Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports hierarchical file system paths (or simulates them via path strings).
 
