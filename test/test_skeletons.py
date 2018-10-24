@@ -156,3 +156,96 @@ def test_no_vertices():
     assert len(rawskel) == 8 + 0 * (12 + 8 + 4 + 1)
     stor.delete_file('skeletons/3')
 
+def test_consolidate():
+  skel = PrecomputedSkeleton(
+    vertices=np.array([
+      (0, 0, 0),
+      (1, 0, 0),
+      (2, 0, 0),
+      (0, 0, 0),
+      (2, 1, 0),
+      (2, 2, 0),
+      (2, 2, 1),
+      (2, 2, 2),
+    ], dtype=np.float32),
+
+    edges=np.array([
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+      [5, 6],
+      [6, 7],
+    ], dtype=np.uint32),
+
+    radii=np.array([
+      0, 1, 2, 3, 4, 5, 6, 7
+    ], dtype=np.float32),
+
+    vertex_types=np.array([
+      0, 1, 2, 3, 4, 5, 6, 7
+    ], dtype=np.uint8),
+  )
+
+  correct_skel = PrecomputedSkeleton(
+    vertices=np.array([
+      (0, 0, 0),
+      (1, 0, 0),
+      (2, 0, 0),
+      (2, 1, 0),
+      (2, 2, 0),
+      (2, 2, 1),
+      (2, 2, 2),
+    ], dtype=np.float32),
+
+    edges=np.array([
+      [0, 1],
+      [0, 2],
+      [0, 3],
+      [1, 2],
+      [3, 4],
+      [4, 5],
+      [5, 6],
+    ], dtype=np.uint32),
+
+    radii=np.array([
+      0, 1, 2, 4, 5, 6, 7
+    ], dtype=np.float32),
+
+    vertex_types=np.array([
+      0, 1, 2, 4, 5, 6, 7
+    ], dtype=np.uint8),
+  )
+
+  consolidated = skel.consolidate()
+
+  assert np.all(consolidated.vertices == correct_skel.vertices)
+  assert np.all(consolidated.edges == correct_skel.edges)
+  assert np.all(consolidated.radii == correct_skel.radii)
+  assert np.all(consolidated.vertex_types == correct_skel.vertex_types)
+
+def test_equivalent():
+  assert PrecomputedSkeleton.equivalent(PrecomputedSkeleton(), PrecomputedSkeleton())
+
+  identity = PrecomputedSkeleton([ (0,0,0), (1,0,0) ], [(0,1)] )
+  assert PrecomputedSkeleton.equivalent(identity, identity)
+
+  diffvertex = PrecomputedSkeleton([ (0,0,0), (0,1,0) ], [(0,1)])
+  assert not PrecomputedSkeleton.equivalent(identity, diffvertex)
+
+  single1 = PrecomputedSkeleton([ (0,0,0), (1,0,0) ], edges=[ (1,0) ])
+  single2 = PrecomputedSkeleton([ (0,0,0), (1,0,0) ], edges=[ (0,1) ])
+  assert PrecomputedSkeleton.equivalent(single1, single2)
+
+  double1 = PrecomputedSkeleton([ (0,0,0), (1,0,0) ], edges=[ (1,0) ])
+  double2 = PrecomputedSkeleton([ (0,0,0), (1,0,0) ], edges=[ (0,1) ])
+  assert PrecomputedSkeleton.equivalent(double1, double2)
+
+  double1 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0) ], edges=[ (1,0), (1,2) ])
+  double2 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0) ], edges=[ (2,1), (0,1) ])
+  assert PrecomputedSkeleton.equivalent(double1, double2)
+
+  double1 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0), (1,1,3) ], edges=[ (1,0), (1,2), (1,3) ])
+  double2 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0), (1,1,3) ], edges=[ (3,1), (2,1), (0,1) ])
+  assert PrecomputedSkeleton.equivalent(double1, double2)

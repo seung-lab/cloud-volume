@@ -33,22 +33,30 @@ class PrecomputedSkeleton(object):
 
     if vertices is None:
       self.vertices = np.array([[]], dtype=np.float32)
+    elif type(vertices) is list:
+      self.vertices = np.array(vertices, dtype=np.float32)
     else:
       self.vertices = vertices.astype(np.float32)
 
     if edges is None:
       self.edges = np.array([[]], dtype=np.uint32)
+    elif type(edges) is list:
+      self.edges = np.array(edges, dtype=np.uint32)
     else:
       self.edges = edges.astype(np.uint32)
 
     if radii is None:
       self.radii = -1 * np.ones(shape=self.vertices.shape[0], dtype=np.float32)
+    elif type(radii) is list:
+      self.radii = np.array(radii, dtype=np.float32)
     else:
       self.radii = radii
 
     if vertex_types is None:
       # 0 = undefined in SWC (http://research.mssm.edu/cnic/swc.html)
       self.vertex_types = np.zeros(shape=self.vertices.shape[0], dtype=np.uint8)
+    elif type(vertex_types) is list:
+      self.vertex_types = np.array(vertex_types, dtype=np.uint8)
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
 
@@ -154,6 +162,97 @@ class PrecomputedSkeleton(object):
     vertex_types = np.frombuffer(typebuf, dtype=np.uint8)
 
     return PrecomputedSkeleton(vertices, edges, radii, vertex_types, segid=segid)
+
+  @classmethod
+  def equivalent(kls, first, second):
+    """
+    Tests that two skeletons are the same in form not merely that
+    their array contents are exactly the same. This test can be
+    made more sophisticated. 
+    """
+    if first.empty() and second.empty():
+      return True
+    elif first.vertices.shape[0] != second.vertices.shape[0]:
+      return False
+    elif first.edges.shape[0] != second.edges.shape[0]:
+      return False
+
+    EPSILON = 1e-7
+
+    vertex_match = np.all(np.abs(first.vertices - second.vertices) < EPSILON)
+    if not vertex_match:
+      return False
+
+    edges1 = np.sort(np.unique(first.edges, axis=0), axis=1)
+    edges1 = edges1[np.lexsort(edges1[:,::-1].T)]
+    edges2 = np.sort(np.unique(second.edges, axis=0), axis=1)
+    edges2 = edges2[np.lexsort(edges2[:,::-1].T)]
+    edges_match = np.all(edges1 == edges2)
+    del edges1
+    del edges2
+
+    if not edges_match:
+      return False
+
+    radii_match = np.all(np.abs(first.radii - second.radii) < EPSILON)
+    if not radii_match:
+      return False   
+
+    return np.all(first.vertex_types == second.vertex_types)
+
+  def consolidate(self):
+    """
+    Remove duplicate vertices and edges from this skeleton without
+    side effects.
+
+    Returns: a consolidated skeleton 
+    """
+    nodes = self.vertices
+    edges = self.edges 
+    radii = self.radii
+    vertex_types = self.vertex_types
+
+    if self.empty():
+      return PrecomputedSkeleton()
+    
+    eff_nodes, uniq_idx, idx_representative = np.unique(
+      nodes, axis=0, return_index=True, return_inverse=True
+    )
+
+    edge_vector_map = np.vectorize(lambda x: idx_representative[x])
+    eff_edges = edge_vector_map(edges)
+    eff_edges = np.sort(eff_edges, axis=1) # sort each edge [2,1] => [1,2]
+    eff_edges = eff_edges[np.lexsort(eff_edges[:,::-1].T)] # Sort rows 
+    eff_edges = np.unique(eff_edges, axis=0)
+
+    radii_vector_map = np.vectorize(lambda idx: radii[idx])
+    eff_radii = radii_vector_map(uniq_idx)
+
+    vertex_type_map = np.vectorize(lambda idx: vertex_types[idx])
+    eff_vtype = vertex_type_map(uniq_idx)  
+      
+    return PrecomputedSkeleton(eff_nodes, eff_edges, eff_radii, eff_vtype, segid=self.id)
+
+  def clone(self):
+    vertices = np.copy(self.vertices)
+    edges = np.copy(self.edges)
+    radii = np.copy(self.radii)
+    vertex_types = np.copy(self.vertex_types)
+
+    return PrecomputedSkeleton(vertices, edges, radii, vertex_types, segid=self.id)
+
+  def __eq__(self, other):
+    if self.id != other.id:
+      return False
+    elif self.vertices.shape[0] != other.vertices.shape[0]:
+      return False
+    elif self.edges.shape[0] != other.edges.shape[0]:
+      return False
+
+    return (np.all(self.vertices == other.vertices, axis=0) \
+      and np.any(self.edges == other.edges, axis=0) \
+      and np.any(self.radii == other.radii) \
+      and np.any(self.vertex_types == other.vertex_types))
 
   def __str__(self):
     return "PrecomputedSkeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}))".format(
