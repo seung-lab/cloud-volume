@@ -245,3 +245,7 @@ def test_equivalent():
   double1 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0) ], edges=[ (1,0), (1,2) ])
   double2 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0) ], edges=[ (2,1), (0,1) ])
   assert PrecomputedSkeleton.equivalent(double1, double2)
+
+  double1 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0), (1,1,3) ], edges=[ (1,0), (1,2), (1,3) ])
+  double2 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0), (1,1,3) ], edges=[ (3,1), (2,1), (0,1) ])
+  assert PrecomputedSkeleton.equivalent(double1, double2)

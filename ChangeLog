@@ -1,6 +1,8 @@
 CHANGES
 =======
 
+* feat: add consolidation and equivalence test to PrecomputedSkeleton
+
 0.34.4
 ------
 

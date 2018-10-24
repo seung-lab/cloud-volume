@@ -184,9 +184,9 @@ class PrecomputedSkeleton(object):
       return False
 
     edges1 = np.sort(np.unique(first.edges, axis=0), axis=1)
-    edges1 = edges1[edges1[:,0].argsort()]
+    edges1 = edges1[np.lexsort(edges1[:,::-1].T)]
     edges2 = np.sort(np.unique(second.edges, axis=0), axis=1)
-    edges2 = edges2[edges2[:,0].argsort()]
+    edges2 = edges2[np.lexsort(edges2[:,::-1].T)]
     edges_match = np.all(edges1 == edges2)
     del edges1
     del edges2
@@ -221,10 +221,8 @@ class PrecomputedSkeleton(object):
 
     edge_vector_map = np.vectorize(lambda x: idx_representative[x])
     eff_edges = edge_vector_map(edges)
-    eff_edges = np.sort(eff_edges, axis=1)
-    # TODO: This sorts based on the first column
-    # but not the second.
-    eff_edges = eff_edges[eff_edges[:,0].argsort()]
+    eff_edges = np.sort(eff_edges, axis=1) # sort each edge [2,1] => [1,2]
+    eff_edges = eff_edges[np.lexsort(eff_edges[:,::-1].T)] # Sort rows 
     eff_edges = np.unique(eff_edges, axis=0)
 
     radii_vector_map = np.vectorize(lambda idx: radii[idx])
