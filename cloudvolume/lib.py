@@ -483,6 +483,11 @@ class Bbox(object):
     return result + offset
 
   def contains(self, point):
+    """
+    Tests if a point on or within a bounding box.
+
+    Returns: boolean
+    """
     return (
           point[0] >= self.minpt[0] 
       and point[1] >= self.minpt[1]
@@ -624,7 +629,7 @@ def generate_slices(slices, minsize, maxsize, bounded=True):
 
   return slices
 
-def save_images(image, axis='z', channel=None, directory=None, global_norm=True, image_format='PNG'):
+def save_images(image, directory=None, axis='z', channel=None, global_norm=True, image_format='PNG'):
   """
   Serialize a 3D or 4D array into a series of PNGs for visualization.
 

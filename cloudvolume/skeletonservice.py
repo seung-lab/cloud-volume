@@ -60,6 +60,53 @@ class PrecomputedSkeleton(object):
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
 
+  @classmethod
+  def from_path(kls, vertices):
+    """
+    Given an Nx3 array of vertices that constitute a single path, 
+    generate a skeleton with appropriate edges.
+    """
+    if vertices.shape[0] == 0:
+      return PrecomputedSkeleton()
+
+    skel = PrecomputedSkeleton(vertices)
+    edges = np.zeros(shape=(skel.vertices.shape[0] - 1, 2), dtype=np.uint32)
+    edges[:,0] = np.arange(skel.vertices.shape[0] - 1)
+    edges[:,1] = np.arange(1, skel.vertices.shape[0])
+    skel.edges = edges
+    return skel
+
+  @classmethod
+  def simple_merge(kls, skeletons):
+    """
+    Simple concatenation of skeletons into one object 
+    without adding edges between them.
+    """
+    if len(skeletons) == 0:
+      return PrecomputedSkeleton()
+
+    if type(skeletons[0]) is np.ndarray:
+      skeletons = [ skeletons ]
+
+    ct = 0
+    edges = []
+    for skel in skeletons:
+      edge = skel.edges + ct
+      edges.append(edge)
+      ct += skel.vertices.shape[0]
+
+    return PrecomputedSkeleton(
+      vertices=np.concatenate([ skel.vertices for skel in skeletons ], axis=0),
+      edges=np.concatenate(edges, axis=0),
+      radii=np.concatenate([ skel.radii for skel in skeletons ], axis=0),
+      vertex_types=np.concatenate([ skel.vertex_types for skel in skeletons ], axis=0),
+      segid=skeletons[0].id,
+    )
+
+  def merge(self, skel):
+    """Combine with an additional skeleton and consolidate."""
+    return PrecomputedSkeleton.simple_merge((self, skel)).consolidate()
+
   def empty(self):
     return self.vertices.size == 0 or self.edges.size == 0
 
@@ -200,12 +247,43 @@ class PrecomputedSkeleton(object):
 
     return np.all(first.vertex_types == second.vertex_types)
 
+  def crop(self, bbox):
+    """
+    Crop away all vertices and edges that lie outside of the given bbox.
+    The edge counts as inside.
+
+    Returns: new PrecomputedSkeleton
+    """
+    skeleton = self.clone()
+    bbox = Bbox.create(bbox)
+
+    if skeleton.empty():
+      return skeleton
+
+    nodes_valid_mask = np.array(
+      [ bbox.contains(vtx) for vtx in skeleton.vertices ], dtype=np.bool
+    )
+    nodes_valid_idx = np.where(nodes_valid_mask)[0]
+
+    # Set invalid vertices to be duplicates
+    # so they'll be removed during consolidation
+    if nodes_valid_idx.shape[0] == 0:
+      return PrecomputedSkeleton()
+
+    first_node = nodes_valid_idx[0]
+    skeleton.vertices[~nodes_valid_mask] = skeleton.vertices[first_node]
+  
+    edges_valid_mask = np.isin(skeleton.edges, nodes_valid_idx)
+    edges_valid_idx = edges_valid_mask[:,0] * edges_valid_mask[:,1] 
+    skeleton.edges = skeleton.edges[edges_valid_idx,:]
+    return skeleton.consolidate()
+
   def consolidate(self):
     """
     Remove duplicate vertices and edges from this skeleton without
     side effects.
 
-    Returns: a consolidated skeleton 
+    Returns: new consolidated PrecomputedSkeleton 
     """
     nodes = self.vertices
     edges = self.edges 

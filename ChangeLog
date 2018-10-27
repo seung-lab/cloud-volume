@@ -1,7 +1,12 @@
 CHANGES
 =======
 
-* feat: add consolidation and equivalence test to PrecomputedSkeleton
+0.35.0
+------
+
+* Version 0.35.0
+* feat: skeleton consolidation, equivalence, and equality operators (#147)
+* Update README.md
 
 0.34.4
 ------
