@@ -11,7 +11,7 @@ import numpy as np
 import struct
 
 from . import lib
-from .lib import red
+from .lib import red, Bbox
 from .txrx import cdn_cache_control
 from .storage import Storage, SimpleStorage
 
@@ -387,27 +387,7 @@ class PrecomputedSkeletonService(object):
           compress='gzip',
           cache_control=cdn_cache_control(self.vol.cdn_cache),
         )
-    
-
-  def get_point_cloud(self, segid):
-    with SimpleStorage(self.vol.layer_cloudpath) as stor:
-      path = os.path.join(self.path, "{}.json".format(segid))
-      frags = stor.get_json(path)
-
-    ptcloud = np.array([], dtype=np.int32).reshape(0, 3)
-
-    if frags is None:
-      return ptcloud
-    
-    for frag in frags: 
-      bbox = Bbox.from_filename(frag)
-      img = vol[ bbox.to_slices() ][:,:,:,0]
-      ptc = np.argwhere( img == segid )
-      ptcloud = np.concatenate((ptcloud, ptc), axis=0)
-
-    ptcloud.sort(axis=0) # sorts x column, but not y unfortunately
-    return np.unique(ptcloud, axis=0)
-
+  
   def swc(self, segid):
     """Prototype SWC file generator. 
 
