@@ -170,8 +170,9 @@ listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 
 # Meshes
-vol.mesh.save(12345) # save 12345 as ./12345.obj
-vol.mesh.save([12345, 12346, 12347]) # merge three segments into one obj
+vol.mesh.save(12345) # save 12345 as ./12345.ply on disk
+vol.mesh.save([12345, 12346, 12347]) # merge three segments into one file
+vol.mesh.save(12345, file_format='obj') # 'ply' and 'obj' are both supported
 vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
 
 # Skeletons
