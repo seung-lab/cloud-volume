@@ -1,6 +1,160 @@
 let _loadingimg = new Image();
 _loadingimg.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAATpJREFUeNrs18ENgCAQAEE09iJl0H8F2o0N+DTZh7NPcr/JEdjWWuOtc87X8/u6zH84vw+lAQAAQAAACMA/O7zH23kb4AoCIAAABACAin+A93g7bwNcQQAEAIAAAFDxD/Aeb+dtgCsIgAAAEAAAKv4B3uPtvA1wBQEQAAACAEDFP8B7vJ23Aa4gAAIAQAAAqPgHeI+38zbAFQRAAAAIAAAV/wDv8XbeBriCAAgAAAEAoOIf4D3eztsAVxAAAQAgAABU/AO8x9t5G+AKAiAAAAQAgIp/gPd4O28DXEEABACAAABQ8Q/wHm/nbYArCIAAABAAACr+Ad7j7bwNcAUBEAAAAgBAxT/Ae7ydtwGuIAACAEAAAKj4B3iPt/M2wBUEQAAACAAAFf8A7/F23ga4ggAIAAABAKCgR4ABAIa/f2QspBp6AAAAAElFTkSuQmCC";
 
+
+class MonoVolume {
+  constructor (channel, is_segmentation=false) {
+    this.channel = channel;
+    this.label_colors = this.createColors();
+    this.is_segmentation = is_segmentation;
+  }
+
+  shuffleColors () {
+    let array = this.label_colors;
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+  }
+
+  createColors (opacity=1) {
+    let colors = [
+      { r: 17, g: 47, b: 65 }, // blue
+      { r: 6, g: 133, b: 135 }, // aqua
+      { r: 79, g: 185, b: 159 }, // teal
+      { r: 242, g: 177, b: 52 }, // gold
+      { r: 237, g: 85, b: 59 }, // orange
+    ];
+
+    let arraycolors = new Uint32Array(5);
+
+    for (let i = 0; i < colors.length; i++) {
+      let color = colors[i];
+
+      if (color.a === undefined) {
+        color.a = 1;
+      }
+
+      if (this.channel.isLittleEndian()) {
+        arraycolors[i] = (
+          (255 * color.a * opacity) << 24 // a is 0 to 1
+          | color.b << 16
+          | color.g << 8
+          | color.r << 0
+        );
+      }
+      else  {
+        arraycolors[i] = (
+          (255 * color.a * opacity) << 0
+          | color.b << 8
+          | color.g << 16
+          | color.r << 24
+        );
+      }
+    }
+
+    return arraycolors;
+  }
+  
+  load (url, progressfn) {
+    let _this = this;
+    return new Promise(function (fufill, reject) {
+      let req = new XMLHttpRequest();
+      req.open("GET", url, true);
+      req.responseType = "arraybuffer";
+      req.onprogress = function (evt) {
+        if (!evt.lengthComputable) {
+          return;
+        }
+
+        _this.channel.progress = evt.loaded / evt.total;
+        if (progressfn) {
+          progressfn(_this.channel.progress);
+        }
+      };
+
+      req.onload = function (oEvent) {
+        PROGRESS = 1
+        let arrayBuffer = req.response; // Note: not req.responseText
+        if (!arrayBuffer) {
+          return reject("didn't get an array buffer back");
+        }
+
+        let ArrayType = _this.channel.arrayType();
+        _this.channel.cube = new ArrayType(arrayBuffer);
+        _this.channel.loaded = true;
+        _this.channel.progress = 1;
+
+        return fufill(_this.channel);
+      };
+
+      req.send(null);
+    });
+  }
+
+  render (ctx, axis, slice) {
+    if (this.is_segmentation) {
+      return this.renderSegmentationSlice(ctx, axis, slice);
+    }
+
+    if (this.channel.bytes === 1) {
+      return this.renderChannelSlice(ctx, axis, slice);
+    }
+
+    return this.renderImageSlice(ctx, axis, slice);
+  }
+
+  /* renderChannelSlice
+   *
+   * PERFORMANCE SENSITIVE
+   *
+   * Render the channel image to the given canvas context.
+   * Advantage over direct data cube access is the use of a
+   * background loading image.
+   *
+   * Required:
+   *   [0] ctx
+   *   [1] axis: 'x', 'y', or 'z'
+   *   [2] slice: 0 - 255
+   *
+   * Return: segid, w/ side effect of drawing on ctx
+   */
+  renderChannelSlice (ctx, axis, slice) {
+    let _this = this;
+    this.channel.renderGrayImageSlice(ctx, axis, slice);
+    return this;
+  }
+
+  renderImageSlice (ctx, axis, slice) {
+    this.channel.renderImageSlice(ctx, axis, slice);
+    return this;
+  }
+
+  renderSegmentationSlice(ctx, axis, slice) {
+    let _this = this;
+
+    let seg_slice = this.channel.slice(axis, slice, /*copy=*/false);
+
+    let coloring = this.label_colors;
+
+    let size = this.channel.faceDimensions(axis);
+
+    let pixels = ctx.getImageData(0, 0, size[0], size[1]);
+    let pixels32 = new Uint32Array(pixels.data.buffer);
+
+    const num_colors = coloring.length;
+    for (let i = pixels32.length; i >= 0; i--) {
+      if (seg_slice[i]) {
+        pixels32[i] = coloring[seg_slice[i] % num_colors];
+      }
+    }
+
+    ctx.putImageData(pixels, 0, 0);
+    return this;
+  }
+}
+
+
 /* Volume
  *
  * Represents a 3D bounding box in the data set's global coordinate space.
@@ -359,6 +513,7 @@ class DataCube {
 
     this.clean = true;
     this.loaded = false;
+    this.progress = 0;
 
     this.faces = {
       x: [ 'y', 'z' ],
@@ -829,6 +984,7 @@ class DataCube {
     return ArrayType;
   }
 }
+
 
 
 

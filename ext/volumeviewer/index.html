@@ -34,30 +34,9 @@
       var CLICK = { x: 0, y: 0, z: 0 };
       var SIZE = {};
       var PARAMETERS = {};
+      var PROGRESS = 0;
 
       var _needsrender = true;
-
-      function load_data(datacube) {
-        return new Promise(function (fufill, reject) {
-          var oReq = new XMLHttpRequest();
-          oReq.open("GET", "/data", true);
-          oReq.responseType = "arraybuffer";
-
-          oReq.onload = function (oEvent) {
-            var arrayBuffer = oReq.response; // Note: not oReq.responseText
-            if (!arrayBuffer) {
-              return reject("didn't get an array buffer back");
-            }
-
-            var ArrayType = datacube.arrayType();
-            datacube.cube = new ArrayType(arrayBuffer);
-
-            return fufill(datacube);
-          };
-
-          oReq.send(null);
-        });
-      }
 
       $(document).ready(function () {
         $.get('/parameters', function (data, status) {
@@ -69,14 +48,18 @@
 
           PARAMETERS = data;
 
-          window.vol = new DataCube({
+          let datacube = new DataCube({
             bytes: data.data_bytes,
             size: SIZE,
           });
 
+          window.vol = new MonoVolume(datacube, (data.layer_type === 'segmentation'));
           var vol = window.vol;
 
-          load_data(vol).then( () => render() );
+          vol.load('/data', function (ratio) {
+            PROGRESS = ratio;
+            render();
+          }).then( () => render() );
 
           window.channel = $('#channel')[0];
           window.channelctx = channel.getContext('2d');
@@ -166,14 +149,21 @@
       $(document).on('keydown keypress', function (evt) {
         var delta = 0;
         if (evt.keyCode === 'W'.charCodeAt(0) 
-          || evt.keyCode === '.'.charCodeAt(0)) {
+          || evt.keyCode === '.'.charCodeAt(0)
+          || evt.keyCode === 190) {
           
           move_slice(1);
         }
         else if (evt.keyCode === 'S'.charCodeAt(0)
-          || evt.keyCode === ','.charCodeAt(0)) {
+          || evt.keyCode === ','.charCodeAt(0)
+          || evt.keyCode === 188) {
           
           move_slice(-1);
+        }
+        else if (evt.keyCode === 'L'.charCodeAt(0)) {
+          
+          vol.shuffleColors();
+          render();          
         }
       })
 
@@ -207,12 +197,7 @@
           channel.height = SIZE.z; 
         }
 
-        if (PARAMETERS.layer_type == 'image') {
-          vol.renderGrayImageSlice(window.channelctx, AXIS, SLICE[AXIS]);
-        }
-        else {
-          vol.renderImageSlice(window.channelctx, AXIS, SLICE[AXIS]);
-        }
+        vol.render(window.channelctx, AXIS, SLICE[AXIS]);
 
         // compute real coordinate as well
         let b = PARAMETERS.bounds;
@@ -226,6 +211,8 @@
         
         $('#clickcoord').text( `<${CLICK.x}, ${CLICK.y}, ${CLICK.z}>` );
         $('#clickrealcoord').text( `${real[0]}, ${real[1]}, ${real[2]}` );
+
+        $('#loading').text( (PROGRESS * 100).toFixed(0) + '%' )
 
         _needsrender = false;
       }
@@ -249,13 +236,11 @@
       <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>)<br>
        <span id="cloudpath"></span> dtype: <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> 
        <br> 
-       bounds: (<span id="bounds"></span>) shape: <span id="shape"></span>
+       bounds: (<span id="bounds"></span>) shape: <span id="shape"></span> loading: <span id="loading"></span>
     </div>
     
     <canvas id="channel" width="256" height="256"></canvas>
-    <!-- 
-    <p>LOADING: <span id="loading"></span></p>
-
+<!-- 
     <p>CONTROLS
     <ul>
       <li>W/S or scroll - advance selected images</li>
