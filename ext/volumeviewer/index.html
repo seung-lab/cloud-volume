@@ -1,0 +1,267 @@
+<html>
+  <head>
+    <title>CloudVolume Viewer</title>
+    <script src="./jquery-3.3.1.js"></script>
+    <script src="./datacube.js"></script>
+
+    <style>
+      html {
+        overflow: hidden;
+      }
+
+      body {
+        font-family: monospace;
+        color: white;
+        background: #0d0d0d;
+      }
+
+      #infobar {
+        margin-bottom: 10px;
+      }
+
+      canvas {
+        border: 1px dotted white;
+      }
+
+      img {
+        margin: 1px;
+      }
+    </style>
+
+    <script>
+      var AXIS = 'z';
+      var SLICE = { x: 0, y: 0, z: 0 };
+      var CLICK = { x: 0, y: 0, z: 0 };
+      var SIZE = {};
+      var PARAMETERS = {};
+
+      var _needsrender = true;
+
+      function load_data(datacube) {
+        return new Promise(function (fufill, reject) {
+          var oReq = new XMLHttpRequest();
+          oReq.open("GET", "/data", true);
+          oReq.responseType = "arraybuffer";
+
+          oReq.onload = function (oEvent) {
+            var arrayBuffer = oReq.response; // Note: not oReq.responseText
+            if (!arrayBuffer) {
+              return reject("didn't get an array buffer back");
+            }
+
+            var ArrayType = datacube.arrayType();
+            datacube.cube = new ArrayType(arrayBuffer);
+
+            return fufill(datacube);
+          };
+
+          oReq.send(null);
+        });
+      }
+
+      $(document).ready(function () {
+        $.get('/parameters', function (data, status) {
+          SIZE = {
+            x: data.bounds[3] - data.bounds[0],
+            y: data.bounds[4] - data.bounds[1],
+            z: data.bounds[5] - data.bounds[2],
+          };
+
+          PARAMETERS = data;
+
+          window.vol = new DataCube({
+            bytes: data.data_bytes,
+            size: SIZE,
+          });
+
+          var vol = window.vol;
+
+          load_data(vol).then( () => render() );
+
+          window.channel = $('#channel')[0];
+          window.channelctx = channel.getContext('2d');
+
+          let b = PARAMETERS.bounds;
+
+          $('#cloudpath').text( PARAMETERS.path );
+          $('#bounds').text(
+            `<${b[0]}, ${b[1]}, ${b[2]}>, <${b[3]}, ${b[4]}, ${b[5]}>`
+          );
+          $('#dtype').text( PARAMETERS.data_type );
+          $('#resolution').text( PARAMETERS.resolution.join('x') )
+          $('#shape').text( `<${SIZE.x}, ${SIZE.y}, ${SIZE.z}>` )
+        
+          $(channel).on('mousemove', function (e) {
+            var x = e.offsetX / $(this).innerWidth(), 
+              y = e.offsetY / $(this).innerHeight();
+
+            x = clamp(x, 0, 1);
+            y = clamp(y, 0, 1);
+
+            if (AXIS == 'z') {
+              SLICE.x = (x * (SIZE.x - 1))|0;
+              SLICE.y = (y * (SIZE.y - 1))|0;
+            }
+            else if (AXIS == 'y') {
+              SLICE.x = (x * (SIZE.x - 1))|0;
+              SLICE.z = (y * (SIZE.z - 1))|0;
+            }
+            else if (AXIS == 'x') {
+              SLICE.y = (x * (SIZE.y - 1))|0;
+              SLICE.z = (y * (SIZE.z - 1))|0;
+            }
+
+            render();
+          });
+
+          $(channel).on('click', function (e) {
+            var x = e.offsetX / $(this).innerWidth(), 
+              y = e.offsetY / $(this).innerHeight();
+
+            x = clamp(x, 0, 1);
+            y = clamp(y, 0, 1);
+
+            if (AXIS == 'z') {
+              CLICK.x = (x * (SIZE.x - 1))|0;
+              CLICK.y = (y * (SIZE.y - 1))|0;
+              CLICK.z = SLICE.z;
+            }
+            else if (AXIS == 'y') {
+              CLICK.x = (x * (SIZE.x - 1))|0;
+              CLICK.z = (y * (SIZE.z - 1))|0;
+              CLICK.y = SLICE.y;
+            }
+            else if (AXIS == 'x') {
+              CLICK.y = (x * (SIZE.y - 1))|0;
+              CLICK.z = (y * (SIZE.z - 1))|0;
+              CLICK.x = SLICE.x;
+            }
+
+            render();
+          });
+
+          loop();
+        });
+      });
+
+      $(document).on('wheel', function (e) {
+        var delta = clamp(e.originalEvent.deltaY, -1, 1);
+        delta = Math.round(delta);
+        move_slice(delta);
+      });
+
+      var AXES = ['z', 'y', 'x'];
+
+      $(document).on('keyup', function (evt) {
+        if (evt.keyCode === 'A'.charCodeAt(0)) {
+          rotate_axis(2);
+        }
+        else if (evt.keyCode === 'D'.charCodeAt(0)
+          || evt.keyCode === ' '.charCodeAt(0)) {
+
+          rotate_axis(1);
+        }
+      });
+
+      $(document).on('keydown keypress', function (evt) {
+        var delta = 0;
+        if (evt.keyCode === 'W'.charCodeAt(0) 
+          || evt.keyCode === '.'.charCodeAt(0)) {
+          
+          move_slice(1);
+        }
+        else if (evt.keyCode === 'S'.charCodeAt(0)
+          || evt.keyCode === ','.charCodeAt(0)) {
+          
+          move_slice(-1);
+        }
+      })
+
+      function rotate_axis(delta) {
+        var index = (AXES.indexOf(AXIS) + delta) % AXES.length;
+        AXIS = AXES[index];
+        render();
+      }
+
+      function move_slice (delta) {
+        SLICE[AXIS] += delta;
+        SLICE[AXIS] = clamp(SLICE[AXIS], 0, SIZE[AXIS] - 1);
+        render();  
+      }
+
+      function render () {
+        _needsrender = true;
+      }
+
+      function hardRender () {
+        if (AXIS == 'z') {
+          channel.width = SIZE.x;
+          channel.height = SIZE.y;
+        }
+        else if (AXIS == 'y') {
+          channel.width = SIZE.x;
+          channel.height = SIZE.z; 
+        }
+        else if (AXIS == 'x') {
+          channel.width = SIZE.y;
+          channel.height = SIZE.z; 
+        }
+
+        if (PARAMETERS.layer_type == 'image') {
+          vol.renderGrayImageSlice(window.channelctx, AXIS, SLICE[AXIS]);
+        }
+        else {
+          vol.renderImageSlice(window.channelctx, AXIS, SLICE[AXIS]);
+        }
+
+        // compute real coordinate as well
+        let b = PARAMETERS.bounds;
+        let real = [ SLICE.x + b[0], SLICE.y + b[1], SLICE.z + b[2] ];
+
+        $('#axis').text(AXIS);
+        $('#coord').text( `<${SLICE.x}, ${SLICE.y}, ${SLICE.z}>` );
+        $('#realcoord').text( `${real[0]}, ${real[1]}, ${real[2]}` );
+
+        real = [ CLICK.x + b[0], CLICK.y + b[1], CLICK.z + b[2] ];
+        
+        $('#clickcoord').text( `<${CLICK.x}, ${CLICK.y}, ${CLICK.z}>` );
+        $('#clickrealcoord').text( `${real[0]}, ${real[1]}, ${real[2]}` );
+
+        _needsrender = false;
+      }
+
+      function clamp (val, min, max) {
+        return Math.min(Math.max(val, min), max);
+      }
+
+      function loop () {
+        if (_needsrender) {
+          hardRender();
+        }
+
+        requestAnimationFrame(loop);
+      }
+
+    </script>
+  </head>
+  <body>
+    <div id="infobar">
+      <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>)<br>
+       <span id="cloudpath"></span> dtype: <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> 
+       <br> 
+       bounds: (<span id="bounds"></span>) shape: <span id="shape"></span>
+    </div>
+    
+    <canvas id="channel" width="256" height="256"></canvas>
+    <!-- 
+    <p>LOADING: <span id="loading"></span></p>
+
+    <p>CONTROLS
+    <ul>
+      <li>W/S or scroll - advance selected images</li>
+      <li>A/D switch slicing plane</li>
+      <li>Left Click - Toggle segment selection.</li>
+    </ul>
+ -->
+  </body>
+</html>
