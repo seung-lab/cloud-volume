@@ -33,9 +33,10 @@
     <script>
       var AXIS = 'z';
       var SLICE = { x: 0, y: 0, z: 0 };
-      var CLICK = { x: 0, y: 0, z: 0, segid: null };
+      var CLICK = { x: 0, y: 0, z: 0, pxvalue: null };
       var SIZE = {};
       var PARAMETERS = {};
+      var PXVALUE = null;
 
       var elems; 
       var _needsrender = true;
@@ -48,8 +49,8 @@
           clickcoord: $('#clickcoord'),
           clickrealcoord: $('#clickrealcoord'),
           loading: $('#loading'),
-          segid: $('#segid'),
-          clicksegid: $('#clicksegid'),
+          pxvalue: $('#pxvalue'),
+          clickpxvalue: $('#clickpxvalue'),
         };
 
         $.get('/parameters', function (data, status) {
@@ -60,11 +61,22 @@
           };
 
           PARAMETERS = data;
+          PARAMETERS.is_floating = (data.data_type === 'float32' || data.data_type === 'float64');
 
-          let datacube = new DataCube({
-            bytes: data.data_bytes,
-            size: SIZE,
-          });
+          let datacube;
+
+          if (data.is_floating) {
+            datacube = new FloatingPointDataCube({
+              bytes: data.data_bytes,
+              size: SIZE,
+            });
+          }
+          else {
+            datacube = new DataCube({
+              bytes: data.data_bytes,
+              size: SIZE,
+            })
+          };
 
           window.vol = new MonoVolume(datacube, (data.layer_type === 'segmentation'));
           var vol = window.vol;
@@ -106,11 +118,18 @@
               SLICE.z = (y * (SIZE.z - 1))|0;
             }
 
+            PXVALUE = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+
             vol.hover_id = null;
             if (vol.is_segmentation) {
-              vol.hover_id = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+              vol.hover_id = PXVALUE;
             }
 
+            render();
+          });
+
+          $(channel).on('mouseout', function (e) {
+            PXVALUE = null;
             render();
           });
 
@@ -137,9 +156,8 @@
               CLICK.x = SLICE.x;
             }
 
-            if (vol.is_segmentation) {
-              CLICK.segid = vol.channel.get(CLICK.x, CLICK.y, CLICK.z);
-            }
+            CLICK.pxvalue = vol.channel.get(CLICK.x, CLICK.y, CLICK.z);
+            
             render();
           });
 
@@ -239,21 +257,28 @@
           elems.loading.text( (vol.channel.progress * 100).toFixed(0) + '%' )  
         }
         
-        if (vol.hover_id) {
-          elems.segid.show().text( "segid: " + vol.hover_id );
+        if (PXVALUE !== null) {
+          elems.pxvalue.show().text( "pxvalue: " + display_value(PXVALUE) );
         }
         else {
-          elems.segid.hide(); 
+          elems.pxvalue.hide();
         }
 
-        if (CLICK.segid) {
-          elems.clicksegid.text( "segid: " + CLICK.segid );
+        if (CLICK.pxvalue) {
+          elems.clickpxvalue.text( "pxvalue: " + display_value(CLICK.pxvalue) );
         }
         else {
-          elems.clicksegid.text(""); 
+          elems.clickpxvalue.text(""); 
         }
 
         _needsrender = false;
+      }
+
+      function display_value (val) {
+        if (PARAMETERS.is_floating) {
+          return val.toFixed(4);
+        }
+        return val;
       }
 
       function clamp (val, min, max) {
@@ -272,9 +297,9 @@
   </head>
   <body>
     <div id="infobar">
-      <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) <span id="segid"></span>
+      <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) <span id="pxvalue"></span>
       <br> 
-      Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>) <span id="clicksegid"></span>
+      Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>) <span id="clickpxvalue"></span>
       <br>
       <span id="cloudpath"></span> dtype: <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> 
       <br> 

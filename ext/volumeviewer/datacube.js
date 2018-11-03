@@ -95,6 +95,7 @@ class MonoVolume {
         _this.channel.cube = new ArrayType(arrayBuffer);
         _this.channel.loaded = true;
         _this.channel.progress = 1;
+        _this.channel.normalized = false;
         _this.cache.valid = false;
 
         return fufill(_this.channel);
@@ -898,8 +899,6 @@ class DataCube {
       ? this.canvas_context.createImageData(sizes[0], sizes[1])
       : this.cached_imgdata.getImageData(sizes[0], sizes[1]);
 
-    let maskset = this.getRenderMaskSet();
-
     let data32 = new Uint32Array(imgdata.data.buffer);
 
     const alpha = this.isLittleEndian() 
@@ -1006,6 +1005,121 @@ class DataCube {
       1: Uint8Array,
       2: Uint16Array,
       4: Uint32Array,
+    };
+
+    let ArrayType = choices[this.bytes];
+
+    if (ArrayType === undefined) {
+      throw new Error(this.bytes + ' is not a valid typed array byte count.');
+    }
+
+    return ArrayType;
+  }
+}
+
+class FloatingPointDataCube extends DataCube {
+  constructor (args) {
+    super(args);
+    this.minval = -Infinity;
+    this.maxval = +Infinity;
+
+    this.normalized = false;
+  }
+
+  renormalize () {
+    let _this = this;
+    let minval = +Infinity;
+    let maxval = -Infinity;
+
+    const cube = _this.cube;
+    
+    for (let i = cube.length - 1; i >= 0; i--) {
+      if (cube[i] > maxval) {
+        maxval = cube[i];
+      }
+      if (cube[i] < minval) {
+        minval = cube[i];
+      }
+    }
+
+    this.minval = minval;
+    this.maxval = maxval;
+    this.normalized = true;
+  }
+
+  /* imageSlice
+   *
+   * Generate an ImageData object that encodes a grayscale 
+   * representation of an on-axis 2D slice of the data cube.
+   *
+   * Required:
+   *   [0] axis: 'x', 'y', or 'z'
+   *   [1] index: 0 - axis size - 1
+   * Optional:
+   *   [2] transparency - black pixels are transparent
+   *   [3] copy - whether to allocate new memory (true) or reuse a shared cache for this function (false)
+   *
+   * Return: imagedata
+   */
+  imageSlice (axis, index, transparency=false, copy=true) {
+    let _this = this;
+
+    if (!this.normalized) {
+      this.renormalize();
+    }
+
+    if (this.normalized 
+      && (this.minval == -Infinity || this.maxval == +Infinity)) {
+
+      throw Error("Floating point image contains infinties.");
+    }
+
+    let square = this.slice(axis, index, /*copy=*/false);
+
+    let sizes = this.faceDimensions(axis);
+
+    let imgdata = copy
+      ? this.canvas_context.createImageData(sizes[0], sizes[1])
+      : this.cached_imgdata.getImageData(sizes[0], sizes[1]);
+
+    let data32 = new Uint32Array(imgdata.data.buffer);
+
+    const alpha = this.isLittleEndian() 
+      ? 0xff000000
+      : 0x000000ff;
+
+    let i = 0;
+    let val = 0|0;
+    const minval = this.minval;
+    const maxval = this.maxval;
+    const norm = (maxval - minval) / 255.0;
+
+    if (norm === 0) {
+      val = (minval === 0) ? 0x00000000 : 0xffffffff;
+      for (i = square.length - 1; i >= 0; i--) {
+        data32[i] = val;
+      } 
+    }
+    else if (transparency) {
+      for (i = square.length - 1; i >= 0; i--) {
+        val = ((square[i] - minval) / norm) | 0;
+        data32[i] = (val | val << 8 | val << 16 | (val && alpha));
+      }
+    }
+    else {
+      for (i = square.length - 1; i >= 0; i--) {
+        val = ((square[i] - minval) / norm) | 0;
+        data32[i] = (val | val << 8 | val << 16 | alpha);
+      }
+    }
+
+    return imgdata;
+  }
+
+  arrayType () {
+    let choices = {
+      4: Float32Array,
+      8: Float64Array,
     };
 
     let ArrayType = choices[this.bytes];
