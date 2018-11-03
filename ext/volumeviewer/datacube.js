@@ -7,6 +7,16 @@ class MonoVolume {
     this.channel = channel;
     this.label_colors = this.createColors();
     this.is_segmentation = is_segmentation;
+    this.hover_id = null;
+
+    this.cache = {
+      valid: false,
+      segid: null,
+      axis: null,
+      slice: null,
+      pixels: null,
+    };
+
   }
 
   shuffleColors () {
@@ -15,6 +25,8 @@ class MonoVolume {
       const j = Math.floor(Math.random() * (i + 1));
       [array[i], array[j]] = [array[j], array[i]];
     }
+
+    this.cache.valid = false;
   }
 
   createColors (opacity=1) {
@@ -29,31 +41,32 @@ class MonoVolume {
     let arraycolors = new Uint32Array(5);
 
     for (let i = 0; i < colors.length; i++) {
-      let color = colors[i];
-
-      if (color.a === undefined) {
-        color.a = 1;
-      }
-
-      if (this.channel.isLittleEndian()) {
-        arraycolors[i] = (
-          (255 * color.a * opacity) << 24 // a is 0 to 1
-          | color.b << 16
-          | color.g << 8
-          | color.r << 0
-        );
-      }
-      else  {
-        arraycolors[i] = (
-          (255 * color.a * opacity) << 0
-          | color.b << 8
-          | color.g << 16
-          | color.r << 24
-        );
-      }
+      arraycolors[i] = this.colorToUint32(colors[i], opacity);
     }
 
     return arraycolors;
+  }
+
+  colorToUint32(color, opacity) {
+    if (color.a === undefined) {
+      color.a = 1;
+    }
+
+    if (this.channel.isLittleEndian()) {
+      return (
+        (255 * color.a * opacity) << 24 // a is 0 to 1
+        | color.b << 16
+        | color.g << 8
+        | color.r << 0
+      );
+    }
+    
+    return (
+      (255 * color.a * opacity) << 0
+      | color.b << 8
+      | color.g << 16
+      | color.r << 24
+    );
   }
   
   load (url, progressfn) {
@@ -84,6 +97,7 @@ class MonoVolume {
         _this.channel.cube = new ArrayType(arrayBuffer);
         _this.channel.loaded = true;
         _this.channel.progress = 1;
+        _this.cache.valid = false;
 
         return fufill(_this.channel);
       };
@@ -133,23 +147,45 @@ class MonoVolume {
   renderSegmentationSlice(ctx, axis, slice) {
     let _this = this;
 
+    const hover_id = this.hover_id;
+    const cache = this.cache;
+
+    if (cache.valid
+      && cache.pixels
+      && cache.axis === axis 
+      && cache.slice === slice
+      && cache.segid === hover_id) {
+
+      ctx.putImageData(cache.pixels, 0, 0);
+      return;
+    }
+
     let seg_slice = this.channel.slice(axis, slice, /*copy=*/false);
 
     let coloring = this.label_colors;
-
     let size = this.channel.faceDimensions(axis);
 
     let pixels = ctx.getImageData(0, 0, size[0], size[1]);
     let pixels32 = new Uint32Array(pixels.data.buffer);
 
+    const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
     const num_colors = coloring.length;
+
     for (let i = pixels32.length; i >= 0; i--) {
       if (seg_slice[i]) {
         pixels32[i] = coloring[seg_slice[i] % num_colors];
+        pixels32[i] += (seg_slice[i] === hover_id) * brightener;
       }
     }
 
     ctx.putImageData(pixels, 0, 0);
+
+    cache.axis = axis;
+    cache.slice = slice;
+    cache.segid = hover_id;
+    cache.pixels = pixels;
+    cache.valid = true;
+
     return this;
   }
 }
@@ -713,7 +749,7 @@ class DataCube {
    * Return: value
    */
   get (x, y, z) {
-    return this.cube[x + this.size.x * y + this.size.x * this.size.y * z];
+    return this.cube[x + this.size.x * (y + this.size.y * z)];
   }
 
   /* slice

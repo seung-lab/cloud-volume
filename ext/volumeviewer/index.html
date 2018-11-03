@@ -21,6 +21,8 @@
 
       canvas {
         border: 1px dotted white;
+        max-width: 768px;
+        max-height: 768px;
       }
 
       img {
@@ -31,14 +33,26 @@
     <script>
       var AXIS = 'z';
       var SLICE = { x: 0, y: 0, z: 0 };
-      var CLICK = { x: 0, y: 0, z: 0 };
+      var CLICK = { x: 0, y: 0, z: 0, segid: null };
       var SIZE = {};
       var PARAMETERS = {};
       var PROGRESS = 0;
 
+      var elems; 
       var _needsrender = true;
 
       $(document).ready(function () {
+        elems = {
+          axis: $('#axis'),
+          coord: $('#coord'),
+          realcoord: $('#realcoord'),
+          clickcoord: $('#clickcoord'),
+          clickrealcoord: $('#clickrealcoord'),
+          loading: $('#loading'),
+          segid: $('#segid'),
+          clicksegid: $('#clicksegid'),
+        };
+
         $.get('/parameters', function (data, status) {
           SIZE = {
             x: data.bounds[3] - data.bounds[0],
@@ -94,6 +108,11 @@
               SLICE.z = (y * (SIZE.z - 1))|0;
             }
 
+            vol.hover_id = null;
+            if (vol.is_segmentation) {
+              vol.hover_id = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+            }
+
             render();
           });
 
@@ -120,6 +139,9 @@
               CLICK.x = SLICE.x;
             }
 
+            if (vol.is_segmentation) {
+              CLICK.segid = vol.channel.get(CLICK.x, CLICK.y, CLICK.z);
+            }
             render();
           });
 
@@ -203,16 +225,35 @@
         let b = PARAMETERS.bounds;
         let real = [ SLICE.x + b[0], SLICE.y + b[1], SLICE.z + b[2] ];
 
-        $('#axis').text(AXIS);
-        $('#coord').text( `<${SLICE.x}, ${SLICE.y}, ${SLICE.z}>` );
-        $('#realcoord').text( `${real[0]}, ${real[1]}, ${real[2]}` );
+        elems.axis.text(AXIS);
+        elems.coord.text( `<${SLICE.x}, ${SLICE.y}, ${SLICE.z}>` );
+        elems.realcoord.text( `${real[0]}, ${real[1]}, ${real[2]}` );
 
         real = [ CLICK.x + b[0], CLICK.y + b[1], CLICK.z + b[2] ];
         
-        $('#clickcoord').text( `<${CLICK.x}, ${CLICK.y}, ${CLICK.z}>` );
-        $('#clickrealcoord').text( `${real[0]}, ${real[1]}, ${real[2]}` );
+        elems.clickcoord.text( `<${CLICK.x}, ${CLICK.y}, ${CLICK.z}>` );
+        elems.clickrealcoord.text( `${real[0]}, ${real[1]}, ${real[2]}` );
 
-        $('#loading').text( (PROGRESS * 100).toFixed(0) + '%' )
+        if (vol.channel.loaded) {
+          elems.loading.hide();
+        }
+        else {
+          elems.loading.text( (PROGRESS * 100).toFixed(0) + '%' )  
+        }
+        
+        if (vol.hover_id) {
+          elems.segid.show().text( "segid: " + vol.hover_id );
+        }
+        else {
+          elems.segid.hide(); 
+        }
+
+        if (CLICK.segid) {
+          elems.clicksegid.text( "segid: " + CLICK.segid );
+        }
+        else {
+          elems.clicksegid.text(""); 
+        }
 
         _needsrender = false;
       }
@@ -233,10 +274,13 @@
   </head>
   <body>
     <div id="infobar">
-      <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>)<br>
-       <span id="cloudpath"></span> dtype: <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> 
-       <br> 
-       bounds: (<span id="bounds"></span>) shape: <span id="shape"></span> loading: <span id="loading"></span>
+      <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) <span id="segid"></span>
+      <br> 
+      Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>) <span id="clicksegid"></span>
+      <br>
+      <span id="cloudpath"></span> dtype: <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> 
+      <br> 
+      bounds: (<span id="bounds"></span>) shape: <span id="shape"></span> <span id="loading"></span>
     </div>
     
     <canvas id="channel" width="256" height="256"></canvas>
