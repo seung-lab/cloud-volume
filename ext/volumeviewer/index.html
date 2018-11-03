@@ -258,14 +258,14 @@
         }
         
         if (PXVALUE !== null) {
-          elems.pxvalue.show().text( "pxvalue: " + display_value(PXVALUE) );
+          elems.pxvalue.show().text( "value: " + display_value(PXVALUE) );
         }
         else {
           elems.pxvalue.hide();
         }
 
         if (CLICK.pxvalue) {
-          elems.clickpxvalue.text( "pxvalue: " + display_value(CLICK.pxvalue) );
+          elems.clickpxvalue.text( "value: " + display_value(CLICK.pxvalue) );
         }
         else {
           elems.clickpxvalue.text(""); 
@@ -301,9 +301,9 @@
       <br> 
       Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>) <span id="clickpxvalue"></span>
       <br>
-      <span id="cloudpath"></span> dtype: <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> 
+      <span id="cloudpath"></span> 
       <br> 
-      bounds: (<span id="bounds"></span>) shape: <span id="shape"></span> <span id="loading"></span>
+      bounds: (<span id="bounds"></span>) shape: <span id="shape"></span> <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> <span id="loading"></span>
     </div>
     
     <canvas id="channel" width="256" height="256"></canvas>

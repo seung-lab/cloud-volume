@@ -1,11 +1,8 @@
-let _loadingimg = new Image();
-_loadingimg.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAATpJREFUeNrs18ENgCAQAEE09iJl0H8F2o0N+DTZh7NPcr/JEdjWWuOtc87X8/u6zH84vw+lAQAAQAAACMA/O7zH23kb4AoCIAAABACAin+A93g7bwNcQQAEAIAAAFDxD/Aeb+dtgCsIgAAAEAAAKv4B3uPtvA1wBQEQAAACAEDFP8B7vJ23Aa4gAAIAQAAAqPgHeI+38zbAFQRAAAAIAAAV/wDv8XbeBriCAAgAAAEAoOIf4D3eztsAVxAAAQAgAABU/AO8x9t5G+AKAiAAAAQAgIp/gPd4O28DXEEABACAAABQ8Q/wHm/nbYArCIAAABAAACr+Ad7j7bwNcAUBEAAAAgBAxT/Ae7ydtwGuIAACAEAAAKj4B3iPt/M2wBUEQAAACAAAFf8A7/F23ga4ggAIAAABAKCgR4ABAIa/f2QspBp6AAAAAElFTkSuQmCC";
-
-
 class MonoVolume {
   constructor (channel, is_segmentation=false) {
     this.channel = channel;
-    this.label_colors = this.createColors();
+    this.colors = this.createColors();
+    this.assigned_colors = new Map();
     this.is_segmentation = is_segmentation;
     this.hover_id = null;
 
@@ -18,11 +15,26 @@ class MonoVolume {
     };
   }
 
+  initializeColorAssignments () {
+    let assignments = {};
+
+    let cube = this.channel.cube;
+    for (let i = cube.length - 1; i >= 0; i--) {
+      assignments[cube[i]] = 0;
+    }
+
+    this.assigned_colors = assignments;
+    this.shuffleColors();
+  }
+
   shuffleColors () {
-    let array = this.label_colors;
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
+    let colors = this.colors; 
+    const num_colors = colors.length;
+
+    for (let segid in this.assigned_colors) {
+      this.assigned_colors[segid] = colors[ 
+        ((Math.random() * 1000) | 0) % num_colors
+      ];
     }
 
     this.cache.valid = false;
@@ -98,6 +110,10 @@ class MonoVolume {
         _this.channel.normalized = false;
         _this.cache.valid = false;
 
+        if (_this.is_segmentation) {
+          _this.initializeColorAssignments();
+        }
+
         return fufill(_this.channel);
       };
 
@@ -161,18 +177,17 @@ class MonoVolume {
 
     let seg_slice = this.channel.slice(axis, slice, /*copy=*/false);
 
-    let coloring = this.label_colors;
-    let size = this.channel.faceDimensions(axis);
+    const color_assignments = this.assigned_colors;
+    const size = this.channel.faceDimensions(axis);
 
     let pixels = ctx.getImageData(0, 0, size[0], size[1]);
     let pixels32 = new Uint32Array(pixels.data.buffer);
 
     const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
-    const num_colors = coloring.length;
 
     for (let i = pixels32.length; i >= 0; i--) {
       if (seg_slice[i]) {
-        pixels32[i] = coloring[seg_slice[i] % num_colors];
+        pixels32[i] = color_assignments[seg_slice[i]];
         pixels32[i] += (seg_slice[i] === hover_id) * brightener;
       }
     }
@@ -203,7 +218,7 @@ class MonoVolume {
  *
  * Return: Volume object
  */
-class Volume {
+class DualVolume {
   constructor (args) {
     this.channel = args.channel; // a data cube
     this.segmentation = args.segmentation; // a segmentation cube
