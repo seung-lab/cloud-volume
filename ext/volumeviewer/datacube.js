@@ -16,7 +16,6 @@ class MonoVolume {
       slice: null,
       pixels: null,
     };
-
   }
 
   shuffleColors () {

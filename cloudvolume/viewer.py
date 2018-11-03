@@ -7,7 +7,21 @@ from six.moves import range
 import numpy as np
 from tqdm import tqdm
 
-from .lib import mkdir, save_images
+from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath
+
+def visualize(img, segmentation=False, port=8080):
+  from . import VolumeCutout
+  cutout = VolumeCutout(
+    buf=img,
+    path=ExtractedPath('mem', 'localhost', '/', '', ''),
+    cloudpath='IN MEMORY',
+    resolution=Vec(0, 0, 0),
+    mip=-1,
+    layer_type=('segmentation' if segmentation else 'image'),
+    bounds=Bbox( (0,0,0), list(img.shape)[:3]),
+    handle=None,
+  )
+  return run(cutout, port=port)
 
 def run(cutout, port=8080):
   """Start a local web app on the given port that lets you explore this cutout."""
@@ -34,7 +48,6 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
       elif self.path == '/parameters':
         self.send_header('Content-type', 'application/json')
         self.end_headers()
-        print(self.path)
         msg = json.dumps({
           'dataset': self.cutout.dataset_name,
           'layer': self.cutout.layer,

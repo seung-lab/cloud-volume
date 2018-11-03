@@ -10,4 +10,7 @@ from .volumecutout import VolumeCutout
 from . import secrets
 from . import txrx
 
+from . import viewer
+from .viewer import visualize
+
 __version__ = '0.36.2'
