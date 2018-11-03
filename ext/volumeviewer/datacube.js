@@ -86,7 +86,6 @@ class MonoVolume {
       };
 
       req.onload = function (oEvent) {
-        PROGRESS = 1
         let arrayBuffer = req.response; // Note: not req.responseText
         if (!arrayBuffer) {
           return reject("didn't get an array buffer back");
@@ -188,7 +187,6 @@ class MonoVolume {
     return this;
   }
 }
-
 
 /* Volume
  *

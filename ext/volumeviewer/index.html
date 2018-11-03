@@ -36,7 +36,6 @@
       var CLICK = { x: 0, y: 0, z: 0, segid: null };
       var SIZE = {};
       var PARAMETERS = {};
-      var PROGRESS = 0;
 
       var elems; 
       var _needsrender = true;
@@ -71,7 +70,6 @@
           var vol = window.vol;
 
           vol.load('/data', function (ratio) {
-            PROGRESS = ratio;
             render();
           }).then( () => render() );
 
@@ -238,7 +236,7 @@
           elems.loading.hide();
         }
         else {
-          elems.loading.text( (PROGRESS * 100).toFixed(0) + '%' )  
+          elems.loading.text( (vol.channel.progress * 100).toFixed(0) + '%' )  
         }
         
         if (vol.hover_id) {
