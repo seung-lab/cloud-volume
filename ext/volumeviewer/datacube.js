@@ -2,7 +2,7 @@ class MonoVolume {
   constructor (channel, is_segmentation=false) {
     this.channel = channel;
     this.colors = this.createColors();
-    this.assigned_colors = new Map();
+    this.assigned_colors = {};
     this.is_segmentation = is_segmentation;
     this.hover_id = null;
 
@@ -13,6 +13,10 @@ class MonoVolume {
       slice: null,
       pixels: null,
     };
+  }
+
+  progress () {
+    return this.channel.progress;
   }
 
   initializeColorAssignments () {
@@ -84,42 +88,23 @@ class MonoVolume {
   
   load (url, progressfn) {
     let _this = this;
-    return new Promise(function (fufill, reject) {
-      let req = new XMLHttpRequest();
-      req.open("GET", url, true);
-      req.responseType = "arraybuffer";
-      req.onprogress = function (evt) {
-        if (!evt.lengthComputable) {
-          return;
-        }
 
-        _this.channel.progress = evt.loaded / evt.total;
-        if (progressfn) {
-          progressfn(_this.channel.progress);
-        }
-      };
+    return binary_get(url, function (progress) {
+      _this.channel.progress = progress;
+    })
+    .then(function (array_buffer) {
+      let ArrayType = _this.channel.arrayType();
+      _this.channel.cube = new ArrayType(array_buffer);
+      _this.channel.loaded = true;
+      _this.channel.progress = 1;
+      _this.channel.normalized = false;
+      _this.cache.valid = false;
 
-      req.onload = function (oEvent) {
-        let arrayBuffer = req.response; // Note: not req.responseText
-        if (!arrayBuffer) {
-          return reject("didn't get an array buffer back");
-        }
+      if (_this.is_segmentation) {
+        _this.initializeColorAssignments();
+      }
 
-        let ArrayType = _this.channel.arrayType();
-        _this.channel.cube = new ArrayType(arrayBuffer);
-        _this.channel.loaded = true;
-        _this.channel.progress = 1;
-        _this.channel.normalized = false;
-        _this.cache.valid = false;
-
-        if (_this.is_segmentation) {
-          _this.initializeColorAssignments();
-        }
-
-        return fufill(_this.channel);
-      };
-
-      req.send(null);
+      return _this.channel;
     });
   }
 
@@ -220,13 +205,19 @@ class MonoVolume {
  *
  * Return: Volume object
  */
-class DualVolume {
-  constructor (args) {
-    this.channel = args.channel; // a data cube
-    this.segmentation = args.segmentation; // a segmentation cube
+class DualVolume extends MonoVolume {
+  constructor (channel, segmentation) {
+    super(channel, false);
+    this.channel = channel; // a data cube
+    this.segmentation = segmentation; // a segmentation cube
 
     this.segments = {};
-    this.requests = [];
+  }
+
+  progress () {
+    let chan = this.channel;
+    let seg = this.segmentation;
+    return (chan.bytes * chan.progress + seg.bytes * seg.progress) / (chan.bytes + seg.bytes);
   }
 
   /* load
@@ -236,161 +227,34 @@ class DualVolume {
    *
    * Return: promise representing download completion state
    */
-  load () {
+  load (progressfn) {
     let _this = this;
 
-    if (!this.channel.clean) {
-      this.channel.clear();
-    }
+    let channel_promise = binary_get('/channel', progressfn)
+      .then(function (array_buffer) {
+        let ArrayType = _this.channel.arrayType();
+        _this.channel.cube = new ArrayType(array_buffer);
+        _this.channel.loaded = true;
+        _this.channel.progress = 1;
+        _this.channel.normalized = false;
+        _this.cache.valid = false;
 
-    if (!this.segmentation.clean) {
-      this.segmentation.clear();
-    }
-
-    this.requests = [];
-
-    let deferred = $.Deferred();
-
-    let channel_promise = _this.loadVolume('images/channel', _this.channel);
-    let seg_promise = _this.loadVolume('images/segmentation', _this.segmentation);
-
-    $.when(channel_promise, seg_promise)
-      .done(function () {
-        deferred.resolve();
-      })
-      .fail(function () {
-        deferred.reject();
-      })
-      .always(function () {
-        _this.requests = [];
+        return _this.channel;
       });
 
-    return deferred;
-  }
+    let seg_promise = binary_get('/segmentation', progressfn)      
+      .then(function (array_buffer) {
+        let ArrayType = _this.segmentation.arrayType();
+        _this.segmentation.cube = new ArrayType(array_buffer);
+        _this.segmentation.loaded = true;
+        _this.segmentation.progress = 1;
+        _this.segmentation.normalized = false;
+        _this.cache.valid = false;
 
-  /* loadingProgress
-   *
-   * How far along the download are we?
-   *
-   * Return: float [0, 1]
-   */
-  loadingProgress () {
-    if (this.segmentation.loaded && this.channel.loaded) {
-      return 1;
-    }
-    else if (this.segmentation.clean && this.channel.clean) {
-      return 0;
-    }
-    else if (this.requests.length === 0) {
-      return 0;
-    }
-
-    let specs = this.generateUrls();
-
-    let resolved = this.requests.filter(req => req.state() !== 'pending');
-    return resolved.length / (2 * specs.length);
-  }
-
-  /* abort
-   *
-   * Terminate in progress downloads.
-   *
-   * Return: void
-   */
-  abort () {
-    this.requests.forEach(function (jqxhr) {
-      jqxhr.abort();
-    });
-  }
-
-  /* loadVolume
-   *
-   * Download and materialize a particular Volume ID into a Datacube
-   * via the XY plane / Z-axis.
-   *
-   * Required:
-   *   [0] vid: (int) Volume ID 
-   *   [1] cube: The datacube to use
-   *
-   * Return: promise representing loading completion
-   */
-  loadVolume (dir, cube) {
-    let _this = this;
-
-    let specs = this.generateUrls(dir);
-
-    // _this.requests = [];
-
-    function load_spec (spec, retries) {
-      if (retries > 2) {
-        throw new Error("Too many retries");
-      }
-
-      let img = new Image(spec.width, spec.height);
-      img.src = spec.url;
-      
-      let req = $.Deferred();
-
-      img.onload = function () {
-          cube.insertImage(img, spec.x, spec.y, spec.z);
-          req.resolve();
-        };
-        img.onerror = function () {
-          req.reject();
-          setTimeout(function () {
-            load_spec(spec, retries + 1)
-          }, 1000)
-        };
-
-      _this.requests.push(req);
-    }
-
-    specs.forEach((spec) => load_spec(spec, 0))
-
-    return $.when.apply($, _this.requests).done(function () {
-      cube.loaded = true;
-    });
-  }
-
-  /* generateUrls
-   *
-   * Generate a set of url specifications required to download a whole 
-   * volume in addition to the offsets since they're downloading.
-   *
-   * Cubes 256x256x256 voxels and are downloaded as slices.
-   *
-   * Return: [
-   *    {
-   *      url: self explainatory,
-   *      x: offset from 0,0,0 in data cube
-   *      y: offset from 0,0,0 in data cube
-   *      z: offset from 0,0,0 in data cube
-   *      width: horizontal dimension of image requested on XY plane
-   *      height: vertical dimension of image requested on XY plane
-   *      depth: bundle size, won't necessarily match height or width
-   *    },
-   *    ...
-   * ]
-   */
-  generateUrls (dir) {
-    let _this = this;
-
-    let specs = [];
-    for (let z = 0; z < 256; z++) {
-      let zstr = z < 10 ? '0' + z : z;
-
-      specs.push({
-        url: `/${dir}/${zstr}.png`,
-        x: 0,
-        y: 0,
-        z: z,
-        width: 256,
-        height: 256,
-        depth: 1,
+        return _this.segmentation;
       });
-    }
 
-    return specs;
+    return Promise.all([ channel_promise, seg_promise ]);
   }
 
   /* renderChannelSlice
@@ -1088,7 +952,7 @@ class FloatingPointDataCube extends DataCube {
     if (this.normalized 
       && (this.minval == -Infinity || this.maxval == +Infinity)) {
 
-      throw Error("Floating point image contains infinties.");
+      throw new Error("Floating point image contains infinties.");
     }
 
     let square = this.slice(axis, index, /*copy=*/false);
@@ -1149,7 +1013,33 @@ class FloatingPointDataCube extends DataCube {
   }
 }
 
+function binary_get (url, progressfn) {
+  return new Promise(function (fufill, reject) {
+    let req = new XMLHttpRequest();
+    req.open("GET", url, true);
+    req.responseType = "arraybuffer";
+    req.onprogress = function (evt) {
+      if (!evt.lengthComputable) {
+        return;
+      }
 
+      if (progressfn) {
+        progressfn(evt.loaded / evt.total);
+      }
+    };
+
+    req.onload = function (oEvent) {
+      let array_buffer = req.response; // Note: not req.responseText
+      if (!array_buffer) {
+        return reject("didn't get an array buffer back");
+      }
+
+      return fufill(array_buffer);
+    };
+
+    req.send(null);
+  });
+}
 
 
 

@@ -11,6 +11,6 @@ from . import secrets
 from . import txrx
 
 from . import viewer
-from .viewer import visualize
+from .viewer import view
 
 __version__ = '0.36.2'

@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath
 
-def visualize(img, segmentation=False, port=8080):
+def view(img, segmentation=False, port=8080):
   from . import VolumeCutout
   cutout = VolumeCutout(
     buf=img,
@@ -57,6 +57,7 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
           'dataset': self.cutout.dataset_name,
           'layer': self.cutout.layer,
           'layer_type': self.cutout.layer_type,
+          'protocol': self.cutout.path.protocol,
           'path': self.cutout.cloudpath,
           'mip': self.cutout.mip,
           'bounds': [ int(_) for _ in self.cutout.bounds.to_list() ],

@@ -19,10 +19,18 @@
         margin-bottom: 10px;
       }
 
+      #instructions {
+        position: fixed;
+        top: 75px;
+        right: 20px;
+        z-index: -1;
+      }
+
       canvas {
         border: 1px dotted white;
         max-width: 768px;
         max-height: 768px;
+        background: #0d0d0d;
       }
 
       img {
@@ -254,7 +262,7 @@
           elems.loading.hide();
         }
         else {
-          elems.loading.text( (vol.channel.progress * 100).toFixed(0) + '%' )  
+          elems.loading.text( (vol.progress() * 100).toFixed(0) + '%' )  
         }
         
         if (PXVALUE !== null) {
@@ -303,17 +311,20 @@
       <br>
       <span id="cloudpath"></span> 
       <br> 
-      bounds: (<span id="bounds"></span>) shape: <span id="shape"></span> <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> <span id="loading"></span>
+      <span id="shape"></span> bounds: (<span id="bounds"></span>)  <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> <span id="loading"></span>
+    </div>
+
+    <div id="instructions">
+      <p>CONTROLS</p>
+      <ul>
+        <li>W/S ,/. or scroll - advance selected images</li>
+        <li>A/D/space - switch slicing plane</li>
+        <li>L - recolor segmentation labels</li>
+        <li>Left Click - freeze info about current pixel</li>
+      </ul>
     </div>
     
     <canvas id="channel" width="256" height="256"></canvas>
-<!-- 
-    <p>CONTROLS
-    <ul>
-      <li>W/S or scroll - advance selected images</li>
-      <li>A/D switch slicing plane</li>
-      <li>Left Click - Toggle segment selection.</li>
-    </ul>
- -->
+
   </body>
 </html>

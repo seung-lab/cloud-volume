@@ -76,7 +76,7 @@ class VolumeCutout(np.ndarray):
 
     return save_images(self, directory, axis, channel, global_norm, image_format)
 
-  def viewer(self, port=8080):
+  def view(self, port=8080):
     """Start a local web app on the given port that lets you explore this cutout."""
     viewer.run(self, port)
     
