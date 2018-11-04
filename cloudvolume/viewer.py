@@ -1,6 +1,11 @@
 import os
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
+try: 
+  from http.server import BaseHTTPRequestHandler, HTTPServer
+except ImportError:
+  from SocketServer import TCPServer as HTTPServer
+  from BaseHTTPServer import BaseHTTPRequestHandler
+
 import json
 from six.moves import range
 
