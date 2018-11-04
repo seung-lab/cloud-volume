@@ -42,14 +42,16 @@ class MonoVolume {
 
   createColors (opacity=1) {
     let colors = [
-      { r: 17, g: 47, b: 65 }, // blue
-      { r: 6, g: 133, b: 135 }, // aqua
+      { r: 17, g: 47, b: 65 }, // forest green
+      { r: 6, g: 133, b: 135 }, // leaf green
       { r: 79, g: 185, b: 159 }, // teal
       { r: 242, g: 177, b: 52 }, // gold
       { r: 237, g: 85, b: 59 }, // orange
+      { r: 43, g: 54, b: 173 }, // purple
+      { r: 171, g: 63, b: 162 }, // pink
     ];
 
-    let arraycolors = new Uint32Array(5);
+    let arraycolors = new Uint32Array(colors.length);
 
     for (let i = 0; i < colors.length; i++) {
       arraycolors[i] = this.colorToUint32(colors[i], opacity);
