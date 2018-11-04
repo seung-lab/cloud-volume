@@ -105,7 +105,7 @@ class CloudVolume(object):
     non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing safe without careful design.
       When not enabled, a ValueError is thrown for non-aligned writes.
   """
-  def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
+  def __init__(self, cloudpath, mip=0, resolution=None, bounded=True, autocrop=False, fill_missing=False, 
       cache=False, compress_cache=None, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
       compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
 
@@ -152,9 +152,15 @@ class CloudVolume(object):
       self.provenance = self._cast_provenance(provenance)
 
     try:
-      self.mip = self.available_mips[self.mip]
+      # Explicit voxel resolution takes priority
+      if resolution is not None:
+        self.mip = next((i for (i,s) in enumerate(self.scales)
+                         if s["resolution"] == list(resolution)))
+      else:
+        self.mip = self.available_mips[self.mip]
     except:
-      raise Exception("MIP {} has not been generated.".format(self.mip))
+      desc = resolution if resolution is not None else self.mip
+      raise Exception("MIP {} has not been generated.".format(desc))
 
     self.pid = os.getpid()
 
