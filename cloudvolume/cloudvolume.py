@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from functools import partial
 import itertools
+import collections
 import json
 import json5
 import os
@@ -65,7 +66,9 @@ class CloudVolume(object):
            Lcl FS: file:///tmp/$DATASET/$LAYER/
            Boss  : boss://$COLLECTION/$EXPERIMENT/$CHANNEL
   Optional:
-    mip: (int) Which level of downsampling to read to/write from. 0 is the highest resolution.
+    mip: (int or iterable) Which level of downsampling to read to/write from.
+        0 is the highest resolution. Can also specify the voxel resolution as
+        an iterable. 
     bounded: (bool) If a region outside of volume bounds is accessed:
         True: Throw an error
         False: Fill the region with black (useful for e.g. marching cubes's 1px boundary)
@@ -105,7 +108,7 @@ class CloudVolume(object):
     non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing safe without careful design.
       When not enabled, a ValueError is thrown for non-aligned writes.
   """
-  def __init__(self, cloudpath, mip=0, resolution=None, bounded=True, autocrop=False, fill_missing=False, 
+  def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
       cache=False, compress_cache=None, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
       compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
 
@@ -114,7 +117,7 @@ class CloudVolume(object):
     self.cdn_cache = cdn_cache
     self.compress = compress
     self.fill_missing = bool(fill_missing)
-    self.mip = int(mip)
+    self.mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
     self.non_aligned_writes = bool(non_aligned_writes)
     self.progress = bool(progress)
     self.path = lib.extract_path(cloudpath)
@@ -152,15 +155,13 @@ class CloudVolume(object):
       self.provenance = self._cast_provenance(provenance)
 
     try:
-      # Explicit voxel resolution takes priority
-      if resolution is not None:
+      if isinstance(self.mip, collections.Iterable):
         self.mip = next((i for (i,s) in enumerate(self.scales)
-                         if s["resolution"] == list(resolution)))
-      else:
+                         if s["resolution"] == self.mip))
+      else:  # int
         self.mip = self.available_mips[self.mip]
     except:
-      desc = resolution if resolution is not None else self.mip
-      raise Exception("MIP {} has not been generated.".format(desc))
+      raise Exception("MIP {} has not been generated.".format(self.mip))
 
     self.pid = os.getpid()
 
