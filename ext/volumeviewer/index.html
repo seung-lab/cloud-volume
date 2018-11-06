@@ -41,47 +41,44 @@
     <script>
       var AXIS = 'z';
       var SLICE = { x: 0, y: 0, z: 0 };
-      var CLICK = { x: 0, y: 0, z: 0, pxvalue: null };
+      var CLICK = { x: 0, y: 0, z: 0, pxvalue: [] };
       var SIZE = {};
       var PARAMETERS = {};
-      var PXVALUE = null;
+      var PXVALUE = [];
 
       var elems; 
       var _needsrender = true;
 
+      function create_datacube(dtype, num_bytes, size) {
+        let floating = dtype === 'float32' || dtype == 'float64';
+
+        if (floating) {
+          return new FloatingPointDataCube({
+            bytes: num_bytes,
+            size: size,
+          });
+        }
+
+        return new DataCube({
+          bytes: num_bytes,
+          size: size,
+        });
+      }
+
       function setup_single_volume (data) {  
         render_static();
 
-        data.is_floating = (
-          data.data_type === 'float32' || data.data_type === 'float64'
-        );
-
-        let datacube;
-
-        if (data.is_floating) {
-          datacube = new FloatingPointDataCube({
-            bytes: data.data_bytes,
-            size: SIZE,
-          });
-        }
-        else {
-          datacube = new DataCube({
-            bytes: data.data_bytes,
-            size: SIZE,
-          })
-        };
+        let datacube = create_datacube(data.data_type, data.data_bytes, SIZE);
 
         window.vol = new MonoVolume(datacube, (data.layer_type === 'segmentation'));
-        var vol = window.vol;
+        let vol = window.vol;
 
         vol.load('/channel', function (ratio) {
           render();
         }).then( () => render() );
 
-        let b = PARAMETERS.bounds;
-
         $(channel).on('mousemove', function (e) {
-          var x = e.offsetX / $(this).innerWidth(), 
+          let x = e.offsetX / $(this).innerWidth(), 
             y = e.offsetY / $(this).innerHeight();
 
           x = clamp(x, 0, 1);
@@ -100,11 +97,11 @@
             SLICE.z = (y * (SIZE.z - 1))|0;
           }
 
-          PXVALUE = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+          PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
 
           vol.hover_id = null;
           if (vol.is_segmentation) {
-            vol.hover_id = PXVALUE;
+            vol.hover_id = PXVALUE[0];
           }
 
           render(); 
@@ -112,32 +109,18 @@
       }
 
       function setup_hyper_volume (data) {
-        // render_static();
+        render_static();
 
         function get_cube(index) {
-          let floating = data.data_types[index] === 'float32' || data.data_types[index] == 'float64';
-
-          if (floating) {
-            return new FloatingPointDataCube({
-              bytes: data.data_bytes[index],
-              size: SIZE,
-            });
-          }
-
-          return new DataCube({
-            bytes: data.data_bytes[index],
-            size: SIZE,
-          });
+          return create_datacube(data.data_types[index], data.data_bytes[index], SIZE);
         }
 
         window.vol = new HyperVolume(get_cube(0), get_cube(1));
-        var vol = window.vol;
+        let vol = window.vol;
 
         vol.load(function (ratio) {
           render();
         }).then( () => render() );
-
-        let b = PARAMETERS.bounds;
 
         $(channel).on('mousemove', function (e) {
           var x = e.offsetX / $(this).innerWidth(), 
@@ -159,8 +142,9 @@
             SLICE.z = (y * (SIZE.z - 1))|0;
           }
 
-          PXVALUE = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+          PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
           vol.hover_id = vol.segmentation.get(SLICE.x, SLICE.y, SLICE.z);
+          PXVALUE.push(vol.hover_id);
 
           render(); 
         });
@@ -213,7 +197,7 @@
           }
 
          $(channel).on('mouseout', function (e) {
-            PXVALUE = null;
+            PXVALUE = [];
             vol.hover_id = null;
             render();
           });
@@ -241,7 +225,13 @@
               CLICK.x = SLICE.x;
             }
 
-            CLICK.pxvalue = vol.channel.get(CLICK.x, CLICK.y, CLICK.z);
+            CLICK.pxvalue = [ vol.channel.get(CLICK.x, CLICK.y, CLICK.z) ];
+
+            if (vol.segmentation) {
+              CLICK.pxvalue.push(
+                vol.segmentation.get(CLICK.x, CLICK.y, CLICK.z)
+              );
+            }
             
             render();
           });
@@ -316,12 +306,16 @@
       }
 
       function render_static () {
+        if (PARAMETERS.viewtype === 'single') {
+          $('#instructions .hyperview').hide();
+        }
+
         let b = PARAMETERS.bounds;
-        elems.cloudpath.text( PARAMETERS.path );
+        elems.cloudpath.text( PARAMETERS.cloudpath.join("; ") );
         elems.bounds.text(
           `<${b[0]}, ${b[1]}, ${b[2]}>, <${b[3]}, ${b[4]}, ${b[5]}>`
         );
-        elems.dtype.text( PARAMETERS.data_type );
+        elems.dtype.text( PARAMETERS.data_types.join("; ") );
         elems.resolution.text( PARAMETERS.resolution.join('x') );
         elems.shape.text( `<${SIZE.x}, ${SIZE.y}, ${SIZE.z}>` );
       }
@@ -366,15 +360,15 @@
           elems.loading.text( (vol.progress() * 100).toFixed(0) + '%' )  
         }
         
-        if (PXVALUE !== null) {
-          elems.pxvalue.show().text( "value: " + display_value(PXVALUE) );
+        if (PXVALUE.length) {
+          elems.pxvalue.show().text( "value: " + PXVALUE.map(display_value).join("; ") );
         }
-        else {
+        else { 
           elems.pxvalue.hide();
         }
 
-        if (CLICK.pxvalue) {
-          elems.clickpxvalue.text( "value: " + display_value(CLICK.pxvalue) );
+        if (CLICK.pxvalue.length) {
+          elems.clickpxvalue.text( "value: " + CLICK.pxvalue.map(display_value).join("; ") );
         }
         else {
           elems.clickpxvalue.text(""); 
@@ -406,7 +400,7 @@
   </head>
   <body>
     <div id="infobar">
-      <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) <span id="pxvalue"></span>
+      <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) <span id="pxvalue"></span> 
       <br> 
       Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>) <span id="clickpxvalue"></span>
       <br>
@@ -421,9 +415,9 @@
         <li>W/S ,/. or scroll - advance selected images</li>
         <li>A/D/space - switch slicing plane</li>
         <li>L - recolor segmentation labels</li>
-        <li>X - clear selected segments (if applicable)</li>
         <li>Left Click - freeze info about current pixel</li>
-        <li>+/- increase, decrease opacity (if applicable)</li>
+        <li class="hyperview">X - clear selected segments</li>
+        <li class="hyperview">+/- increase, decrease opacity</li>
       </ul>
     </div>
     

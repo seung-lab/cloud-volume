@@ -102,11 +102,11 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
         'layer': cutout.layer,
         'layer_type': cutout.layer_type,
         'protocol': cutout.path.protocol,
-        'path': cutout.cloudpath,
+        'cloudpath': [ cutout.cloudpath ],
         'mip': cutout.mip,
         'bounds': [ int(_) for _ in cutout.bounds.to_list() ],
         'resolution': cutout.resolution.tolist(),
-        'data_type': str(cutout.dtype),
+        'data_types': [ str(cutout.dtype) ],
         'data_bytes': np.dtype(cutout.dtype).itemsize,
       })
     else:
@@ -116,7 +116,7 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
         'dataset': img.dataset_name,
         'layers': [ img.layer, seg.layer ],
         'protocol': img.path.protocol,
-        'path': img.cloudpath,
+        'cloudpath': [ img.cloudpath, seg.cloudpath ],
         'mip': img.mip,
         'bounds': [ int(_) for _ in img.bounds.to_list() ],
         'resolution': img.resolution.tolist(),
