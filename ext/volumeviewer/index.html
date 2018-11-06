@@ -49,8 +49,140 @@
       var elems; 
       var _needsrender = true;
 
+      function setup_single_volume (data) {  
+        render_static();
+
+        data.is_floating = (
+          data.data_type === 'float32' || data.data_type === 'float64'
+        );
+
+        let datacube;
+
+        if (data.is_floating) {
+          datacube = new FloatingPointDataCube({
+            bytes: data.data_bytes,
+            size: SIZE,
+          });
+        }
+        else {
+          datacube = new DataCube({
+            bytes: data.data_bytes,
+            size: SIZE,
+          })
+        };
+
+        window.vol = new MonoVolume(datacube, (data.layer_type === 'segmentation'));
+        var vol = window.vol;
+
+        vol.load('/channel', function (ratio) {
+          render();
+        }).then( () => render() );
+
+        let b = PARAMETERS.bounds;
+
+        $(channel).on('mousemove', function (e) {
+          var x = e.offsetX / $(this).innerWidth(), 
+            y = e.offsetY / $(this).innerHeight();
+
+          x = clamp(x, 0, 1);
+          y = clamp(y, 0, 1);
+
+          if (AXIS == 'z') {
+            SLICE.x = (x * (SIZE.x - 1))|0;
+            SLICE.y = (y * (SIZE.y - 1))|0;
+          }
+          else if (AXIS == 'y') {
+            SLICE.x = (x * (SIZE.x - 1))|0;
+            SLICE.z = (y * (SIZE.z - 1))|0;
+          }
+          else if (AXIS == 'x') {
+            SLICE.y = (x * (SIZE.y - 1))|0;
+            SLICE.z = (y * (SIZE.z - 1))|0;
+          }
+
+          PXVALUE = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+
+          vol.hover_id = null;
+          if (vol.is_segmentation) {
+            vol.hover_id = PXVALUE;
+          }
+
+          render(); 
+        });
+      }
+
+      function setup_hyper_volume (data) {
+        // render_static();
+
+        function get_cube(index) {
+          let floating = data.data_types[index] === 'float32' || data.data_types[index] == 'float64';
+
+          if (floating) {
+            return new FloatingPointDataCube({
+              bytes: data.data_bytes[index],
+              size: SIZE,
+            });
+          }
+
+          return new DataCube({
+            bytes: data.data_bytes[index],
+            size: SIZE,
+          });
+        }
+
+        window.vol = new HyperVolume(get_cube(0), get_cube(1));
+        var vol = window.vol;
+
+        vol.load(function (ratio) {
+          render();
+        }).then( () => render() );
+
+        let b = PARAMETERS.bounds;
+
+        $(channel).on('mousemove', function (e) {
+          var x = e.offsetX / $(this).innerWidth(), 
+            y = e.offsetY / $(this).innerHeight();
+
+          x = clamp(x, 0, 1);
+          y = clamp(y, 0, 1);
+
+          if (AXIS == 'z') {
+            SLICE.x = (x * (SIZE.x - 1))|0;
+            SLICE.y = (y * (SIZE.y - 1))|0;
+          }
+          else if (AXIS == 'y') {
+            SLICE.x = (x * (SIZE.x - 1))|0;
+            SLICE.z = (y * (SIZE.z - 1))|0;
+          }
+          else if (AXIS == 'x') {
+            SLICE.y = (x * (SIZE.y - 1))|0;
+            SLICE.z = (y * (SIZE.z - 1))|0;
+          }
+
+          PXVALUE = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+          vol.hover_id = vol.segmentation.get(SLICE.x, SLICE.y, SLICE.z);
+
+          render(); 
+        });
+
+        $(channel).on('click', function (evt) {
+          var x = evt.offsetX / $(this).innerWidth(), 
+            y = evt.offsetY / $(this).innerHeight();
+
+          x = clamp(x, 0, 1);
+          y = clamp(y, 0, 1);  
+          
+          vol.toggleSegment(AXIS, SLICE[AXIS], x, y);        
+        });
+      }
+
       $(document).ready(function () {
         elems = {
+          cloudpath: $('#cloudpath'),
+          bounds: $('#bounds'),
+          dtype: $('#dtype'),
+          resolution: $('#resolution'),
+          shape: $('#shape'),
           axis: $('#axis'),
           coord: $('#coord'),
           realcoord: $('#realcoord'),
@@ -60,6 +192,9 @@
           pxvalue: $('#pxvalue'),
           clickpxvalue: $('#clickpxvalue'),
         };
+        
+        window.channel = $('#channel')[0];
+        window.channelctx = channel.getContext('2d');
 
         $.get('/parameters', function (data, status) {
           SIZE = {
@@ -69,74 +204,15 @@
           };
 
           PARAMETERS = data;
-          PARAMETERS.is_floating = (data.data_type === 'float32' || data.data_type === 'float64');
 
-          let datacube;
-
-          if (data.is_floating) {
-            datacube = new FloatingPointDataCube({
-              bytes: data.data_bytes,
-              size: SIZE,
-            });
+          if (data.viewtype === 'single') {
+            setup_single_volume(data);
           }
           else {
-            datacube = new DataCube({
-              bytes: data.data_bytes,
-              size: SIZE,
-            })
-          };
+            setup_hyper_volume(data);
+          }
 
-          window.vol = new MonoVolume(datacube, (data.layer_type === 'segmentation'));
-          var vol = window.vol;
-
-          vol.load('/data', function (ratio) {
-            render();
-          }).then( () => render() );
-
-          window.channel = $('#channel')[0];
-          window.channelctx = channel.getContext('2d');
-
-          let b = PARAMETERS.bounds;
-
-          $('#cloudpath').text( PARAMETERS.path );
-          $('#bounds').text(
-            `<${b[0]}, ${b[1]}, ${b[2]}>, <${b[3]}, ${b[4]}, ${b[5]}>`
-          );
-          $('#dtype').text( PARAMETERS.data_type );
-          $('#resolution').text( PARAMETERS.resolution.join('x') )
-          $('#shape').text( `<${SIZE.x}, ${SIZE.y}, ${SIZE.z}>` )
-        
-          $(channel).on('mousemove', function (e) {
-            var x = e.offsetX / $(this).innerWidth(), 
-              y = e.offsetY / $(this).innerHeight();
-
-            x = clamp(x, 0, 1);
-            y = clamp(y, 0, 1);
-
-            if (AXIS == 'z') {
-              SLICE.x = (x * (SIZE.x - 1))|0;
-              SLICE.y = (y * (SIZE.y - 1))|0;
-            }
-            else if (AXIS == 'y') {
-              SLICE.x = (x * (SIZE.x - 1))|0;
-              SLICE.z = (y * (SIZE.z - 1))|0;
-            }
-            else if (AXIS == 'x') {
-              SLICE.y = (x * (SIZE.y - 1))|0;
-              SLICE.z = (y * (SIZE.z - 1))|0;
-            }
-
-            PXVALUE = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
-
-            vol.hover_id = null;
-            if (vol.is_segmentation) {
-              vol.hover_id = PXVALUE;
-            }
-
-            render();
-          });
-
-          $(channel).on('mouseout', function (e) {
+         $(channel).on('mouseout', function (e) {
             PXVALUE = null;
             render();
           });
@@ -170,7 +246,7 @@
           });
 
           loop();
-        });
+        }); 
       });
 
       $(document).on('wheel', function (e) {
@@ -211,6 +287,12 @@
           vol.shuffleColors();
           render();          
         }
+        else if (evt.keyCode === 'X'.charCodeAt(0)) {
+          if (vol.clearSelected) {
+            vol.clearSelected()
+          }
+          render();
+        }
       })
 
       function rotate_axis(delta) {
@@ -223,6 +305,17 @@
         SLICE[AXIS] += delta;
         SLICE[AXIS] = clamp(SLICE[AXIS], 0, SIZE[AXIS] - 1);
         render();  
+      }
+
+      function render_static () {
+        let b = PARAMETERS.bounds;
+        elems.cloudpath.text( PARAMETERS.path );
+        elems.bounds.text(
+          `<${b[0]}, ${b[1]}, ${b[2]}>, <${b[3]}, ${b[4]}, ${b[5]}>`
+        );
+        elems.dtype.text( PARAMETERS.data_type );
+        elems.resolution.text( PARAMETERS.resolution.join('x') );
+        elems.shape.text( `<${SIZE.x}, ${SIZE.y}, ${SIZE.z}>` );
       }
 
       function render () {

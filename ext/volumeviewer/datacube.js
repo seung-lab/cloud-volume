@@ -19,10 +19,9 @@ class MonoVolume {
     return this.channel.progress;
   }
 
-  initializeColorAssignments () {
+  initializeColorAssignments (cube) {
     let assignments = {};
 
-    let cube = this.channel.cube;
     for (let i = cube.length - 1; i >= 0; i--) {
       assignments[cube[i]] = 0;
     }
@@ -101,7 +100,7 @@ class MonoVolume {
       _this.cache.valid = false;
 
       if (_this.is_segmentation) {
-        _this.initializeColorAssignments();
+        _this.initializeColorAssignments(_this.channel.cube);
       }
 
       return _this.channel;
@@ -205,19 +204,24 @@ class MonoVolume {
  *
  * Return: Volume object
  */
-class DualVolume extends MonoVolume {
+class HyperVolume extends MonoVolume {
   constructor (channel, segmentation) {
     super(channel, false);
     this.channel = channel; // a data cube
     this.segmentation = segmentation; // a segmentation cube
 
     this.segments = {};
+    this.alpha = 0.5;
   }
 
   progress () {
     let chan = this.channel;
     let seg = this.segmentation;
     return (chan.bytes * chan.progress + seg.bytes * seg.progress) / (chan.bytes + seg.bytes);
+  }
+
+  clearSelected () {
+    this.segments = {};
   }
 
   /* load
@@ -251,6 +255,8 @@ class DualVolume extends MonoVolume {
         _this.segmentation.normalized = false;
         _this.cache.valid = false;
 
+        _this.initializeColorAssignments(_this.segmentation.cube);
+
         return _this.segmentation;
       });
 
@@ -270,68 +276,37 @@ class DualVolume extends MonoVolume {
    *
    * Return: segid, w/ side effect of drawing on ctx
    */
-  renderChannelSlice (ctx, axis, slice) {
+  render (ctx, axis, slice) {
     let _this = this;
 
-    ctx.drawImage(_loadingimg, 0, 0);
-    ctx.drawImage(_loadingimg, 128, 0);
-    ctx.drawImage(_loadingimg, 0, 128);
-    ctx.drawImage(_loadingimg, 128, 128);
-
-    let loading = ctx.getImageData(0, 0, 256, 256);
-    let loading32 = new Uint32Array(loading.data.buffer);
-
     let pixels = _this.channel.grayImageSlice(axis, slice, /*transparency=*/false, /*copy=*/false);
-    let slice32 = new Uint32Array(pixels.data.buffer); // creates a view, not an array
+    let pixels32 = new Uint32Array(pixels.data.buffer); // creates a view, not an array
 
     let segmentation = _this.segmentation.slice(axis, slice, /*copy=*/false);
 
     let x, y, segid;
 
-    const color = [ 0, 0, 255 ];
-    const alpha = 0.25;
+    const color_assignments = this.assigned_colors;
+    const alpha = this.alpha;
+
+    let masks = _this.segmentation.getRenderMaskSet();
+    const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
+    const hover_id = this.hover_id;
 
     // exploting the fact that we know that there are 
     // no black pixels in our channel images and that they're gray
-    for (let i = slice32.length - 1; i >= 0; i--) {
+    for (let i = pixels32.length - 1; i >= 0; i--) {
       segid = segmentation[i];
 
-      // 00ffff00 b/c green and blue can be swapped on big/little endian
-      // but it doesn't matter like red and alpha. Just need to test for non
-      // black pixels. The logical ands and ors are to avoid a branch.
-      slice32[i] = ((slice32[i] & 0x00ffff00) && slice32[i]) || loading32[i];
-
-      // overlayColor[i] + buffer[startIndex + i] * (1 - alpha);
       if (_this.segments[segid]) {
-        pixels.data[i * 4 + 0] = ((pixels.data[i * 4 + 0] * (1 - alpha)) + (color[0] * alpha)) | 0;
-        pixels.data[i * 4 + 1] = ((pixels.data[i * 4 + 1] * (1 - alpha)) + (color[1] * alpha)) | 0;
-        pixels.data[i * 4 + 2] = ((pixels.data[i * 4 + 2] * (1 - alpha)) + (color[2] * alpha)) | 0;
+        pixels.data[i * 4 + 0] = ((pixels.data[i * 4 + 0] * (1 - alpha)) + ((color_assignments[segid] & masks.r) * alpha)) | 0;
+        pixels.data[i * 4 + 1] = ((pixels.data[i * 4 + 1] * (1 - alpha)) + (((color_assignments[segid] & masks.g) >>> 8) * alpha)) | 0;
+        pixels.data[i * 4 + 2] = ((pixels.data[i * 4 + 2] * (1 - alpha)) + (((color_assignments[segid] & masks.b) >>> 16) * alpha)) | 0;
+        pixels32[i] += (segid === hover_id) * brightener;
       }
     }
 
     ctx.putImageData(pixels, 0, 0);
-
-    return this;
-  }
-
-  /* renderSegmentationSlice
-   *
-   * Convenience method for rendering a segmentation image.
-   * This is mostly used for testing, and this method mainly exists
-   * for consistency of API.
-   *
-   * Required:
-   *   [0] ctx
-   *   [1] axis: 'x', 'y', or 'z'
-   *   [2] slice: 0 - 255
-   *
-   * Return: this, side effect of drawing on ctx
-   */
-  renderSegmentationSlice(ctx, axis, slice) {
-    // Don't need to do anything special for segmentation since it's
-    // not user visible. Also, in the old version, the default image was black,
-    // but the cube is zeroed out by default.
-    this.segmentation.renderImageSlice(ctx, axis, slice);
 
     return this;
   }

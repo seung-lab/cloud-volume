@@ -78,5 +78,5 @@ class VolumeCutout(np.ndarray):
 
   def view(self, port=8080):
     """Start a local web app on the given port that lets you explore this cutout."""
-    viewer.run(self, port)
+    viewer.run([ self ], port)
     

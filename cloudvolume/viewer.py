@@ -14,11 +14,40 @@ from tqdm import tqdm
 
 from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath
 
-def view(img, segmentation=False, port=8080):
+DEFAULT_PORT = 8080
+
+def hyperview(img, segmentation, hostname='localhost', port=DEFAULT_PORT):
+  from . import VolumeCutout
+  img = VolumeCutout(
+    buf=img,
+    path=ExtractedPath('mem', hostname, '/', '', ''),
+    cloudpath='IN MEMORY',
+    resolution=Vec(0, 0, 0),
+    mip=-1,
+    layer_type='image',
+    bounds=Bbox( (0,0,0), list(img.shape)[:3]),
+    handle=None,
+  )
+
+  segmentation = VolumeCutout(
+    buf=segmentation,
+    path=ExtractedPath('mem', hostname, '/', '', ''),
+    cloudpath='IN MEMORY',
+    resolution=Vec(0, 0, 0),
+    mip=-1,
+    layer_type='segmentation',
+    bounds=Bbox( (0,0,0), list(segmentation.shape)[:3]),
+    handle=None,
+  )
+
+  return run([ img, segmentation ], hostname=hostname, port=port)
+
+
+def view(img, segmentation=False, hostname="localhost", port=DEFAULT_PORT):
   from . import VolumeCutout
   cutout = VolumeCutout(
     buf=img,
-    path=ExtractedPath('mem', 'localhost', '/', '', ''),
+    path=ExtractedPath('mem', hostname, '/', '', ''),
     cloudpath='IN MEMORY',
     resolution=Vec(0, 0, 0),
     mip=-1,
@@ -26,12 +55,12 @@ def view(img, segmentation=False, port=8080):
     bounds=Bbox( (0,0,0), list(img.shape)[:3]),
     handle=None,
   )
-  return run(cutout, port=port)
+  return run([ cutout ], hostname=hostname, port=port)
 
-def run(cutout, port=8080):
+def run(cutouts, hostname="localhost", port=DEFAULT_PORT):
   """Start a local web app on the given port that lets you explore this cutout."""
   def handler(*args):
-    return ViewerServerHandler(cutout, *args)
+    return ViewerServerHandler(cutouts, *args)
 
   myServer = HTTPServer(('localhost', port), handler)
   print("Viewer running at http://localhost:" + str(port))
@@ -39,49 +68,80 @@ def run(cutout, port=8080):
   myServer.server_close()
 
 class ViewerServerHandler(BaseHTTPRequestHandler):
-    def __init__(self, cutout, *args):
-      self.cutout = cutout
-      BaseHTTPRequestHandler.__init__(self, *args)
+  def __init__(self, cutouts, *args):
+    self.cutouts = cutouts
+    BaseHTTPRequestHandler.__init__(self, *args)
 
-    def do_GET(self):
-      self.send_response(200)
-    
-      if self.path == '/favicon.ico':
-        return
-      elif self.path in ('/', '/datacube.js', '/jquery-3.3.1.js'):
-        self.serve_file()
-      elif self.path == '/parameters':
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        msg = json.dumps({
-          'dataset': self.cutout.dataset_name,
-          'layer': self.cutout.layer,
-          'layer_type': self.cutout.layer_type,
-          'protocol': self.cutout.path.protocol,
-          'path': self.cutout.cloudpath,
-          'mip': self.cutout.mip,
-          'bounds': [ int(_) for _ in self.cutout.bounds.to_list() ],
-          'resolution': self.cutout.resolution.tolist(),
-          'data_type': str(self.cutout.dtype),
-          'data_bytes': np.dtype(self.cutout.dtype).itemsize,
-        })
-        self.wfile.write(msg.encode('utf-8'))
-      elif self.path == '/data':
-        self.send_header('Content-type', 'application/octet-stream')
-        self.send_header('Content-length', str(self.cutout.nbytes))
-        self.end_headers()
-        self.wfile.write(self.cutout.tobytes('F'))
+  def do_GET(self):
+    self.send_response(200)
+  
+    if self.path == '/favicon.ico':
+      return
+    elif self.path in ('/', '/datacube.js', '/jquery-3.3.1.js'):
+      self.serve_file()
+    elif self.path == '/parameters':
+      self.serve_parameters()
+    elif self.path == '/channel':
+      self.serve_data(self.cutouts[0])
+    elif self.path == '/segmentation':
+      self.serve_data(self.cutouts[1])
 
-    def serve_file(self):
-      self.send_header('Content-type', 'text/html')
-      self.end_headers()
+  def serve_data(self, data):
+    self.send_header('Content-type', 'application/octet-stream')
+    self.send_header('Content-length', str(data.nbytes))
+    self.end_headers()
+    self.wfile.write(data.tobytes('F'))
 
-      path = self.path.replace('/', '')
+  def serve_parameters(self):
+    self.send_header('Content-type', 'application/json')
+    self.end_headers()
 
-      if path == '':
-        path = 'index.html'
+    print(type(self.cutouts))
 
-      dirname = os.path.dirname(__file__)
-      filepath = os.path.join(dirname, '../ext/volumeviewer/' + path)
-      with open(filepath, 'rb') as f:
-        self.wfile.write(f.read())  
+    if len(self.cutouts) == 1:
+      cutout = self.cutouts[0]
+      msg = json.dumps({
+        'viewtype': 'single',
+        'dataset': cutout.dataset_name,
+        'layer': cutout.layer,
+        'layer_type': cutout.layer_type,
+        'protocol': cutout.path.protocol,
+        'path': cutout.cloudpath,
+        'mip': cutout.mip,
+        'bounds': [ int(_) for _ in cutout.bounds.to_list() ],
+        'resolution': cutout.resolution.tolist(),
+        'data_type': str(cutout.dtype),
+        'data_bytes': np.dtype(cutout.dtype).itemsize,
+      })
+    else:
+      img, seg = self.cutouts
+      msg = json.dumps({
+        'viewtype': 'hyper',
+        'dataset': img.dataset_name,
+        'layers': [ img.layer, seg.layer ],
+        'protocol': img.path.protocol,
+        'path': img.cloudpath,
+        'mip': img.mip,
+        'bounds': [ int(_) for _ in img.bounds.to_list() ],
+        'resolution': img.resolution.tolist(),
+        'data_types': [ str(img.dtype), str(seg.dtype) ],
+        'data_bytes': [ 
+          np.dtype(img.dtype).itemsize,
+          np.dtype(seg.dtype).itemsize
+        ],
+      })
+    self.wfile.write(msg.encode('utf-8'))
+
+  def serve_file(self):
+    self.send_header('Content-type', 'text/html')
+    self.end_headers()
+
+    path = self.path.replace('/', '')
+
+    if path == '':
+      path = 'index.html'
+
+    dirname = os.path.dirname(__file__)
+    filepath = os.path.join(dirname, '../ext/volumeviewer/' + path)
+    with open(filepath, 'rb') as f:
+      self.wfile.write(f.read())  
