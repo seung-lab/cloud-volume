@@ -214,6 +214,7 @@
 
          $(channel).on('mouseout', function (e) {
             PXVALUE = null;
+            vol.hover_id = null;
             render();
           });
 
@@ -413,6 +414,7 @@
         <li>W/S ,/. or scroll - advance selected images</li>
         <li>A/D/space - switch slicing plane</li>
         <li>L - recolor segmentation labels</li>
+        <li>X - clear selected segments (if applicable)</li>
         <li>Left Click - freeze info about current pixel</li>
       </ul>
     </div>

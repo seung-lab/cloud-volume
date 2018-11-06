@@ -295,14 +295,16 @@ class HyperVolume extends MonoVolume {
 
     // exploting the fact that we know that there are 
     // no black pixels in our channel images and that they're gray
+    let hover = false;
     for (let i = pixels32.length - 1; i >= 0; i--) {
       segid = segmentation[i];
+      hover = (segid === hover_id) & segid > 0;
 
-      if (_this.segments[segid]) {
+      if (_this.segments[segid] | hover) {
         pixels.data[i * 4 + 0] = ((pixels.data[i * 4 + 0] * (1 - alpha)) + ((color_assignments[segid] & masks.r) * alpha)) | 0;
         pixels.data[i * 4 + 1] = ((pixels.data[i * 4 + 1] * (1 - alpha)) + (((color_assignments[segid] & masks.g) >>> 8) * alpha)) | 0;
         pixels.data[i * 4 + 2] = ((pixels.data[i * 4 + 2] * (1 - alpha)) + (((color_assignments[segid] & masks.b) >>> 16) * alpha)) | 0;
-        pixels32[i] += (segid === hover_id) * brightener;
+        pixels32[i] += hover * brightener;
       }
     }
 
