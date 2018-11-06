@@ -320,7 +320,7 @@ class HyperVolume extends MonoVolume {
     let hover = false;
     let i4;
 
-    if (alpha > 0) {
+    if (alpha > 0 && alpha < 1) {
       for (let i = pixels32.length - 1; i >= 0; i--) {
         segid = segmentation[i];
         hover = (segid === hover_id) & segid > 0;
@@ -336,9 +336,13 @@ class HyperVolume extends MonoVolume {
     else if (alpha === 1) {
       for (let i = pixels32.length - 1; i >= 0; i--) {
         segid = segmentation[i];
-        hover = (segid === hover_id) & segid > 0;
-        if (selected_segments[segid] | hover) {
-          pixels32[i] = color_assignments[segid] + hover * brightener;
+        hover = (segid === hover_id) && segid;
+        
+        if (hover) {
+          pixels32[i] = color_assignments[segid] + brightener;
+        }
+        else if (selected_segments[segid]) {
+          pixels32[i] = color_assignments[segid];
         }
       }
     }
