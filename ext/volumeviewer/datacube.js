@@ -155,11 +155,14 @@ class MonoVolume {
     const hover_id = this.hover_id;
     const cache = this.cache;
 
+    const size = this.channel.faceDimensions(axis);
+    const hover_enabled = (size[0] * size[1]) < 1024 * 1024 * 2;
+
     if (cache.valid
       && cache.pixels
       && cache.axis === axis 
       && cache.slice === slice
-      && cache.segid === hover_id) {
+      && (!hover_enabled || (cache.segid === hover_id))) {
 
       ctx.putImageData(cache.pixels, 0, 0);
       return;
@@ -167,19 +170,27 @@ class MonoVolume {
 
     let seg_slice = this.channel.slice(axis, slice, /*copy=*/false);
 
-    const color_assignments = this.assigned_colors;
-    const size = this.channel.faceDimensions(axis);
-
     let pixels = ctx.getImageData(0, 0, size[0], size[1]);
     let pixels32 = new Uint32Array(pixels.data.buffer);
 
+    const color_assignments = this.assigned_colors;
     const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
 
-    for (let i = pixels32.length; i >= 0; i--) {
-      if (seg_slice[i]) {
-        pixels32[i] = color_assignments[seg_slice[i]];
-        pixels32[i] += (seg_slice[i] === hover_id) * brightener;
+    // We sometimes disable the hover highlight to get more performance
+    if (hover_enabled) { 
+      for (let i = pixels32.length - 1; i >= 0; i--) {
+        if (seg_slice[i]) {
+          pixels32[i] = color_assignments[seg_slice[i]];
+          pixels32[i] += (seg_slice[i] === hover_id) * brightener;
+        }
       }
+    }
+    else { 
+      for (let i = pixels32.length - 1; i >= 0; i--) {
+        if (seg_slice[i]) {
+          pixels32[i] = color_assignments[seg_slice[i]];
+        }
+      }      
     }
 
     ctx.putImageData(pixels, 0, 0);
@@ -296,23 +307,30 @@ class HyperVolume extends MonoVolume {
 
     const color_assignments = this.assigned_colors;
     const alpha = this.alpha;
+    const ialpha = 1 - alpha;
 
     let masks = _this.segmentation.getRenderMaskSet();
+    masks = Uint32Array.of(masks.r, masks.g, masks.b);
     const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
     const hover_id = this.hover_id;
+    const selected_segments = _this.segments;
 
-    // exploting the fact that we know that there are 
-    // no black pixels in our channel images and that they're gray
+    let pxdata = pixels.data;
+    
     let hover = false;
-    for (let i = pixels32.length - 1; i >= 0; i--) {
-      segid = segmentation[i];
-      hover = (segid === hover_id) & segid > 0;
+    let i4;
 
-      if (_this.segments[segid] | hover) {
-        pixels.data[i * 4 + 0] = ((pixels.data[i * 4 + 0] * (1 - alpha)) + ((color_assignments[segid] & masks.r) * alpha)) | 0;
-        pixels.data[i * 4 + 1] = ((pixels.data[i * 4 + 1] * (1 - alpha)) + (((color_assignments[segid] & masks.g) >>> 8) * alpha)) | 0;
-        pixels.data[i * 4 + 2] = ((pixels.data[i * 4 + 2] * (1 - alpha)) + (((color_assignments[segid] & masks.b) >>> 16) * alpha)) | 0;
-        pixels32[i] += hover * brightener;
+    if (alpha > 0) {
+      for (let i = pixels32.length - 1; i >= 0; i--) {
+        segid = segmentation[i];
+        hover = (segid === hover_id) & segid > 0;
+        i4 = i << 2;
+        if (selected_segments[segid] | hover) {
+          pxdata[i4] = ((pxdata[i4] * ialpha) + ((color_assignments[segid] & masks[0]) * alpha)) | 0;
+          pxdata[i4 + 1] = ((pxdata[i4 + 1] * ialpha) + (((color_assignments[segid] & masks[1]) >>> 8) * alpha)) | 0;
+          pxdata[i4 + 2] = ((pxdata[i4 + 2] * ialpha) + (((color_assignments[segid] & masks[2]) >>> 16) * alpha)) | 0;
+          pixels32[i] += hover * brightener;
+        }
       }
     }
 
