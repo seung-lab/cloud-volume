@@ -253,7 +253,10 @@ class HyperVolume extends MonoVolume {
   load (progressfn) {
     let _this = this;
 
-    let channel_promise = binary_get('/channel', progressfn)
+    let channel_promise = binary_get('/channel', function (ratio) {
+        _this.channel.progress = ratio;
+        progressfn(ratio);
+      })
       .then(function (array_buffer) {
         let ArrayType = _this.channel.arrayType();
         _this.channel.cube = new ArrayType(array_buffer);
@@ -265,7 +268,10 @@ class HyperVolume extends MonoVolume {
         return _this.channel;
       });
 
-    let seg_promise = binary_get('/segmentation', progressfn)      
+    let seg_promise = binary_get('/segmentation', function (ratio) {
+        _this.segmentation.progress = ratio;
+        progressfn(ratio);
+      })      
       .then(function (array_buffer) {
         let ArrayType = _this.segmentation.arrayType();
         _this.segmentation.cube = new ArrayType(array_buffer);
@@ -404,18 +410,18 @@ class HyperVolume extends MonoVolume {
 }
 
 class CachedImageData {
-    constructor (context) {
-        this.context = context;
-        this.cache = null;
+  constructor (context) {
+    this.context = context;
+    this.cache = null;
+  }
+
+  getImageData(width, height) {
+    if (!this.cache || this.cache.width !== width || this.cache.height !== height) {
+        this.cache = this.context.createImageData(width, height);
     }
 
-    getImageData(width, height) {
-        if (!this.cache || this.cache.width !== width || this.cache.height !== height) {
-            this.cache = this.context.createImageData(width, height);
-        }
-
-        return this.cache;
-    }
+    return this.cache;
+  }
 }
 
 
