@@ -359,7 +359,7 @@
         elems.clickcoord.text( `<${CLICK.x}, ${CLICK.y}, ${CLICK.z}>` );
         elems.clickrealcoord.text( `${real[0]}, ${real[1]}, ${real[2]}` );
 
-        if (vol.channel.loaded) {
+        if (vol.loaded()) {
           elems.loading.hide();
         }
         else {

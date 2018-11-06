@@ -21,7 +21,7 @@ def to_volumecutout(img, image_type):
   if type(img) == VolumeCutout:
     return img
 
-  return img = VolumeCutout(
+  return VolumeCutout(
     buf=img,
     path=ExtractedPath('mem', hostname, '/', '', ''),
     cloudpath='IN MEMORY',

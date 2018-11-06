@@ -15,6 +15,10 @@ class MonoVolume {
     };
   }
 
+  loaded () {
+    return this.channel.loaded;
+  }
+
   progress () {
     return this.channel.progress;
   }
@@ -212,6 +216,10 @@ class HyperVolume extends MonoVolume {
 
     this.segments = {};
     this.alpha = 0.5;
+  }
+
+  loaded () {
+    return this.channel.loaded && this.segmentation.loaded;
   }
 
   progress () {
