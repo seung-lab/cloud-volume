@@ -16,29 +16,25 @@ from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath
 
 DEFAULT_PORT = 8080
 
-def hyperview(img, segmentation, hostname='localhost', port=DEFAULT_PORT):
+def to_volumecutout(img, image_type):
   from . import VolumeCutout
-  img = VolumeCutout(
+  if type(img) == VolumeCutout:
+    return img
+
+  return img = VolumeCutout(
     buf=img,
     path=ExtractedPath('mem', hostname, '/', '', ''),
     cloudpath='IN MEMORY',
     resolution=Vec(0, 0, 0),
     mip=-1,
-    layer_type='image',
+    layer_type=layer_type,
     bounds=Bbox( (0,0,0), list(img.shape)[:3]),
     handle=None,
   )
 
-  segmentation = VolumeCutout(
-    buf=segmentation,
-    path=ExtractedPath('mem', hostname, '/', '', ''),
-    cloudpath='IN MEMORY',
-    resolution=Vec(0, 0, 0),
-    mip=-1,
-    layer_type='segmentation',
-    bounds=Bbox( (0,0,0), list(segmentation.shape)[:3]),
-    handle=None,
-  )
+def hyperview(img, segmentation, hostname='localhost', port=DEFAULT_PORT):
+  img = to_volumecutout(img, 'image')
+  segmentation = to_volumecutout(segmentation, 'segmentation')
 
   return run([ img, segmentation ], hostname=hostname, port=port)
 
