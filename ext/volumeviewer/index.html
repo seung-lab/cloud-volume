@@ -270,7 +270,6 @@
       });
 
       $(document).on('keydown keypress', function (evt) {
-        var delta = 0;
         if (evt.keyCode === 'W'.charCodeAt(0) 
           || evt.keyCode === '.'.charCodeAt(0)
           || evt.keyCode === 190) {
@@ -292,6 +291,14 @@
           if (vol.clearSelected) {
             vol.clearSelected()
           }
+          render();
+        }
+        else if (evt.keyCode === '='.charCodeAt(0)) {
+          vol.alpha = clamp(vol.alpha + 0.1, 0, 1);
+          render();
+        }
+        else if (evt.keyCode === '-'.charCodeAt(0)) {
+          vol.alpha = clamp(vol.alpha - 0.1, 0, 1);
           render();
         }
       })
@@ -416,6 +423,7 @@
         <li>L - recolor segmentation labels</li>
         <li>X - clear selected segments (if applicable)</li>
         <li>Left Click - freeze info about current pixel</li>
+        <li>+/- increase, decrease opacity (if applicable)</li>
       </ul>
     </div>
     
