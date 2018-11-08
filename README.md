@@ -169,6 +169,10 @@ listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks 
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 
+# Microviewer
+img = vol[64:1028, 64:1028, 64:128]
+img.view() # launches web viewer on http://localhost:8080
+
 # Meshes
 vol.mesh.save(12345) # save 12345 as ./12345.ply on disk
 vol.mesh.save([12345, 12346, 12347]) # merge three segments into one file
@@ -193,16 +197,15 @@ data = vol.download_to_shared_memory(np.s_[:], location='some-example')
 vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
 vol.shared_memory_id # get/set the default shared memory location for this instance
 
-# Transfer w/o Excess Memory Allocation
-
-vol = CloudVolume(...)
-# single core, send all of vol to destination, no painting memory
-vol.transfer_to('gs://bucket/dataset/layer', vol.bounds) 
-
 # Shared Memory Upload
 vol = CloudVolume(...)
 vol.upload_from_shared_memory('my-shared-memory-id', # do not prefix with /dev/shm
     bbox=Bbox( (0,0,0), (10000, 7500, 64) )) 
+
+# Transfer w/o Excess Memory Allocation
+vol = CloudVolume(...)
+# single core, send all of vol to destination, no painting memory
+vol.transfer_to('gs://bucket/dataset/layer', vol.bounds) 
 
 # Caching, located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
 vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
@@ -226,7 +229,6 @@ vol.cache.flush(preserve=Bbox(...)) # Same, but presere cache in a region of spa
 vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)  
 vol.cache.flush_info()
 vol.cache.flush_provenance()
-
 ```
 
 ### CloudVolume Constructor
@@ -308,7 +310,7 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * layer_cloudpath (str, r) - The cloud path to the data layer e.g. gs://bucket/dataset/image
 * info_cloudpath (str, r) - Generate the cloud path to this data layer's info file.
 * scales (dict, r) - Shortcut to the 'scales' property of the info object
-* scale (dict, r)* - Shortcut to the working scale of the current mip level
+* scale (dict, rw)* - Shortcut to the working scale of the current mip level
 * shape (Vec4, r)* - Like numpy.ndarray.shape for the entire data layer. 
 * volume_size (Vec3, r)* - Like shape, but omits channel (x,y,z only). 
 * num_channels (int, r) - The number of channels, the last element of shape. 
@@ -335,6 +337,30 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 * `bounds` - The bounding box of the cutout
 * `num_channels` - Alias for `vol.shape[3]`
 * `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
+* `view()` - Start a local web server (http://localhost:8080) that can view small volumes interactively.
+
+### Microviewer
+
+CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports uint8, uint16, uint32, float32, and float64 data types for both images and segmentation and can render a composite overlay of image and segmentation.  
+
+You can launch a viewer using the `.view()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
+
+```python3
+from cloudvolume import CloudVolume, view, hyperview
+
+channel_vol = CloudVolume(...)
+seg_vol = CloudVolume(...)
+img = vol[...]
+seg = vol[...]
+
+img.view() # works on VolumeCutouts
+seg.view()
+view(img) # alternative for arbitrary numpy arrays
+view(seg) 
+hyperview(img, seg) # img and seg shape must match
+
+>>> Viewer server listening to http://localhost:8080
+```
 
 ## Other Languages
 

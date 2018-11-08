@@ -1,0 +1,438 @@
+<html>
+  <head>
+    <title>CloudVolume Viewer</title>
+    <script src="./jquery-3.3.1.js"></script>
+    <script src="./datacube.js"></script>
+
+    <style>
+      html {
+        overflow: hidden;
+      }
+
+      body {
+        font-family: monospace;
+        color: white;
+        background: #0d0d0d;
+      }
+
+      #infobar {
+        margin-bottom: 10px;
+      }
+
+      #instructions {
+        position: fixed;
+        top: 75px;
+        right: 20px;
+        z-index: -1;
+      }
+
+      canvas {
+        border: 1px dotted white;
+        max-width: 768px;
+        max-height: 768px;
+        background: #0d0d0d;
+      }
+
+      img {
+        margin: 1px;
+      }
+    </style>
+
+    <script>
+      var AXIS = 'z';
+      var SLICE = { x: 0, y: 0, z: 0 };
+      var CLICK = { x: 0, y: 0, z: 0, pxvalue: [] };
+      var SIZE = {};
+      var PARAMETERS = {};
+      var PXVALUE = [];
+
+      var elems; 
+      var _needsrender = true;
+
+      function create_datacube(dtype, num_bytes, size) {
+        let floating = dtype === 'float32' || dtype == 'float64';
+
+        if (floating) {
+          return new FloatingPointDataCube({
+            bytes: num_bytes,
+            size: size,
+          });
+        }
+
+        return new DataCube({
+          bytes: num_bytes,
+          size: size,
+        });
+      }
+
+      function setup_single_volume (data) {  
+        render_static();
+
+        let datacube = create_datacube(data.data_type, data.data_bytes, SIZE);
+
+        window.vol = new MonoVolume(datacube, (data.layer_type === 'segmentation'));
+        let vol = window.vol;
+
+        vol.load('/channel', function (ratio) {
+          render();
+        }).then( () => render() );
+
+        $(channel).on('mousemove', function (e) {
+          let x = e.offsetX / $(this).innerWidth(), 
+            y = e.offsetY / $(this).innerHeight();
+
+          x = clamp(x, 0, 1);
+          y = clamp(y, 0, 1);
+
+          if (AXIS == 'z') {
+            SLICE.x = (x * (SIZE.x - 1))|0;
+            SLICE.y = (y * (SIZE.y - 1))|0;
+          }
+          else if (AXIS == 'y') {
+            SLICE.x = (x * (SIZE.x - 1))|0;
+            SLICE.z = (y * (SIZE.z - 1))|0;
+          }
+          else if (AXIS == 'x') {
+            SLICE.y = (x * (SIZE.y - 1))|0;
+            SLICE.z = (y * (SIZE.z - 1))|0;
+          }
+
+          PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
+
+          vol.hover_id = null;
+          if (vol.is_segmentation) {
+            vol.hover_id = PXVALUE[0];
+          }
+
+          render(); 
+        });
+      }
+
+      function setup_hyper_volume (data) {
+        render_static();
+
+        function get_cube(index) {
+          return create_datacube(data.data_types[index], data.data_bytes[index], SIZE);
+        }
+
+        window.vol = new HyperVolume(get_cube(0), get_cube(1));
+        let vol = window.vol;
+
+        vol.load(function (ratio) {
+          render();
+        }).then( () => render() );
+
+        $(channel).on('mousemove', function (e) {
+          var x = e.offsetX / $(this).innerWidth(), 
+            y = e.offsetY / $(this).innerHeight();
+
+          x = clamp(x, 0, 1);
+          y = clamp(y, 0, 1);
+
+          if (AXIS == 'z') {
+            SLICE.x = (x * (SIZE.x - 1))|0;
+            SLICE.y = (y * (SIZE.y - 1))|0;
+          }
+          else if (AXIS == 'y') {
+            SLICE.x = (x * (SIZE.x - 1))|0;
+            SLICE.z = (y * (SIZE.z - 1))|0;
+          }
+          else if (AXIS == 'x') {
+            SLICE.y = (x * (SIZE.y - 1))|0;
+            SLICE.z = (y * (SIZE.z - 1))|0;
+          }
+
+          PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
+          vol.hover_id = vol.segmentation.get(SLICE.x, SLICE.y, SLICE.z);
+          PXVALUE.push(vol.hover_id);
+
+          render(); 
+        });
+
+        $(channel).on('click', function (evt) {
+          var x = evt.offsetX / $(this).innerWidth(), 
+            y = evt.offsetY / $(this).innerHeight();
+
+          x = clamp(x, 0, 1);
+          y = clamp(y, 0, 1);  
+          
+          vol.toggleSegment(AXIS, SLICE[AXIS], x, y);        
+        });
+      }
+
+      $(document).ready(function () {
+        elems = {
+          cloudpath: $('#cloudpath'),
+          bounds: $('#bounds'),
+          dtype: $('#dtype'),
+          resolution: $('#resolution'),
+          shape: $('#shape'),
+          axis: $('#axis'),
+          coord: $('#coord'),
+          realcoord: $('#realcoord'),
+          clickcoord: $('#clickcoord'),
+          clickrealcoord: $('#clickrealcoord'),
+          loading: $('#loading'),
+          pxvalue: $('#pxvalue'),
+          clickpxvalue: $('#clickpxvalue'),
+          channel: $('#channel'),
+        };
+        
+        window.channel = elems.channel[0];
+        window.channelctx = channel.getContext('2d');
+
+        $.get('/parameters', function (data, status) {
+          SIZE = {
+            x: data.bounds[3] - data.bounds[0],
+            y: data.bounds[4] - data.bounds[1],
+            z: data.bounds[5] - data.bounds[2],
+          };
+
+          PARAMETERS = data;
+
+          if (data.viewtype === 'single') {
+            setup_single_volume(data);
+          }
+          else {
+            setup_hyper_volume(data);
+          }
+
+         $(channel).on('mouseout', function (e) {
+            PXVALUE = [];
+            vol.hover_id = null;
+            render();
+          });
+
+          $(channel).on('click', function (e) {
+            var x = e.offsetX / $(this).innerWidth(), 
+              y = e.offsetY / $(this).innerHeight();
+
+            x = clamp(x, 0, 1);
+            y = clamp(y, 0, 1);
+
+            if (AXIS == 'z') {
+              CLICK.x = (x * (SIZE.x - 1))|0;
+              CLICK.y = (y * (SIZE.y - 1))|0;
+              CLICK.z = SLICE.z;
+            }
+            else if (AXIS == 'y') {
+              CLICK.x = (x * (SIZE.x - 1))|0;
+              CLICK.z = (y * (SIZE.z - 1))|0;
+              CLICK.y = SLICE.y;
+            }
+            else if (AXIS == 'x') {
+              CLICK.y = (x * (SIZE.y - 1))|0;
+              CLICK.z = (y * (SIZE.z - 1))|0;
+              CLICK.x = SLICE.x;
+            }
+
+            CLICK.pxvalue = [ vol.channel.get(CLICK.x, CLICK.y, CLICK.z) ];
+
+            if (vol.segmentation) {
+              CLICK.pxvalue.push(
+                vol.segmentation.get(CLICK.x, CLICK.y, CLICK.z)
+              );
+            }
+            
+            render();
+          });
+
+          loop();
+        }); 
+      });
+
+      $(document).on('wheel', function (e) {
+        var delta = clamp(e.originalEvent.deltaY, -1, 1);
+        delta = Math.round(delta);
+        move_slice(delta);
+      });
+
+      var AXES = ['z', 'y', 'x'];
+
+      $(document).on('keyup', function (evt) {
+        if (evt.keyCode === 'A'.charCodeAt(0)) {
+          rotate_axis(2);
+        }
+        else if (evt.keyCode === 'D'.charCodeAt(0)
+          || evt.keyCode === ' '.charCodeAt(0)) {
+
+          rotate_axis(1);
+        }
+      });
+
+      $(document).on('keydown keypress', function (evt) {
+        if (evt.keyCode === 'W'.charCodeAt(0) 
+          || evt.keyCode === '.'.charCodeAt(0)
+          || evt.keyCode === 190) {
+          
+          move_slice(1);
+        }
+        else if (evt.keyCode === 'S'.charCodeAt(0)
+          || evt.keyCode === ','.charCodeAt(0)
+          || evt.keyCode === 188) {
+          
+          move_slice(-1);
+        }
+        else if (evt.keyCode === 'L'.charCodeAt(0)) {
+          
+          vol.shuffleColors();
+          render();          
+        }
+        else if (evt.keyCode === 'X'.charCodeAt(0)) {
+          if (vol.clearSelected) {
+            vol.clearSelected()
+          }
+          render();
+        }
+        else if (
+          evt.keyCode === '='.charCodeAt(0) // '+' without shift
+          || evt.keyCode === '+'.charCodeAt(0) 
+          || evt.keyCode === 107 // '+' sometimes
+        ) {
+          vol.alpha = clamp(vol.alpha + 0.1, 0, 1);
+          render();
+        }
+        else if (evt.keyCode === '-'.charCodeAt(0)) {
+          vol.alpha = clamp(vol.alpha - 0.1, 0, 1);
+          render();
+        }
+      })
+
+      function rotate_axis(delta) {
+        var index = (AXES.indexOf(AXIS) + delta) % AXES.length;
+        AXIS = AXES[index];
+        render();
+      }
+
+      function move_slice (delta) {
+        SLICE[AXIS] += delta;
+        SLICE[AXIS] = clamp(SLICE[AXIS], 0, SIZE[AXIS] - 1);
+        render();  
+      }
+
+      function render_static () {
+        if (PARAMETERS.viewtype === 'single') {
+          $('#instructions .hyperview').hide();
+
+          if (PARAMETERS.layer_type === 'image') {
+            $('#instructions .segmentation').hide();
+          }
+        }
+
+        elems.channel.css('width', SIZE.x + 'px').css('height', SIZE.y + 'px');
+
+        let b = PARAMETERS.bounds;
+        elems.cloudpath.text( PARAMETERS.cloudpath.join("; ") );
+        elems.bounds.text(
+          `<${b[0]}, ${b[1]}, ${b[2]}>, <${b[3]}, ${b[4]}, ${b[5]}>`
+        );
+        elems.dtype.text( PARAMETERS.data_types.join("; ") );
+        elems.resolution.text( PARAMETERS.resolution.join('x') );
+        elems.shape.text( `<${SIZE.x}, ${SIZE.y}, ${SIZE.z}>` );
+      }
+
+      function render () {
+        _needsrender = true;
+      }
+
+      function hardRender () {
+        if (AXIS == 'z') {
+          channel.width = SIZE.x;
+          channel.height = SIZE.y;
+        }
+        else if (AXIS == 'y') {
+          channel.width = SIZE.x;
+          channel.height = SIZE.z; 
+        }
+        else if (AXIS == 'x') {
+          channel.width = SIZE.y;
+          channel.height = SIZE.z; 
+        }
+
+        vol.render(window.channelctx, AXIS, SLICE[AXIS]);
+
+        // compute real coordinate as well
+        let b = PARAMETERS.bounds;
+        let real = [ SLICE.x + b[0], SLICE.y + b[1], SLICE.z + b[2] ];
+
+        elems.axis.text(AXIS);
+        elems.coord.text( `<${SLICE.x}, ${SLICE.y}, ${SLICE.z}>` );
+        elems.realcoord.text( `${real[0]}, ${real[1]}, ${real[2]}` );
+
+        real = [ CLICK.x + b[0], CLICK.y + b[1], CLICK.z + b[2] ];
+        
+        elems.clickcoord.text( `<${CLICK.x}, ${CLICK.y}, ${CLICK.z}>` );
+        elems.clickrealcoord.text( `${real[0]}, ${real[1]}, ${real[2]}` );
+
+        if (vol.loaded()) {
+          elems.loading.hide();
+        }
+        else {
+          elems.loading.text( (vol.progress() * 100).toFixed(0) + '%' )  
+        }
+        
+        if (PXVALUE.length) {
+          elems.pxvalue.show().text( "value: " + PXVALUE.map(display_value).join("; ") );
+        }
+        else { 
+          elems.pxvalue.hide();
+        }
+
+        if (CLICK.pxvalue.length) {
+          elems.clickpxvalue.text( "value: " + CLICK.pxvalue.map(display_value).join("; ") );
+        }
+        else {
+          elems.clickpxvalue.text(""); 
+        }
+
+        _needsrender = false;
+      }
+
+      function display_value (val) {
+        if (PARAMETERS.is_floating) {
+          return val.toFixed(4);
+        }
+        return val;
+      }
+
+      function clamp (val, min, max) {
+        return Math.min(Math.max(val, min), max);
+      }
+
+      function loop () {
+        if (_needsrender) {
+          hardRender();
+        }
+
+        requestAnimationFrame(loop);
+      }
+
+    </script>
+  </head>
+  <body>
+    <div id="infobar">
+      <span id="axis"></span> <span id="coord"></span> (<span id="realcoord"></span>) <span id="pxvalue"></span> 
+      <br> 
+      Last Click: <span id="clickcoord"></span> (<span id="clickrealcoord"></span>) <span id="clickpxvalue"></span>
+      <br>
+      <span id="cloudpath"></span> 
+      <br> 
+      <span id="shape"></span> bounds: (<span id="bounds"></span>)  <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> <span id="loading"></span>
+    </div>
+
+    <div id="instructions">
+      <p>CONTROLS</p>
+      <ul>
+        <li>W/S ,/. or scroll - advance selected images</li>
+        <li>A/D/space - switch slicing plane</li>
+        <li class='segmentation'>L - recolor segmentation labels</li>
+        <li>Left Click - freeze info about current pixel</li>
+        <li class="hyperview">X - clear selected segments</li>
+        <li class="hyperview">+/- increase, decrease opacity</li>
+      </ul>
+    </div>
+    
+    <canvas id="channel" width="256" height="256"></canvas>
+
+  </body>
+</html>

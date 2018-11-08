@@ -1,21 +1,28 @@
 import os
 
+import json
 from six.moves import range
+
 import numpy as np
 from tqdm import tqdm
 
 from .lib import mkdir, save_images
 
+from . import viewer
+
 class VolumeCutout(np.ndarray):
 
-  def __new__(cls, buf, dataset_name, layer, mip, layer_type, bounds, handle, *args, **kwargs):
+  def __new__(cls, buf, path, cloudpath, resolution, mip, layer_type, bounds, handle, *args, **kwargs):
     return super(VolumeCutout, cls).__new__(cls, shape=buf.shape, buffer=np.asfortranarray(buf), dtype=buf.dtype, order='F')
 
-  def __init__(self, buf, dataset_name, layer, mip, layer_type, bounds, handle, *args, **kwargs):
+  def __init__(self, buf, path, cloudpath, resolution, mip, layer_type, bounds, handle, *args, **kwargs):
     super(VolumeCutout, self).__init__()
     
-    self.dataset_name = dataset_name
-    self.layer = layer
+    self.dataset_name = path.dataset
+    self.layer = path.layer
+    self.path = path
+    self.resolution = resolution
+    self.cloudpath = cloudpath
     self.mip = mip
     self.layer_type = layer_type
     self.bounds = bounds
@@ -49,8 +56,9 @@ class VolumeCutout(np.ndarray):
   def from_volume(cls, volume, buf, bounds, handle=None):
     return VolumeCutout(
       buf=buf,
-      dataset_name=volume.dataset_name,
-      layer=volume.layer,
+      path=volume.path,
+      cloudpath=volume.cloudpath,
+      resolution=volume.resolution,
       mip=volume.mip,
       layer_type=volume.layer_type,
       bounds=bounds,
@@ -67,3 +75,8 @@ class VolumeCutout(np.ndarray):
       directory = os.path.join('./saved_images', self.dataset_name, self.layer, str(self.mip), self.bounds.to_filename())
 
     return save_images(self, directory, axis, channel, global_norm, image_format)
+
+  def view(self, port=8080):
+    """Start a local web app on the given port that lets you explore this cutout."""
+    viewer.run([ self ], port)
+    
