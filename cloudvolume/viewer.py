@@ -138,6 +138,6 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
       path = 'index.html'
 
     dirname = os.path.dirname(__file__)
-    filepath = os.path.join(dirname, '../ext/volumeviewer/' + path)
+    filepath = os.path.join(dirname, '../ext/microviewer/' + path)
     with open(filepath, 'rb') as f:
       self.wfile.write(f.read())  

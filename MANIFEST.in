@@ -1,2 +1,2 @@
-include ext/volumeviewer/*
+include ext/microviewer/*
 include LICENSE
