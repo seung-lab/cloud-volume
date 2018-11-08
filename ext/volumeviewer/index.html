@@ -175,9 +175,10 @@
           loading: $('#loading'),
           pxvalue: $('#pxvalue'),
           clickpxvalue: $('#clickpxvalue'),
+          channel: $('#channel'),
         };
         
-        window.channel = $('#channel')[0];
+        window.channel = elems.channel[0];
         window.channelctx = channel.getContext('2d');
 
         $.get('/parameters', function (data, status) {
@@ -312,7 +313,13 @@
       function render_static () {
         if (PARAMETERS.viewtype === 'single') {
           $('#instructions .hyperview').hide();
+
+          if (PARAMETERS.layer_type === 'image') {
+            $('#instructions .segmentation').hide();
+          }
         }
+
+        elems.channel.css('width', SIZE.x + 'px').css('height', SIZE.y + 'px');
 
         let b = PARAMETERS.bounds;
         elems.cloudpath.text( PARAMETERS.cloudpath.join("; ") );
@@ -418,7 +425,7 @@
       <ul>
         <li>W/S ,/. or scroll - advance selected images</li>
         <li>A/D/space - switch slicing plane</li>
-        <li>L - recolor segmentation labels</li>
+        <li class='segmentation'>L - recolor segmentation labels</li>
         <li>Left Click - freeze info about current pixel</li>
         <li class="hyperview">X - clear selected segments</li>
         <li class="hyperview">+/- increase, decrease opacity</li>

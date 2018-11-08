@@ -71,9 +71,9 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
   def do_GET(self):
     self.send_response(200)
   
-    if self.path == '/favicon.ico':
-      return
-    elif self.path in ('/', '/datacube.js', '/jquery-3.3.1.js'):
+    allowed_files = ('/', '/datacube.js', '/jquery-3.3.1.js', '/favicon.ico')
+
+    if self.path in allowed_files:
       self.serve_file()
     elif self.path == '/parameters':
       self.serve_parameters()
