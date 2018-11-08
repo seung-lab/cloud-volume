@@ -283,7 +283,11 @@
           }
           render();
         }
-        else if (evt.keyCode === '='.charCodeAt(0)) {
+        else if (
+          evt.keyCode === '='.charCodeAt(0) // '+' without shift
+          || evt.keyCode === '+'.charCodeAt(0) 
+          || evt.keyCode === 107 // '+' sometimes
+        ) {
           vol.alpha = clamp(vol.alpha + 0.1, 0, 1);
           render();
         }
