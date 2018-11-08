@@ -117,7 +117,6 @@ class CloudVolume(object):
     self.cdn_cache = cdn_cache
     self.compress = compress
     self.fill_missing = bool(fill_missing)
-    self.mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
     self.non_aligned_writes = bool(non_aligned_writes)
     self.progress = bool(progress)
     self.path = lib.extract_path(cloudpath)
@@ -154,14 +153,9 @@ class CloudVolume(object):
     else:
       self.provenance = self._cast_provenance(provenance)
 
-    try:
-      if isinstance(self.mip, collections.Iterable):
-        self.mip = next((i for (i,s) in enumerate(self.scales)
-                         if s["resolution"] == self.mip))
-      else:  # int
-        self.mip = self.available_mips[self.mip]
-    except:
-      raise Exception("MIP {} has not been generated.".format(self.mip))
+    # needs to be set after info is defined since
+    # its setter is based off of scales
+    self.mip = mip
 
     self.pid = os.getpid()
 
@@ -459,6 +453,22 @@ class CloudVolume(object):
   @property
   def layer(self):
     return self.path.layer
+
+  @property
+  def mip(self):
+    return self._mip
+
+  @mip.setter
+  def mip(self, mip):
+    mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
+    try:
+      if isinstance(mip, list):
+        self._mip = next((i for (i,s) in enumerate(self.scales)
+                          if s["resolution"] == mip))
+      else:
+        self._mip = self.available_mips[mip]
+    except:
+      raise Exception("MIP {} has not been generated.".format(mip))
 
   @property
   def scales(self):
