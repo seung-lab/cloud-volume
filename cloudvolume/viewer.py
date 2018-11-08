@@ -33,6 +33,8 @@ def to_volumecutout(img, image_type):
   )
 
 def hyperview(img, segmentation, hostname='localhost', port=DEFAULT_PORT):
+  assert np.all(img.shape[:3] == segmentation.shape[:3])
+
   img = to_volumecutout(img, 'image')
   segmentation = to_volumecutout(segmentation, 'segmentation')
 
@@ -59,7 +61,7 @@ def run(cutouts, hostname="localhost", port=DEFAULT_PORT):
     return ViewerServerHandler(cutouts, *args)
 
   myServer = HTTPServer(('localhost', port), handler)
-  print("Viewer running at http://localhost:" + str(port))
+  print("Viewer server listening to http://localhost:" + str(port))
   myServer.serve_forever()
   myServer.server_close()
 
@@ -91,8 +93,6 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
   def serve_parameters(self):
     self.send_header('Content-type', 'application/json')
     self.end_headers()
-
-    print(type(self.cutouts))
 
     if len(self.cutouts) == 1:
       cutout = self.cutouts[0]
