@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from functools import partial
 import itertools
+import collections
 import json
 import json5
 import os
@@ -65,7 +66,9 @@ class CloudVolume(object):
            Lcl FS: file:///tmp/$DATASET/$LAYER/
            Boss  : boss://$COLLECTION/$EXPERIMENT/$CHANNEL
   Optional:
-    mip: (int) Which level of downsampling to read to/write from. 0 is the highest resolution.
+    mip: (int or iterable) Which level of downsampling to read to/write from.
+        0 is the highest resolution. Can also specify the voxel resolution as
+        an iterable. 
     bounded: (bool) If a region outside of volume bounds is accessed:
         True: Throw an error
         False: Fill the region with black (useful for e.g. marching cubes's 1px boundary)
@@ -114,7 +117,6 @@ class CloudVolume(object):
     self.cdn_cache = cdn_cache
     self.compress = compress
     self.fill_missing = bool(fill_missing)
-    self.mip = int(mip)
     self.non_aligned_writes = bool(non_aligned_writes)
     self.progress = bool(progress)
     self.path = lib.extract_path(cloudpath)
@@ -151,10 +153,9 @@ class CloudVolume(object):
     else:
       self.provenance = self._cast_provenance(provenance)
 
-    try:
-      self.mip = self.available_mips[self.mip]
-    except:
-      raise Exception("MIP {} has not been generated.".format(self.mip))
+    # needs to be set after info is defined since
+    # its setter is based off of scales
+    self.mip = mip
 
     self.pid = os.getpid()
 
@@ -454,6 +455,29 @@ class CloudVolume(object):
     return self.path.layer
 
   @property
+  def mip(self):
+    return self._mip
+
+  @mip.setter
+  def mip(self, mip):
+    mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
+    try:
+      if isinstance(mip, list):  # mip specified by voxel resolution
+        self._mip = next((i for (i,s) in enumerate(self.scales)
+                          if s["resolution"] == mip))
+      else:  # mip specified by index into downsampling hierarchy
+        self._mip = self.available_mips[mip]
+
+    except:
+      if isinstance(mip, list):
+        available = self.available_resolutions
+      else:
+        available = self.available_mips
+      available_str = ", ".join(map(str, available)) 
+      msg = "MIP {} not found. Available: {}".format(mip, available_str)
+      raise IndexError(msg)
+
+  @property
   def scales(self):
     return self.info['scales']
 
@@ -513,6 +537,11 @@ class CloudVolume(object):
   def available_mips(self):
     """Returns a list of mip levels that are defined."""
     return range(len(self.info['scales']))
+
+  @property
+  def available_resolutions(self):
+    """Returns a list of defined resolutions."""
+    return (s["resolution"] for s in self.scales)
 
   @property
   def layer_type(self):
