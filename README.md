@@ -124,7 +124,7 @@ Supported URLs are of the forms:
 
 Neuroglancer relies on an [`info`](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed#info-json-file-specification) file located at the root of a dataset layer to tell it how to compute file locations and interpret the data in each file. CloudVolume piggy-backs on this functionality.
 
-In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`.
+In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major, aka CZYX) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`.
 
 ```python3
 from cloudvolume import CloudVolume
