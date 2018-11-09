@@ -163,6 +163,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 # Basic Examples
 vol = CloudVolume('gs://mybucket/retina/image') 
 vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missing=False) 
+vol = CloudVolume('gs://bucket/dataset/channel', mip=[ 8, 8, 40 ], bounded=True, fill_missing=False) # set mip at this resolution
 vol = CloudVolume('gs://bucket/datasset/channel', info=info) # New info file from scratch
 image = vol[:,:,:] # Download the entire image stack into a numpy array
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
