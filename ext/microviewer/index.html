@@ -24,14 +24,18 @@
         position: fixed;
         top: 75px;
         right: 20px;
-        z-index: -1;
+        z-index: 0;
+
+        width: 450px;
       }
 
       canvas {
+        position: relative;
         border: 1px dotted white;
         max-width: 768px;
         max-height: 768px;
         background: #0d0d0d;
+        z-index: 10;
       }
 
       img {
@@ -177,6 +181,7 @@
           pxvalue: $('#pxvalue'),
           clickpxvalue: $('#clickpxvalue'),
           channel: $('#channel'),
+          selected_segments: $('#selected_segments'),
         };
         
         window.channel = elems.channel[0];
@@ -394,6 +399,12 @@
           elems.clickpxvalue.text(""); 
         }
 
+        if (vol.segments) {
+          elems.selected_segments.text( 
+            Object.keys(vol.segments).join(', ') 
+          );
+        }
+
         _needsrender = false;
       }
 
@@ -439,6 +450,9 @@
         <li class="hyperview">X - clear selected segments</li>
         <li class="hyperview">+/- increase, decrease opacity</li>
       </ul>
+
+      <p class="hyperview">SELECTED SEGMENTS</p>
+      <div class="hyperview" id="selected_segments"></div>
     </div>
     
     <canvas id="channel" width="256" height="256"></canvas>
