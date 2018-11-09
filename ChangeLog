@@ -1,6 +1,16 @@
 CHANGES
 =======
 
+0.37.0
+------
+
+* Version 0.37.0
+* Specifying mip level by voxel resolution (#151)
+* chore: rename volumeviewer to microviewer
+* chore: add MANIFEST.in to ensure microviewer inclusion
+* feat: MicroViewer (#150)
+* Update README.md
+
 0.36.2
 ------
 

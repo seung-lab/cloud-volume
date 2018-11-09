@@ -1,8 +1,9 @@
 <html>
   <head>
-    <title>CloudVolume Viewer</title>
+    <title>μViewer</title>
     <script src="./jquery-3.3.1.js"></script>
     <script src="./datacube.js"></script>
+    <meta charset="utf-8">
 
     <style>
       html {
@@ -316,7 +317,15 @@
 
           if (PARAMETERS.layer_type === 'image') {
             $('#instructions .segmentation').hide();
-          }
+          }PARAMETERS.cloudpath[0].split('/')
+        }
+
+        if (PARAMETERS.cloudpath) {
+          let layername = PARAMETERS.cloudpath[0].split('/');
+          layername = layername[ layername.length - 2 ] + '/' + layername[ layername.length - 1 ];
+
+          let hyper = (PARAMETERS.viewtype === 'hyper') ? 'Hyper ' : '';
+          document.title = `${layername} - ${hyper}μViewer`;
         }
 
         elems.channel.css('width', SIZE.x + 'px').css('height', SIZE.y + 'px');
