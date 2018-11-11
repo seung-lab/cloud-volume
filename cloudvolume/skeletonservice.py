@@ -1,3 +1,5 @@
+from collections import defaultdict
+import copy
 import datetime
 import re
 import os
@@ -319,6 +321,59 @@ class PrecomputedSkeleton(object):
 
     return PrecomputedSkeleton(vertices, edges, radii, vertex_types, segid=self.id)
 
+  def cable_length(self):
+    """
+    Returns cable length of connected skeleton vertices in the same
+    metric that this volume uses (typically nanometers).
+    """
+    dist = 0 
+    for path in self.paths():
+      for i in range(len(path) - 2):
+        v1, v2 = path[i], path[i+1]
+        dist += np.linalg.norm(v2 - v1)
+
+    return dist
+
+  def paths(self):
+    """
+    Assuming the skeleton is structured as a single tree, return a 
+    list of all traversal paths. We start from the first 
+    """
+    skel = self.consolidate()
+
+    tree = defaultdict(list)
+
+    for edge in skel.edges:
+      svert = edge[0]
+      evert = edge[1]
+      tree[svert].append(evert)
+      tree[evert].append(svert)
+
+    def dfs(path, visited, paths):
+      vertex = path[-1]
+      children = tree[vertex]
+      
+      visited[vertex] = True
+
+      children = [ child for child in children if not visited[child] ]
+
+      if len(children) == 0:
+        paths.append(path)
+
+      for child in children:
+        dfs(path + [child], copy.deepcopy(visited), paths)
+
+      return paths
+
+    root = skel.edges[0,0]
+    paths = dfs([root], defaultdict(bool), [])
+
+    new_root = np.argmax([ len(_) for _ in paths ])
+    new_root = paths[new_root][-1]
+    paths = dfs([ new_root ], defaultdict(bool), [])
+    
+    return [ skel.vertices[path] for path in paths ]
+
   def __eq__(self, other):
     if self.id != other.id:
       return False
@@ -340,6 +395,9 @@ class PrecomputedSkeleton(object):
       self.radii.shape[0], self.radii.dtype,
       self.vertex_types.shape[0], self.vertex_types.dtype
     )
+
+  def __repr__(self):
+    return str(self)
 
 class PrecomputedSkeletonService(object):
   def __init__(self, vol):
