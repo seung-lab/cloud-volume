@@ -43,6 +43,12 @@ setuptools.setup(
     ':python_version == "2.6"': ['futures'],
   },
   ext_modules=extensions,
+  package_data={
+    'cloudvolume': [
+      '../ext/microviewer/*',
+      # '../ext/third_party/compressed_segmentation/*',
+    ],
+  },
   pbr=True)
 
 if not np:

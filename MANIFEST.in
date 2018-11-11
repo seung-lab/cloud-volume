@@ -1,2 +1,2 @@
-include ext/microviewer/*
+recursive-include ext
 include LICENSE

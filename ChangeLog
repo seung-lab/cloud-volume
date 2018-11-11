@@ -1,6 +1,14 @@
 CHANGES
 =======
 
+0.37.1
+------
+
+* Version 0.37.1
+* feat: added "selected segments" to microviewer
+* feat: change title of microviewer depending on layer and mode
+* Update README.md
+
 0.37.0
 ------
 
