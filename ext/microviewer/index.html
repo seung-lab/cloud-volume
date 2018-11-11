@@ -73,7 +73,7 @@
       function setup_single_volume (data) {  
         render_static();
 
-        let datacube = create_datacube(data.data_type, data.data_bytes, SIZE);
+        let datacube = create_datacube(data.data_types[0], data.data_bytes, SIZE);
 
         window.vol = new MonoVolume(datacube, (data.layer_type === 'segmentation'));
         let vol = window.vol;
@@ -325,11 +325,16 @@
           }PARAMETERS.cloudpath[0].split('/')
         }
 
-        if (PARAMETERS.cloudpath) {
-          let layername = PARAMETERS.cloudpath[0].split('/');
+        let hyper = (PARAMETERS.viewtype === 'hyper') ? 'Hyper ' : '';
+        let firstlayer = PARAMETERS.cloudpath[0];
+
+        if (firstlayer === 'IN MEMORY') {
+          document.title = `MEMORY - ${hyper}μViewer`;
+        }
+        else if (firstlayer) {
+          let layername = firstlayer.split('/');
           layername = layername[ layername.length - 2 ] + '/' + layername[ layername.length - 1 ];
 
-          let hyper = (PARAMETERS.viewtype === 'hyper') ? 'Hyper ' : '';
           document.title = `${layername} - ${hyper}μViewer`;
         }
 

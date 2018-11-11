@@ -16,10 +16,12 @@ from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath
 
 DEFAULT_PORT = 8080
 
-def to_volumecutout(img, image_type):
+def to_volumecutout(img, image_type, resolution=None, hostname='localhost'):
   from . import VolumeCutout
   if type(img) == VolumeCutout:
     return img
+
+  resolution = Vec(*resolution) if resolution is not None else Vec(0,0,0)
 
   return VolumeCutout(
     buf=img,
@@ -32,22 +34,31 @@ def to_volumecutout(img, image_type):
     handle=None,
   )
 
-def hyperview(img, segmentation, hostname='localhost', port=DEFAULT_PORT):
+def hyperview(
+    img, segmentation, resolution=None,
+    hostname='localhost', port=DEFAULT_PORT
+  ):
   assert np.all(img.shape[:3] == segmentation.shape[:3])
 
-  img = to_volumecutout(img, 'image')
-  segmentation = to_volumecutout(segmentation, 'segmentation')
+  img = to_volumecutout(img, 'image', resolution, hostname)
+  segmentation = to_volumecutout(segmentation, 'segmentation', resolution, hostname)
 
   return run([ img, segmentation ], hostname=hostname, port=port)
 
 
-def view(img, segmentation=False, hostname="localhost", port=DEFAULT_PORT):
+def view(
+    img, segmentation=False, resolution=None, 
+    hostname="localhost", port=DEFAULT_PORT
+  ):
   from . import VolumeCutout
+
+  resolution = Vec(*resolution) if resolution is not None else Vec(0,0,0)
+
   cutout = VolumeCutout(
     buf=img,
     path=ExtractedPath('mem', hostname, '/', '', ''),
     cloudpath='IN MEMORY',
-    resolution=Vec(0, 0, 0),
+    resolution=resolution,
     mip=-1,
     layer_type=('segmentation' if segmentation else 'image'),
     bounds=Bbox( (0,0,0), list(img.shape)[:3]),
