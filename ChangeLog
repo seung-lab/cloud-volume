@@ -1,6 +1,16 @@
 CHANGES
 =======
 
+* refactor: use new compressed-segmentation pypi package
+
+0.37.2
+------
+
+* Version 0.37.2
+* fix: microviewer was not installed correctly on anaconda
+* feat: added UI updates and resolution option to viewer invocation
+* Update README.md
+
 0.37.1
 ------
 

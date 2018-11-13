@@ -20,13 +20,12 @@ from PIL import Image
 from .lib import yellow
 
 try:
-  import _compressed_segmentation as cseg
+  import compressed_segmentation as cseg
   ACCELERATED_CSEG = True # C extension version
 except ImportError:
   ACCELERATED_CSEG = False # Pure Python implementation
-# ACCELERATED_CSEG= False
 
-from . import compressed_segmentation as csegpy
+from . import py_compressed_segmentation as csegpy
 
 try:
   import fpzip 
@@ -167,7 +166,7 @@ def decode_compressed_segmentation(bytestring, shape, dtype, block_size, acceler
   return decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_size)
 
 def decode_compressed_segmentation_c_ext(bytestring, shape, dtype, block_size):
-  return cseg.decompress(bytes(bytestring), shape, dtype, block_size)
+  return cseg.decompress(bytes(bytestring), shape, dtype, block_size, order='F')
 
 def decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_size):
   chunk = np.empty(shape=shape[::-1], dtype=dtype)
