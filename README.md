@@ -226,7 +226,7 @@ vol.cache.compress = None/True/False # None: Link to cloud setting, Boolean: For
 
 # Deleting Cache
 vol.cache.flush() # Delete local cache for this layer at this mip level  
-vol.cache.flush(preserve=Bbox(...)) # Same, but presere cache in a region of space  
+vol.cache.flush(preserve=Bbox(...)) # Same, but preserve cache in a region of space  
 vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)  
 vol.cache.flush_info()
 vol.cache.flush_provenance()
