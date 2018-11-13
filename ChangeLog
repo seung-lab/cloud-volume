@@ -1,6 +1,8 @@
 CHANGES
 =======
 
+* fix: to\_volumecutout deals with slices cutouts gracefully
+
 0.37.4
 ------
 
