@@ -19,7 +19,11 @@ DEFAULT_PORT = 8080
 def to_volumecutout(img, image_type, resolution=None, hostname='localhost'):
   from . import VolumeCutout
   if type(img) == VolumeCutout:
-    return img
+    try:
+      img.dataset_name # check if it's an intact VolumeCutout
+      return img
+    except AttributeError:
+      pass
 
   resolution = Vec(*resolution) if resolution is not None else Vec(0,0,0)
 

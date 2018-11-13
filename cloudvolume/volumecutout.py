@@ -79,17 +79,3 @@ class VolumeCutout(np.ndarray):
   def view(self, port=8080):
     """Start a local web app on the given port that lets you explore this cutout."""
     viewer.run([ self ], port)
-
-  def __getitem__(self, *args, **kwargs):
-    res = super(VolumeCutout, self).__getitem__(*args, **kwargs)
-    res.dataset_name = self.path.dataset
-    res.layer = self.path.layer
-    res.path = self.path
-    res.resolution = self.resolution
-    res.cloudpath = self.cloudpath
-    res.mip = self.mip
-    res.layer_type = self.layer_type
-    res.bounds = self.bounds
-    res.handle = None
-    return res
-    
