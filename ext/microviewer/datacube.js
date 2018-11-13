@@ -950,6 +950,10 @@ class FloatingPointDataCube extends DataCube {
     this.normalized = true;
   }
 
+  grayImageSlice (axis, index, transparency=false, copy=true) {
+    return this.imageSlice(axis, index, transparency, copy);
+  }
+
   /* imageSlice
    *
    * Generate an ImageData object that encodes a grayscale 

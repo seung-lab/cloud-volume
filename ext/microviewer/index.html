@@ -406,7 +406,7 @@
 
         if (vol.segments) {
           elems.selected_segments.text( 
-            Object.keys(vol.segments).join(', ') 
+            Object.keys(vol.segments).filter( (segid) => vol.segments[segid] ).join(', ') 
           );
         }
 

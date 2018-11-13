@@ -27,9 +27,9 @@ def to_volumecutout(img, image_type, resolution=None, hostname='localhost'):
     buf=img,
     path=ExtractedPath('mem', hostname, '/', '', ''),
     cloudpath='IN MEMORY',
-    resolution=Vec(0, 0, 0),
+    resolution=resolution,
     mip=-1,
-    layer_type=layer_type,
+    layer_type=image_type,
     bounds=Bbox( (0,0,0), list(img.shape)[:3]),
     handle=None,
   )

@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+* fix: support floating point images in hyperview
+
+0.37.3
+------
+
+* Version 0.37.3
+* docs: links to fpzip and compressed\_segmentation repos
 * refactor: use new compressed-segmentation pypi package
 
 0.37.2
