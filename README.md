@@ -363,9 +363,11 @@ hyperview(img, seg) # img and seg shape must match
 >>> Viewer server listening to http://localhost:8080
 ```
 
-## Other Languages
+## Spinoff Projects
 
-Julia - https://github.com/seung-lab/CloudVolume.jl
+CloudVolume in Julia - https://github.com/seung-lab/CloudVolume.jl   
+fpzip Python Package - https://github.com/seung-lab/fpzip  
+compressed_segmentation - https://github.com/seung-lab/compressedseg  
 
 ## Acknowledgments
 
