@@ -1,6 +1,11 @@
 CHANGES
 =======
 
+0.37.4
+------
+
+* Version 0.37.4
+* docs: fixed spelling error
 * fix: support floating point images in hyperview
 
 0.37.3
