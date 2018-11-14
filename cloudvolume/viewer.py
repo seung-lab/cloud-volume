@@ -56,7 +56,13 @@ def view(
   ):
   from . import VolumeCutout
 
-  resolution = Vec(*resolution) if resolution is not None else Vec(0,0,0)
+  if resolution is not None:
+    resolution = Vec(*resolution)
+  else:
+    try:
+      resolution = img.resolution
+    except AttributeError:
+      resolution = Vec(0,0,0)
 
   cutout = VolumeCutout(
     buf=img,
