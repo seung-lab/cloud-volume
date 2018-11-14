@@ -21,24 +21,30 @@ CloudVolume can be used in single or multi-process capacity and can be optimized
 
 ## Setup
 
-Cloud-volume is compatible with Python 2.6+ and 3.4+ (we've noticed it's faster on Python 3). On linux it requires g++ and python3-dev. After installation, you'll also need to set up your cloud credentials.  
+Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.4, 3.5, and 3.6 (we've noticed it's faster on Python 3). Some people have used it with Python 3.7. We support Linux and OS X. Windows is currently unsupoorted. After installation, you'll also need to set up your cloud credentials.  
 
-CloudVolume uses several C/C++ extensions that require numpy header files to be pre-installed. As of this writing, they include accelerated `compressed_segmentation` (smaller and faster segmentation files) and `fpzip` (smaller and faster floating point files). To enable these extensions, please install numpy as a seperate command line invocation prior to installing CloudVolume. 
-
-#### `pip` Installation
-
-*C++ compiler recommended.*
+#### `pip` Binary Installation
 
 ```bash
-sudo apt-get install g++ python3-dev
-pip install numpy # extra step required for Cython extensions + Anaconda installations
 pip install cloud-volume
 ```
 
-Due to packaging problems endemic to Python, you'll want to explicitly install numpy prior to installing cloud-volume (i.e. as a totally seperate command). This is required because some CloudVolume capabilites depend on C++ Cython extensions which in turn depend on having numpy C headers present at compilation time. They are not recognized unless numpy is installed in a seperate process that runs first.  
+CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/fpzip) and [`compressed_segmentation`](https://github.com/seung-lab/compressedseg), which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
+
+#### `pip` Source Installation
+
+*C++ compiler required.*
+
+```bash
+sudo apt-get install g++ python3-dev # python-dev if you're on python2
+pip install numpy
+pip install cloud-volume
+```
+
+Due to packaging problems endemic to Python, Cython packages that depend on numpy require numpy header files be installed before attempting to install the package you want. The numpy headers are not recognized unless numpy is installed in a seperate process that runs first. There are hacks for this issue, but I haven't gotten them to work. If you think binaries should be available for your platform, please let us know by opening an issue.
 
 The libraries depending on numpy are:  
-- Accelerated compressed_segmentation: A slow pure python fallback is present. When the accelerated version is present, IO is faster than with gzip alone.
+- compressed_segmentation: Smaller and faster segmentation files. A pure python fallback is present. When the accelerated version is present, IO is faster than with gzip alone.
 - fpzip: A lossless compression library for 3D & 4D floating point data.
 
 #### Manual Installation
@@ -56,6 +62,7 @@ workon cv
 virtualenv venv
 source venv/bin/activate
 
+sudo apt-get install g++ python3-dev # python-dev if you're on python2
 pip install numpy # additional step needed for accelerated compressed_segmentation and fpzip
 pip install -e .
 ```
@@ -367,7 +374,8 @@ hyperview(img, seg) # img and seg shape must match
 
 CloudVolume in Julia - https://github.com/seung-lab/CloudVolume.jl   
 fpzip Python Package - https://github.com/seung-lab/fpzip  
-compressed_segmentation - https://github.com/seung-lab/compressedseg  
+compressed_segmentation Python Package - https://github.com/seung-lab/compressedseg  
+Igneous - https://github.com/seung-lab/igneous   
 
 ## Acknowledgments
 
