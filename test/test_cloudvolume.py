@@ -76,16 +76,22 @@ def test_aligned_read():
 
 
 def test_parallel_read():
-  vol1 = CloudVolume('gs://seunglab-test/test_v0/image', parallel=1)
-  vol2 = CloudVolume('gs://seunglab-test/test_v0/image', parallel=2)
+  paths = [
+    'gs://seunglab-test/test_v0/image',
+    's3://seunglab-test/test_v0/image',
+  ]
 
-  data1 = vol1[:512,:512,:50]
-  assert np.all(data1 == vol2[:512,:512,:50])
+  for cloudpath in paths:
+    vol1 = CloudVolume(cloudpath, parallel=1)
+    vol2 = CloudVolume(cloudpath, parallel=2)
 
-  data2 = vol2.download_to_shared_memory(np.s_[:512,:512,:50])
-  assert np.all(data1 == data2)
-  data2.close()
-  vol2.unlink_shared_memory()
+    data1 = vol1[:512,:512,:50]
+    assert np.all(data1 == vol2[:512,:512,:50])
+
+    data2 = vol2.download_to_shared_memory(np.s_[:512,:512,:50])
+    assert np.all(data1 == data2)
+    data2.close()
+    vol2.unlink_shared_memory()
 
 def test_parallel_write():
   delete_layer()
