@@ -69,7 +69,7 @@ pip install -e .
 
 ### Credentials
 
-You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage, default account credentials will be used if available and no service account is provided. 
+You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided. 
 
 If neither of those two conditions apply, you need a service account credential. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
 
@@ -88,7 +88,7 @@ Create an [IAM user service account](https://docs.aws.amazon.com/IAM/latest/User
 ```json
 {
 	"AWS_ACCESS_KEY_ID": "$MY_AWS_ACCESS_KEY_ID",
-	"AWS_SECRET_ACCESS_KEY_ID": "$MY_SECRET_ACCESS_TOKEN"
+	"AWS_SECRET_ACCESS_KEY": "$MY_SECRET_ACCESS_TOKEN"
 }
 ```
 
