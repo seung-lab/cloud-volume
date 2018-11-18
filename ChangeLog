@@ -1,6 +1,17 @@
 CHANGES
 =======
 
+* test: s3 parallel read
+* docs: added reference to Google Storage setup
+* Update README.md
+* fix: uViewer automatically uses image resolution
+* Update README.md
+* docs: updated pip installation instructions
+* docs: link to SfN 2018 poster
+* Revert "fix: VolumeCutout slices generate real VolumeCutouts"
+* fix: VolumeCutout slices generate real VolumeCutouts
+* fix: to\_volumecutout deals with slices cutouts gracefully
+
 0.37.4
 ------
 

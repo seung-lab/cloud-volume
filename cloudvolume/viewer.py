@@ -16,7 +16,25 @@ from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath
 
 DEFAULT_PORT = 8080
 
-def to_volumecutout(img, image_type, resolution=None, hostname='localhost'):
+def getresolution(img, resolution):
+  if resolution is not None:
+    return Vec(*resolution)
+  else:
+    try:
+      return img.resolution
+    except AttributeError:
+      return Vec(0,0,0) 
+
+def getoffset(img, offset):
+  if offset is not None:
+    return Vec(*offset)
+  else:
+    try:
+      return img.bounds.minpt
+    except AttributeError:
+      return Vec(0,0,0)
+
+def to_volumecutout(img, image_type, resolution=None, offset=None, hostname='localhost'):
   from . import VolumeCutout
   if type(img) == VolumeCutout:
     try:
@@ -24,8 +42,9 @@ def to_volumecutout(img, image_type, resolution=None, hostname='localhost'):
       return img
     except AttributeError:
       pass
-
-  resolution = Vec(*resolution) if resolution is not None else Vec(0,0,0)
+  
+  resolution = getresolution(img, resolution)
+  offset = getoffset(img, offset)
 
   return VolumeCutout(
     buf=img,
@@ -34,35 +53,31 @@ def to_volumecutout(img, image_type, resolution=None, hostname='localhost'):
     resolution=resolution,
     mip=-1,
     layer_type=image_type,
-    bounds=Bbox( (0,0,0), list(img.shape)[:3]),
+    bounds=Bbox( offset, offset + Vec(*(img.shape[:3])) ),
     handle=None,
   )
 
 def hyperview(
-    img, segmentation, resolution=None,
+    img, segmentation, resolution=None, offset=None,
     hostname='localhost', port=DEFAULT_PORT
   ):
   assert np.all(img.shape[:3] == segmentation.shape[:3])
 
-  img = to_volumecutout(img, 'image', resolution, hostname)
-  segmentation = to_volumecutout(segmentation, 'segmentation', resolution, hostname)
+  img = to_volumecutout(img, 'image', resolution, offset, hostname)
+  segmentation = to_volumecutout(
+    segmentation, 'segmentation', resolution, offset, hostname
+  )
 
   return run([ img, segmentation ], hostname=hostname, port=port)
 
-
 def view(
-    img, segmentation=False, resolution=None, 
+    img, segmentation=False, resolution=None, offset=None,
     hostname="localhost", port=DEFAULT_PORT
   ):
   from . import VolumeCutout
 
-  if resolution is not None:
-    resolution = Vec(*resolution)
-  else:
-    try:
-      resolution = img.resolution
-    except AttributeError:
-      resolution = Vec(0,0,0)
+  resolution = getresolution(img, resolution)
+  offset = getoffset(img, offset)
 
   cutout = VolumeCutout(
     buf=img,
@@ -71,7 +86,7 @@ def view(
     resolution=resolution,
     mip=-1,
     layer_type=('segmentation' if segmentation else 'image'),
-    bounds=Bbox( (0,0,0), list(img.shape)[:3]),
+    bounds=Bbox( offset, offset + Vec(*(img.shape[:3])) ),
     handle=None,
   )
   return run([ cutout ], hostname=hostname, port=port)
