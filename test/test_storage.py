@@ -168,4 +168,22 @@ def test_exists():
             assert not s.exists('doesntexist')
             s.delete_file('info')
 
-                
+def test_access_non_cannonical_paths():
+    urls = [
+        "file:///tmp/noncanon",
+        "gs://seunglab-test/noncanon",
+        "s3://seunglab-test/noncanon"
+    ]
+
+    for url in urls:
+        url = url + '-' + str(TEST_NUMBER)
+        with Storage(url, n_threads=5) as s:
+            content = b'some_string'
+            s.put_file('info', content, compress=None)
+            s.wait()
+            time.sleep(0.5) # sometimes it takes a moment for google to update the list
+            
+            assert s.get_file('info') == content
+            assert s.get_file('nonexistentfile') is None
+            s.delete_file('info')
+            s.wait()

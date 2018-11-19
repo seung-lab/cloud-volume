@@ -52,9 +52,46 @@ def colorize(color, text):
   color = color.upper()
   return COLORS[color] + text + COLORS['RESET']
 
+BucketPath = namedtuple('BucketPath', 
+  ('protocol', 'bucket', 'path')
+)
+
 ExtractedPath = namedtuple('ExtractedPath', 
   ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
 )
+
+def extract_bucket_path(cloudpath):
+  protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
+  bucket_re = r'^(/?[~\d\w_\.\-]+)/'
+
+  error = ValueError("""
+    Cloud path must conform to PROTOCOL://BUCKET/PATH
+    Example: gs://test_bucket/em
+
+    Supported protocols: gs, s3, file, matrix, boss, http, https
+
+    Received: {}
+    """.format(cloudpath))
+
+  match = re.match(protocol_re, cloudpath)
+
+  if not match:
+    raise error
+
+  (protocol,) = match.groups()
+  cloudpath = re.sub(protocol_re, '', cloudpath)
+  
+  if protocol == 'file':
+    cloudpath = toabs(cloudpath)
+
+  match = re.match(bucket_re, cloudpath)
+  if not match:
+    raise error
+
+  (bucket,) = match.groups()
+  cloudpath = re.sub(bucket_re, '', cloudpath)
+
+  return BucketPath(protocol, bucket, cloudpath)
 
 def extract_path(cloudpath):
   """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""

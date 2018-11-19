@@ -16,7 +16,7 @@ import tenacity
 from tqdm import tqdm
 
 from . import compression
-from .lib import mkdir, extract_path
+from .lib import mkdir, extract_bucket_path
 from .threaded_queue import ThreadedQueue
 from .connectionpools import S3ConnectionPool, GCloudBucketPool
 
@@ -73,8 +73,8 @@ class SimpleStorage(object):
     self.progress = progress
 
     self._layer_path = layer_path
-    self._path = extract_path(layer_path)
-    
+    self._path = extract_bucket_path(layer_path)
+        
     if self._path.protocol == 'file':
       self._interface_cls = FileInterface
     elif self._path.protocol == 'gs':
@@ -218,8 +218,8 @@ class Storage(ThreadedQueue):
     self.progress = progress
 
     self._layer_path = layer_path
-    self._path = extract_path(layer_path)
-    
+    self._path = extract_bucket_path(layer_path)
+      
     if self._path.protocol == 'file':
       self._interface_cls = FileInterface
     elif self._path.protocol == 'gs':
@@ -438,16 +438,9 @@ class FileInterface(object):
     self._path = path
 
   def get_path_to_file(self, file_path):
-    
-    clean = filter(None,[
-      self._path.bucket, 
-      self._path.intermediate_path,                             
-      self._path.dataset,
-      self._path.layer,
-      file_path
-    ])
-
-    return os.path.join(*clean)
+    return os.path.join(
+      self._path.bucket, self._path.path, file_path
+    )
 
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
     path = self.get_path_to_file(file_path)
@@ -511,7 +504,10 @@ class FileInterface(object):
     path = os.path.join(layer_path, prefix) + '*'
 
     filenames = []
-    remove = layer_path + '/'
+
+    remove = layer_path
+    if len(remove) and remove[-1] != '/':
+      remove += '/'
 
     if flat:
       for file_path in glob(path):
@@ -550,13 +546,7 @@ class GoogleCloudStorageInterface(object):
     self._bucket = GC_POOL[path.bucket].get_connection()
 
   def get_path_to_file(self, file_path):
-    clean = filter(None,[
-      self._path.intermediate_path,
-      self._path.dataset,
-      self._path.layer,
-      file_path
-    ])
-    return os.path.join(*clean)
+    return os.path.join(self._path.path, file_path)
 
   @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
@@ -603,7 +593,7 @@ class GoogleCloudStorageInterface(object):
     layer_path = self.get_path_to_file("")        
     path = os.path.join(layer_path, prefix)
     for blob in self._bucket.list_blobs(prefix=path):
-      filename = blob.name.replace(layer_path + '/', '')
+      filename = blob.name.replace(layer_path, '')
       if not flat and filename[-1] != '/':
         yield filename
       elif flat and '/' not in blob.name.replace(path, ''):
@@ -618,15 +608,10 @@ class HttpInterface(object):
     self._path = path
 
   def get_path_to_file(self, file_path):
-    clean = filter(None, [
-      self._path.bucket,
-      self._path.intermediate_path,
-      self._path.dataset,
-      self._path.layer,
-      file_path
-    ])
-    clean = os.path.join(*clean)
-    return self._path.protocol + '://' + clean
+    path = os.path.join(
+      self._path.bucket, self._path.path, file_path
+    )
+    return self._path.protocol + '://' + path
 
   # @retry
   def delete_file(self, file_path):
@@ -660,11 +645,7 @@ class S3Interface(object):
     self._conn = S3_POOL[path.protocol][path.bucket].get_connection()
 
   def get_path_to_file(self, file_path):
-    clean = filter(None,[self._path.intermediate_path,
-               self._path.dataset,
-               self._path.layer,
-               file_path])
-    return os.path.join(*clean)
+    return os.path.join(self._path.path, file_path)
 
   @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
@@ -754,7 +735,7 @@ class S3Interface(object):
 
       for item in resp['Contents']:
         key = item['Key']
-        filename = key.replace(layer_path + '/', '')
+        filename = key.replace(layer_path, '')
         if not flat and filename[-1] != '/':
           yield filename
         elif flat and '/' not in key.replace(path, ''):
