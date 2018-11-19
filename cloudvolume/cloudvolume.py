@@ -683,13 +683,17 @@ class CloudVolume(object):
     self.info['scales'] = self.info['scales'][0:1]
     return self.commit_info()
 
-  def add_scale(self, factor, chunk_size=None, info=None):
+  def add_scale(self, factor, encoding=None, chunk_size=None, info=None):
     """
     Generate a new downsample scale to for the info file and return an updated dictionary.
     You'll still need to call self.commit_info() to make it permenant.
 
     Required:
       factor: int (x,y,z), e.g. (2,2,1) would represent a reduction of 2x in x and y
+
+    Optional:
+      encoding: force new layer to e.g. jpeg or compressed_segmentation
+      chunk_size: force new layer to new chunk size
 
     Returns: info dict
     """
@@ -714,8 +718,11 @@ class CloudVolume(object):
       smaller = Vec(*size, dtype=np.float32) / Vec(*factor)
       return list(map(int, roundingfn(smaller)))
 
+    if encoding is None:
+      encoding = fullres['encoding']
+
     newscale = {
-      u"encoding": fullres['encoding'],
+      u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
       u"voxel_offset": downscale(fullres['voxel_offset'], np.floor),
@@ -723,7 +730,10 @@ class CloudVolume(object):
     }
 
     if newscale['encoding'] == 'compressed_segmentation':
-      newscale['compressed_segmentation_block_size'] = fullres['compressed_segmentation_block_size']
+      if 'compressed_segmentation_block_size' in fullres:
+        newscale['compressed_segmentation_block_size'] = fullres['compressed_segmentation_block_size']  
+      else: 
+        newscale['compressed_segmentation_block_size'] = (8,8,8)
 
     newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
 

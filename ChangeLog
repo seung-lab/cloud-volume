@@ -1,6 +1,8 @@
 CHANGES
 =======
 
+* fix: ./, stepping 2 at a time in uViewer
+* feat: add offset to view in uViewer
 * test: s3 parallel read
 * docs: added reference to Google Storage setup
 * Update README.md
