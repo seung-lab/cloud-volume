@@ -268,23 +268,29 @@
 
       $(document).on('keypress', function (evt) {
         if (evt.keyCode === 'W'.charCodeAt(0) 
+          || evt.keyCode === 'w'.charCodeAt(0)
           || evt.keyCode === '.'.charCodeAt(0)
           || evt.keyCode === 190) {
           
           move_slice(1);
         }
         else if (evt.keyCode === 'S'.charCodeAt(0)
+          || evt.keyCode === 's'.charCodeAt(0)
           || evt.keyCode === ','.charCodeAt(0)
           || evt.keyCode === 188) {
           
           move_slice(-1);
         }
-        else if (evt.keyCode === 'L'.charCodeAt(0)) {
+        else if (evt.keyCode === 'L'.charCodeAt(0)
+          || evt.keyCode === 'l'.charCodeAt(0)
+        ) {
           
           vol.shuffleColors();
           render();          
         }
-        else if (evt.keyCode === 'X'.charCodeAt(0)) {
+        else if (evt.keyCode === 'X'.charCodeAt(0)
+          || evt.keyCode === 'x'.charCodeAt(0)) {
+          
           if (vol.clearSelected) {
             vol.clearSelected()
           }
