@@ -13,4 +13,4 @@ from . import txrx
 from . import viewer
 from .viewer import view, hyperview
 
-__version__ = '0.38.0'
+__version__ = '0.39.0'
