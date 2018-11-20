@@ -333,7 +333,7 @@ class PrecomputedSkeleton(object):
 
     return dist
 
-  def paths(self):
+  def paths(self, root=None):
     """
     Assuming the skeleton is structured as a single tree, return a 
     list of all traversal paths. We start from the first 
@@ -364,12 +364,14 @@ class PrecomputedSkeleton(object):
 
       return paths
 
-    root = skel.edges[0,0]
-    paths = dfs([root], defaultdict(bool), [])
+    if root is None:
+      root = skel.edges[0,0]
+      paths = dfs([root], defaultdict(bool), [])
 
-    new_root = np.argmax([ len(_) for _ in paths ])
-    new_root = paths[new_root][-1]
-    paths = dfs([ new_root ], defaultdict(bool), [])
+      root = np.argmax([ len(_) for _ in paths ])
+      root = paths[root][-1]
+
+    paths = dfs([ root ], defaultdict(bool), [])
     
     return [ skel.vertices[path] for path in paths ]
 
