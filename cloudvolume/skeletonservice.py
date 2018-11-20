@@ -326,11 +326,10 @@ class PrecomputedSkeleton(object):
     Returns cable length of connected skeleton vertices in the same
     metric that this volume uses (typically nanometers).
     """
-    dist = 0 
-    for path in self.paths():
-      for i in range(len(path) - 2):
-        v1, v2 = path[i], path[i+1]
-        dist += np.linalg.norm(v2 - v1)
+    dist = 0
+    for e1, e2 in self.edges:
+      v1, v2 = self.vertices[e1], self.vertices[e2]
+      dist += np.linalg.norm(v2 - v1)
 
     return dist
 
