@@ -370,6 +370,9 @@ class PrecomputedSkeleton(object):
 
       root = np.argmax([ len(_) for _ in paths ])
       root = paths[root][-1]
+    else:
+      match = np.abs(self.vertices - np.array(root, dtype=np.float32)) < 1e-7
+      root = np.where(match.all(axis=1))[0][0]
 
     paths = dfs([ root ], defaultdict(bool), [])
     
