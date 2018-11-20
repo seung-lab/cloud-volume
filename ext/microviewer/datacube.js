@@ -926,6 +926,8 @@ class FloatingPointDataCube extends DataCube {
     this.minval = -Infinity;
     this.maxval = +Infinity;
 
+    this.finite = true;
+    this.nan = false;
     this.normalized = false;
   }
 
@@ -937,6 +939,15 @@ class FloatingPointDataCube extends DataCube {
     const cube = _this.cube;
     
     for (let i = cube.length - 1; i >= 0; i--) {
+      if (!isFinite(cube[i])) {
+        this.finite = false;
+        continue;
+      }
+      else if (isNaN(cube[i])) {
+        this.nan = true;
+        continue;
+      }
+
       if (cube[i] > maxval) {
         maxval = cube[i];
       }
@@ -975,12 +986,6 @@ class FloatingPointDataCube extends DataCube {
       this.renormalize();
     }
 
-    if (this.normalized 
-      && (this.minval == -Infinity || this.maxval == +Infinity)) {
-
-      throw new Error("Floating point image contains infinties.");
-    }
-
     let square = this.slice(axis, index, /*copy=*/false);
 
     let sizes = this.faceDimensions(axis);
@@ -997,26 +1002,74 @@ class FloatingPointDataCube extends DataCube {
 
     let i = 0;
     let val = 0|0;
-    const minval = this.minval;
-    const maxval = this.maxval;
-    const norm = (maxval - minval) / 255.0;
 
-    if (norm === 0) {
-      val = (minval === 0) ? 0x00000000 : 0xffffffff;
+    if (this.minval === this.maxval) {
+      if (transparency) {
+        val = (this.minval === 0) ? 0x00000000 : 0xffffffff;
+      }
+      else {
+        val = (this.minval === 0) ? alpha : 0xffffffff; 
+      }
+
       for (i = square.length - 1; i >= 0; i--) {
         data32[i] = val;
       } 
+      return imgdata;
     }
-    else if (transparency) {
+
+    const norm = 255.0 / (this.maxval - this.minval);
+    const minval = this.minval * norm;
+
+    if (transparency && this.finite && !this.nan) {
       for (i = square.length - 1; i >= 0; i--) {
-        val = ((square[i] - minval) / norm) | 0;
+        val = (square[i] * norm - minval) | 0;
         data32[i] = (val | val << 8 | val << 16 | (val && alpha));
       }
     }
-    else {
+    else if (this.finite && !this.nan) {
       for (i = square.length - 1; i >= 0; i--) {
-        val = ((square[i] - minval) / norm) | 0;
+        val = (square[i] * norm - minval) | 0;
         data32[i] = (val | val << 8 | val << 16 | alpha);
+      }
+    }
+    else if (!this.finite && !this.nan) {
+     for (i = square.length - 1; i >= 0; i--) {
+        if (isFinite(square[i])) {
+          val = (square[i] * norm - minval) | 0;
+          data32[i] = (val | val << 8 | val << 16 | alpha);
+        }
+        else {
+          data32[i] = (square[i] === +Infinity) 
+            ? 0xffffffff 
+            : alpha;
+        }        
+      } 
+    }
+    else if (this.finite && this.nan) {
+     for (i = square.length - 1; i >= 0; i--) {
+        if (isNaN(square[i])) {
+          data32[i] = alpha;
+        }
+        else {
+          val = (square[i] * norm - minval) | 0; 
+          data32[i] = (val | val << 8 | val << 16 | alpha);        
+        }
+      } 
+    }
+    else if (!this.finite && this.nan) {
+     for (i = square.length - 1; i >= 0; i--) {
+        if (isNaN(square[i])) {
+          data32[i] = alpha;
+        }
+        else if (isFinite(square[i])) {
+          data32[i] = (square[i] === +Infinity) 
+            ? 0xffffffff 
+            : alpha;
+        }
+        else {
+          val = (square[i] * norm - minval) | 0; 
+          data32[i] = (val | val << 8 | val << 16 | alpha);
+        }     
       }
     }
 
