@@ -1,6 +1,19 @@
 CHANGES
 =======
 
+0.39.0
+------
+
+* Version 0.39.0
+* fix: uViewer hotkeys work for lower and upper case
+* feat: floating point images handle infinity and NaN in uViewer
+
+0.38.0
+------
+
+* Version 0.38.0
+* feat: add encoding parameter to "add\_scale"
+* feat: Storage works for any path, not just Neuroglancer paths (#154)
 * fix: ./, stepping 2 at a time in uViewer
 * feat: add offset to view in uViewer
 * test: s3 parallel read
