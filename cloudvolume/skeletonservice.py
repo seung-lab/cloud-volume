@@ -333,6 +333,35 @@ class PrecomputedSkeleton(object):
 
     return dist
 
+  def downsample(self, factor):
+    """
+    Compute a downsampled version of the skeleton by striding while 
+    preserving endpoints.
+
+    factor: stride length for downsampling the saved skeleton paths.
+
+    Returns: downsampled PrecomputedSkeleton
+    """
+    if int(factor) != factor or factor <= 0:
+      raise ValueError("Argument `factor` must be a positive integer. Got: <{}>({})", type(factor), factor)
+
+    paths = self.paths()
+
+    for i, path in enumerate(paths):
+      paths[i] = np.concatenate(
+        (path[0:-2:factor, :], path[-1:, :])
+      )
+
+    ds_skel = PrecomputedSkeleton.simple_merge(
+      [ PrecomputedSkeleton.from_path(path) for path in paths ]
+    ).consolidate()
+
+    vertex_idx = np.where((self.vertices == ds_skel.vertices).all(axis=1))[0]
+    ds_skel.radii = self.radii[ vertex_idx ]
+    ds_skel.vertex_types = self.vertex_types[ vertex_idx ]
+
+    return ds_skel
+
   def paths(self, root=None):
     """
     Assuming the skeleton is structured as a single tree, return a 
