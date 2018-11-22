@@ -365,7 +365,11 @@ class PrecomputedSkeleton(object):
   def paths(self, root=None):
     """
     Assuming the skeleton is structured as a single tree, return a 
-    list of all traversal paths. We start from the first 
+    list of all traversal paths. By default, start from the first
+    vertex, find the most distant vertex by hops and set that as
+    the root. Then use depth first traversal to produce paths.
+
+    Returns: [ [(x,y,z), (x,y,z), ...], path_2, path_3, ... ]
     """
     skel = self.consolidate()
 
