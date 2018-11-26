@@ -17,6 +17,8 @@ from .lib import red, Bbox
 from .txrx import cdn_cache_control
 from .storage import Storage, SimpleStorage
 
+class UnassignedEdgeError(Exception):
+  pass
 
 class SkeletonDecodeError(Exception):
   pass
@@ -329,7 +331,14 @@ class PrecomputedSkeleton(object):
     """
     dist = 0
     for e1, e2 in self.edges:
-      v1, v2 = self.vertices[e1], self.vertices[e2]
+      try:
+        v1, v2 = self.vertices[e1], self.vertices[e2]
+      except IndexError:
+        raise UnassignedEdgeError(
+          "Edge ({},{}) points to an index outside the number of vertices ({}).".format(
+            e1, e2, self.vertices.shape[0]
+          )
+        )
       dist += np.linalg.norm(v2 - v1)
 
     return dist
