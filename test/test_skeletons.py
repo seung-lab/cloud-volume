@@ -1,12 +1,12 @@
 import pytest
 
 import copy
-import json
-import os
-import numpy as np
-import shutil
 import gzip
 import json
+import math
+import numpy as np
+import os
+import shutil
 
 from cloudvolume import CloudVolume, chunks, Storage, PrecomputedSkeleton
 from cloudvolume.storage import SimpleStorage
@@ -250,6 +250,34 @@ def test_equivalent():
   double2 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0), (1,1,3) ], edges=[ (3,1), (2,1), (0,1) ])
   assert PrecomputedSkeleton.equivalent(double1, double2)
 
+def test_cable_length():
+  skel = PrecomputedSkeleton([ 
+      (0,0,0), (1,0,0), (2,0,0), (3,0,0), (4,0,0), (5,0,0)
+    ], 
+    edges=[ (1,0), (1,2), (2,3), (3,4), (5,4) ],
+    radii=[ 1, 2, 3, 4, 5, 6 ],
+    vertex_types=[1, 2, 3, 4, 5, 6]
+  )
+
+  assert skel.cable_length() == (skel.vertices.shape[0] - 1)
+
+  skel = PrecomputedSkeleton([ 
+      (2,0,0), (1,0,0), (0,0,0), (0,5,0), (0,6,0), (0,7,0)
+    ], 
+    edges=[ (1,0), (1,2), (2,3), (3,4), (5,4) ],
+    radii=[ 1, 2, 3, 4, 5, 6 ],
+    vertex_types=[1, 2, 3, 4, 5, 6]
+  )
+  assert skel.cable_length() == 9
+
+  skel = PrecomputedSkeleton([ 
+      (1,1,1), (0,0,0), (1,0,0)
+    ], 
+    edges=[ (1,0), (1,2) ],
+    radii=[ 1, 2, 3],
+    vertex_types=[1, 2, 3]
+  )
+  assert abs(skel.cable_length() - (math.sqrt(3) + 1)) < 1e-6
 
 def test_downsample():
   skel = PrecomputedSkeleton([ 
