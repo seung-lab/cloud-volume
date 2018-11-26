@@ -272,6 +272,12 @@ def test_downsample():
   should_error(.5)
   should_error(2.00000000000001)
 
+  dskel = skel.downsample(1, preserve_endpoints=False)
+  assert PrecomputedSkeleton.equivalent(dskel, skel)
+
+  dskel = skel.downsample(1, preserve_endpoints=True)
+  assert PrecomputedSkeleton.equivalent(dskel, skel)
+
   dskel = skel.downsample(2, preserve_endpoints=False)
   dskel_gt = PrecomputedSkeleton(
     [ (0,0,0), (1,1,0), (2,1,3) ], edges=[ (1,0), (1,2) ],
