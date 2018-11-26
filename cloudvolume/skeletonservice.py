@@ -333,32 +333,44 @@ class PrecomputedSkeleton(object):
 
     return dist
 
-  def downsample(self, factor):
+  def downsample(self, factor, preserve_endpoints=True):
     """
     Compute a downsampled version of the skeleton by striding while 
     preserving endpoints.
 
     factor: stride length for downsampling the saved skeleton paths.
+    preserve_endpoints: ensure that regardless of the downsample factor, 
+      the final vertex and edge on each tree branch is preserved.
 
     Returns: downsampled PrecomputedSkeleton
     """
-    if int(factor) != factor or factor <= 0:
-      raise ValueError("Argument `factor` must be a positive integer. Got: <{}>({})", type(factor), factor)
+    if int(factor) != factor or factor < 1:
+      raise ValueError("Argument `factor` must be a positive integer greater than or equal to 1. Got: <{}>({})", type(factor), factor)
 
     paths = self.paths()
 
     for i, path in enumerate(paths):
-      paths[i] = np.concatenate(
-        (path[0:-2:factor, :], path[-1:, :])
-      )
+      if preserve_endpoints:
+        paths[i] = np.concatenate(
+          (path[0::factor, :], path[-1:, :])
+        )
+      else:
+        paths[i] = path[0::factor, :]
 
     ds_skel = PrecomputedSkeleton.simple_merge(
       [ PrecomputedSkeleton.from_path(path) for path in paths ]
     ).consolidate()
 
-    vertex_idx = np.where((self.vertices == ds_skel.vertices).all(axis=1))[0]
-    ds_skel.radii = self.radii[ vertex_idx ]
-    ds_skel.vertex_types = self.vertex_types[ vertex_idx ]
+    # TODO: I'm sure this could be sped up if need be.
+    index = {}
+    for i, vert in enumerate(self.vertices):
+      vert = tuple(vert)
+      index[vert] = i
+
+    for i, vert in enumerate(ds_skel.vertices):
+      vert = tuple(vert)
+      ds_skel.radii[i] = self.radii[index[vert]]
+      ds_skel.vertex_types[i] = self.vertex_types[index[vert]]
 
     return ds_skel
 
@@ -409,7 +421,7 @@ class PrecomputedSkeleton(object):
 
     paths = dfs([ root ], defaultdict(bool), [])
     
-    return [ skel.vertices[path] for path in paths ]
+    return [ np.flip(skel.vertices[path], axis=0) for path in paths ]
 
   def __eq__(self, other):
     if self.id != other.id:
