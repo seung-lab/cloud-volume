@@ -304,6 +304,7 @@ class PrecomputedSkeleton(object):
     eff_edges = np.sort(eff_edges, axis=1) # sort each edge [2,1] => [1,2]
     eff_edges = eff_edges[np.lexsort(eff_edges[:,::-1].T)] # Sort rows 
     eff_edges = np.unique(eff_edges, axis=0)
+    eff_edges = eff_edges[ eff_edges[:,0] != eff_edges[:,1] ] # remove trivial loops
 
     radii_vector_map = np.vectorize(lambda idx: radii[idx])
     eff_radii = radii_vector_map(uniq_idx)
