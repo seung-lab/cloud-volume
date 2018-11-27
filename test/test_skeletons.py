@@ -335,6 +335,20 @@ def test_downsample():
   )
   assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
 
+  skel = PrecomputedSkeleton([ 
+      (0,0,0), (1,0,0), (1,1,0), (1,1,3), (2,1,3), (2,2,3)
+    ], 
+    edges=[ (1,0), (1,2), (3,4), (5,4) ],
+    radii=[ 1, 2, 3, 4, 5, 6 ],
+    vertex_types=[1, 2, 3, 4, 5, 6]
+  )
+  dskel = skel.downsample(2, preserve_endpoints=True)
+  dskel_gt = PrecomputedSkeleton(
+    [ (0,0,0), (1,1,0), (1,1,3), (2,2,3) ], 
+    edges=[ (1,0), (2,3) ],
+    radii=[1,3,4,6], vertex_types=[1,3,4,6] 
+  )
+  assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
 
 def test_read_swc():
 

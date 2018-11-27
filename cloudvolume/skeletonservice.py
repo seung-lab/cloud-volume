@@ -384,16 +384,9 @@ class PrecomputedSkeleton(object):
 
     return ds_skel
 
-  def paths(self, root=None):
-    """
-    Assuming the skeleton is structured as a single tree, return a 
-    list of all traversal paths. By default, start from the first
-    vertex, find the most distant vertex by hops and set that as
-    the root. Then use depth first traversal to produce paths.
-
-    Returns: [ [(x,y,z), (x,y,z), ...], path_2, path_3, ... ]
-    """
-    skel = self.consolidate()
+  def _single_tree_paths(self, tree):
+    """Get all traversal paths from a single tree."""
+    skel = tree.consolidate()
 
     tree = defaultdict(list)
 
@@ -418,20 +411,31 @@ class PrecomputedSkeleton(object):
         dfs(path + [child], copy.deepcopy(visited), paths)
 
       return paths
+      
+    root = skel.edges[0,0]
+    paths = dfs([root], defaultdict(bool), [])
 
-    if root is None:
-      root = skel.edges[0,0]
-      paths = dfs([root], defaultdict(bool), [])
-
-      root = np.argmax([ len(_) for _ in paths ])
-      root = paths[root][-1]
-    else:
-      match = np.abs(self.vertices - np.array(root, dtype=np.float32)) < 1e-7
-      root = np.where(match.all(axis=1))[0][0]
-
+    root = np.argmax([ len(_) for _ in paths ])
+    root = paths[root][-1]
+  
     paths = dfs([ root ], defaultdict(bool), [])
     
-    return [ np.flip(skel.vertices[path], axis=0) for path in paths ]
+    return [ np.flip(skel.vertices[path], axis=0) for path in paths ]    
+
+  def paths(self):
+    """
+    Assuming the skeleton is structured as a single tree, return a 
+    list of all traversal paths across all components. For each component, 
+    start from the first vertex, find the most distant vertex by 
+    hops and set that as the root. Then use depth first traversal 
+    to produce paths.
+
+    Returns: [ [(x,y,z), (x,y,z), ...], path_2, path_3, ... ]
+    """
+    paths = []
+    for tree in self.components():
+      paths += self._single_tree_paths(tree)
+    return paths
 
   def _compute_components(self):
     skel = self.consolidate()
