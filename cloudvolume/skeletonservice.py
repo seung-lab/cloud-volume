@@ -446,6 +446,91 @@ class PrecomputedSkeleton(object):
       and np.any(self.radii == other.radii) \
       and np.any(self.vertex_types == other.vertex_types))
 
+  @classmethod
+  def from_swc(self, swcstr):
+    lines = swcstr.split("\n")
+    while re.match(r'[#\s]', lines[0][0]):
+      lines.pop(0)
+
+    vertices = []
+    edges = []
+    radii = []
+    vertex_types = []
+
+    vertex_index = {}
+    label_index = {}
+    for i, line in enumerate(lines):
+      (vid, vtype, x, y, z, radius, parent_id) = line.split(" ")
+      
+      coord = tuple([ float(_) for _ in (x,y,z) ])
+      vid = int(vid)
+      parent_id = int(parent_id)
+
+      vertex_index[coord] = i 
+      label_index[vid] = coord
+
+      vertices.append(coord)
+
+      if parent_id >= 0:
+        edges.append( (i, vertex_index[label_index[parent_id]]) )
+
+      vertex_types.append(int(vtype))
+      radii.append(float(radius))
+
+    return PrecomputedSkeleton(vertices, edges, radii, vertex_types)
+
+  def to_swc(self):
+    """
+    Prototype SWC file generator. 
+
+    c.f. http://research.mssm.edu/cnic/swc.html
+    """
+    from . import __version__
+    swc = """# ORIGINAL_SOURCE CloudVolume {}
+# CREATURE 
+# REGION
+# FIELD/LAYER
+# TYPE
+# CONTRIBUTOR {}
+# REFERENCE
+# RAW 
+# EXTRAS 
+# SOMA_AREA
+# SHINKAGE_CORRECTION 
+# VERSION_NUMBER 
+# VERSION_DATE {}
+# SCALE 1.0 1.0 1.0
+
+""".format(
+      __version__, 
+      ", ".join([ str(_) for _ in self.vol.provenance.owners ]),
+      datetime.datetime.utcnow().isoformat()
+    )
+
+    skel = self.clone()
+
+    def parent(i):
+      coords = np.where( skel.edges == i )
+      edge = skel.edges[ coords[0][0] ]
+      if edge[0] == i:
+        return edge[1] + 1
+      return edge[0] + 1
+
+    for i in range(skel.vertices.shape[0]):
+      line = "{n} {T} {x} {y} {z} {R} {P}".format(
+          n=i+1,
+          T=skel.vertex_types[i],
+          x=skel.vertices[i][0],
+          y=skel.vertices[i][1],
+          z=skel.vertices[i][2],
+          R=skel.radii[i],
+          P=-1 if i == 0 else parent(i),
+        )
+
+      swc += line + '\n'
+
+    return swc
+
   def __str__(self):
     return "PrecomputedSkeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}))".format(
       self.id,
@@ -504,54 +589,4 @@ class PrecomputedSkeletonService(object):
           compress='gzip',
           cache_control=cdn_cache_control(self.vol.cdn_cache),
         )
-  
-  def swc(self, segid):
-    """Prototype SWC file generator. 
-
-    c.f. http://research.mssm.edu/cnic/swc.html"""
-    from . import __version__
-    swc = """# ORIGINAL_SOURCE CloudVolume {}
-# CREATURE 
-# REGION
-# FIELD/LAYER
-# TYPE
-# CONTRIBUTOR {}
-# REFERENCE
-# RAW 
-# EXTRAS 
-# SOMA_AREA
-# SHINKAGE_CORRECTION 
-# VERSION_NUMBER 
-# VERSION_DATE {}
-# SCALE 1.0 1.0 1.0
-
-""".format(
-      __version__, 
-      ", ".join([ str(_) for _ in self.vol.provenance.owners ]),
-      datetime.datetime.utcnow().isoformat()
-    )
-
-    skel = self.vol.skeleton.get(segid)
-
-    def parent(i):
-      coords = np.where( skel.edges == i )
-      edge = skel.edges[ coords[0][0] ]
-      if edge[0] == i:
-        return edge[1] + 1
-      return edge[0] + 1
-
-    for i in range(skel.vertices.shape[0]):
-      line = "{n} {T} {x} {y} {z} {R} {P}".format(
-          n=i+1,
-          T=skel.vertex_types[i],
-          x=skel.vertices[i][0],
-          y=skel.vertices[i][1],
-          z=skel.vertices[i][2],
-          R=skel.radii[i],
-          P=-1 if i == 0 else parent(i),
-        )
-
-      swc += line + '\n'
-
-    return swc
-
+    
