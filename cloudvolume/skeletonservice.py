@@ -433,18 +433,85 @@ class PrecomputedSkeleton(object):
     
     return [ np.flip(skel.vertices[path], axis=0) for path in paths ]
 
-  def __eq__(self, other):
-    if self.id != other.id:
-      return False
-    elif self.vertices.shape[0] != other.vertices.shape[0]:
-      return False
-    elif self.edges.shape[0] != other.edges.shape[0]:
-      return False
+  def _compute_components(self):
+    skel = self.consolidate()
+    if skel.edges.size == 0:
+      return skel, []
 
-    return (np.all(self.vertices == other.vertices, axis=0) \
-      and np.any(self.edges == other.edges, axis=0) \
-      and np.any(self.radii == other.radii) \
-      and np.any(self.vertex_types == other.vertex_types))
+    index = defaultdict(list)
+    visited = defaultdict(bool)
+    for e1, e2 in skel.edges:
+      index[e1].append(e2)
+      index[e2].append(e1)
+
+    def extract_component(start):
+      tree = set()
+      stack = [ start ]
+
+      while stack:
+        node = int(stack.pop(0))
+        visited[node] = True
+        tree.add(node)
+        for child in index[node]:
+          if not visited[child]:
+            stack.append(child)
+
+      return tree
+
+    forest = []
+    for edge in np.unique(skel.edges.flatten()):
+      if visited[edge]:
+        continue
+
+      component = extract_component(edge)
+      forest.append(component)
+
+    return skel, forest
+
+  def components(self):
+    """
+    Extract connected components from graph. 
+    Useful for ensuring that you're working with a single tree.
+
+    Returns: [ PrecomputedSkeleton, PrecomputedSkeleton, ... ]
+    """
+    skel, forest = self._compute_components()
+
+    if len(forest) == 0:
+      return []
+    elif len(forest) == 1:
+      return [ skel ]
+
+    orig_verts = {}
+    for i, coord in enumerate(skel.vertices):
+      orig_verts[tuple(coord)] = i
+
+    skeletons = []
+    for component in forest:
+      edge_list = []
+      for e1, e2 in skel.edges:
+        if e1 in component:
+          edge_list.append( (e1,e2) )
+
+      edge_list = np.array(edge_list, dtype=np.uint32)
+      vert_idx = np.unique(edge_list.flatten())
+      vert_list = skel.vertices[vert_idx]
+      radii = skel.radii[vert_idx]
+      vtypes = skel.vertex_types[vert_idx]
+
+      new_verts = {}
+      for i, coord in enumerate(vert_list):
+        new_verts[orig_verts[tuple(coord)]] = i
+
+      for i in range(edge_list.shape[0]):
+        edge_list[i, 0] = new_verts[edge_list[i, 0]]
+        edge_list[i, 1] = new_verts[edge_list[i, 1]]
+
+      skeletons.append(
+        PrecomputedSkeleton(vert_list, edge_list, radii, vtypes, skel.id)
+      )
+
+    return skeletons
 
   @classmethod
   def from_swc(self, swcstr):
@@ -530,6 +597,19 @@ class PrecomputedSkeleton(object):
       swc += line + '\n'
 
     return swc
+
+  def __eq__(self, other):
+    if self.id != other.id:
+      return False
+    elif self.vertices.shape[0] != other.vertices.shape[0]:
+      return False
+    elif self.edges.shape[0] != other.edges.shape[0]:
+      return False
+
+    return (np.all(self.vertices == other.vertices, axis=0) \
+      and np.any(self.edges == other.edges, axis=0) \
+      and np.any(self.radii == other.radii) \
+      and np.any(self.vertex_types == other.vertex_types))
 
   def __str__(self):
     return "PrecomputedSkeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}))".format(

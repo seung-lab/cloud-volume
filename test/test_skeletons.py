@@ -388,3 +388,29 @@ def test_read_swc():
   )
 
   assert PrecomputedSkeleton.equivalent(skel, skel_gt)
+
+def test_components():
+  skel = PrecomputedSkeleton(
+    [ 
+      (0,0,0), (1,0,0), (2,0,0),
+      (0,1,0), (0,2,0), (0,3,0),
+    ], 
+    edges=[ 
+      (0,1), (1,2), 
+      (3,4), (4,5), (3,5)
+    ],
+    segid=666,
+  )
+
+  components = skel.components()
+  assert len(components) == 2
+  assert components[0].vertices.shape[0] == 3
+  assert components[1].vertices.shape[0] == 3
+  assert components[0].edges.shape[0] == 2
+  assert components[1].edges.shape[0] == 3
+
+  skel1_gt = PrecomputedSkeleton([(0,0,0), (1,0,0), (2,0,0)], [(0,1), (1,2)])
+  skel2_gt = PrecomputedSkeleton([(0,1,0), (0,2,0), (0,3,0)], [(0,1), (0,2), (1,2)])
+
+  assert PrecomputedSkeleton.equivalent(components[0], skel1_gt)
+  assert PrecomputedSkeleton.equivalent(components[1], skel2_gt)
