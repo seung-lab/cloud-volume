@@ -7,6 +7,7 @@ from .threaded_queue import ThreadedQueue
 from .exceptions import EmptyVolumeException, EmptyRequestException, AlignmentError
 from .volumecutout import VolumeCutout
 
+from . import exceptions
 from . import secrets
 from . import txrx
 
