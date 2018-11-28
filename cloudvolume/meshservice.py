@@ -108,11 +108,13 @@ class PrecomputedMeshService(object):
         dne.append(segid)
     return dne
 
-  def save(self, segids, filename=None, file_format='ply'):
+  def save(self, segids, filepath=None, file_format='ply'):
     """
     Save one or more segids into a common mesh format as a single file.
 
     segids: int, string, or list thereof
+    filepath: string or None (optional)
+    file_format: string (optional)
 
     Supported Formats: 'obj', 'ply'
     """
@@ -121,21 +123,22 @@ class PrecomputedMeshService(object):
 
     meshdata = self.get(segids)
 
-    if not filename:
-      filename = str(segids[0])
+    if not filepath:
+      filepath = str(segids[0])
       if len(segids) > 1:
-        filename = "{}_{}".format(segids[0], segids[-1])
+        filepath = "{}_{}.{}".format(segids[0], segids[-1], file_format)
 
     if file_format == 'obj':
-      with open('./{}.obj'.format(filename), 'wb') as f:
-        objdata = mesh_to_obj(meshdata, progress=self.vol.progress)
-        objdata = '\n'.join(objdata) + '\n'
-        f.write(objdata.encode('utf8'))
+      objdata = mesh_to_obj(meshdata, progress=self.vol.progress)
+      objdata = '\n'.join(objdata) + '\n'
+      data = objdata.encode('utf8')
     elif file_format == 'ply':
-      with open('./{}.ply'.format(filename), 'wb') as f:
-        f.write(mesh_to_ply(meshdata))
+      data = mesh_to_ply(meshdata)
     else:
       raise NotImplementedError('Only .obj and .ply is currently supported.')
+
+    with open(filepath, 'wb') as f:
+      f.write(data)
 
 def decode_mesh_buffer(filename, fragment):
   num_vertices = struct.unpack("=I", fragment[0:4])[0]
