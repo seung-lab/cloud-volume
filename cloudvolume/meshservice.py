@@ -126,7 +126,7 @@ class PrecomputedMeshService(object):
     if not filepath:
       filepath = str(segids[0])
       if len(segids) > 1:
-        filepath = "{}_{}".format(segids[0], segids[-1])
+        filepath = "{}_{}.{}".format(segids[0], segids[-1], file_format)
 
     if file_format == 'obj':
       objdata = mesh_to_obj(meshdata, progress=self.vol.progress)
