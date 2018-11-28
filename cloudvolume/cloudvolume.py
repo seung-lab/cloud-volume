@@ -93,9 +93,9 @@ class CloudVolume(object):
             This is useful when creating new datasets.
     parallel (int: 1, bool): number of extra processes to launch, 1 means only use the main process. If parallel is True
       use the number of CPUs returned by multiprocessing.cpu_count()
-    output_to_shared_memory (bool: False, str): Write results to shared memory. Don't make copies from this buffer
+    output_to_shared_memory (deprecated, bool: False, str): Write results to shared memory. Don't make copies from this buffer
       and don't automatically unlink it. If a string is provided, use that shared memory location rather than
-      the default.
+      the default. Please use vol.download_to_shared_memory(slices_or_bbox) instead.
     provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
             This is useful when doing multiprocessing.
     progress: (bool) Show tqdm progress bars. 
