@@ -189,8 +189,26 @@ vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing t
 
 # Skeletons
 skel = vol.skeleton.get(12345)
-vol.skeleton.upload(12345, skel.vertices, skel.edges) # upload neuroglancer visualization
-vol.get_point_cloud(12345) # download the object's point cloud
+vol.skeleton.upload(segid, skel.vertices, skel.edges, skel.radii, skel.vertex_types) 
+vol.skeleton.upload_multiple([ ... skeletons ... ])
+
+skel.empty() # boolean
+
+bytes = skel.encode() # encode to Precomputed format (bytes)
+skel = PrecomputedSkeleton.decode(bytes) # decode from PrecomputedFormat
+
+skel = skel.crop(slices or bbox) # eliminate vertices and edges outside bbox
+skel = skel.consolidate() # eliminate duplicate vertices and edges
+skel3 = skel.merge(skel2) # merge two skeletons into one
+skel = skel.clone() # create copy
+skel = PrecomputedSkeleton.from_swc(swcstr) # decode an SWC file
+skel_str = skel.to_swc() # convert to SWC file in string representation
+
+skel.cable_length() # sum of all edge lengths
+skel = skel.downsample(2, preserve_endpoints=True) # reduce size of skeleton by factor of 2 while ensuring the endpoints aren't stripped
+
+skel1 == skel2 # check if contents of internal arrays match
+PrecomputedSkeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
 
 # Parallel Operation
 vol = CloudVolume('gs://mybucket/retina/image', parallel=True) # Use all cores

@@ -1,12 +1,12 @@
 import pytest
 
 import copy
-import json
-import os
-import numpy as np
-import shutil
 import gzip
 import json
+import math
+import numpy as np
+import os
+import shutil
 
 from cloudvolume import CloudVolume, chunks, Storage, PrecomputedSkeleton
 from cloudvolume.storage import SimpleStorage
@@ -249,3 +249,187 @@ def test_equivalent():
   double1 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0), (1,1,3) ], edges=[ (1,0), (1,2), (1,3) ])
   double2 = PrecomputedSkeleton([ (0,0,0), (1,0,0), (1,1,0), (1,1,3) ], edges=[ (3,1), (2,1), (0,1) ])
   assert PrecomputedSkeleton.equivalent(double1, double2)
+
+def test_cable_length():
+  skel = PrecomputedSkeleton([ 
+      (0,0,0), (1,0,0), (2,0,0), (3,0,0), (4,0,0), (5,0,0)
+    ], 
+    edges=[ (1,0), (1,2), (2,3), (3,4), (5,4) ],
+    radii=[ 1, 2, 3, 4, 5, 6 ],
+    vertex_types=[1, 2, 3, 4, 5, 6]
+  )
+
+  assert skel.cable_length() == (skel.vertices.shape[0] - 1)
+
+  skel = PrecomputedSkeleton([ 
+      (2,0,0), (1,0,0), (0,0,0), (0,5,0), (0,6,0), (0,7,0)
+    ], 
+    edges=[ (1,0), (1,2), (2,3), (3,4), (5,4) ],
+    radii=[ 1, 2, 3, 4, 5, 6 ],
+    vertex_types=[1, 2, 3, 4, 5, 6]
+  )
+  assert skel.cable_length() == 9
+
+  skel = PrecomputedSkeleton([ 
+      (1,1,1), (0,0,0), (1,0,0)
+    ], 
+    edges=[ (1,0), (1,2) ],
+    radii=[ 1, 2, 3],
+    vertex_types=[1, 2, 3]
+  )
+  assert abs(skel.cable_length() - (math.sqrt(3) + 1)) < 1e-6
+
+def test_downsample():
+  skel = PrecomputedSkeleton([ 
+      (0,0,0), (1,0,0), (1,1,0), (1,1,3), (2,1,3), (2,2,3)
+    ], 
+    edges=[ (1,0), (1,2), (2,3), (3,4), (5,4) ],
+    radii=[ 1, 2, 3, 4, 5, 6 ],
+    vertex_types=[1, 2, 3, 4, 5, 6],
+    segid=1337,
+  )
+
+  def should_error(x):
+    try:
+      skel.downsample(x)
+      assert False
+    except ValueError:
+      pass
+
+  should_error(-1)
+  should_error(0)
+  should_error(.5)
+  should_error(2.00000000000001)
+
+  dskel = skel.downsample(1, preserve_endpoints=False)
+  assert PrecomputedSkeleton.equivalent(dskel, skel)
+  assert dskel.id == skel.id
+  assert dskel.id == 1337
+
+  dskel = skel.downsample(1, preserve_endpoints=True)
+  assert PrecomputedSkeleton.equivalent(dskel, skel)
+  assert dskel.id == skel.id
+  assert dskel.id == 1337
+
+  dskel = skel.downsample(2, preserve_endpoints=False)
+  dskel_gt = PrecomputedSkeleton(
+    [ (0,0,0), (1,1,0), (2,1,3) ], edges=[ (1,0), (1,2) ],
+    radii=[1,3,5], vertex_types=[1, 3, 5]
+  )
+  assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
+
+  dskel = skel.downsample(2, preserve_endpoints=True)
+  dskel_gt = PrecomputedSkeleton(
+    [ (0,0,0), (1,1,0), (2,1,3), (2,2,3) ], 
+    edges=[ (1,0), (1,2), (2,3) ],
+    radii=[1,3,5,6], vertex_types=[1,3,5,6] 
+  )
+  assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
+
+  dskel = skel.downsample(3, preserve_endpoints=False)
+  dskel_gt = PrecomputedSkeleton(
+    [ (0,0,0), (1,1,3) ], edges=[ (1,0) ],
+    radii=[1,4], vertex_types=[1,4] 
+  )
+  assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
+
+  dskel = skel.downsample(3, preserve_endpoints=True)
+  dskel_gt = PrecomputedSkeleton(
+    [ (0,0,0), (1,1,3), (2,2,3) ], edges=[ (1,0), (1,2) ],
+    radii=[1,4,6], vertex_types=[1,4,6],
+  )
+  assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
+
+  skel = PrecomputedSkeleton([ 
+      (0,0,0), (1,0,0), (1,1,0), (1,1,3), (2,1,3), (2,2,3)
+    ], 
+    edges=[ (1,0), (1,2), (3,4), (5,4) ],
+    radii=[ 1, 2, 3, 4, 5, 6 ],
+    vertex_types=[1, 2, 3, 4, 5, 6]
+  )
+  dskel = skel.downsample(2, preserve_endpoints=True)
+  dskel_gt = PrecomputedSkeleton(
+    [ (0,0,0), (1,1,0), (1,1,3), (2,2,3) ], 
+    edges=[ (1,0), (2,3) ],
+    radii=[1,3,4,6], vertex_types=[1,3,4,6] 
+  )
+  assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
+
+def test_read_swc():
+
+  # From http://research.mssm.edu/cnic/swc.html
+  test_file = """# ORIGINAL_SOURCE NeuronStudio 0.8.80
+# CREATURE
+# REGION
+# FIELD/LAYER
+# TYPE
+# CONTRIBUTOR
+# REFERENCE
+# RAW
+# EXTRAS
+# SOMA_AREA
+# SHINKAGE_CORRECTION 1.0 1.0 1.0
+# VERSION_NUMBER 1.0
+# VERSION_DATE 2007-07-24
+# SCALE 1.0 1.0 1.0
+1 1 14.566132 34.873772 7.857000 0.717830 -1
+2 0 16.022520 33.760513 7.047000 0.463378 1
+3 5 17.542000 32.604973 6.885001 0.638007 2
+4 0 19.163984 32.022469 5.913000 0.602284 3
+5 0 20.448090 30.822802 4.860000 0.436025 4
+6 6 21.897903 28.881084 3.402000 0.471886 5
+7 0 18.461960 30.289471 8.586000 0.447463 3
+8 6 19.420759 28.730757 9.558000 0.496217 7"""
+
+  skel = PrecomputedSkeleton.from_swc(test_file)
+  assert skel.vertices.shape[0] == 8
+  assert skel.edges.shape[0] == 7
+
+  skel_gt = PrecomputedSkeleton(
+    vertices=[
+      [14.566132, 34.873772, 7.857000],
+      [16.022520, 33.760513, 7.047000],
+      [17.542000, 32.604973, 6.885001],
+      [19.163984, 32.022469, 5.913000],
+      [20.448090, 30.822802, 4.860000],
+      [21.897903, 28.881084, 3.402000],
+      [18.461960, 30.289471, 8.586000],
+      [19.420759, 28.730757, 9.558000]
+    ],
+    edges=[ (0,1), (1,2), (2,3), (3,4), (4,5), (2,6), (7,6) ],
+    radii=[ 
+      0.717830, 0.463378, 0.638007, 0.602284, 
+      0.436025, 0.471886, 0.447463, 0.496217
+    ],
+    vertex_types=[
+      1, 0, 5, 0, 0, 6, 0, 6
+    ],
+  )
+
+  assert PrecomputedSkeleton.equivalent(skel, skel_gt)
+
+def test_components():
+  skel = PrecomputedSkeleton(
+    [ 
+      (0,0,0), (1,0,0), (2,0,0),
+      (0,1,0), (0,2,0), (0,3,0),
+    ], 
+    edges=[ 
+      (0,1), (1,2), 
+      (3,4), (4,5), (3,5)
+    ],
+    segid=666,
+  )
+
+  components = skel.components()
+  assert len(components) == 2
+  assert components[0].vertices.shape[0] == 3
+  assert components[1].vertices.shape[0] == 3
+  assert components[0].edges.shape[0] == 2
+  assert components[1].edges.shape[0] == 3
+
+  skel1_gt = PrecomputedSkeleton([(0,0,0), (1,0,0), (2,0,0)], [(0,1), (1,2)])
+  skel2_gt = PrecomputedSkeleton([(0,1,0), (0,2,0), (0,3,0)], [(0,1), (0,2), (1,2)])
+
+  assert PrecomputedSkeleton.equivalent(components[0], skel1_gt)
+  assert PrecomputedSkeleton.equivalent(components[1], skel2_gt)

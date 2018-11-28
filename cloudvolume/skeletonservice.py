@@ -1,3 +1,5 @@
+from collections import defaultdict
+import copy
 import datetime
 import re
 import os
@@ -15,6 +17,8 @@ from .lib import red, Bbox
 from .txrx import cdn_cache_control
 from .storage import Storage, SimpleStorage
 
+class SkeletonUnassignedEdgeError(Exception):
+  pass
 
 class SkeletonDecodeError(Exception):
   pass
@@ -302,6 +306,7 @@ class PrecomputedSkeleton(object):
     eff_edges = np.sort(eff_edges, axis=1) # sort each edge [2,1] => [1,2]
     eff_edges = eff_edges[np.lexsort(eff_edges[:,::-1].T)] # Sort rows 
     eff_edges = np.unique(eff_edges, axis=0)
+    eff_edges = eff_edges[ eff_edges[:,0] != eff_edges[:,1] ] # remove trivial loops
 
     radii_vector_map = np.vectorize(lambda idx: radii[idx])
     eff_radii = radii_vector_map(uniq_idx)
@@ -318,6 +323,285 @@ class PrecomputedSkeleton(object):
     vertex_types = np.copy(self.vertex_types)
 
     return PrecomputedSkeleton(vertices, edges, radii, vertex_types, segid=self.id)
+
+  def cable_length(self):
+    """
+    Returns cable length of connected skeleton vertices in the same
+    metric that this volume uses (typically nanometers).
+    """
+    dist = 0
+    for e1, e2 in self.edges:
+      try:
+        v1, v2 = self.vertices[e1], self.vertices[e2]
+      except IndexError:
+        raise SkeletonUnassignedEdgeError(
+          "Edge ({},{}) points to an index outside the number of vertices ({}).".format(
+            e1, e2, self.vertices.shape[0]
+          )
+        )
+      dist += np.linalg.norm(v2 - v1)
+
+    return dist
+
+  def downsample(self, factor, preserve_endpoints=True):
+    """
+    Compute a downsampled version of the skeleton by striding while 
+    preserving endpoints.
+
+    factor: stride length for downsampling the saved skeleton paths.
+    preserve_endpoints: ensure that regardless of the downsample factor, 
+      the final vertex and edge on each tree branch is preserved.
+
+    Returns: downsampled PrecomputedSkeleton
+    """
+    if int(factor) != factor or factor < 1:
+      raise ValueError("Argument `factor` must be a positive integer greater than or equal to 1. Got: <{}>({})", type(factor), factor)
+
+    paths = self.paths()
+
+    for i, path in enumerate(paths):
+      if preserve_endpoints:
+        paths[i] = np.concatenate(
+          (path[0::factor, :], path[-1:, :])
+        )
+      else:
+        paths[i] = path[0::factor, :]
+
+    ds_skel = PrecomputedSkeleton.simple_merge(
+      [ PrecomputedSkeleton.from_path(path) for path in paths ]
+    ).consolidate()
+    ds_skel.id = self.id
+
+    # TODO: I'm sure this could be sped up if need be.
+    index = {}
+    for i, vert in enumerate(self.vertices):
+      vert = tuple(vert)
+      index[vert] = i
+
+    for i, vert in enumerate(ds_skel.vertices):
+      vert = tuple(vert)
+      ds_skel.radii[i] = self.radii[index[vert]]
+      ds_skel.vertex_types[i] = self.vertex_types[index[vert]]
+
+    return ds_skel
+
+  def _single_tree_paths(self, tree):
+    """Get all traversal paths from a single tree."""
+    skel = tree.consolidate()
+
+    tree = defaultdict(list)
+
+    for edge in skel.edges:
+      svert = edge[0]
+      evert = edge[1]
+      tree[svert].append(evert)
+      tree[evert].append(svert)
+
+    def dfs(path, visited, paths):
+      vertex = path[-1]
+      children = tree[vertex]
+      
+      visited[vertex] = True
+
+      children = [ child for child in children if not visited[child] ]
+
+      if len(children) == 0:
+        paths.append(path)
+
+      for child in children:
+        dfs(path + [child], copy.deepcopy(visited), paths)
+
+      return paths
+      
+    root = skel.edges[0,0]
+    paths = dfs([root], defaultdict(bool), [])
+
+    root = np.argmax([ len(_) for _ in paths ])
+    root = paths[root][-1]
+  
+    paths = dfs([ root ], defaultdict(bool), [])
+    
+    return [ np.flip(skel.vertices[path], axis=0) for path in paths ]    
+
+  def paths(self):
+    """
+    Assuming the skeleton is structured as a single tree, return a 
+    list of all traversal paths across all components. For each component, 
+    start from the first vertex, find the most distant vertex by 
+    hops and set that as the root. Then use depth first traversal 
+    to produce paths.
+
+    Returns: [ [(x,y,z), (x,y,z), ...], path_2, path_3, ... ]
+    """
+    paths = []
+    for tree in self.components():
+      paths += self._single_tree_paths(tree)
+    return paths
+
+  def _compute_components(self):
+    skel = self.consolidate()
+    if skel.edges.size == 0:
+      return skel, []
+
+    index = defaultdict(list)
+    visited = defaultdict(bool)
+    for e1, e2 in skel.edges:
+      index[e1].append(e2)
+      index[e2].append(e1)
+
+    def extract_component(start):
+      tree = set()
+      stack = [ start ]
+
+      while stack:
+        node = int(stack.pop(0))
+        visited[node] = True
+        tree.add(node)
+        for child in index[node]:
+          if not visited[child]:
+            stack.append(child)
+
+      return tree
+
+    forest = []
+    for edge in np.unique(skel.edges.flatten()):
+      if visited[edge]:
+        continue
+
+      component = extract_component(edge)
+      forest.append(component)
+
+    return skel, forest
+
+  def components(self):
+    """
+    Extract connected components from graph. 
+    Useful for ensuring that you're working with a single tree.
+
+    Returns: [ PrecomputedSkeleton, PrecomputedSkeleton, ... ]
+    """
+    skel, forest = self._compute_components()
+
+    if len(forest) == 0:
+      return []
+    elif len(forest) == 1:
+      return [ skel ]
+
+    orig_verts = {}
+    for i, coord in enumerate(skel.vertices):
+      orig_verts[tuple(coord)] = i
+
+    skeletons = []
+    for component in forest:
+      edge_list = []
+      for e1, e2 in skel.edges:
+        if e1 in component:
+          edge_list.append( (e1,e2) )
+
+      edge_list = np.array(edge_list, dtype=np.uint32)
+      vert_idx = np.unique(edge_list.flatten())
+      vert_list = skel.vertices[vert_idx]
+      radii = skel.radii[vert_idx]
+      vtypes = skel.vertex_types[vert_idx]
+
+      new_verts = {}
+      for i, coord in enumerate(vert_list):
+        new_verts[orig_verts[tuple(coord)]] = i
+
+      for i in range(edge_list.shape[0]):
+        edge_list[i, 0] = new_verts[edge_list[i, 0]]
+        edge_list[i, 1] = new_verts[edge_list[i, 1]]
+
+      skeletons.append(
+        PrecomputedSkeleton(vert_list, edge_list, radii, vtypes, skel.id)
+      )
+
+    return skeletons
+
+  @classmethod
+  def from_swc(self, swcstr):
+    lines = swcstr.split("\n")
+    while re.match(r'[#\s]', lines[0][0]):
+      lines.pop(0)
+
+    vertices = []
+    edges = []
+    radii = []
+    vertex_types = []
+
+    vertex_index = {}
+    label_index = {}
+    for i, line in enumerate(lines):
+      (vid, vtype, x, y, z, radius, parent_id) = line.split(" ")
+      
+      coord = tuple([ float(_) for _ in (x,y,z) ])
+      vid = int(vid)
+      parent_id = int(parent_id)
+
+      vertex_index[coord] = i 
+      label_index[vid] = coord
+
+      vertices.append(coord)
+
+      if parent_id >= 0:
+        edges.append( (i, vertex_index[label_index[parent_id]]) )
+
+      vertex_types.append(int(vtype))
+      radii.append(float(radius))
+
+    return PrecomputedSkeleton(vertices, edges, radii, vertex_types)
+
+  def to_swc(self):
+    """
+    Prototype SWC file generator. 
+
+    c.f. http://research.mssm.edu/cnic/swc.html
+    """
+    from . import __version__
+    swc = """# ORIGINAL_SOURCE CloudVolume {}
+# CREATURE 
+# REGION
+# FIELD/LAYER
+# TYPE
+# CONTRIBUTOR {}
+# REFERENCE
+# RAW 
+# EXTRAS 
+# SOMA_AREA
+# SHINKAGE_CORRECTION 
+# VERSION_NUMBER 
+# VERSION_DATE {}
+# SCALE 1.0 1.0 1.0
+
+""".format(
+      __version__, 
+      ", ".join([ str(_) for _ in self.vol.provenance.owners ]),
+      datetime.datetime.utcnow().isoformat()
+    )
+
+    skel = self.clone()
+
+    def parent(i):
+      coords = np.where( skel.edges == i )
+      edge = skel.edges[ coords[0][0] ]
+      if edge[0] == i:
+        return edge[1] + 1
+      return edge[0] + 1
+
+    for i in range(skel.vertices.shape[0]):
+      line = "{n} {T} {x} {y} {z} {R} {P}".format(
+          n=i+1,
+          T=skel.vertex_types[i],
+          x=skel.vertices[i][0],
+          y=skel.vertices[i][1],
+          z=skel.vertices[i][2],
+          R=skel.radii[i],
+          P=-1 if i == 0 else parent(i),
+        )
+
+      swc += line + '\n'
+
+    return swc
 
   def __eq__(self, other):
     if self.id != other.id:
@@ -340,6 +624,9 @@ class PrecomputedSkeleton(object):
       self.radii.shape[0], self.radii.dtype,
       self.vertex_types.shape[0], self.vertex_types.dtype
     )
+
+  def __repr__(self):
+    return str(self)
 
 class PrecomputedSkeletonService(object):
   def __init__(self, vol):
@@ -387,54 +674,4 @@ class PrecomputedSkeletonService(object):
           compress='gzip',
           cache_control=cdn_cache_control(self.vol.cdn_cache),
         )
-  
-  def swc(self, segid):
-    """Prototype SWC file generator. 
-
-    c.f. http://research.mssm.edu/cnic/swc.html"""
-    from . import __version__
-    swc = """# ORIGINAL_SOURCE CloudVolume {}
-# CREATURE 
-# REGION
-# FIELD/LAYER
-# TYPE
-# CONTRIBUTOR {}
-# REFERENCE
-# RAW 
-# EXTRAS 
-# SOMA_AREA
-# SHINKAGE_CORRECTION 
-# VERSION_NUMBER 
-# VERSION_DATE {}
-# SCALE 1.0 1.0 1.0
-
-""".format(
-      __version__, 
-      ", ".join([ str(_) for _ in self.vol.provenance.owners ]),
-      datetime.datetime.utcnow().isoformat()
-    )
-
-    skel = self.vol.skeleton.get(segid)
-
-    def parent(i):
-      coords = np.where( skel.edges == i )
-      edge = skel.edges[ coords[0][0] ]
-      if edge[0] == i:
-        return edge[1] + 1
-      return edge[0] + 1
-
-    for i in range(skel.vertices.shape[0]):
-      line = "{n} {T} {x} {y} {z} {R} {P}".format(
-          n=i+1,
-          T=skel.vertex_types[i],
-          x=skel.vertices[i][0],
-          y=skel.vertices[i][1],
-          z=skel.vertices[i][2],
-          R=skel.radii[i],
-          P=-1 if i == 0 else parent(i),
-        )
-
-      swc += line + '\n'
-
-    return swc
-
+    
