@@ -370,6 +370,7 @@ class PrecomputedSkeleton(object):
     ds_skel = PrecomputedSkeleton.simple_merge(
       [ PrecomputedSkeleton.from_path(path) for path in paths ]
     ).consolidate()
+    ds_skel.id = self.id
 
     # TODO: I'm sure this could be sped up if need be.
     index = {}
