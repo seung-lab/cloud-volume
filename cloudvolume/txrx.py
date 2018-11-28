@@ -10,6 +10,7 @@ from six.moves import range
 from tqdm import tqdm
 
 from . import lib, chunks
+from .exceptions import AlignmentError, EmptyVolumeException
 from .cacheservice import CacheService
 from .lib import ( 
   toabs, colorize, red, yellow, 
@@ -21,22 +22,6 @@ from .storage import Storage, SimpleStorage, DEFAULT_THREADS, reset_connection_p
 from .threaded_queue import ThreadedQueue
 from .volumecutout import VolumeCutout
 from . import sharedmemory as shm
-
-class EmptyVolumeException(Exception):
-  """Raised upon finding a missing chunk."""
-  pass
-
-class EmptyRequestException(Exception):
-  """
-  Requesting uploading or downloading 
-  a bounding box of less than one cubic voxel
-  is impossible.
-  """
-  pass
-
-class AlignmentError(Exception):
-  """Signals that an operation requiring chunk alignment was not aligned."""
-  pass 
 
 NON_ALIGNED_WRITE = yellow(
   """
@@ -451,7 +436,7 @@ def generate_chunks(vol, img, offset):
   alignment_check = bounds.round_to_chunk_size(vol.underlying, vol.voxel_offset)
 
   if not np.all(alignment_check.minpt == bounds.minpt):
-    raise ValueError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
+    raise AlignmentError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
       bounds, vol.voxel_offset, alignment_check)
     )
 
