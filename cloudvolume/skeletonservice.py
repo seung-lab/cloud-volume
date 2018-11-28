@@ -17,7 +17,7 @@ from .lib import red, Bbox
 from .txrx import cdn_cache_control
 from .storage import Storage, SimpleStorage
 
-class UnassignedEdgeError(Exception):
+class SkeletonUnassignedEdgeError(Exception):
   pass
 
 class SkeletonDecodeError(Exception):
@@ -334,7 +334,7 @@ class PrecomputedSkeleton(object):
       try:
         v1, v2 = self.vertices[e1], self.vertices[e2]
       except IndexError:
-        raise UnassignedEdgeError(
+        raise SkeletonUnassignedEdgeError(
           "Edge ({},{}) points to an index outside the number of vertices ({}).".format(
             e1, e2, self.vertices.shape[0]
           )
