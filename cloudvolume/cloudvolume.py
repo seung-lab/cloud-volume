@@ -470,19 +470,19 @@ class CloudVolume(object):
                           if s["resolution"] == mip))
       else:  # mip specified by index into downsampling hierarchy
         self._mip = self.available_mips[mip]
-    except:
+    except Exception as err:
       if isinstance(mip, list):
         opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
       else:
-        opening_text = "MIP {}".format(mip)
+        opening_text = "MIP {}".format(str(mip))
   
-      scales = [ ",".join(scale) for scale in self.available_resolutions ]
+      scales = [ ",".join(map(str, scale)) for scale in self.available_resolutions ]
       scales = [ "<{}>".format(scale) for scale in scales ]
       scales = ", ".join(scales)
       msg = "{} not found. {} available: {}".format(
         opening_text, len(self.available_mips), scales
       )
-      raise ScaleUnavailableError(msg)
+      raise exceptions.ScaleUnavailableError(msg)
 
   @property
   def scales(self):
