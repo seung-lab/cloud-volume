@@ -436,7 +436,7 @@ def generate_chunks(vol, img, offset):
   alignment_check = bounds.round_to_chunk_size(vol.underlying, vol.voxel_offset)
 
   if not np.all(alignment_check.minpt == bounds.minpt):
-    raise ValueError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
+    raise AlignmentError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
       bounds, vol.voxel_offset, alignment_check)
     )
 

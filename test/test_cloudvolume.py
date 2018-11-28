@@ -905,15 +905,6 @@ def test_transfer():
 
   assert 'dont_touch_me_bro' in dcv.info
 
-  dcv.scale['voxel_offset'] = [1,1,1]
-  dcv.commit_info()
-
-  try:
-    cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
-    assert False
-  except AlignmentError:
-    pass
-
 def test_cdn_cache_control():
   delete_layer()
   cv, data = create_layer(size=(128,10,10,1), offset=(0,0,0))

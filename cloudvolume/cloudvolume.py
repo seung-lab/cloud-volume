@@ -23,7 +23,7 @@ from .secrets import boss_credentials, CLOUD_VOLUME_DIR
 
 from . import lib, chunks
 from .cacheservice import CacheService
-from .exceptions import AlignmentError, EmptyRequestException
+from . import exceptions 
 from .lib import ( 
   toabs, colorize, red, yellow, 
   mkdir, clamp, xyzrange, Vec, 
@@ -273,7 +273,9 @@ class CloudVolume(object):
       info = stor.get_json('info')
 
     if info is None:
-      raise ValueError(red('No info file was found: {}'.format(self.info_cloudpath)))
+      raise exceptions.InfoUnavailableError(
+        red('No info file was found: {}'.format(self.info_cloudpath))
+      )
     return info
 
   def refreshInfo(self):
@@ -468,15 +470,19 @@ class CloudVolume(object):
                           if s["resolution"] == mip))
       else:  # mip specified by index into downsampling hierarchy
         self._mip = self.available_mips[mip]
-
     except:
       if isinstance(mip, list):
-        available = self.available_resolutions
+        opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
       else:
-        available = self.available_mips
-      available_str = ", ".join(map(str, available)) 
-      msg = "MIP {} not found. Available: {}".format(mip, available_str)
-      raise IndexError(msg)
+        opening_text = "MIP {}".format(mip)
+  
+      scales = [ ",".join(scale) for scale in self.available_resolutions ]
+      scales = [ "<{}>".format(scale) for scale in scales ]
+      scales = ", ".join(scales)
+      msg = "{} not found. {} available: {}".format(
+        opening_text, len(self.available_mips), scales
+      )
+      raise ScaleUnavailableError(msg)
 
   @property
   def scales(self):
@@ -820,7 +826,8 @@ class CloudVolume(object):
     realized_bbox = self.__realized_bbox(requested_bbox)
 
     if requested_bbox != realized_bbox:
-      raise ValueError("Unable to delete non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
+      raise exceptions.AlignmentError(
+        "Unable to delete non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
         requested_bbox, realized_bbox
       ))
 
@@ -854,9 +861,10 @@ class CloudVolume(object):
     realized_bbox = self.__realized_bbox(requested_bbox)
 
     if requested_bbox != realized_bbox:
-      raise ValueError("Unable to transfer non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
-        requested_bbox, realized_bbox
-      ))
+      raise exceptions.AlignmentError(
+        "Unable to transfer non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
+          requested_bbox, realized_bbox
+        ))
 
     default_block_size_MB = 50 # MB
     chunk_MB = self.underlying.rectVolume() * np.dtype(self.dtype).itemsize * self.num_channels
@@ -875,10 +883,17 @@ class CloudVolume(object):
 
     try:
       destvol = CloudVolume(cloudpath, mip=self.mip)
-      if destvol.scale != self.scale:
-        raise AlignmentError("Source and target scales must match. Source: {}, Target: {}", self.scale, destvol.scale)
-    except ValueError: # info file missing
+    except exceptions.InfoUnavailableError: 
       destvol = CloudVolume(cloudpath, mip=self.mip, info=self.info, provenance=self.provenance.serialize())
+      destvol.commit_info()
+      destvol.commit_provenance()
+    except exceptions.ScaleUnavailableError:
+      destvol = CloudVolume(cloudpath)
+      num_missing = len(self.scales) - len(destvol.scales)
+      for i in range(len(destvol.scales) + 1, len(self.scales)):
+        destvol.scales.append(
+          self.scales[i]
+        )
       destvol.commit_info()
       destvol.commit_provenance()
 
@@ -975,7 +990,7 @@ class CloudVolume(object):
     bounds = Bbox.clamp(requested_bbox, self.bounds)
     
     if bounds.volume() < 1:
-      raise ValueError('Requested less than one pixel of volume. {}'.format(bounds))
+      raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
 
     x_rng = [ bounds.minpt.x, bounds.maxpt.x ]
     y_rng = [ bounds.minpt.y, bounds.maxpt.y ]
@@ -1025,7 +1040,7 @@ class CloudVolume(object):
     slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
 
     if not np.array_equal(imgshape, slice_shape):
-      raise ValueError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
+      raise exceptions.AlignmentError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
 
     if self.autocrop:
       if not self.bounds.contains_bbox(bbox):
@@ -1090,7 +1105,7 @@ class CloudVolume(object):
     cutout_bbox = tobbox(cutout_bbox) if cutout_bbox else bbox.clone()
 
     if not bbox.contains_bbox(cutout_bbox):
-      raise IndexError("""
+      raise exceptions.AlignmentError("""
         The provided cutout is not wholly contained in the given array. 
         Bbox:        {}
         Cutout:      {}
@@ -1120,7 +1135,7 @@ class CloudVolume(object):
     bounds = Bbox(offset, shape + offset)
 
     if bounds.volume() < 1:
-      raise EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
+      raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
 
     x_rng = [ bounds.minpt.x, bounds.maxpt.x ]
     y_rng = [ bounds.minpt.y, bounds.maxpt.y ]
