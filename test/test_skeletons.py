@@ -285,7 +285,8 @@ def test_downsample():
     ], 
     edges=[ (1,0), (1,2), (2,3), (3,4), (5,4) ],
     radii=[ 1, 2, 3, 4, 5, 6 ],
-    vertex_types=[1, 2, 3, 4, 5, 6]
+    vertex_types=[1, 2, 3, 4, 5, 6],
+    segid=1337,
   )
 
   def should_error(x):
@@ -302,9 +303,13 @@ def test_downsample():
 
   dskel = skel.downsample(1, preserve_endpoints=False)
   assert PrecomputedSkeleton.equivalent(dskel, skel)
+  assert dskel.id == skel.id
+  assert dskel.id == 1337
 
   dskel = skel.downsample(1, preserve_endpoints=True)
   assert PrecomputedSkeleton.equivalent(dskel, skel)
+  assert dskel.id == skel.id
+  assert dskel.id == 1337
 
   dskel = skel.downsample(2, preserve_endpoints=False)
   dskel_gt = PrecomputedSkeleton(
