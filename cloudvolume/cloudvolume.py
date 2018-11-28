@@ -23,6 +23,7 @@ from .secrets import boss_credentials, CLOUD_VOLUME_DIR
 
 from . import lib, chunks
 from .cacheservice import CacheService
+from .exceptions import AlignmentError, EmptyRequestException
 from .lib import ( 
   toabs, colorize, red, yellow, 
   mkdir, clamp, xyzrange, Vec, 
@@ -872,9 +873,14 @@ class CloudVolume(object):
     else:
       step = int(default_block_size_MB // chunk_MB) + 1
 
-    destvol = CloudVolume(cloudpath, mip=self.mip, info=self.info, provenance=self.provenance.serialize())
-    destvol.commit_info()
-    destvol.commit_provenance()
+    try:
+      destvol = CloudVolume(cloudpath, mip=self.mip)
+      if destvol.scale != self.scale:
+        raise AlignmentError("Source and target scales must match. Source: {}, Target: {}", self.scale, destvol.scale)
+    except ValueError: # info file missing
+      destvol = CloudVolume(cloudpath, mip=self.mip, info=self.info, provenance=self.provenance.serialize())
+      destvol.commit_info()
+      destvol.commit_provenance()
 
     num_blocks = np.ceil(self.bounds.volume() / self.underlying.rectVolume()) / step
     num_blocks = int(np.ceil(num_blocks))
@@ -895,9 +901,12 @@ class CloudVolume(object):
             srcpaths = list(itertools.islice(cloudpaths, step))
             files = src_stor.get_files(srcpaths)
             files = [ (f['filename'], f['content']) for f in files ]
-            dest_stor.put_files(files, compress=compress)
+            dest_stor.put_files(
+              files=files, 
+              compress=compress, 
+              content_type=txrx.content_type(destvol),
+            )
             pbar.update()
-
 
   def __getitem__(self, slices):
     (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)

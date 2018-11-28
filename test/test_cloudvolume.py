@@ -10,6 +10,7 @@ import sys
 
 from functools import reduce
 
+from cloudvolume.exceptions import AlignmentError
 from cloudvolume import CloudVolume, chunks, Storage
 from cloudvolume.lib import mkdir, Bbox, Vec, yellow
 import cloudvolume.sharedmemory as shm
@@ -247,9 +248,9 @@ def test_non_aligned_write():
   try:
     cv[ onepx.to_slices() ] = np.ones(shape=onepx.size3(), dtype=cv.dtype)
     assert False
-  except txrx.AlignmentError:
+  except AlignmentError:
     pass
-
+  
   cv.non_aligned_writes = True
   cv[ onepx.to_slices() ] = np.ones(shape=onepx.size3(), dtype=cv.dtype)
   answer = np.zeros(shape=cv.shape, dtype=cv.dtype)
@@ -269,7 +270,7 @@ def test_non_aligned_write():
   try:
     cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
     assert False
-  except txrx.AlignmentError:
+  except AlignmentError:
     pass
 
   # Big inner shell
@@ -281,7 +282,7 @@ def test_non_aligned_write():
   try:
     cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
     assert False
-  except txrx.AlignmentError:
+  except AlignmentError:
     pass
 
   cv.non_aligned_writes = True
@@ -895,6 +896,23 @@ def test_transfer():
   assert os.path.exists('/tmp/removeme/transfer/info')
   assert os.path.exists('/tmp/removeme/transfer/provenance')
 
+  dcv = CloudVolume("file:///tmp/removeme/transfer")
+  dcv.info["dont_touch_me_bro"] = True
+  dcv.commit_info()
+
+  cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
+  dcv.refresh_info()
+
+  assert 'dont_touch_me_bro' in dcv.info
+
+  dcv.scale['voxel_offset'] = [1,1,1]
+  dcv.commit_info()
+
+  try:
+    cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
+    assert False
+  except AlignmentError:
+    pass
 
 def test_cdn_cache_control():
   delete_layer()
