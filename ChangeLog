@@ -1,6 +1,15 @@
 CHANGES
 =======
 
+0.40.0
+------
+
+* Version 0.40.0
+* fix: transfer\_to retains Content-Type and respects existing info. (#157)
+* feat: cable\_length, downsample, improved Consolidation, SWC file support, connected components (#152)
+* vol.mesh.save() refactor path code (#158)
+* docs: update ChangeLog
+
 0.39.0
 ------
 

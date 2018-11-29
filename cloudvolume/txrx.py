@@ -45,6 +45,7 @@ NON_ALIGNED_WRITE = yellow(
 
   Alignment Check: 
     Mip:             {mip}
+    Chunk Size:      {chunk_size}
     Volume Offset:   {offset}
     Received:        {got} 
     Nearest Aligned: {check}
@@ -285,7 +286,7 @@ def upload_image(vol, img, offset, parallel=1,
       manual_shared_memory_order=manual_shared_memory_order)
     return
   elif vol.non_aligned_writes == False:
-    msg = NON_ALIGNED_WRITE.format(mip=vol.mip, offset=vol.voxel_offset, got=bounds, check=expanded)
+    msg = NON_ALIGNED_WRITE.format(mip=vol.mip, chunk_size=vol.chunk_size, offset=vol.voxel_offset, got=bounds, check=expanded)
     raise AlignmentError(msg)
 
   # Upload the aligned core
