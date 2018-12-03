@@ -48,3 +48,15 @@ class CompressionError(EncodingError):
   to codecs that are aware of array shape like fpzip or compressed_segmentation.
   """
   pass
+
+class SkeletonUnassignedEdgeError(Exception):
+  """This skeleton has an edge to a vertex that doesn't exist."""
+  pass
+
+class SkeletonDecodeError(Exception):
+  """Unable to decode a binary skeleton into a Python object."""
+  pass
+
+class SkeletonEncodeError(Exception):
+  """Unable to encode a PrecomputedSkeleton into a binary object."""
+  pass

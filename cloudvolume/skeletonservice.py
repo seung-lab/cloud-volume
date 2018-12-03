@@ -13,18 +13,13 @@ import numpy as np
 import struct
 
 from . import lib
+from .exceptions import (
+  SkeletonDecodeError, SkeletonEncodeError, 
+  SkeletonUnassignedEdgeError
+)
 from .lib import red, Bbox
 from .txrx import cdn_cache_control
 from .storage import Storage, SimpleStorage
-
-class SkeletonUnassignedEdgeError(Exception):
-  pass
-
-class SkeletonDecodeError(Exception):
-  pass
-
-class SkeletonEncodeError(Exception):
-  pass
 
 class PrecomputedSkeleton(object):
   def __init__(self, 
