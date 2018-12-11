@@ -438,11 +438,11 @@ class PrecomputedSkeleton(object):
     if skel.edges.size == 0:
       return skel, []
 
-    index = defaultdict(list)
+    index = defaultdict(set)
     visited = defaultdict(bool)
     for e1, e2 in skel.edges:
-      index[e1].append(e2)
-      index[e2].append(e1)
+      index[e1].add(e2)
+      index[e2].add(e1)
 
     def extract_component(start):
       tree = set()
@@ -450,6 +450,9 @@ class PrecomputedSkeleton(object):
 
       while stack:
         node = int(stack.pop(0))
+        if visited[node]:
+          continue
+
         visited[node] = True
         tree.add(node)
         for child in index[node]:
