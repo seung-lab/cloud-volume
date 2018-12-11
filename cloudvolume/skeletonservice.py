@@ -392,29 +392,37 @@ class PrecomputedSkeleton(object):
       tree[svert].append(evert)
       tree[evert].append(svert)
 
-    def dfs(path, visited, paths):
-      vertex = path[-1]
-      children = tree[vertex]
+    def dfs(path, visited):
+      paths = []
+      stack = [ (path, visited) ]
       
-      visited[vertex] = True
+      while stack:
+        path, visited = stack.pop(0)
 
-      children = [ child for child in children if not visited[child] ]
+        vertex = path[-1]
+        children = tree[vertex]
+        
+        visited[vertex] = True
 
-      if len(children) == 0:
-        paths.append(path)
+        children = [ child for child in children if not visited[child] ]
 
-      for child in children:
-        dfs(path + [child], copy.deepcopy(visited), paths)
+        if len(children) == 0:
+          paths.append(path)
+
+        for child in children:
+          stack.append( 
+            (path + [child], copy.deepcopy(visited))
+          )
 
       return paths
       
     root = skel.edges[0,0]
-    paths = dfs([root], defaultdict(bool), [])
+    paths = dfs([root], defaultdict(bool))
 
     root = np.argmax([ len(_) for _ in paths ])
     root = paths[root][-1]
   
-    paths = dfs([ root ], defaultdict(bool), [])
+    paths = dfs([ root ], defaultdict(bool))
     
     return [ np.flip(skel.vertices[path], axis=0) for path in paths ]    
 
