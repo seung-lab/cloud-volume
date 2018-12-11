@@ -365,7 +365,7 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 * `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
 * `view()` - Start a local web server (http://localhost:8080) that can view small volumes interactively.
 
-### Viewing A Precomputed Volume on Disk
+### Viewing a Precomputed Volume on Disk
 
 If you have serialized a Precomputed volume onto local disk and would like to point neuroglancer to it, this solution works nicely for experimenting:
 
