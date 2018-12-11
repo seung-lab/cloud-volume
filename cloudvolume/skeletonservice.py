@@ -492,8 +492,10 @@ class PrecomputedSkeleton(object):
     skeletons = []
     for component in forest:
       edge_list = []
+
+      cset = set(component)
       for e1, e2 in skel.edges:
-        if e1 in component:
+        if e1 in cset:
           edge_list.append( (e1,e2) )
 
       edge_list = np.array(edge_list, dtype=np.uint32)
