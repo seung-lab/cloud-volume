@@ -489,16 +489,19 @@ class PrecomputedSkeleton(object):
     for i, coord in enumerate(skel.vertices):
       orig_verts[tuple(coord)] = i
 
+    edges = defaultdict(list)
+    for e1,e2 in skel.edges:
+      edges[e1].append((e1,e2))
+      edges[e2].append((e1,e2))
+
     skeletons = []
     for component in forest:
       edge_list = []
-
-      cset = set(component)
-      for e1, e2 in skel.edges:
-        if e1 in cset:
-          edge_list.append( (e1,e2) )
+      for e1 in component:
+        edge_list.extend( edges[e1] )
 
       edge_list = np.array(edge_list, dtype=np.uint32)
+      edge_list = np.unique(edge_list, axis=0)
       vert_idx = np.unique(edge_list.flatten())
       vert_list = skel.vertices[vert_idx]
       radii = skel.radii[vert_idx]
