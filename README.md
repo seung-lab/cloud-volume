@@ -365,6 +365,18 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 * `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
 * `view()` - Start a local web server (http://localhost:8080) that can view small volumes interactively.
 
+### Viewing A Precomputed Volume on Disk
+
+If you have serialized a Precomputed volume onto local disk and would like to point neuroglancer to it, this solution works nicely for experimenting:
+
+```bash
+npm install http-server -g
+cd $LOCATION_ABOVE_DATA
+http-server -p 3000 --cors
+```
+
+You can then point any hosted version of neuroglancer at it using `precomputed://http://localhost:3000/NAME/OF/LAYER`.
+
 ### Microviewer
 
 CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports uint8, uint16, uint32, float32, and float64 data types for both images and segmentation and can render a composite overlay of image and segmentation.  
