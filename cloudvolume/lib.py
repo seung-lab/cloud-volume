@@ -206,6 +206,11 @@ def divisors(n):
       if i*i != n:
         yield n / i
 
+def scatter(sequence, n):
+  """Scatters elements of ``sequence`` into ``n`` blocks. Returns generator."""
+  for i in range(n):
+    yield sequence[i::n]
+
 def xyzrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
   if end_vec is None:
     end_vec = start_vec
