@@ -10,13 +10,13 @@ import boto3
 import botocore
 from glob import glob
 import google.cloud.exceptions
-from google.cloud.storage import Client
+from google.cloud.storage import Batch, Client
 import requests
 import tenacity
 from tqdm import tqdm
 
 from . import compression
-from .lib import mkdir, extract_bucket_path
+from .lib import mkdir, extract_bucket_path, scatter
 from .threaded_queue import ThreadedQueue
 from .connectionpools import S3ConnectionPool, GCloudBucketPool
 
@@ -138,10 +138,7 @@ class SimpleStorage(object):
 
     Returns: { filepath: bool }
     """
-    results = {}
-    for path in file_paths:
-      results[path] = self._interface.exists(path)
-    return results
+    return self._interface.files_exist(file_paths)
 
   def get_json(self, file_path):
     content = self.get_file(file_path)
@@ -302,7 +299,7 @@ class Storage(ThreadedQueue):
 
   def files_exist(self, file_paths):
     """
-    Threaded exists for all file paths. 
+    Threaded exists for all file paths.
 
     file_paths: (list) file paths to test for existence
 
@@ -310,14 +307,14 @@ class Storage(ThreadedQueue):
     """
     results = {}
 
-    def exist_thunk(path, interface):
-      results[path] = interface.exists(path)
+    def exist_thunk(paths, interface):
+      results.update(interface.files_exist(paths))
 
-    for path in file_paths:
-      if len(self._threads):
-        self.put(partial(exist_thunk, path))
-      else:
-        exist_thunk(path, self._interface)
+    if len(self._threads):
+      for block in scatter(file_paths, len(self._threads)):
+        self.put(partial(exist_thunk, block))
+    else:
+      exist_thunk(file_paths, self._interface)
 
     desc = 'Existence Testing' if self.progress else None
     self.wait(desc)
@@ -484,6 +481,9 @@ class FileInterface(object):
     path = self.get_path_to_file(file_path)
     return os.path.exists(path) or os.path.exists(path + '.gz')
 
+  def files_exist(self, file_paths):
+    return {path: self.exists(path) for path in file_paths}
+
   def delete_file(self, file_path):
     path = self.get_path_to_file(file_path)
     if os.path.exists(path):
@@ -573,6 +573,27 @@ class GoogleCloudStorageInterface(object):
     blob = self._bucket.get_blob(key)
     return blob is not None
 
+  def files_exist(self, file_paths):
+    result = {path: None for path in file_paths}
+    MAX_BATCH_SIZE = Batch._MAX_BATCH_SIZE
+
+    for i in range(0, len(file_paths), MAX_BATCH_SIZE):
+      # Retrieve current batch of blobs. On Batch __exit__ it will populate all
+      # future responses before raising errors about the (likely) missing keys.
+      try:
+        with self._bucket.client.batch():
+          for file_path in file_paths[i:i+MAX_BATCH_SIZE]:
+            key = self.get_path_to_file(file_path)
+            result[file_path] = self._bucket.get_blob(key)
+      except google.cloud.exceptions.NotFound as err:
+        pass  # Missing keys are expected
+
+    for file_path, blob in result.items():
+      # Blob exists if ``dict``, missing if ``_FutureDict``
+      result[file_path] = isinstance(blob._properties, dict)
+
+    return result
+
   @retry
   def delete_file(self, file_path):
     key = self.get_path_to_file(file_path)
@@ -631,6 +652,9 @@ class HttpInterface(object):
     key = self.get_path_to_file(file_path)
     resp = requests.get(key, stream=True)
     return resp.ok
+
+  def files_exist(self, file_paths):
+    return {path: self.exists(path) for path in file_paths}
 
   def list_files(self, prefix, flat=False):
     raise NotImplementedError()
@@ -704,6 +728,9 @@ class S3Interface(object):
         raise
     
     return exists
+
+  def files_exist(self, file_paths):
+    return {path: self.exists(path) for path in file_paths}
 
   @retry
   def delete_file(self, file_path):
