@@ -348,7 +348,7 @@ class PrecomputedSkeleton(object):
     if int(factor) != factor or factor < 1:
       raise ValueError("Argument `factor` must be a positive integer greater than or equal to 1. Got: <{}>({})", type(factor), factor)
 
-    paths = self.paths()
+    paths = self.critical_paths()
 
     for i, path in enumerate(paths):
       if preserve_endpoints:
@@ -435,6 +435,74 @@ class PrecomputedSkeleton(object):
     paths = []
     for tree in self.components():
       paths += self._single_tree_paths(tree)
+    return paths
+
+  def _single_tree_critical_paths(self, skeleton):
+    vertices = skeleton.vertices
+    edges = skeleton.edges
+
+    unique_nodes, unique_counts = np.unique(edges, return_counts=True)
+    terminal_nodes = unique_nodes[ unique_counts == 1 ]
+    branch_nodes = set(unique_nodes[ unique_counts >= 3 ])
+    
+    critical_points = set(terminal_nodes)
+    critical_points.update(branch_nodes)
+
+    tree = defaultdict(set)
+
+    for e1, e2 in edges:
+      tree[e1].add(e2)
+      tree[e2].add(e1)
+
+    # The below depth first search would be
+    # more elegantly implemented as recursion,
+    # but it quickly blows the stack, mandating
+    # an iterative implementation.
+
+    paths = []
+
+    stack = [ terminal_nodes[0] ]
+    parents = [ -1 ]
+    criticals = [ terminal_nodes[0] ]
+    path = []
+
+    while stack:
+      node = stack.pop()
+      root = criticals.pop() # "root" is used v. loosely here
+      parent = parents.pop()
+
+      path.append(parent)
+
+      if node in critical_points and node != root:
+        paths.append(path + [ node ])
+        path = []
+        root = node
+
+      for child in tree[node]:
+        if child != parent:
+          stack.append(child)
+          parents.append(node)
+          criticals.append(root)
+
+    if len(paths):
+      paths[0] = paths[0][1:] # get rid of -1
+    return paths
+
+  def critical_paths(self):
+    """
+    Returns paths between the adjacent critical points
+    in the skeleton, where a critical point is the set of
+    terminal and branch points.
+    """
+    paths = []
+    for tree in self.components():
+      paths.extend(
+        self._single_tree_critical_paths(tree)
+      )
+
+    for i, path in enumerate(paths):
+      paths[i] = self.vertices[ path ]
+
     return paths
 
   def _compute_components(self):
