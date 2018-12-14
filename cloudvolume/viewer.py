@@ -97,7 +97,7 @@ def run(cutouts, hostname="localhost", port=DEFAULT_PORT):
     return ViewerServerHandler(cutouts, *args)
 
   myServer = HTTPServer((hostname, port), handler)
-  print("Viewer server listening to http://localhost:" + str(port))
+  print("Viewer server listening to http://{}:{}".format(hostname, port))
   try:
     myServer.serve_forever()
   except KeyboardInterrupt:
