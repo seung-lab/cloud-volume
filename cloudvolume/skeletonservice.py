@@ -324,19 +324,15 @@ class PrecomputedSkeleton(object):
     Returns cable length of connected skeleton vertices in the same
     metric that this volume uses (typically nanometers).
     """
-    dist = 0
-    for e1, e2 in self.edges:
-      try:
-        v1, v2 = self.vertices[e1], self.vertices[e2]
-      except IndexError:
-        raise SkeletonUnassignedEdgeError(
-          "Edge ({},{}) points to an index outside the number of vertices ({}).".format(
-            e1, e2, self.vertices.shape[0]
-          )
-        )
-      dist += np.linalg.norm(v2 - v1)
+    v1 = self.vertices[self.edges[:,0]]
+    v2 = self.vertices[self.edges[:,1]]
 
-    return dist
+    delta = (v2 - v1)
+    delta *= delta
+    dist = np.sum(delta, axis=1)
+    dist = np.sqrt(dist)
+
+    return np.sum(dist)
 
   def downsample(self, factor, preserve_endpoints=True):
     """
