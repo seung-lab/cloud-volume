@@ -106,12 +106,26 @@ def test_parallel_write():
   delete_layer()
   cv, data = create_layer(size=(512,512,128,1), offset=(0,0,0))
   
+  # aligned write
   cv.parallel = 2
   cv[:] = np.zeros(shape=(512,512,128,1), dtype=cv.dtype) + 5
   data = cv[:]
   assert np.all(data == 5)
-  del data
-  cv.unlink_shared_memory()
+
+  # non-aligned-write
+  cv.parallel = 2
+  cv.non_aligned_writes = True
+  cv[1:,1:,1:] = np.zeros(shape=(511,511,127,1), dtype=cv.dtype) + 7
+  data = cv[1:,1:,1:]
+  assert np.all(data == 7)
+
+  # thin non-aligned-write so that there's no aligned core
+  cv.parallel = 2
+  cv.non_aligned_writes = True
+  cv[25:75,25:75,25:75] = np.zeros(shape=(50,50,50,1), dtype=cv.dtype) + 8
+  data = cv[25:75,25:75,25:75]
+  assert np.all(data == 8)
+
 
 def test_parallel_shared_memory_write():
   delete_layer()
