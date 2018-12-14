@@ -149,6 +149,15 @@ def test_bbox_intersection():
   bbx2.minpt = Vec(11,11,11)
   assert Bbox.intersection(bbx1, bbx2) == Bbox((0,0,0),(0,0,0))
 
+def test_bbox_hashing():
+  bbx = Bbox.from_list([ 1,2,3,4,5,6 ])
+  d = {}
+  d[bbx] = 1
+
+  assert len(d) == 1
+  for k,v in d.items():
+    assert v == 1
+
 def test_jsonify():
   obj = {
     'x': [ np.array([1,2,3,4,5], dtype=np.uint64) ],

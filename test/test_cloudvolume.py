@@ -75,6 +75,14 @@ def test_aligned_read():
   assert cutout2.shape == (64,64,64,1) 
   assert np.all(cutout2 == data[64:128,:64,:64,:])
 
+def test_bbox_read():
+  delete_layer()
+  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+
+  x = Bbox( (0,1,2), (48,49,50) )
+  # the last dimension is the number of channels
+  assert cv[x].shape == (48,48,48,1)
+  assert np.all(cv[x] == data[0:48, 1:49, 2:50])  
 
 def test_parallel_read():
   paths = [
@@ -216,6 +224,11 @@ def test_write():
   replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
   cv[0:50,0:50,0:50] = replacement_data
   assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+
+  replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
+  bbx = Bbox((0,0,0), (50,50,50))
+  cv[bbx] = replacement_data
+  assert np.all(cv[bbx] == replacement_data)
 
   # out of bounds
   delete_layer()

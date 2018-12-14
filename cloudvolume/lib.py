@@ -623,7 +623,7 @@ class Bbox(object):
     return np.array_equal(self.minpt, other.minpt) and np.array_equal(self.maxpt, other.maxpt)
 
   def __hash__(self):
-    return int(''.join(self.to_list()))
+    return int(''.join(map(str, self.to_list())))
 
   def __repr__(self):
     return "Bbox({},{})".format(list(self.minpt), list(self.maxpt))
