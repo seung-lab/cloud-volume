@@ -924,6 +924,9 @@ class CloudVolume(object):
             pbar.update()
 
   def __getitem__(self, slices):
+    if type(slices) == Bbox:
+      slices = slices.to_slices()
+
     (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
 
     if self.autocrop:
@@ -1028,6 +1031,9 @@ class CloudVolume(object):
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
   def __setitem__(self, slices, img):
+    if type(slices) == Bbox:
+      slices = slices.to_slices()
+
     imgshape = list(img.shape)
     if len(imgshape) == 3:
       imgshape = imgshape + [ self.num_channels ]
