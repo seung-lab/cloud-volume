@@ -100,6 +100,9 @@ def run(cutouts, hostname="localhost", port=DEFAULT_PORT):
   print("Viewer server listening to http://localhost:" + str(port))
   try:
     myServer.serve_forever()
+  except KeyboardInterrupt:
+    # extra \n to prevent display of "^CContinuing"
+    print("\nContinuing program execution...")
   finally:
     myServer.server_close()
 
