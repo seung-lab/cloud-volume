@@ -449,32 +449,41 @@ class PrecomputedSkeleton(object):
       index[e2].add(e1)
 
     def extract_component(start):
-      tree = set()
+      edge_list = []
       stack = [ start ]
+      parents = [ -1 ]
 
       while stack:
-        node = int(stack.pop(0))
+        node = stack.pop()
+        parent = parents.pop()
+
+        if node < parent:
+          edge_list.append( (node, parent) )
+        else:
+          edge_list.append( (parent, node) )
+
         if visited[node]:
           continue
 
         visited[node] = True
-        tree.add(node)
+        
         for child in index[node]:
-          if not visited[child]:
-            stack.append(child)
+          stack.append(child)
+          parents.append(node)
 
-      return tree
+      return edge_list[1:]
 
     forest = []
     for edge in np.unique(skel.edges.flatten()):
       if visited[edge]:
         continue
 
-      component = extract_component(edge)
-      forest.append(component)
+      forest.append(
+        extract_component(edge)
+      )
 
     return skel, forest
-
+  
   def components(self):
     """
     Extract connected components from graph. 
@@ -489,21 +498,10 @@ class PrecomputedSkeleton(object):
     elif len(forest) == 1:
       return [ skel ]
 
-    orig_verts = {}
-    for i, coord in enumerate(skel.vertices):
-      orig_verts[tuple(coord)] = i
-
-    edges = defaultdict(list)
-    for e1,e2 in skel.edges:
-      edges[e1].append((e1,e2))
-      edges[e2].append((e1,e2))
+    orig_verts = { tuple(coord): i for i, coord in enumerate(skel.vertices) }      
 
     skeletons = []
-    for component in forest:
-      edge_list = []
-      for e1 in component:
-        edge_list.extend( edges[e1] )
-
+    for edge_list in forest:
       edge_list = np.array(edge_list, dtype=np.uint32)
       edge_list = np.unique(edge_list, axis=0)
       vert_idx = np.unique(edge_list.flatten())
@@ -511,13 +509,10 @@ class PrecomputedSkeleton(object):
       radii = skel.radii[vert_idx]
       vtypes = skel.vertex_types[vert_idx]
 
-      new_verts = {}
-      for i, coord in enumerate(vert_list):
-        new_verts[orig_verts[tuple(coord)]] = i
+      new_verts = { orig_verts[tuple(coord)]: i for i, coord in enumerate(vert_list) }
 
-      for i in range(edge_list.shape[0]):
-        edge_list[i, 0] = new_verts[edge_list[i, 0]]
-        edge_list[i, 1] = new_verts[edge_list[i, 1]]
+      edge_vector_map = np.vectorize(lambda x: new_verts[x])
+      edge_list = edge_vector_map(edge_list)
 
       skeletons.append(
         PrecomputedSkeleton(vert_list, edge_list, radii, vtypes, skel.id)
