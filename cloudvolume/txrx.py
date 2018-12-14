@@ -292,10 +292,12 @@ def upload_image(vol, img, offset, parallel=1,
   # Upload the aligned core
   retracted = bounds.shrink_to_chunk_size(vol.underlying, vol.voxel_offset)
   core_bbox = retracted.clone() - bounds.minpt
-  core_img = img[ core_bbox.to_slices() ] 
-  upload_aligned(vol, core_img, retracted.minpt, parallel=parallel, 
-    manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox,
-    manual_shared_memory_order=manual_shared_memory_order)
+
+  if core_bbox.volume() > 0:
+    core_img = img[ core_bbox.to_slices() ] 
+    upload_aligned(vol, core_img, retracted.minpt, parallel=parallel, 
+      manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox,
+      manual_shared_memory_order=manual_shared_memory_order)
 
   # Download the shell, paint, and upload
   all_chunks = set(chunknames(expanded, vol.bounds, vol.key, vol.underlying))
