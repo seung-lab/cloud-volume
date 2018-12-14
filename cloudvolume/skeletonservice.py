@@ -651,23 +651,20 @@ class PrecomputedSkeletonService(object):
 
     return PrecomputedSkeleton.decode(skelbuf, segid=segid)
 
-  def upload(self, segid, vertices, edges, radii=None, vertex_types=None):
-    with SimpleStorage(self.vol.layer_cloudpath) as stor:
-      path = os.path.join(self.path, str(segid))
-      skel = PrecomputedSkeleton(
-        vertices, edges, radii, 
-        vertex_types, segid=segid
-      ).encode()
-
-      stor.put_file(
-        file_path='{}/{}'.format(self.path, segid),
-        content=skel,
-        compress='gzip',
-        cache_control=cdn_cache_control(self.vol.cdn_cache),
-      )
+  def upload_raw(self, segid, vertices, edges, radii=None, vertex_types=None):
+    skel = PrecomputedSkeleton(
+      vertices, edges, radii, 
+      vertex_types, segid=segid
+    )
+    return self.upload(skel)
     
-  def upload_multiple(self, skeletons):
-    with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+  def upload(self, skeletons):
+    if type(skeletons) == PrecomputedSkeleton:
+      skeletons = [ skeletons ]
+
+    StorageClass = Storage if len(skeletons) > 1 else SimpleStorage
+
+    with StorageClass(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
       for skel in skeletons:
         path = os.path.join(self.path, str(skel.id))
         stor.put_file(

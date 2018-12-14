@@ -90,7 +90,7 @@ def test_skeletons():
   ], dtype=np.uint8)
 
   vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
-  vol.skeleton.upload(
+  vol.skeleton.upload_raw(
     segid=1, vertices=vertices, edges=edges, 
     radii=radii, vertex_types=vertex_types
   )
@@ -123,7 +123,7 @@ def test_no_edges():
 
   edges = None
   vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
-  vol.skeleton.upload(2, vertices, edges)
+  vol.skeleton.upload_raw(2, vertices, edges)
   skel = vol.skeleton.get(2)
 
   assert skel.id == 2
@@ -142,7 +142,7 @@ def test_no_vertices():
 
   edges = None
   vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', info=info)
-  vol.skeleton.upload(3, vertices, edges)
+  vol.skeleton.upload_raw(3, vertices, edges)
   skel = vol.skeleton.get(3)
 
   assert skel.id == 3

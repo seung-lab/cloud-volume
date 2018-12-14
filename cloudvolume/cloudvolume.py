@@ -40,9 +40,9 @@ from . import sharedmemory
 
 # Set the interpreter bool
 try:
-    INTERACTIVE = bool(sys.ps1)
+  INTERACTIVE = bool(sys.ps1)
 except AttributeError:
-    INTERACTIVE = bool(sys.flags.interactive)
+  INTERACTIVE = bool(sys.flags.interactive)
 
 def warn(text):
   print(colorize('yellow', text))
