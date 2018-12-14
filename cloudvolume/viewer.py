@@ -98,8 +98,10 @@ def run(cutouts, hostname="localhost", port=DEFAULT_PORT):
 
   myServer = HTTPServer(('localhost', port), handler)
   print("Viewer server listening to http://localhost:" + str(port))
-  myServer.serve_forever()
-  myServer.server_close()
+  try:
+    myServer.serve_forever()
+  finally:
+    myServer.server_close()
 
 class ViewerServerHandler(BaseHTTPRequestHandler):
   def __init__(self, cutouts, *args):
