@@ -641,15 +641,59 @@ class PrecomputedSkeletonService(object):
       path = self.vol.info['skeletons']
     return path
 
-  def get(self, segid):
-    with SimpleStorage(self.vol.layer_cloudpath) as stor:
-      path = os.path.join(self.path, str(segid))
-      skelbuf = stor.get_file(path)
+  def get(self, segids):
+    """
+    Retrieve one or more skeletons from the data layer.
 
-    if skelbuf is None:
-      raise SkeletonDecodeError("File does not exist: {}".format(path))
+    Example: 
+      skel = vol.skeleton.get(5)
+      skels = vol.skeleton.get([1, 2, 3])
 
-    return PrecomputedSkeleton.decode(skelbuf, segid=segid)
+    Raises SkeletonDecodeError on missing files or decoding errors.
+
+    Required:
+      segids: list of integers or integer
+
+    Returns: 
+      if segids is a list, returns list of PrecomputedSkeletons
+      else returns a single PrecomputedSkeleton
+    """
+    list_return = True
+    if type(segids) in (int, float):
+      list_return = False
+      segids = [ int(segids) ]
+
+    paths = [ os.path.join(self.path, str(segid)) for segid in segids ]
+
+    StorageClass = Storage if len(segids) > 1 else SimpleStorage
+
+    with StorageClass(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+      results = stor.get_files(paths)
+
+    for res in results:
+      if res['error'] is not None:
+        raise res['error']
+
+    missing = [ res['filename'] for res in results if res['content'] is None ]
+
+    if len(missing):
+      raise SkeletonDecodeError("File(s) do not exist: {}".format(", ".join(missing)))
+
+    skeletons = []
+    for res in results:
+      segid = int(os.path.basename(res['filename']))
+      try:
+        skel = PrecomputedSkeleton.decode(
+          res['content'], segid=segid
+        )
+      except Exception as err:
+        raise SkeletonDecodeError("segid " + str(segid) + ": " + err.message)
+      skeletons.append(skel)
+
+    if list_return:
+      return skeletons
+
+    return skeletons[0]
 
   def upload_raw(self, segid, vertices, edges, radii=None, vertex_types=None):
     skel = PrecomputedSkeleton(

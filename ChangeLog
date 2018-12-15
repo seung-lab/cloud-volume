@@ -1,6 +1,46 @@
 CHANGES
 =======
 
+0.41.0
+------
+
+* Version 0.41.0
+* allow reestablishing viewer server in the same python session (#169)
+* feat(skeletonservice): upload takes PrecomputedSkeleton as input
+
+0.40.4
+------
+
+* Version 0.40.4
+* perf(skeletonservice): faster component search ~3x
+* perf(skeletonservice): faster cable\_length operator
+
+0.40.3
+------
+
+* Version 0.40.3
+* fix: multiprocess upload crashes on thin non-aligned images (#168)
+* Bbox Upgrades (#167)
+
+0.40.2
+------
+
+* Version 0.40.2
+* feat(storage): Batch requests for GCS files\_exist() (#165)
+* docs: formatting
+* docs: info on serving local files
+* fix(skeletonservice): downsample was blowing stack
+
+0.40.1
+------
+
+* Version 0.40.1
+* perf(skeletonservice): made rendering components much faster
+* perf(skeletonservice): faster rendering of components
+* fix(skeletonservice): \_compute\_components wasn't treating loops correctly
+* refactor: moved skeleton exceptions into exceptions.py
+* feat: add chunk size info to non\_aligned\_write error message
+
 0.40.0
 ------
 

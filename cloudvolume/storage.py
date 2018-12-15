@@ -121,7 +121,7 @@ class SimpleStorage(object):
     Required:
       files: [ (filepath, content), .... ]
     """
-    for path, content in files:
+    for path, content in tqdm(files, disable=(not self.progress), desc="Uploading"):
       content = compression.compress(content, method=compress)
       self._interface.put_file(path, content, content_type, compress, cache_control=cache_control)
     return self
@@ -150,6 +150,25 @@ class SimpleStorage(object):
     content, encoding = self._interface.get_file(file_path)
     content = compression.decompress(content, encoding, filename=file_path)
     return content
+
+  def get_files(self, file_paths):
+    results = []
+    for path in tqdm(file_paths, disable=(not self.progress), desc="Downloading"):
+      error = None 
+
+      try:
+        content = self.get_file(path)
+      except Exception as err:
+        error = err 
+        content = None 
+
+      results.append({
+        'filename': path,
+        'content': content,
+        'error': error,
+      })
+
+    return results 
 
   def delete_file(self, file_path):
     self._interface.delete_file(file_path)
