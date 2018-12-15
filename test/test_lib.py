@@ -115,6 +115,26 @@ def test_path_extraction():
   assert path.dataset == 'removeme'
   assert path.layer == 'layer'
 
+def test_bbox_subvoxel():
+  bbox = Bbox( (0,0,0), (1,1,1), dtype=np.float32)
+  
+  assert not bbox.subvoxel()
+  assert not bbox.empty()
+
+  bbox.maxpt[:] *= -1
+  bbox.maxpt.z = 20
+
+  # pathological case
+  assert not (bbox.volume() < 1)
+  assert bbox.subvoxel()
+  assert bbox.empty()
+
+  bbox = Bbox( (1,1,1), (1,1,1) )
+  assert bbox.empty()
+
+  bbox = Bbox( (0,0,0), (0.9, 1.0, 1.0) )
+  assert bbox.subvoxel()
+  assert not bbox.empty()
 
 def test_vec_division():
   vec = Vec(2,4,8)

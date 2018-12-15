@@ -486,7 +486,7 @@ class Bbox(object):
 
     Returns: boolean
     """
-    return (not self.valid()) or self.volume() < (20 * MACHINE_EPSILON)
+    return (not self.valid()) or (self.volume() < (20 * MACHINE_EPSILON))
 
   def valid(self):
     return np.all(self.minpt <= self.maxpt)
