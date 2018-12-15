@@ -145,7 +145,9 @@ def test_bbox_division():
   box = Bbox( (0,2,4), (4,8,16) )
   assert (box//2) == Bbox( (0,1,2), (2,4,8) )
 
-  box = Bbox( (0,3,4), (4,8,16) )
+  box = Bbox( (0,3,4), (4,8,16), dtype=np.float32 )
+  print((box/2.))
+  print(Bbox( (0., 1.5, 2.), (2., 4., 8.) ))
   assert (box/2.) == Bbox( (0., 1.5, 2.), (2., 4., 8.) )
 
 def test_bbox_intersect():

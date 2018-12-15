@@ -651,10 +651,25 @@ class Bbox(object):
     return tmp.astype(tmp.minpt.dtype)
 
   def __idiv__(self, operand):
-    return self.__ifloordiv__(operand)
+    if (
+      isinstance(operand, float) \
+      or self.dtype in (float, np.float32, np.float64) \
+      or (hasattr(operand, 'dtype') and operand.dtype in (float, np.float32, np.float64))
+    ):
+      return self.__itruediv__(operand)
+    else:
+      return self.__ifloordiv__(operand)
 
   def __div__(self, operand):
-    return self.__floordiv__(operand)
+    if (
+      isinstance(operand, float) \
+      or self.dtype in (float, np.float32, np.float64) \
+      or (hasattr(operand, 'dtype') and operand.dtype in (float, np.float32, np.float64))
+    ):
+
+      return self.__truediv__(operand)
+    else:
+      return self.__floordiv__(operand)
 
   def __ifloordiv__(self, operand):
     self.minpt //= operand
@@ -662,10 +677,10 @@ class Bbox(object):
     return self
 
   def __floordiv__(self, operand):
-    tmp = self.clone()
+    tmp = self.astype(float)
     tmp.minpt //= operand
     tmp.maxpt //= operand
-    return tmp.astype(tmp.minpt.dtype)
+    return tmp.astype(int)
 
   def __itruediv__(self, operand):
     self.minpt /= operand
