@@ -313,20 +313,42 @@ Vec.b = Vec.z
 Vec.a = Vec.w
 
 
+def floating(lst):
+  return any(( isinstance(x, float) for x in lst ))
+
 class Bbox(object):
   """Represents a three dimensional cuboid in space."""
-  def __init__(self, a, b):
+  def __init__(self, a, b, dtype=None):
+    if dtype is None:
+      if floating(a) or floating(b):
+        dtype = np.float32
+      else:
+        dtype = np.int32
+
     self.minpt = Vec(
       min(a[0], b[0]),
       min(a[1], b[1]),
-      min(a[2], b[2])
+      min(a[2], b[2]),
+      dtype=dtype
     )
 
     self.maxpt = Vec(
       max(a[0], b[0]),
       max(a[1], b[1]),
-      max(a[2], b[2])
+      max(a[2], b[2]),
+      dtype=dtype
     )
+
+    self._dtype = np.dtype(dtype)
+
+  @property 
+  def dtype(self):
+    return self._dtype
+
+  def astype(self, dtype):
+    self._dtype = np.dtype(dtype)
+    self.minpt = self.minpt.astype(self.dtype)
+    self.maxpt = self.maxpt.astype(self.dtype)
 
   @classmethod
   def intersection(cls, bbx1, bbx2):
@@ -380,18 +402,18 @@ class Bbox(object):
       raise NotImplementedError("{} is not a Bbox convertible type.".format(typ))
 
   @classmethod
-  def from_vec(cls, vec):
-    return Bbox( (0,0,0), vec )
+  def from_vec(cls, vec, dtype=int):
+    return Bbox( (0,0,0), vec, dtype=dtype)
 
   @classmethod
-  def from_filename(cls, filename):
+  def from_filename(cls, filename, dtype=int):
     match = re.search(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz)?$', os.path.basename(filename))
 
     (xmin, xmax,
      ymin, ymax,
      zmin, zmax) = map(int, match.groups())
 
-    return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax) )
+    return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
 
   @classmethod
   def from_slices(cls, slices3):
@@ -404,10 +426,6 @@ class Bbox(object):
   def from_list(cls, lst):
     return Bbox( lst[:3], lst[3:6] )
 
-  @property
-  def dtype(self):
-    return self.minpt.dtype
-  
   def to_filename(self):
     return '{}-{}_{}-{}_{}-{}'.format(
       self.minpt.x, self.maxpt.x,
@@ -441,7 +459,7 @@ class Bbox(object):
     return result
 
   def size3(self):
-    return Vec(*(self.maxpt - self.minpt))
+    return Vec(*(self.maxpt - self.minpt), dtype=self.dtype)
 
   def subvoxel(self):
     """
@@ -511,7 +529,7 @@ class Bbox(object):
     result = result - offset
     result.minpt = np.floor(result.minpt / chunk_size) * chunk_size
     result.maxpt = np.ceil(result.maxpt / chunk_size) * chunk_size 
-    return result + offset
+    return (result + offset).astype(self.dtype)
 
   def shrink_to_chunk_size(self, chunk_size, offset=Vec(0,0,0, dtype=int)):
     """
@@ -536,7 +554,7 @@ class Bbox(object):
     if np.any(result.minpt > result.maxpt):
       result.maxpt = result.minpt.clone()
 
-    return result + offset
+    return (result + offset).astype(self.dtype)
 
   def round_to_chunk_size(self, chunk_size, offset=Vec(0,0,0, dtype=int)):
     """
@@ -554,7 +572,7 @@ class Bbox(object):
     result = result - offset
     result.minpt = np.round(result.minpt / chunk_size) * chunk_size
     result.maxpt = np.round(result.maxpt / chunk_size) * chunk_size
-    return result + offset
+    return (result + offset).astype(self.dtype)
 
   def contains(self, point):
     """
@@ -575,11 +593,14 @@ class Bbox(object):
     return self.contains(bbox.minpt) and self.contains(bbox.maxpt)
 
   def astype(self, typ):
-    self.minpt = self.minpt.astype(typ)
-    self.maxpt = self.maxpt.astype(typ)
+    tmp = self.clone()
+    tmp.minpt = tmp.minpt.astype(typ)
+    tmp.maxpt = tmp.maxpt.astype(typ)
+    tmp.dtype = tmp.minpt.dtype 
+    return tmp
 
   def clone(self):
-    return Bbox(self.minpt, self.maxpt)
+    return Bbox(self.minpt, self.maxpt, dtype=self.dtype)
 
   def astype(self, dtype):
     result = self.clone()
@@ -627,26 +648,39 @@ class Bbox(object):
     tmp = self.clone()
     tmp.minpt *= operand
     tmp.maxpt *= operand
-    return tmp
+    return tmp.astype(tmp.minpt.dtype)
+
+  def __idiv__(self, operand):
+    return self.__ifloordiv__(operand)
 
   def __div__(self, operand):
     return self.__floordiv__(operand)
+
+  def __ifloordiv__(self, operand):
+    self.minpt //= operand
+    self.maxpt //= operand
+    return self
 
   def __floordiv__(self, operand):
     tmp = self.clone()
     tmp.minpt //= operand
     tmp.maxpt //= operand
-    return tmp
+    return tmp.astype(tmp.minpt.dtype)
+
+  def __itruediv__(self, operand):
+    self.minpt /= operand
+    self.maxpt /= operand
+    return self
 
   def __truediv__(self, operand):
     tmp = self.clone()
 
-    if type(operand) is int:
+    if isinstance(operand, int):
       operand = float(operand)
 
-    tmp.minpt = Vec(*( tmp.minpt.astype(float) / operand ))
-    tmp.maxpt = Vec(*( tmp.maxpt.astype(float) / operand ))
-    return tmp
+    tmp.minpt = Vec(*( tmp.minpt.astype(float) / operand ), dtype=float)
+    tmp.maxpt = Vec(*( tmp.maxpt.astype(float) / operand ), dtype=float)
+    return tmp.astype(tmp.minpt.dtype)
 
   def __ne__(self, other):
     return not (self == other)
@@ -655,10 +689,10 @@ class Bbox(object):
     return np.array_equal(self.minpt, other.minpt) and np.array_equal(self.maxpt, other.maxpt)
 
   def __hash__(self):
-    return int(''.join(map(str, self.to_list())))
+    return int(''.join(map(str, map(int, self.to_list()))))
 
   def __repr__(self):
-    return "Bbox({},{})".format(list(self.minpt), list(self.maxpt))
+    return "Bbox({},{}, dtype={})".format(list(self.minpt), list(self.maxpt), self.dtype)
 
 
 def generate_slices(slices, minsize, maxsize, bounded=True):

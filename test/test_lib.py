@@ -126,8 +126,7 @@ def test_bbox_division():
   assert (box//2) == Bbox( (0,1,2), (2,4,8) )
 
   box = Bbox( (0,3,4), (4,8,16) )
-
-  assert (box/2) == Bbox( (0,1.5,2), (2,4,8) )
+  assert (box/2.) == Bbox( (0., 1.5, 2.), (2., 4., 8.) )
 
 def test_bbox_intersect():
   box = Bbox( (0,0,0), (10, 10, 10) )
@@ -151,6 +150,14 @@ def test_bbox_intersection():
 
 def test_bbox_hashing():
   bbx = Bbox.from_list([ 1,2,3,4,5,6 ])
+  d = {}
+  d[bbx] = 1
+
+  assert len(d) == 1
+  for k,v in d.items():
+    assert v == 1
+
+  bbx = Bbox( (1., 1.3, 2.), (3., 4., 4.) )
   d = {}
   d[bbx] = 1
 
