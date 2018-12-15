@@ -159,19 +159,6 @@ def touch(path):
   mkdir(os.path.dirname(path))
   open(path, 'a').close()
 
-def list_shape(shape, elem=None):
-    """create Nd list filled wtih elem. e.g. shape([2,2], 0) => [ [0,0], [0,0] ]"""
-
-    if (len(shape) == 0):
-        return []
-
-    def helper(elem, shape, i):
-        if len(shape) - 1 == i:
-            return [elem] * shape[i]
-        return [ helper(elem, shape, i+1) for _ in range(shape[i]) ]
-
-    return helper(elem, shape, 0)
-
 def find_closest_divisor(to_divide, closest_to):
   """
   This is used to find the right chunk size for
