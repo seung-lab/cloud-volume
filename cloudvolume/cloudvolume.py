@@ -992,7 +992,7 @@ class CloudVolume(object):
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     bounds = Bbox.clamp(requested_bbox, self.bounds)
     
-    if bounds.volume() < 1:
+    if bounds.subvoxel():
       raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
 
     x_rng = [ bounds.minpt.x, bounds.maxpt.x ]
@@ -1056,7 +1056,7 @@ class CloudVolume(object):
         img = img[ dmin.x:dmax.x, dmin.y:dmax.y, dmin.z:dmax.z ] 
         bbox = cropped_bbox
 
-    if bbox.volume() < 1:
+    if bbox.subvoxel():
       return
 
     if self.path.protocol == 'boss':
@@ -1120,7 +1120,7 @@ class CloudVolume(object):
     if self.autocrop:
       cutout_bbox = Bbox.intersection(cutout_bbox, self.bounds)
 
-    if cutout_bbox.volume() < 1:
+    if cutout_bbox.subvoxel():
       return
 
     shape = list(bbox.size3()) + [ self.num_channels ]
@@ -1140,7 +1140,7 @@ class CloudVolume(object):
 
     bounds = Bbox(offset, shape + offset)
 
-    if bounds.volume() < 1:
+    if bounds.subvoxel():
       raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
 
     x_rng = [ bounds.minpt.x, bounds.maxpt.x ]

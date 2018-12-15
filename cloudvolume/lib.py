@@ -29,6 +29,8 @@ COLORS = {
   'GREEN': '\033[1;92m',
 }
 
+# Formula produces machine epsilon regardless of platform architecture
+MACHINE_EPSILON = (7. / 3) - (4. / 3) - 1
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -441,6 +443,36 @@ class Bbox(object):
   def size3(self):
     return Vec(*(self.maxpt - self.minpt))
 
+  def subvoxel(self):
+    """
+    Previously, we used bbox.volume() < 1 for testing
+    if a bounding box was larger than one voxel. However, 
+    if two out of three size dimensions are negative, the 
+    product will be positive. Therefore, we first test that 
+    the maxpt is to the right of the minpt before computing 
+    whether conjunctioned with volume() < 1.
+
+    Returns: boolean
+    """
+    return (not self.valid()) or self.volume() < 1
+
+  def empty(self):
+    """
+    Previously, we used bbox.volume() <= 0 for testing
+    if a bounding box was empty. However, if two out of 
+    three size dimensions are negative, the product will 
+    be positive. Therefore, we first test that the maxpt 
+    is to the right of the minpt before computing whether 
+    the bbox is empty and account for 20x machine epsilon 
+    of floating point error.
+
+    Returns: boolean
+    """
+    return (not self.valid()) or self.volume() < (20 * MACHINE_EPSILON)
+
+  def valid(self):
+    return np.all(self.minpt <= self.maxpt)
+
   def volume(self):
     return self.size3().rectVolume()
 
@@ -458,7 +490,7 @@ class Bbox(object):
     self.minpt += amt
     self.maxpt -= amt
 
-    if np.any(self.minpt > self.maxpt):
+    if not self.valid():
       raise ValueError("Cannot shrink bbox below zero volume.")
 
     return self

@@ -293,7 +293,7 @@ def upload_image(vol, img, offset, parallel=1,
   retracted = bounds.shrink_to_chunk_size(vol.underlying, vol.voxel_offset)
   core_bbox = retracted.clone() - bounds.minpt
 
-  if core_bbox.volume() > 0:
+  if not core_bbox.subvoxel():
     core_img = img[ core_bbox.to_slices() ] 
     upload_aligned(vol, core_img, retracted.minpt, parallel=parallel, 
       manual_shared_memory_id=manual_shared_memory_id, manual_shared_memory_bbox=manual_shared_memory_bbox,
