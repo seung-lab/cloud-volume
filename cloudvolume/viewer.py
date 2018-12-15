@@ -57,10 +57,21 @@ def to_volumecutout(img, image_type, resolution=None, offset=None, hostname='loc
     handle=None,
   )
 
+def to3d(img):
+  while len(img.shape) > 3:
+    img = img[..., 0]
+  while len(img.shape) < 3:
+    img = img[..., np.newaxis]
+  return img  
+
 def hyperview(
     img, segmentation, resolution=None, offset=None,
     hostname='localhost', port=DEFAULT_PORT
   ):
+
+  img = to3d(img)
+  segmentation = to3d(segmentation)
+
   assert np.all(img.shape[:3] == segmentation.shape[:3])
 
   img = to_volumecutout(img, 'image', resolution, offset, hostname)
@@ -76,6 +87,7 @@ def view(
   ):
   from . import VolumeCutout
 
+  img = to3d(img)
   resolution = getresolution(img, resolution)
   offset = getoffset(img, offset)
 
