@@ -11,7 +11,6 @@ import botocore
 from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
-import requests
 import tenacity
 from tqdm import tqdm
 
@@ -19,7 +18,8 @@ from . import compression
 from .exceptions import UnsupportedProtocolError
 from .lib import mkdir, extract_bucket_path, scatter
 from .threaded_queue import ThreadedQueue
-from .connectionpools import S3ConnectionPool, GCloudBucketPool
+from .connectionpools import S3ConnectionPool, GCloudBucketPool, \
+                             HttpConnectionPool
 
 # This is just to support pooling by bucket
 class keydefaultdict(defaultdict):
@@ -32,11 +32,14 @@ class keydefaultdict(defaultdict):
 
 S3_POOL = None
 GC_POOL = None
+HTTP_POOL = None
 def reset_connection_pools():
   global S3_POOL
   global GC_POOL
+  global HTTP_POOL
   S3_POOL = keydefaultdict(lambda service: keydefaultdict(lambda bucket_name: S3ConnectionPool(service, bucket_name)))
   GC_POOL = keydefaultdict(lambda bucket_name: GCloudBucketPool(bucket_name))
+  HTTP_POOL = keydefaultdict(lambda protocol: keydefaultdict(lambda bucket_name: HttpConnectionPool(protocol, bucket_name)))
 
 reset_connection_pools()
 
@@ -643,7 +646,9 @@ class GoogleCloudStorageInterface(object):
 
 class HttpInterface(object):
   def __init__(self, path):
+    global HTTP_POOL
     self._path = path
+    self._conn = HTTP_POOL[path.protocol][path.bucket].get_connection()
 
   def get_path_to_file(self, file_path):
     path = os.path.join(
@@ -662,15 +667,14 @@ class HttpInterface(object):
   @retry
   def get_file(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = requests.get(key)
+    resp = self._conn.get(key)
     resp.raise_for_status()
     return resp.content, resp.encoding
 
   @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = requests.get(key, stream=True)
-    resp.close()
+    resp = self._conn.head(key)
     return resp.ok
 
   def files_exist(self, file_paths):
@@ -680,7 +684,8 @@ class HttpInterface(object):
     raise NotImplementedError()
 
   def release_connection(self):
-    pass
+    global HTTP_POOL
+    HTTP_POOL[self._path.protocol][self._path.bucket].release_connection(self._conn)
 
 class S3Interface(object):
   def __init__(self, path):
