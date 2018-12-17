@@ -84,6 +84,23 @@ def test_bbox_read():
   assert cv[x].shape == (48,48,48,1)
   assert np.all(cv[x] == data[0:48, 1:49, 2:50])  
 
+def test_number_type_read():
+  delete_layer()
+  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+
+  for datatype in (
+    np.uint8, np.uint16, np.uint32, np.uint64,
+    np.int8, np.int16, np.int32, np.int64,
+    np.float16, np.float32, np.float64,
+    int, float
+  ):
+    x = datatype(5)
+
+    # the last dimension is the number of channels
+    assert cv[x,x,x].shape == (1,1,1,1)
+    assert np.all(cv[x,x,x] == data[5,5,5])  
+
+
 def test_parallel_read():
   paths = [
     'gs://seunglab-test/test_v0/image',

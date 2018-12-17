@@ -18,9 +18,12 @@ from PIL import Image
 from tqdm import tqdm
 
 if sys.version_info < (3,):
-    integer_types = (int, long,)
+    integer_types = (int, long, np.integer)
 else:
-    integer_types = (int,)
+    integer_types = (int, np.integer)
+
+floating_types = (float, np.floating)
+
 
 COLORS = {
   'RESET': "\033[m",
@@ -700,7 +703,7 @@ class Bbox(object):
 def generate_slices(slices, minsize, maxsize, bounded=True):
   """Assisting function for __getitem__. e.g. vol[:,:,:,:]"""
 
-  if isinstance(slices, integer_types) or isinstance(slices, float):
+  if isinstance(slices, integer_types) or isinstance(slices, floating_types):
     slices = [ slice(int(slices), int(slices)+1, 1) ]
   if type(slices) == slice:
     slices = [ slices ]
@@ -713,7 +716,7 @@ def generate_slices(slices, minsize, maxsize, bounded=True):
   # First three slices are x,y,z, last is channel. 
   # Handle only x,y,z here, channel seperately
   for index, slc in enumerate(slices):
-    if isinstance(slc, integer_types) or isinstance(slc, float):
+    if isinstance(slc, integer_types) or isinstance(slc, floating_types):
       slices[index] = slice(int(slc), int(slc)+1, 1)
     else:
       start = minsize[index] if slc.start is None else slc.start
@@ -778,7 +781,7 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
     img = (img - lower) / (upper - lower) * 255.0
     return img.astype(np.uint8)
 
-  if global_norm and image.dtype in (np.float32, np.float64):
+  if global_norm and image.dtype in (np.floating):
     image = normalize_float(image)      
 
   for level in tqdm(range(image.shape[index]), desc="Saving Images"):
