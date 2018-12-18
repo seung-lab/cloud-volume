@@ -7,9 +7,7 @@ from google.cloud.storage import Client
 import boto3 
 
 from .secrets import google_credentials, aws_credentials
-
-class ServiceUnknownException(Exception):
-  pass
+from .exceptions import UnsupportedProtocolError
 
 class ConnectionPool(object):
   """
@@ -104,7 +102,7 @@ class S3ConnectionPool(ConnectionPool):
         endpoint_url='https://s3-hpcrc.rc.princeton.edu',
       )
     else:
-      raise ServiceUnknownException("{} unknown. Choose from 's3' or 'matrix'.")
+      raise UnsupportedProtocolError("{} unknown. Choose from 's3' or 'matrix'.")
       
   def close(self, conn):
     try:

@@ -16,6 +16,7 @@ import tenacity
 from tqdm import tqdm
 
 from . import compression
+from .exceptions import UnsupportedProtocolError
 from .lib import mkdir, extract_bucket_path, scatter
 from .threaded_queue import ThreadedQueue
 from .connectionpools import S3ConnectionPool, GCloudBucketPool
@@ -42,13 +43,10 @@ reset_connection_pools()
 retry = tenacity.retry(
   reraise=True, 
   stop=tenacity.stop_after_attempt(7), 
-  wait=tenacity.wait_full_jitter(0.5, 60.0),
+  wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
 DEFAULT_THREADS = 20
-
-class UnsupportedProtocol(Exception):
-  pass
 
 class SimpleStorage(object):
   """
@@ -84,7 +82,7 @@ class SimpleStorage(object):
     elif self._path.protocol in ('http', 'https'):
       self._interface_cls = HttpInterface
     else:
-      raise UnsupportedProtocol(str(self._path))
+      raise UnsupportedProtocolError(str(self._path))
 
     self._interface = self._interface_cls(self._path)
 
@@ -245,7 +243,7 @@ class Storage(ThreadedQueue):
     elif self._path.protocol in ('http', 'https'):
       self._interface_cls = HttpInterface
     else:
-      raise UnsupportedProtocol(str(self._path))
+      raise UnsupportedProtocolError(str(self._path))
 
     self._interface = self._interface_cls(self._path)
 
@@ -664,12 +662,15 @@ class HttpInterface(object):
   @retry
   def get_file(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = requests.get(key)
+    resp = self.sesh.get(key)
+    resp.raise_for_status()
     return resp.content, resp.encoding
 
+  @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
     resp = requests.get(key, stream=True)
+    resp.close()
     return resp.ok
 
   def files_exist(self, file_paths):

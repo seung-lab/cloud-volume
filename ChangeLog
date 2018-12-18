@@ -1,6 +1,13 @@
 CHANGES
 =======
 
+* refactor(lib): remove unused list\_shape function
+* fix: accomodate python2.7 in Bbox division
+* test: bbox.subvoxel() vs pathological behavior of bbox.volume()
+* feat: support dtype on Bbox
+* fix: tests for subvoxel bounding box size were faulty
+* feat: vol.skeleton.get now accepts multiple segids
+
 0.41.0
 ------
 
