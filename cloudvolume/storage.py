@@ -662,12 +662,15 @@ class HttpInterface(object):
   @retry
   def get_file(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = requests.get(key)
+    resp = self.sesh.get(key)
+    resp.raise_for_status()
     return resp.content, resp.encoding
 
+  @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
     resp = requests.get(key, stream=True)
+    resp.close()
     return resp.ok
 
   def files_exist(self, file_paths):
