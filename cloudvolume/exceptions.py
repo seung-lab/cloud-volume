@@ -60,3 +60,7 @@ class SkeletonDecodeError(Exception):
 class SkeletonEncodeError(Exception):
   """Unable to encode a PrecomputedSkeleton into a binary object."""
   pass
+
+class UnsupportedProtocolError(ValueError):
+  """Unknown protocol extension."""
+  pass

@@ -17,6 +17,8 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
+from .exceptions import UnsupportedProtocolError
+
 if sys.version_info < (3,):
     integer_types = (int, long, np.integer)
 else:
@@ -69,7 +71,7 @@ def extract_bucket_path(cloudpath):
   protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
   bucket_re = r'^(/?[~\d\w_\.\-]+)/'
 
-  error = ValueError("""
+  error = UnsupportedProtocolError("""
     Cloud path must conform to PROTOCOL://BUCKET/PATH
     Example: gs://test_bucket/em
 
@@ -104,7 +106,7 @@ def extract_path(cloudpath):
   bucket_re = r'^(/?[~\d\w_\.\-]+)/'
   tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
 
-  error = ValueError("""
+  error = UnsupportedProtocolError("""
     Cloud path must conform to PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
     Example: gs://test_bucket/mouse_dataset/em
 
@@ -720,8 +722,6 @@ def generate_slices(slices, minsize, maxsize, bounded=True):
 
   while len(slices) < len(maxsize):
     slices.append( slice(None, None, None) )
-
-  print(slices)
 
   # First three slices are x,y,z, last is channel. 
   # Handle only x,y,z here, channel seperately

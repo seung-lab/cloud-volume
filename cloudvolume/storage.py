@@ -16,6 +16,7 @@ import tenacity
 from tqdm import tqdm
 
 from . import compression
+from .exceptions import UnsupportedProtocolError
 from .lib import mkdir, extract_bucket_path, scatter
 from .threaded_queue import ThreadedQueue
 from .connectionpools import S3ConnectionPool, GCloudBucketPool
@@ -46,9 +47,6 @@ retry = tenacity.retry(
 )
 
 DEFAULT_THREADS = 20
-
-class UnsupportedProtocol(Exception):
-  pass
 
 class SimpleStorage(object):
   """
@@ -84,7 +82,7 @@ class SimpleStorage(object):
     elif self._path.protocol in ('http', 'https'):
       self._interface_cls = HttpInterface
     else:
-      raise UnsupportedProtocol(str(self._path))
+      raise UnsupportedProtocolError(str(self._path))
 
     self._interface = self._interface_cls(self._path)
 
@@ -245,7 +243,7 @@ class Storage(ThreadedQueue):
     elif self._path.protocol in ('http', 'https'):
       self._interface_cls = HttpInterface
     else:
-      raise UnsupportedProtocol(str(self._path))
+      raise UnsupportedProtocolError(str(self._path))
 
     self._interface = self._interface_cls(self._path)
 
