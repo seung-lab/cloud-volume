@@ -1,3 +1,4 @@
+import json
 import re
 import os
 
@@ -17,24 +18,29 @@ class PrecomputedMeshService(object):
     mesh_json_file_name = str(segid) + ':0'
     return os.path.join(mesh_dir, mesh_json_file_name)
 
-  def _get_raw_frags(self, segid):
-    """Download the raw mesh fragments for this seg ID."""
-
+  def _get_manifests(self, segids):
     mesh_dir = self.vol.info['mesh']
-    mesh_json_file_name = str(segid) + ':0'
-    download_path = self._manifest_path(segid)
+    
+    paths = [ self._manifest_path(segid) for segid in segids ]
 
     with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
-      fragments = stor.get_json(download_path)['fragments']
+      fragments = stor.get_files(paths)
 
-      # Older mesh manifest generation tasks had a bug where they
-      # accidently included the manifest file in the list of mesh
-      # fragments. Exclude these accidental files, no harm done.
-      fragments = [f for f in fragments if f != mesh_json_file_name]
+    contents = []
+    for frag in fragments:
+      content = frag['content'].decode('utf8')
+      content = json.loads(content)
+      contents.extend(content['fragments'])
 
-      paths = [os.path.join(mesh_dir, fragment) for fragment in fragments]
-      frag_datas = stor.get_files(paths)
-    return frag_datas
+    return contents
+
+  def _get_mesh_fragments(self, paths):
+    mesh_dir = self.vol.info['mesh']
+    paths = [ os.path.join(mesh_dir, path) for path in paths ]
+    with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+      fragments = stor.get_files(paths)
+
+    return fragments
 
   def get(self, segids, remove_duplicate_vertices=True):
     """
@@ -60,17 +66,15 @@ class PrecomputedMeshService(object):
     dne = self._check_missing_manifests(segids)
 
     if dne:
-      missing = ', '.join([str(segid) for segid in dne])
+      missing = ', '.join([ str(segid) for segid in dne ])
       raise ValueError(red(
-          'Segment ID(s) {} are missing corresponding mesh manifests.\nAborted.' \
-          .format(missing)
+        'Segment ID(s) {} are missing corresponding mesh manifests.\nAborted.' \
+        .format(missing)
       ))
 
-    # mesh data returned in fragments
-    fragments = []
-    for segid in segids:
-      fragments.extend(self._get_raw_frags(segid))
-
+    fragments = self._get_manifests(segids)
+    fragments = self._get_mesh_fragments(fragments)
+    
     # decode all the fragments
     meshdata = []
     for frag in tqdm(fragments, disable=(not self.vol.progress), desc="Decoding Mesh Buffer"):
@@ -80,20 +84,19 @@ class PrecomputedMeshService(object):
     vertexct = np.zeros(len(meshdata) + 1, np.uint32)
     vertexct[1:] = np.cumsum([x['num_vertices'] for x in meshdata])
     vertices = np.concatenate([x['vertices'] for x in meshdata])
-    faces = np.concatenate([meshdata[i]['faces'] + vertexct[i] for i in range(len(meshdata))])
+    faces = np.concatenate([ 
+      mesh['faces'] + vertexct[i] for i, mesh in enumerate(meshdata) 
+    ])
 
     if remove_duplicate_vertices:
-      vertices, faces = np.unique(vertices[faces],
-                                  return_inverse=True, axis=0)
+      vertices, faces = np.unique(vertices[faces], return_inverse=True, axis=0)
       faces = faces.astype(np.uint32)
 
-    output = {
-        'num_vertices': len(vertices),
-        'vertices': vertices,
-        'faces': faces,
+    return {
+      'num_vertices': len(vertices),
+      'vertices': vertices,
+      'faces': faces,
     }
-
-    return output
 
   def _check_missing_manifests(self, segids):
     """Check if there are any missing mesh manifests prior to downloading."""
