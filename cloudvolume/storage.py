@@ -43,7 +43,7 @@ reset_connection_pools()
 retry = tenacity.retry(
   reraise=True, 
   stop=tenacity.stop_after_attempt(7), 
-  wait=tenacity.wait_full_jitter(0.5, 60.0),
+  wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
 DEFAULT_THREADS = 20
