@@ -100,6 +100,27 @@ def test_number_type_read():
     assert cv[x,x,x].shape == (1,1,1,1)
     assert np.all(cv[x,x,x] == data[5,5,5])  
 
+def test_ellipsis_read():
+  delete_layer()
+  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+
+  img = cv[...]
+  assert np.all(img == data)
+
+  img = cv[5:10, ...]
+  assert np.all(img == data[5:10, :,:,:])
+
+  img = cv[5:10, 7, 8, ...]
+  assert np.all(np.squeeze(img) == data[5:10, 7, 8, 0])
+
+  img = cv[5:10, ..., 8, 0]
+  assert np.all(np.squeeze(img) == data[5:10, :, 8, 0])
+
+  try:
+    img = cv[..., 5, ..., 0]
+  except ValueError:
+    pass
+
 
 def test_parallel_read():
   paths = [

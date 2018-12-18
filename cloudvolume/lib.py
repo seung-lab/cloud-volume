@@ -705,19 +705,31 @@ def generate_slices(slices, minsize, maxsize, bounded=True):
 
   if isinstance(slices, integer_types) or isinstance(slices, floating_types):
     slices = [ slice(int(slices), int(slices)+1, 1) ]
-  if type(slices) == slice:
+  elif type(slices) == slice:
     slices = [ slices ]
+  elif slices == Ellipsis:
+    slices = []
 
   slices = list(slices)
 
+  for index, slc in enumerate(slices):
+    if slc == Ellipsis:
+      fill = len(maxsize) - len(slices) + 1
+      slices = slices[:index] +  (fill * [ slice(None, None, None) ]) + slices[index+1:]
+      break
+
   while len(slices) < len(maxsize):
     slices.append( slice(None, None, None) )
+
+  print(slices)
 
   # First three slices are x,y,z, last is channel. 
   # Handle only x,y,z here, channel seperately
   for index, slc in enumerate(slices):
     if isinstance(slc, integer_types) or isinstance(slc, floating_types):
       slices[index] = slice(int(slc), int(slc)+1, 1)
+    elif slc == Ellipsis:
+      raise ValueError("More than one Ellipsis operator used at once.")
     else:
       start = minsize[index] if slc.start is None else slc.start
       end = maxsize[index] if slc.stop is None else slc.stop 
