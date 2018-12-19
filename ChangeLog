@@ -1,6 +1,20 @@
 CHANGES
 =======
 
+0.42.1
+------
+
+* Version 0.42.1
+* perf(meshservice): multithreaded mesh manifests (#176)
+
+0.42.0
+------
+
+* Version 0.42.0
+* fix: close requests streams  (#173)
+* feat: support ellipsis operator
+* fix: allow numpy scalar types for cloudvolume access
+* feat(uviewer): cast 2D and 4D images to 3D automatically
 * refactor(lib): remove unused list\_shape function
 * fix: accomodate python2.7 in Bbox division
 * test: bbox.subvoxel() vs pathological behavior of bbox.volume()
