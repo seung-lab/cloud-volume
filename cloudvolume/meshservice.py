@@ -120,7 +120,9 @@ class PrecomputedMeshService(object):
       }
 
     if fuse:
-      meshdata = meshdata.values()
+      meshdata = [ (segid, mdata) for segid, mdata in six.iteritems(meshdata) ]
+      meshdata = sorted(meshdata, key=lambda sm: sm[0])
+      meshdata = [ mdata for segid, mdata in meshdata ]
       meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
       return produce_output(meshdata)
     else:
