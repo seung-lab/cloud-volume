@@ -186,11 +186,13 @@ vol.mesh.save(12345) # save 12345 as ./12345.ply on disk
 vol.mesh.save([12345, 12346, 12347]) # merge three segments into one file
 vol.mesh.save(12345, file_format='obj') # 'ply' and 'obj' are both supported
 vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
+vol.mesh.get([ 12345, 12346 ]) # return these two segids fused into a single mesh 
+vol.mesh.get([ 12345, 12346 ], fuse=False) # return { 12345: mesh, 12346: mesh }
 
 # Skeletons
 skel = vol.skeleton.get(12345)
-vol.skeleton.upload(segid, skel.vertices, skel.edges, skel.radii, skel.vertex_types) 
-vol.skeleton.upload_multiple([ ... skeletons ... ])
+vol.skeleton.upload_raw(segid, skel.vertices, skel.edges, skel.radii, skel.vertex_types) 
+vol.skeleton.upload(skel) 
 
 skel.empty() # boolean
 
