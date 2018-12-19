@@ -6,7 +6,7 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from .lib import red
+from .lib import red, toiter
 from .storage import Storage
 
 class PrecomputedMeshService(object):
@@ -60,9 +60,7 @@ class PrecomputedMeshService(object):
     }
 
     """
-    if type(segids) != list:
-      segids = [segids]
-
+    segids = toiter(segids)
     dne = self._check_missing_manifests(segids)
 
     if dne:
