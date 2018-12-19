@@ -662,7 +662,7 @@ class HttpInterface(object):
   @retry
   def get_file(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = self.sesh.get(key)
+    resp = requests.get(key)
     resp.raise_for_status()
     return resp.content, resp.encoding
 

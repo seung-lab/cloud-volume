@@ -46,6 +46,45 @@ def test_read_write():
 
   delete_layer("/tmp/removeme/read_write")
 
+def test_http_read():
+  with Storage("https://storage.googleapis.com/seunglab-test/test_v0/black/") as stor:
+    info = stor.get_json('info')
+
+  assert info == {
+    "data_type": "uint8",
+    "num_channels": 1,
+    "scales": [
+      {
+        "chunk_sizes": [
+          [
+            64,
+            64,
+            50
+          ]
+        ],
+        "encoding": "raw",
+        "key": "6_6_30",
+        "resolution": [
+          6,
+          6,
+          30
+        ],
+        "size": [
+          1024,
+          1024,
+          100
+        ],
+        "voxel_offset": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "type": "image"
+  }
+
+
 def test_delete():
   urls = [
     "file:///tmp/removeme/delete",
