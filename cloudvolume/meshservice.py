@@ -1,3 +1,8 @@
+import six
+
+from collections import defaultdict
+import itertools
+import json
 import re
 import os
 
@@ -5,8 +10,18 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from .lib import red
+from .lib import red, toiter
 from .storage import Storage
+
+SEGIDRE = re.compile(r'/(\d+):0.*?$')
+
+def filename_to_segid(filename):
+  matches = SEGIDRE.search(filename)
+  if matches is None:
+    raise ValueError("There was an issue with the fragment filename: " + filename)
+
+  segid, = matches.groups()
+  return int(segid)
 
 class PrecomputedMeshService(object):
   def __init__(self, vol):
@@ -17,35 +32,44 @@ class PrecomputedMeshService(object):
     mesh_json_file_name = str(segid) + ':0'
     return os.path.join(mesh_dir, mesh_json_file_name)
 
-  def _get_raw_frags(self, segid):
-    """Download the raw mesh fragments for this seg ID."""
-
+  def _get_manifests(self, segids):
+    segids = toiter(segids)
     mesh_dir = self.vol.info['mesh']
-    mesh_json_file_name = str(segid) + ':0'
-    download_path = self._manifest_path(segid)
+    
+    paths = [ self._manifest_path(segid) for segid in segids ]
 
     with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
-      fragments = stor.get_json(download_path)['fragments']
+      fragments = stor.get_files(paths)
 
-      # Older mesh manifest generation tasks had a bug where they
-      # accidently included the manifest file in the list of mesh
-      # fragments. Exclude these accidental files, no harm done.
-      fragments = [f for f in fragments if f != mesh_json_file_name]
+    contents = {}
+    for frag in fragments:
+      content = frag['content'].decode('utf8')
+      content = json.loads(content)
+      segid = filename_to_segid(frag['filename'])
+      contents[segid] = content['fragments']
 
-      paths = [os.path.join(mesh_dir, fragment) for fragment in fragments]
-      frag_datas = stor.get_files(paths)
-    return frag_datas
+    return contents
 
-  def get(self, segids, remove_duplicate_vertices=True):
+  def _get_mesh_fragments(self, paths):
+    mesh_dir = self.vol.info['mesh']
+    paths = [ os.path.join(mesh_dir, path) for path in paths ]
+    with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+      fragments = stor.get_files(paths)
+
+    return fragments
+
+  def get(self, segids, remove_duplicate_vertices=True, fuse=True):
     """
     Merge fragments derived from these segids into a single vertex and face list.
 
     Why merge multiple segids into one mesh? For example, if you have a set of
     segids that belong to the same neuron.
 
-    segids: (list or int) segids to render into a single mesh
+    segids: (iterable or int) segids to render into a single mesh
 
-    remove_duplicate_vertices: bool, fuse exactly matching vertices
+    Optional:
+      remove_duplicate_vertices: bool, fuse exactly matching vertices
+      fuse: bool, merge all downloaded meshes into a single mesh
 
     Returns: {
       num_vertices: int,
@@ -54,46 +78,53 @@ class PrecomputedMeshService(object):
     }
 
     """
-    if type(segids) != list:
-      segids = [segids]
-
+    segids = toiter(segids)
     dne = self._check_missing_manifests(segids)
 
     if dne:
-      missing = ', '.join([str(segid) for segid in dne])
+      missing = ', '.join([ str(segid) for segid in dne ])
       raise ValueError(red(
-          'Segment ID(s) {} are missing corresponding mesh manifests.\nAborted.' \
-          .format(missing)
+        'Segment ID(s) {} are missing corresponding mesh manifests.\nAborted.' \
+        .format(missing)
       ))
 
-    # mesh data returned in fragments
-    fragments = []
-    for segid in segids:
-      fragments.extend(self._get_raw_frags(segid))
+    fragments = self._get_manifests(segids)
+    fragments = fragments.values()
+    fragments = list(itertools.chain.from_iterable(fragments)) # flatten
+    fragments = self._get_mesh_fragments(fragments)
+    fragments = sorted(fragments, key=lambda frag: frag['filename']) # make decoding deterministic
 
     # decode all the fragments
-    meshdata = []
+    meshdata = defaultdict(list)
     for frag in tqdm(fragments, disable=(not self.vol.progress), desc="Decoding Mesh Buffer"):
+      segid = filename_to_segid(frag['filename'])
       mesh = decode_mesh_buffer(frag['filename'], frag['content'])
-      meshdata.append(mesh)
+      meshdata[segid].append(mesh)
 
-    vertexct = np.zeros(len(meshdata) + 1, np.uint32)
-    vertexct[1:] = np.cumsum([x['num_vertices'] for x in meshdata])
-    vertices = np.concatenate([x['vertices'] for x in meshdata])
-    faces = np.concatenate([meshdata[i]['faces'] + vertexct[i] for i in range(len(meshdata))])
+    def produce_output(mdata):
+      vertexct = np.zeros(len(mdata) + 1, np.uint32)
+      vertexct[1:] = np.cumsum([x['num_vertices'] for x in mdata])
+      vertices = np.concatenate([x['vertices'] for x in mdata])
+      faces = np.concatenate([ 
+        mesh['faces'] + vertexct[i] for i, mesh in enumerate(mdata) 
+      ])
 
-    if remove_duplicate_vertices:
-      vertices, faces = np.unique(vertices[faces],
-                                  return_inverse=True, axis=0)
-      faces = faces.astype(np.uint32)
+      if remove_duplicate_vertices:
+        vertices, faces = np.unique(vertices[faces], return_inverse=True, axis=0)
+        faces = faces.astype(np.uint32)
 
-    output = {
+      return {
         'num_vertices': len(vertices),
         'vertices': vertices,
         'faces': faces,
-    }
+      }
 
-    return output
+    if fuse:
+      meshdata = meshdata.values()
+      meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
+      return produce_output(meshdata)
+    else:
+      return { segid: produce_output(mdata) for segid, mdata in six.iteritems(meshdata) }
 
   def _check_missing_manifests(self, segids):
     """Check if there are any missing mesh manifests prior to downloading."""

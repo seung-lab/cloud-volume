@@ -43,6 +43,13 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
 
+def toiter(obj):
+  try:
+    iter(obj)
+    return obj 
+  except TypeError:
+    return [ obj ]
+
 def jsonify(obj, **kwargs):
   return json.dumps(obj, cls=NumpyEncoder, **kwargs)
 
