@@ -1143,7 +1143,6 @@ def test_get_mesh():
   except ValueError:
     pass
 
-
 def test_get_mesh_order_stability():
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
   first_mesh = vol.mesh.get([148, 18], fuse=True)
@@ -1153,8 +1152,6 @@ def test_get_mesh_order_stability():
     assert first_mesh['num_vertices'] == next_mesh['num_vertices']
     assert np.all(first_mesh['vertices'] == next_mesh['vertices'])
     assert np.all(first_mesh['faces'] == next_mesh['faces'])
-
-
 
 def test_boss_download():
   vol = CloudVolume('gs://seunglab-test/test_v0/image')

@@ -157,7 +157,7 @@ class PrecomputedMeshService(object):
     meshdata = self.get(segids)
 
     if not filepath:
-      filepath = str(segids[0])
+      filepath = str(segids[0]) + "." + file_format
       if len(segids) > 1:
         filepath = "{}_{}.{}".format(segids[0], segids[-1], file_format)
 
