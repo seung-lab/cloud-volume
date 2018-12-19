@@ -28,11 +28,21 @@ class PrecomputedMeshService(object):
     with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
       fragments = stor.get_files(paths)
 
-    contents = []
+    segidre = re.compile(r'/(\d+):0$')
+
+    contents = {}
     for frag in fragments:
       content = frag['content'].decode('utf8')
       content = json.loads(content)
-      contents.append(content['fragments'])
+
+      matches = segidre.search(frag['filename'])
+      if matches is None:
+        raise ValueError("There was an issue with the fragment filename: " + frag['filename'])
+
+      segid, = matches.groups()
+      segid = int(segid)
+
+      contents[segid] = content['fragments']
 
     return contents
 
@@ -73,9 +83,11 @@ class PrecomputedMeshService(object):
       ))
 
     fragments = self._get_manifests(segids)
+    fragments = fragments.values()
     fragments = list(itertools.chain.from_iterable(fragments)) # flatten
     fragments = self._get_mesh_fragments(fragments)
-    
+    fragments = sorted(fragments, key=lambda frag: frag['filename']) # make decoding deterministic
+
     # decode all the fragments
     meshdata = []
     for frag in tqdm(fragments, disable=(not self.vol.progress), desc="Decoding Mesh Buffer"):
