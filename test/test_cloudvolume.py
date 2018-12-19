@@ -1126,6 +1126,9 @@ def test_get_mesh():
   assert mesh['num_vertices'] == 6123
   assert len(mesh['vertices']) == 6123
   assert len(mesh['faces']) == 36726
+  assert isinstance(mesh['vertices'], np.ndarray)
+  assert mesh['vertices'].dtype == np.float32
+  assert mesh['faces'].dtype == np.uint32
 
   meshes = vol.mesh.get([148, 18], fuse=False)
   assert len(meshes) == 2

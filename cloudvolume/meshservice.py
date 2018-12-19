@@ -103,8 +103,8 @@ class PrecomputedMeshService(object):
 
     def produce_output(mdata):
       vertexct = np.zeros(len(mdata) + 1, np.uint32)
-      vertexct[1:] = np.cumsum([x['num_vertices'] for x in mdata])
-      vertices = np.concatenate([x['vertices'] for x in mdata])
+      vertexct[1:] = np.cumsum([ x['num_vertices'] for x in mdata ])
+      vertices = np.concatenate([ x['vertices'] for x in mdata ])
       faces = np.concatenate([ 
         mesh['faces'] + vertexct[i] for i, mesh in enumerate(mdata) 
       ])
@@ -174,18 +174,19 @@ class PrecomputedMeshService(object):
 def decode_mesh_buffer(filename, fragment):
   num_vertices = struct.unpack("=I", fragment[0:4])[0]
   try:
-    vertices = np.frombuffer(fragment, 'float32, float32, float32', num_vertices, 4)
-    faces = np.frombuffer(fragment, np.uint32, -1, 4 + 12*num_vertices)
+    # count=-1 means all data in buffer
+    vertices = np.frombuffer(fragment, dtype=np.float32, count=3*num_vertices, offset=4)
+    faces = np.frombuffer(fragment, dtype=np.uint32, count=-1, offset=(4 + 12 * num_vertices)) 
   except ValueError:
     raise ValueError("""Unable to process fragment {}. Violation: Input buffer too small.
         Minimum size: Buffer Length: {}, Actual Size: {}
       """.format(filename, 4 + 4*num_vertices, len(fragment)))
 
   return {
-      'filename': filename,
-      'num_vertices': num_vertices,
-      'vertices': vertices,
-      'faces': faces
+    'filename': filename,
+    'num_vertices': num_vertices,
+    'vertices': vertices.reshape( num_vertices, 3 ),
+    'faces': faces,
   }
 
 def mesh_to_obj(mesh, progress=False):
