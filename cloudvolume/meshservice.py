@@ -1,3 +1,4 @@
+import itertools
 import json
 import re
 import os
@@ -19,6 +20,7 @@ class PrecomputedMeshService(object):
     return os.path.join(mesh_dir, mesh_json_file_name)
 
   def _get_manifests(self, segids):
+    segids = toiter(segids)
     mesh_dir = self.vol.info['mesh']
     
     paths = [ self._manifest_path(segid) for segid in segids ]
@@ -30,7 +32,7 @@ class PrecomputedMeshService(object):
     for frag in fragments:
       content = frag['content'].decode('utf8')
       content = json.loads(content)
-      contents.extend(content['fragments'])
+      contents.append(content['fragments'])
 
     return contents
 
@@ -71,6 +73,7 @@ class PrecomputedMeshService(object):
       ))
 
     fragments = self._get_manifests(segids)
+    fragments = list(itertools.chain.from_iterable(fragments)) # flatten
     fragments = self._get_mesh_fragments(fragments)
     
     # decode all the fragments

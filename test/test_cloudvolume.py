@@ -1111,17 +1111,13 @@ def test_slices_to_global_coords():
 
 def test_mesh_fragment_download():
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
-  frags = vol.mesh._get_raw_frags(18)
-  assert len(frags) == 1
-  assert len(frags[0]['content']) > 0
-  assert frags[0]['filename'] == os.path.join(vol.info['mesh'], '18:0:0-512_0-512_0-100')
-  assert frags[0]['error'] is None
+  paths = vol.mesh._get_manifests(18)[0]
+  assert len(paths) == 1
+  assert paths[0] == '18:0:0-512_0-512_0-100'
 
-  frags = vol.mesh._get_raw_frags(147)
-  assert len(frags) == 1
-  assert len(frags[0]['content']) > 0
-  assert frags[0]['filename'] == os.path.join(vol.info['mesh'], '147:0:0-512_0-512_0-100')
-  assert frags[0]['error'] is None
+  paths = vol.mesh._get_manifests(147)[0]
+  assert len(paths) == 1
+  assert paths[0] == '147:0:0-512_0-512_0-100'
 
 
 def test_get_mesh():
