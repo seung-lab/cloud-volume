@@ -1126,6 +1126,13 @@ def test_get_mesh():
   assert mesh['num_vertices'] == 6123
   assert len(mesh['vertices']) == 6123
   assert len(mesh['faces']) == 36726
+
+  meshes = vol.mesh.get([148, 18], fuse=False)
+  assert len(meshes) == 2
+  mesh = meshes[18]
+  assert mesh['num_vertices'] == 6123
+  assert len(mesh['vertices']) == 6123
+  assert len(mesh['faces']) == 36726
   
   try:
     vol.mesh.get(666666666)

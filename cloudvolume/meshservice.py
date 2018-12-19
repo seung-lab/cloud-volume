@@ -1,3 +1,6 @@
+import six
+
+from collections import defaultdict
 import itertools
 import json
 import re
@@ -9,6 +12,16 @@ from tqdm import tqdm
 
 from .lib import red, toiter
 from .storage import Storage
+
+SEGIDRE = re.compile(r'/(\d+):0.*?$')
+
+def filename_to_segid(filename):
+  matches = SEGIDRE.search(filename)
+  if matches is None:
+    raise ValueError("There was an issue with the fragment filename: " + filename)
+
+  segid, = matches.groups()
+  return int(segid)
 
 class PrecomputedMeshService(object):
   def __init__(self, vol):
@@ -28,20 +41,11 @@ class PrecomputedMeshService(object):
     with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
       fragments = stor.get_files(paths)
 
-    segidre = re.compile(r'/(\d+):0$')
-
     contents = {}
     for frag in fragments:
       content = frag['content'].decode('utf8')
       content = json.loads(content)
-
-      matches = segidre.search(frag['filename'])
-      if matches is None:
-        raise ValueError("There was an issue with the fragment filename: " + frag['filename'])
-
-      segid, = matches.groups()
-      segid = int(segid)
-
+      segid = filename_to_segid(frag['filename'])
       contents[segid] = content['fragments']
 
     return contents
@@ -54,16 +58,18 @@ class PrecomputedMeshService(object):
 
     return fragments
 
-  def get(self, segids, remove_duplicate_vertices=True):
+  def get(self, segids, remove_duplicate_vertices=True, fuse=True):
     """
     Merge fragments derived from these segids into a single vertex and face list.
 
     Why merge multiple segids into one mesh? For example, if you have a set of
     segids that belong to the same neuron.
 
-    segids: (list or int) segids to render into a single mesh
+    segids: (iterable or int) segids to render into a single mesh
 
-    remove_duplicate_vertices: bool, fuse exactly matching vertices
+    Optional:
+      remove_duplicate_vertices: bool, fuse exactly matching vertices
+      fuse: bool, merge all downloaded meshes into a single mesh
 
     Returns: {
       num_vertices: int,
@@ -89,27 +95,36 @@ class PrecomputedMeshService(object):
     fragments = sorted(fragments, key=lambda frag: frag['filename']) # make decoding deterministic
 
     # decode all the fragments
-    meshdata = []
+    meshdata = defaultdict(list)
     for frag in tqdm(fragments, disable=(not self.vol.progress), desc="Decoding Mesh Buffer"):
+      segid = filename_to_segid(frag['filename'])
       mesh = decode_mesh_buffer(frag['filename'], frag['content'])
-      meshdata.append(mesh)
+      meshdata[segid].append(mesh)
 
-    vertexct = np.zeros(len(meshdata) + 1, np.uint32)
-    vertexct[1:] = np.cumsum([x['num_vertices'] for x in meshdata])
-    vertices = np.concatenate([x['vertices'] for x in meshdata])
-    faces = np.concatenate([ 
-      mesh['faces'] + vertexct[i] for i, mesh in enumerate(meshdata) 
-    ])
+    def produce_output(mdata):
+      vertexct = np.zeros(len(mdata) + 1, np.uint32)
+      vertexct[1:] = np.cumsum([x['num_vertices'] for x in mdata])
+      vertices = np.concatenate([x['vertices'] for x in mdata])
+      faces = np.concatenate([ 
+        mesh['faces'] + vertexct[i] for i, mesh in enumerate(mdata) 
+      ])
 
-    if remove_duplicate_vertices:
-      vertices, faces = np.unique(vertices[faces], return_inverse=True, axis=0)
-      faces = faces.astype(np.uint32)
+      if remove_duplicate_vertices:
+        vertices, faces = np.unique(vertices[faces], return_inverse=True, axis=0)
+        faces = faces.astype(np.uint32)
 
-    return {
-      'num_vertices': len(vertices),
-      'vertices': vertices,
-      'faces': faces,
-    }
+      return {
+        'num_vertices': len(vertices),
+        'vertices': vertices,
+        'faces': faces,
+      }
+
+    if fuse:
+      meshdata = meshdata.values()
+      meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
+      return produce_output(meshdata)
+    else:
+      return { segid: produce_output(mdata) for segid, mdata in six.iteritems(meshdata) }
 
   def _check_missing_manifests(self, segids):
     """Check if there are any missing mesh manifests prior to downloading."""
