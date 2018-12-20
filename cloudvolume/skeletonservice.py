@@ -480,7 +480,10 @@ class PrecomputedSkeleton(object):
 
     stack = [ terminal_nodes[0] ]
     criticals = [ terminal_nodes[0] ]
-    path_stack = [ [] ]
+    # Saving the path stack is memory intensive
+    # There might be a way to do it more linearly
+    # via a DFS rather than BFS strategy.
+    path_stack = [ [] ] 
     
     visited = defaultdict(bool)
 
