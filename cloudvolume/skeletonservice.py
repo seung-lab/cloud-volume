@@ -351,14 +351,12 @@ class PrecomputedSkeleton(object):
 
     return np.sum(dist)
 
-  def downsample(self, factor, preserve_endpoints=True):
+  def downsample(self, factor):
     """
     Compute a downsampled version of the skeleton by striding while 
     preserving endpoints.
 
     factor: stride length for downsampling the saved skeleton paths.
-    preserve_endpoints: ensure that regardless of the downsample factor, 
-      the final vertex and edge on each tree branch is preserved.
 
     Returns: downsampled PrecomputedSkeleton
     """
@@ -368,12 +366,9 @@ class PrecomputedSkeleton(object):
     paths = self.interjoint_paths()
 
     for i, path in enumerate(paths):
-      if preserve_endpoints:
-        paths[i] = np.concatenate(
-          (path[0::factor, :], path[-1:, :])
-        )
-      else:
-        paths[i] = path[0::factor, :]
+      paths[i] = np.concatenate(
+        (path[0::factor, :], path[-1:, :]) # preserve endpoints
+      )
 
     ds_skel = PrecomputedSkeleton.simple_merge(
       [ PrecomputedSkeleton.from_path(path) for path in paths ]
