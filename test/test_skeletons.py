@@ -301,24 +301,12 @@ def test_downsample():
   should_error(.5)
   should_error(2.00000000000001)
 
-  dskel = skel.downsample(1, preserve_endpoints=False)
+  dskel = skel.downsample(1)
   assert PrecomputedSkeleton.equivalent(dskel, skel)
   assert dskel.id == skel.id
   assert dskel.id == 1337
 
-  dskel = skel.downsample(1, preserve_endpoints=True)
-  assert PrecomputedSkeleton.equivalent(dskel, skel)
-  assert dskel.id == skel.id
-  assert dskel.id == 1337
-
-  dskel = skel.downsample(2, preserve_endpoints=False)
-  dskel_gt = PrecomputedSkeleton(
-    [ (0,0,0), (1,1,0), (2,1,3) ], edges=[ (1,0), (1,2) ],
-    radii=[1,3,5], vertex_types=[1, 3, 5]
-  )
-  assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
-
-  dskel = skel.downsample(2, preserve_endpoints=True)
+  dskel = skel.downsample(2)
   dskel_gt = PrecomputedSkeleton(
     [ (0,0,0), (1,1,0), (2,1,3), (2,2,3) ], 
     edges=[ (1,0), (1,2), (2,3) ],
@@ -326,21 +314,12 @@ def test_downsample():
   )
   assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
 
-  dskel = skel.downsample(3, preserve_endpoints=False)
-  dskel_gt = PrecomputedSkeleton(
-    [ (0,0,0), (1,1,3) ], edges=[ (1,0) ],
-    radii=[1,4], vertex_types=[1,4] 
-  )
-  assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
-
-  dskel = skel.downsample(3, preserve_endpoints=True)
+  dskel = skel.downsample(3)
   dskel_gt = PrecomputedSkeleton(
     [ (0,0,0), (1,1,3), (2,2,3) ], edges=[ (1,0), (1,2) ],
     radii=[1,4,6], vertex_types=[1,4,6],
   )
   assert PrecomputedSkeleton.equivalent(dskel, dskel_gt)
-
-  print("OMG")
 
   skel = PrecomputedSkeleton([ 
       (0,0,0), (1,0,0), (1,1,0), (1,1,3), (2,1,3), (2,2,3)
@@ -349,7 +328,7 @@ def test_downsample():
     radii=[ 1, 2, 3, 4, 5, 6 ],
     vertex_types=[1, 2, 3, 4, 5, 6]
   )
-  dskel = skel.downsample(2, preserve_endpoints=True)
+  dskel = skel.downsample(2)
   dskel_gt = PrecomputedSkeleton(
     [ (0,0,0), (1,1,0), (1,1,3), (2,2,3) ], 
     edges=[ (1,0), (2,3) ],
