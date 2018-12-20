@@ -484,31 +484,31 @@ class PrecomputedSkeleton(object):
     paths = []
 
     stack = [ terminal_nodes[0] ]
-    parents = [ -1 ]
     criticals = [ terminal_nodes[0] ]
-    path = []
+    path_stack = [ [] ]
+    
+    visited = defaultdict(bool)
 
     while stack:
       node = stack.pop()
       root = criticals.pop() # "root" is used v. loosely here
-      parent = parents.pop()
+      path = path_stack.pop()
 
-      path.append(parent)
+      path.append(node)
+      visited[node] = True
 
-      if node in critical_points and node != root:
-        paths.append(path + [ node ])
-        path = []
+      if node != root and node in critical_points:
+        paths.append(path)
+        path = [ node ]
         root = node
 
       for child in tree[node]:
-        if child != parent:
+        if not visited[child]:
           stack.append(child)
-          parents.append(node)
           criticals.append(root)
+          path_stack.append(list(path))
 
-    if len(paths):
-      paths[0] = paths[0][1:] # get rid of -1
-    return paths
+    return [ vertices[path] for path in paths ]
 
   def critical_paths(self):
     """
@@ -518,12 +518,8 @@ class PrecomputedSkeleton(object):
     """
     paths = []
     for tree in self.components():
-      paths.extend(
-        self._single_tree_critical_paths(tree)
-      )
-
-    for i, path in enumerate(paths):
-      paths[i] = self.vertices[ path ]
+      subpaths = self._single_tree_critical_paths(tree)
+      paths.extend(subpaths)
 
     return paths
 
