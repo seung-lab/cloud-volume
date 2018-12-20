@@ -225,26 +225,43 @@ class PrecomputedSkeleton(object):
 
     EPSILON = 1e-7
 
-    vertex_match = np.all(np.abs(first.vertices - second.vertices) < EPSILON)
+    vertex1, inv1 = np.unique(first.vertices, axis=0, return_inverse=True)
+    vertex2, inv2 = np.unique(second.vertices, axis=0, return_inverse=True)
+
+    vertex_match = np.all(np.abs(vertex1 - vertex2) < EPSILON)
     if not vertex_match:
       return False
 
+    remapping = {}
+    for i in range(len(inv1)):
+      remapping[inv1[i]] = inv2[i]
+    remap = np.vectorize(lambda idx: remapping[idx])
+
     edges1 = np.sort(np.unique(first.edges, axis=0), axis=1)
     edges1 = edges1[np.lexsort(edges1[:,::-1].T)]
-    edges2 = np.sort(np.unique(second.edges, axis=0), axis=1)
+
+    edges2 = remap(second.edges)
+    edges2 = np.sort(np.unique(edges2, axis=0), axis=1)
     edges2 = edges2[np.lexsort(edges2[:,::-1].T)]
     edges_match = np.all(edges1 == edges2)
-    del edges1
-    del edges2
 
     if not edges_match:
       return False
 
-    radii_match = np.all(np.abs(first.radii - second.radii) < EPSILON)
-    if not radii_match:
-      return False   
+    second_verts = {}
+    for i, vert in enumerate(second.vertices):
+      second_verts[tuple(vert)] = i
+    
+    for i in range(len(first.radii)):
+      i2 = second_verts[tuple(first.vertices[i])]
 
-    return np.all(first.vertex_types == second.vertex_types)
+      if first.radii[i] != second.radii[i2]:
+        return False
+
+      if first.vertex_types[i] != second.vertex_types[i2]:
+        return False
+
+    return True
 
   def crop(self, bbox):
     """
@@ -334,29 +351,24 @@ class PrecomputedSkeleton(object):
 
     return np.sum(dist)
 
-  def downsample(self, factor, preserve_endpoints=True):
+  def downsample(self, factor):
     """
     Compute a downsampled version of the skeleton by striding while 
     preserving endpoints.
 
     factor: stride length for downsampling the saved skeleton paths.
-    preserve_endpoints: ensure that regardless of the downsample factor, 
-      the final vertex and edge on each tree branch is preserved.
 
     Returns: downsampled PrecomputedSkeleton
     """
     if int(factor) != factor or factor < 1:
       raise ValueError("Argument `factor` must be a positive integer greater than or equal to 1. Got: <{}>({})", type(factor), factor)
 
-    paths = self.paths()
+    paths = self.interjoint_paths()
 
     for i, path in enumerate(paths):
-      if preserve_endpoints:
-        paths[i] = np.concatenate(
-          (path[0::factor, :], path[-1:, :])
-        )
-      else:
-        paths[i] = path[0::factor, :]
+      paths[i] = np.concatenate(
+        (path[0::factor, :], path[-1:, :]) # preserve endpoints
+      )
 
     ds_skel = PrecomputedSkeleton.simple_merge(
       [ PrecomputedSkeleton.from_path(path) for path in paths ]
@@ -435,6 +447,73 @@ class PrecomputedSkeleton(object):
     paths = []
     for tree in self.components():
       paths += self._single_tree_paths(tree)
+    return paths
+
+  def _single_tree_interjoint_paths(self, skeleton):
+    vertices = skeleton.vertices
+    edges = skeleton.edges
+
+    unique_nodes, unique_counts = np.unique(edges, return_counts=True)
+    terminal_nodes = unique_nodes[ unique_counts == 1 ]
+    branch_nodes = set(unique_nodes[ unique_counts >= 3 ])
+    
+    critical_points = set(terminal_nodes)
+    critical_points.update(branch_nodes)
+
+    tree = defaultdict(set)
+
+    for e1, e2 in edges:
+      tree[e1].add(e2)
+      tree[e2].add(e1)
+
+    # The below depth first search would be
+    # more elegantly implemented as recursion,
+    # but it quickly blows the stack, mandating
+    # an iterative implementation.
+
+    paths = []
+
+    stack = [ terminal_nodes[0] ]
+    criticals = [ terminal_nodes[0] ]
+    # Saving the path stack is memory intensive
+    # There might be a way to do it more linearly
+    # via a DFS rather than BFS strategy.
+    path_stack = [ [] ] 
+    
+    visited = defaultdict(bool)
+
+    while stack:
+      node = stack.pop()
+      root = criticals.pop() # "root" is used v. loosely here
+      path = path_stack.pop()
+
+      path.append(node)
+      visited[node] = True
+
+      if node != root and node in critical_points:
+        paths.append(path)
+        path = [ node ]
+        root = node
+
+      for child in tree[node]:
+        if not visited[child]:
+          stack.append(child)
+          criticals.append(root)
+          path_stack.append(list(path))
+
+    return [ vertices[path] for path in paths ]
+
+  def interjoint_paths(self):
+    """
+    Returns paths between the adjacent critical points
+    in the skeleton, where a critical point is the set of
+    terminal and branch points.
+    """
+    paths = []
+    for tree in self.components():
+      subpaths = self._single_tree_interjoint_paths(tree)
+      paths.extend(subpaths)
+
     return paths
 
   def _compute_components(self):
