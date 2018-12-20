@@ -225,26 +225,48 @@ class PrecomputedSkeleton(object):
 
     EPSILON = 1e-7
 
-    vertex_match = np.all(np.abs(first.vertices - second.vertices) < EPSILON)
+    vertex1, inv1 = np.unique(first.vertices, axis=0, return_inverse=True)
+    vertex2, inv2 = np.unique(second.vertices, axis=0, return_inverse=True)
+
+    vertex_match = np.all(np.abs(vertex1 - vertex2) < EPSILON)
     if not vertex_match:
+      print("vertex")
       return False
+
+    remapping = {}
+    for i in range(len(inv1)):
+      remapping[inv1[i]] = inv2[i]
+    remap = np.vectorize(lambda idx: remapping[idx])
 
     edges1 = np.sort(np.unique(first.edges, axis=0), axis=1)
     edges1 = edges1[np.lexsort(edges1[:,::-1].T)]
-    edges2 = np.sort(np.unique(second.edges, axis=0), axis=1)
+
+    edges2 = remap(second.edges)
+    edges2 = np.sort(np.unique(edges2, axis=0), axis=1)
     edges2 = edges2[np.lexsort(edges2[:,::-1].T)]
     edges_match = np.all(edges1 == edges2)
-    del edges1
-    del edges2
 
     if not edges_match:
+      print('edge')
       return False
 
     radii_match = np.all(np.abs(first.radii - second.radii) < EPSILON)
     if not radii_match:
+      print("radii")
       return False   
 
+    print("vtypes")
+
     return np.all(first.vertex_types == second.vertex_types)
+    # for i in range(len(first.radii)):
+    #   if first.radii[i] != second.radii[remapping[i]]:
+    #     print("false radii match")
+    #     return False
+
+    # for i in range(len(first.vertex_types)):
+    #   if first.vertex_types[i] != second.vertex_types[remapping[i]]:
+    #     print("false vert match")
+    #     return False
 
   def crop(self, bbox):
     """
