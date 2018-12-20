@@ -365,7 +365,7 @@ class PrecomputedSkeleton(object):
     if int(factor) != factor or factor < 1:
       raise ValueError("Argument `factor` must be a positive integer greater than or equal to 1. Got: <{}>({})", type(factor), factor)
 
-    paths = self.critical_paths()
+    paths = self.interjoint_paths()
 
     for i, path in enumerate(paths):
       if preserve_endpoints:
@@ -454,7 +454,7 @@ class PrecomputedSkeleton(object):
       paths += self._single_tree_paths(tree)
     return paths
 
-  def _single_tree_critical_paths(self, skeleton):
+  def _single_tree_interjoint_paths(self, skeleton):
     vertices = skeleton.vertices
     edges = skeleton.edges
 
@@ -508,7 +508,7 @@ class PrecomputedSkeleton(object):
 
     return [ vertices[path] for path in paths ]
 
-  def critical_paths(self):
+  def interjoint_paths(self):
     """
     Returns paths between the adjacent critical points
     in the skeleton, where a critical point is the set of
@@ -516,7 +516,7 @@ class PrecomputedSkeleton(object):
     """
     paths = []
     for tree in self.components():
-      subpaths = self._single_tree_critical_paths(tree)
+      subpaths = self._single_tree_interjoint_paths(tree)
       paths.extend(subpaths)
 
     return paths
