@@ -403,8 +403,8 @@ def test_downsample_joints():
                   (3,5),
                   (5,6)
     ],
-    radii=[ 3, 10, 9, 5, 2, 0, 7 ],
-    vertex_types=[ 3, 10, 9, 5, 2, 0, 7 ],
+    radii=[ 0, 1, 3, 5, 7, 9, 10 ],
+    vertex_types=[ 0, 1, 3, 5, 7, 9, 10 ],
     segid=1337,
   )
 

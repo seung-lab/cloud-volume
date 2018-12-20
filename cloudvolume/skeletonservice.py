@@ -230,7 +230,6 @@ class PrecomputedSkeleton(object):
 
     vertex_match = np.all(np.abs(vertex1 - vertex2) < EPSILON)
     if not vertex_match:
-      print("vertex")
       return False
 
     remapping = {}
@@ -247,26 +246,22 @@ class PrecomputedSkeleton(object):
     edges_match = np.all(edges1 == edges2)
 
     if not edges_match:
-      print('edge')
       return False
 
-    radii_match = np.all(np.abs(first.radii - second.radii) < EPSILON)
-    if not radii_match:
-      print("radii")
-      return False   
+    second_verts = {}
+    for i, vert in enumerate(second.vertices):
+      second_verts[tuple(vert)] = i
+    
+    for i in range(len(first.radii)):
+      i2 = second_verts[tuple(first.vertices[i])]
 
-    print("vtypes")
+      if first.radii[i] != second.radii[i2]:
+        return False
 
-    return np.all(first.vertex_types == second.vertex_types)
-    # for i in range(len(first.radii)):
-    #   if first.radii[i] != second.radii[remapping[i]]:
-    #     print("false radii match")
-    #     return False
+      if first.vertex_types[i] != second.vertex_types[i2]:
+        return False
 
-    # for i in range(len(first.vertex_types)):
-    #   if first.vertex_types[i] != second.vertex_types[remapping[i]]:
-    #     print("false vert match")
-    #     return False
+    return True
 
   def crop(self, bbox):
     """
