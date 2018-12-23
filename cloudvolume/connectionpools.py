@@ -5,7 +5,7 @@ from functools import partial
 
 from google.cloud.storage import Client
 import boto3
-import requests
+from hyper import HTTPConnection
 
 from .secrets import google_credentials, aws_credentials
 from .exceptions import UnsupportedProtocolError
@@ -134,7 +134,8 @@ class HttpConnectionPool(ConnectionPool):
     super(HttpConnectionPool, self).__init__()
 
   def _create_connection(self):
-    session = requests.Session()
+    port = 443 if self.protocol == 'https' else 80
+    session = HTTPConnection(self.bucket, port)
     return session
 
   def close(self, conn):

@@ -1,6 +1,6 @@
 import six
 from six.moves import queue as Queue
-from collections import defaultdict
+from collections import defaultdict, deque
 import json
 import os.path
 import re
@@ -14,8 +14,7 @@ from google.cloud.storage import Batch, Client
 import tenacity
 from tqdm import tqdm
 
-from . import compression
-from .exceptions import UnsupportedProtocolError
+from . import compression, exceptions
 from .lib import mkdir, extract_bucket_path, scatter
 from .threaded_queue import ThreadedQueue
 from .connectionpools import S3ConnectionPool, GCloudBucketPool, \
@@ -43,10 +42,11 @@ def reset_connection_pools():
 
 reset_connection_pools()
 
-retry = tenacity.retry(
-  reraise=True, 
-  stop=tenacity.stop_after_attempt(7), 
-  wait=tenacity.wait_random_exponential(0.5, 60.0),
+MAX_RETRIES = 7
+retry = partial(tenacity.retry,
+  reraise=True,
+  stop=tenacity.stop_after_attempt(MAX_RETRIES),
+  wait=tenacity.wait_random_exponential(0.5, 60.0)
 )
 
 DEFAULT_THREADS = 20
@@ -85,7 +85,7 @@ class SimpleStorage(object):
     elif self._path.protocol in ('http', 'https'):
       self._interface_cls = HttpInterface
     else:
-      raise UnsupportedProtocolError(str(self._path))
+      raise exceptions.UnsupportedProtocolError(str(self._path))
 
     self._interface = self._interface_cls(self._path)
 
@@ -246,7 +246,7 @@ class Storage(ThreadedQueue):
     elif self._path.protocol in ('http', 'https'):
       self._interface_cls = HttpInterface
     else:
-      raise UnsupportedProtocolError(str(self._path))
+      raise exceptions.UnsupportedProtocolError(str(self._path))
 
     self._interface = self._interface_cls(self._path)
 
@@ -664,21 +664,61 @@ class HttpInterface(object):
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
     raise NotImplementedError()
 
-  @retry
+  @retry(retry=tenacity.retry_if_exception_type(exceptions.HTTPServerError))
   def get_file(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = self._conn.get(key)
-    resp.raise_for_status()
-    return resp.content, resp.encoding
+    self._conn.request('GET', key)
 
-  @retry
+    resp = self._conn.get_response()
+    err = exceptions.from_http_status(resp.status, resp.reason)
+    if isinstance(err, (exceptions.HTTPServerError, exceptions.HTTPClientError)):
+      resp.close()
+      raise err
+
+    result = resp.read()
+    resp.close()
+    return result, None  # content, encoding
+
+  @retry(retry=tenacity.retry_if_exception_type(exceptions.HTTPServerError))
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
-    resp = self._conn.head(key)
-    return resp.ok
+    self._conn.request('HEAD', key)
+
+    resp = self._conn.get_response()
+    err = exceptions.from_http_status(resp.status, resp.reason)
+    resp.close()
+
+    if isinstance(err, (exceptions.NotFound, exceptions.Forbidden)):
+      return False
+    elif isinstance(err, (exceptions.HTTPServerError, exceptions.HTTPClientError)):
+      raise err
+
+    return True
 
   def files_exist(self, file_paths):
-    return {path: self.exists(path) for path in file_paths}
+    result = {path: None for path in file_paths}
+    # retries = {path: 0 for path in file_paths}
+    # deq = dequeue((path: {stream_id: None, retry: 0} for path in file_paths))
+    MAX_BATCH_SIZE = 100
+
+    for i in range(0, len(file_paths), MAX_BATCH_SIZE):
+      for file_path in file_paths[i:i+MAX_BATCH_SIZE]:
+        key = self.get_path_to_file(file_path)
+        result[file_path] = self._conn.request('HEAD', key)
+
+      for file_path in file_paths[i:i+MAX_BATCH_SIZE]:
+        req = result[file_path]
+        resp = self._conn.get_response(req)
+        err = exceptions.from_http_status(resp.status, resp.reason)
+        resp.close()
+        if isinstance(err, (exceptions.NotFound, exceptions.Forbidden)):
+          result[file_path] = False
+        elif isinstance(err, (exceptions.HTTPServerError, exceptions.HTTPClientError)):
+          raise err
+        else:
+          result[file_path] = True
+
+    return result
 
   def list_files(self, prefix, flat=False):
     raise NotImplementedError()

@@ -1,5 +1,7 @@
 from __future__ import print_function
 from six.moves import range
+from hyper.http11.connection import HTTP11Connection
+from hyper.http20.connection import HTTP20Connection
 
 import pytest
 import re
@@ -46,44 +48,48 @@ def test_read_write():
 
   delete_layer("/tmp/removeme/read_write")
 
-def test_http_read():
-  with Storage("https://storage.googleapis.com/seunglab-test/test_v0/black/") as stor:
-    info = stor.get_json('info')
+def test_http11_read():
+  with Storage("http://storage.googleapis.com/seunglab-test/test_v0/black/") as stor:
+    info = stor.get_json("info")
+    assert isinstance(stor._interface._conn._conn, HTTP11Connection)
 
   assert info == {
     "data_type": "uint8",
     "num_channels": 1,
     "scales": [
       {
-        "chunk_sizes": [
-          [
-            64,
-            64,
-            50
-          ]
-        ],
+        "chunk_sizes": [[64, 64, 50]],
         "encoding": "raw",
         "key": "6_6_30",
-        "resolution": [
-          6,
-          6,
-          30
-        ],
-        "size": [
-          1024,
-          1024,
-          100
-        ],
-        "voxel_offset": [
-          0,
-          0,
-          0
-        ]
+        "resolution": [6, 6, 30],
+        "size": [1024, 1024, 100],
+        "voxel_offset": [0, 0, 0],
       }
     ],
-    "type": "image"
+    "type": "image",
   }
 
+def test_http20_read():
+  with Storage("https://storage.googleapis.com/seunglab-test/test_v0/black/") as stor:
+    info = stor.get_json("info")
+    # Connection should be upgraded to HTTP/2 after first response
+    assert isinstance(stor._interface._conn._conn, HTTP20Connection)
+
+  assert info == {
+    "data_type": "uint8",
+    "num_channels": 1,
+    "scales": [
+      {
+        "chunk_sizes": [[64, 64, 50]],
+        "encoding": "raw",
+        "key": "6_6_30",
+        "resolution": [6, 6, 30],
+        "size": [1024, 1024, 100],
+        "voxel_offset": [0, 0, 0],
+      }
+    ],
+    "type": "image",
+  }
 
 def test_delete():
   urls = [
