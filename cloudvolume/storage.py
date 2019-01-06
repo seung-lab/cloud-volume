@@ -696,27 +696,42 @@ class HttpInterface(object):
     return True
 
   def files_exist(self, file_paths):
-    result = {path: None for path in file_paths}
-    # retries = {path: 0 for path in file_paths}
-    # deq = dequeue((path: {stream_id: None, retry: 0} for path in file_paths))
     MAX_BATCH_SIZE = 100
 
-    for i in range(0, len(file_paths), MAX_BATCH_SIZE):
-      for file_path in file_paths[i:i+MAX_BATCH_SIZE]:
-        key = self.get_path_to_file(file_path)
-        result[file_path] = self._conn.request('HEAD', key)
+    available = list(file_paths)
+    running = deque()
 
-      for file_path in file_paths[i:i+MAX_BATCH_SIZE]:
-        req = result[file_path]
-        resp = self._conn.get_response(req)
-        err = exceptions.from_http_status(resp.status, resp.reason)
-        resp.close()
-        if isinstance(err, (exceptions.NotFound, exceptions.Forbidden)):
-          result[file_path] = False
-        elif isinstance(err, (exceptions.HTTPServerError, exceptions.HTTPClientError)):
-          raise err
-        else:
-          result[file_path] = True
+    def _request_next():
+      if available:
+        file_path = available.pop()
+        key = self.get_path_to_file(file_path)
+        running.append((file_path, self._conn.request('HEAD', key)))
+
+    def _get_response(file_path, stream_id):
+      resp = self._conn.get_response(stream_id)
+      err = exceptions.from_http_status(resp.status, resp.reason)
+      resp.close()
+      if isinstance(err, (exceptions.NotFound, exceptions.Forbidden)):
+        return False
+      elif isinstance(err, (exceptions.HTTPServerError)):
+        print("Repeatable Server Error")
+        return self.exists(file_path)
+      elif isinstance(err, (exceptions.HTTPClientError)):
+        print("Bad Client Error")
+        raise err
+      else:
+        return True
+
+    # Fill streams with up to MAX_BATCH_SIZE requests
+    for _ in range(min(len(available), MAX_BATCH_SIZE)):
+      _request_next()
+
+    # Retrieve results one by one and immediately add new request
+    result = {path: None for path in file_paths}
+    while running:
+      file_path, stream_id = running.popleft()
+      result[file_path] = _get_response(file_path, stream_id)
+      _request_next()
 
     return result
 
