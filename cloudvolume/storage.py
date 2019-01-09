@@ -11,6 +11,7 @@ import botocore
 from glob import glob
 import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
+import h2.exceptions
 import tenacity
 from tqdm import tqdm
 
@@ -696,19 +697,33 @@ class HttpInterface(object):
     return True
 
   def files_exist(self, file_paths):
-    MAX_BATCH_SIZE = 100
-
     available = list(file_paths)
     running = deque()
 
-    def _request_next():
-      if available:
-        file_path = available.pop()
-        key = self.get_path_to_file(file_path)
-        running.append((file_path, self._conn.request('HEAD', key)))
+    def _send_next_request():
+      try:
+        file_path = available[-1]
+      except IndexError: # no further jobs available
+        return None
+
+      key = self.get_path_to_file(file_path)
+
+      try:
+        stream_id = self._conn.request('HEAD', key)
+      except h2.exceptions.TooManyStreamsError: # hit server limit
+        return None
+
+      running.append((file_path, stream_id))
+      del available[-1]
+
+      return stream_id
 
     def _get_response(file_path, stream_id):
-      resp = self._conn.get_response(stream_id)
+      if stream_id is None:
+        resp = self._conn.get_response()
+      else:
+        resp = self._conn.get_response(stream_id)
+
       err = exceptions.from_http_status(resp.status, resp.reason)
       resp.close()
       if isinstance(err, (exceptions.NotFound, exceptions.Forbidden)):
@@ -722,16 +737,16 @@ class HttpInterface(object):
       else:
         return True
 
-    # Fill streams with up to MAX_BATCH_SIZE requests
-    for _ in range(min(len(available), MAX_BATCH_SIZE)):
-      _request_next()
+    result = {file_path: None for file_path in file_paths}
+    stream_id = _send_next_request()
 
-    # Retrieve results one by one and immediately add new request
-    result = {path: None for path in file_paths}
     while running:
-      file_path, stream_id = running.popleft()
-      result[file_path] = _get_response(file_path, stream_id)
-      _request_next()
+      if stream_id is not None:
+        stream_id = _send_next_request()
+      else:
+        file_path, stream_id = running.popleft()
+        result[file_path] = _get_response(file_path, stream_id)
+        stream_id = _send_next_request()
 
     return result
 
