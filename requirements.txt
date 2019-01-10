@@ -11,10 +11,10 @@ numpy>=1.13.3
 posix_ipc==1.0.4
 psutil==5.4.3
 pytest>=3.3.1 
-python-jsonschema-objects>=0.3.3
+python-jsonschema-objects==0.3.3
 Pillow>=4.2.1
 protobuf>=3.3.0
-hyper>=0.7.0
+-e git+https://github.com/seung-lab/hyper.git#egg=hyper
 six>=1.10.0
 tenacity>=4.10.0
 -e git+https://github.com/seung-lab/tqdm.git#egg=tqdm
