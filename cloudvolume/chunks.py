@@ -155,7 +155,7 @@ def decode_jpeg(bytestring, shape, dtype):
   return data.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
-  return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
+  return np.frombuffer(bytearray(bytestring), dtype=dtype).reshape(shape, order='F')
 
 def decode_compressed_segmentation(bytestring, shape, dtype, block_size, accelerated=ACCELERATED_CSEG):
   assert block_size is not None
