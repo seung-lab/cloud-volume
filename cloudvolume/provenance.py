@@ -69,7 +69,6 @@ layer_provenance_schema = {
         "type": "object"
       },
       "minItems": 0,
-      "uniqueItems": True,      
     },
     # e.g. processing = [ 
     #    { 'method': 'inceptionnet', 'by': 'example@princeton.edu' }, 
