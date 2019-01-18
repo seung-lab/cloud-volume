@@ -1,14 +1,8 @@
 
 def CloudFactory(protocol):
 
-    
-    class MetaCloudVolume(CloudVolume):
+    # split protocol into protocol and path
 
-class CloudFactory(object):
+    # switch on protocol to return proper MetaCloudVolume object
 
-    def __init__(self, protocol_path):
-
-        # split the protocol_path into protocol and path
-
-        # 
-
+    # 
