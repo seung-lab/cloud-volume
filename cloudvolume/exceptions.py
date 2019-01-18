@@ -64,3 +64,7 @@ class SkeletonEncodeError(Exception):
 class UnsupportedProtocolError(ValueError):
   """Unknown protocol extension."""
   pass
+
+class UnsupportedDataFormatError(ValueError):
+  """Unknown data format extension."""
+  pass

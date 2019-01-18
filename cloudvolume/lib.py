@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from .exceptions import UnsupportedProtocolError
+from .exceptions import UnsupportedProtocolError, UnsupportedDataFormatError
 
 if sys.version_info < (3,):
     integer_types = (int, long, np.integer)
@@ -106,6 +106,27 @@ def extract_bucket_path(cloudpath):
   cloudpath = re.sub(bucket_re, '', cloudpath)
 
   return BucketPath(protocol, bucket, cloudpath)
+
+def extract_dataformat(cloudurl):
+  dataformat_re = r'^(precomputed|graphene?)://'
+  match = re.match(dataformat_re, cloudurl)
+  error = UnsupportedDataFormatError("""
+    Cloud path must conform to FORMAT://PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
+    Example: precomputed://gs://test_bucket/mouse_dataset/em
+
+    Supported data formats: precomputed, graphene
+
+    Received: {}
+    """.format(cloudurl))
+
+  match = re.match(dataformat_re, cloudurl)
+
+  if not match:
+    raise error
+  (dataformat,) = match.groups()
+  cloudpath = re.sub(dataformat_re, '', cloudurl)
+
+  return dataformat, cloudpath
 
 def extract_path(cloudpath):
   """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
