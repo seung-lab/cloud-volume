@@ -116,7 +116,7 @@ def extract_bucket_path(cloudpath):
   return BucketPath(protocol, bucket, cloudpath)
 
 def extract_dataformat(cloudurl):
-  dataformat_re = r'^(precomputed|graphene|boss?)://'
+  dataformat_re = r'^(precomputed|graphene|boss)://'
   match = re.match(dataformat_re, cloudurl)
   error = UnsupportedDataFormatError("""
     Cloud path must conform to FORMAT://PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER

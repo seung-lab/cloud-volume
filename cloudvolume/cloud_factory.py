@@ -7,9 +7,9 @@ def CloudVolume(cloudurl, *args, gs_replace=True, **kwargs):
     dataformat = extract_dataformat(cloudurl)
 
     # switch on format to return proper MetaCloudVolume object
-    if dataformat == "precomputed":
+    if dataformat.dataformat == "precomputed":
         return CloudVolume(dataformat.cloudpath, *args, **kwargs)
-    elif dataformat == "graphene":
+    elif dataformat.dataformat == "graphene":
         return CloudVolumeGraphene(dataformat.cloudpath, *args, **kwargs)
-    elif dataformat == "boss":
+    elif dataformat.dataformat == "boss":
         return CloudVolumeBoss(dataformat.cloudpath, *args, **kwargs)
