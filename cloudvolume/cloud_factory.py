@@ -1,14 +1,15 @@
-from cloudvolume import CloudVolume
-from cloudvolume import CloudVolumeGraphene
+from cloudvolume import CloudVolume, CloudVolumeGraphene, CloudVolumeBoss
 from .lib import extract_dataformat
 
 
-def CloudFactory(cloudurl, *args, **kwargs):
+def CloudFactory(cloudurl, *args, gs_replace=True, **kwargs):
     # split protocol into protocol and path
-    dataformat, cloudpath = extract_dataformat(cloudurl)
-    # switch on protocol to return proper MetaCloudVolume object
+    dataformat = extract_dataformat(cloudurl)
 
+    # switch on protocol to return proper MetaCloudVolume object
     if dataformat == "precomputed":
-        return CloudVolume(cloudpath, *args, **kwargs)
+        return CloudVolume(dataformat.cloudpath, *args, **kwargs)
     elif dataformat == "graphene":
-        return CloudVolumeGraphene(cloudpath, *args, **kwargs)
+        return CloudVolumeGraphene(dataformat.cloudpath, *args, **kwargs)
+    elif dataformat == "boss":
+        return CloudVolumeBoss(dataformat.cloudpath, *args, **kwargs)
