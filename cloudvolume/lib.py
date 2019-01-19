@@ -122,7 +122,7 @@ def extract_dataformat(cloudurl):
     Cloud path must conform to FORMAT://PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
     Example: precomputed://gs://test_bucket/mouse_dataset/em
 
-    Supported data formats: precomputed, graphene
+    Supported data formats: precomputed, graphene, boss
 
     Received: {}
     """.format(cloudurl))
