@@ -1,8 +1,8 @@
-from cloudvolume import CloudVolume, CloudVolumeGraphene, CloudVolumeBoss
+from cloudvolume import CloudVolumePrecomputed, CloudVolumeGraphene, CloudVolumeBoss
 from .lib import extract_dataformat
 
 
-def CloudFactory(cloudurl, *args, gs_replace=True, **kwargs):
+def CloudVolume(cloudurl, *args, gs_replace=True, **kwargs):
     # split cloudurl into format and cloudpath
     dataformat = extract_dataformat(cloudurl)
 

@@ -130,11 +130,14 @@ def extract_dataformat(cloudurl):
   match = re.match(dataformat_re, cloudurl)
 
   if not match:
-    raise error
-  (dataformat,) = match.groups()
-  cloudpath = re.sub(dataformat_re, '', cloudurl)
+    # TODO raise a warning that you didn't specify a format
+    # and we are assuming you wanted precomputed
+    return ExtractedDataFormat('precomputed', cloudurl)
+  else:
+    (dataformat,) = match.groups()
+    cloudpath = re.sub(dataformat_re, '', cloudurl)
 
-  return ExtractedDataFormat(dataformat, cloudpath)
+    return ExtractedDataFormat(dataformat, cloudpath)
 
 
 def extract_protocol(cloudpath):
