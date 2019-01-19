@@ -3,7 +3,7 @@ from .lib import extract_dataformat
 
 
 def CloudFactory(cloudurl, *args, gs_replace=True, **kwargs):
-    # split protocol into protocol and path
+    # split cloudurl into format and cloudpath
     dataformat = extract_dataformat(cloudurl)
 
     # switch on format to return proper MetaCloudVolume object
