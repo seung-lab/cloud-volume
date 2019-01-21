@@ -4,6 +4,7 @@ from collections import defaultdict
 import itertools
 import json
 import re
+import requests
 import os
 
 import struct
@@ -53,6 +54,62 @@ def remove_duplicate_vertices_cross_chunks(verts, faces, chunk_size):
 
     return vertices[:,0:3], newfaces
 
+def decode_mesh_buffer(filename, fragment):
+  num_vertices = struct.unpack("=I", fragment[0:4])[0]
+  try:
+    # count=-1 means all data in buffer
+    vertices = np.frombuffer(fragment, dtype=np.float32, count=3*num_vertices, offset=4)
+    faces = np.frombuffer(fragment, dtype=np.uint32, count=-1, offset=(4 + 12 * num_vertices))
+  except ValueError:
+    raise ValueError("""Unable to process fragment {}. Violation: Input buffer too small.
+        Minimum size: Buffer Length: {}, Actual Size: {}
+      """.format(filename, 4 + 4*num_vertices, len(fragment)))
+
+  return {
+    'filename': filename,
+    'num_vertices': num_vertices,
+    'vertices': vertices.reshape( num_vertices, 3 ),
+    'faces': faces,
+  }
+
+def mesh_to_obj(mesh, progress=False):
+  objdata = []
+
+  for vertex in tqdm(mesh['vertices'], disable=(not progress), desc='Vertex Representation'):
+    objdata.append('v %s %s %s' % (vertex[0], vertex[1], vertex[2]))
+
+  faces = [face + 1 for face in mesh['faces']] # obj counts from 1 not 0 as in python
+  for i in tqdm(range(0, len(faces), 3), disable=(not progress), desc='Face Representation'):
+    objdata.append('f %s %s %s' % (faces[i], faces[i+1], faces[i+2]))
+
+  return objdata
+
+def mesh_to_ply(mesh):
+  # FIXME: Storing vertices per face (3) as uchar would save a bit storage
+  #        but I can't figure out how to mix uint8 with uint32 efficiently.
+  vertexct = mesh['num_vertices']
+  trianglect = len(mesh['faces']) // 3
+
+  # Header
+  plydata = bytearray("""ply
+format binary_little_endian 1.0
+element vertex {}
+property float x
+property float y
+property float z
+element face {}
+property list int int vertex_indices
+end_header
+""".format(vertexct, trianglect).encode('utf8'))
+
+  # Vertex data (x y z)
+  plydata.extend(mesh['vertices'].tobytes())
+
+  # Faces (3 f1 f2 f3)
+  plydata.extend(
+      np.insert(mesh['faces'].reshape(-1, 3), 0, 3, axis=1).tobytes())
+
+  return plydata
 
 class PrecomputedMeshService(object):
   def __init__(self, vol):
@@ -210,59 +267,25 @@ class PrecomputedMeshService(object):
     with open(filepath, 'wb') as f:
       f.write(data)
 
-def decode_mesh_buffer(filename, fragment):
-  num_vertices = struct.unpack("=I", fragment[0:4])[0]
-  try:
-    # count=-1 means all data in buffer
-    vertices = np.frombuffer(fragment, dtype=np.float32, count=3*num_vertices, offset=4)
-    faces = np.frombuffer(fragment, dtype=np.uint32, count=-1, offset=(4 + 12 * num_vertices)) 
-  except ValueError:
-    raise ValueError("""Unable to process fragment {}. Violation: Input buffer too small.
-        Minimum size: Buffer Length: {}, Actual Size: {}
-      """.format(filename, 4 + 4*num_vertices, len(fragment)))
 
-  return {
-    'filename': filename,
-    'num_vertices': num_vertices,
-    'vertices': vertices.reshape( num_vertices, 3 ),
-    'faces': faces,
-  }
+class GrapheneMeshService(PrecomputedMeshService):
+  def __init__(self, *args, **kwargs):
+    super(GrapheneMeshService, self).__init__(*args, **kwargs)
 
-def mesh_to_obj(mesh, progress=False):
-  objdata = []
+  def _get_manifests(self, segids):
+    segids = toiter(segids)
 
-  for vertex in tqdm(mesh['vertices'], disable=(not progress), desc='Vertex Representation'):
-    objdata.append('v %s %s %s' % (vertex[0], vertex[1], vertex[2]))
+    contents = {}
+    for segid in segids:
+      url = f"{self.vol.manifest_endpoint}/1.0/{segid}/manifest"
+      r = requests.get(url)
 
-  faces = [face + 1 for face in mesh['faces']] # obj counts from 1 not 0 as in python
-  for i in tqdm(range(0, len(faces), 3), disable=(not progress), desc='Face Representation'):
-    objdata.append('f %s %s %s' % (faces[i], faces[i+1], faces[i+2]))
+      assert r.status_code == 200
 
-  return objdata
+      frags = json.load(r.content)
 
-def mesh_to_ply(mesh):
-  # FIXME: Storing vertices per face (3) as uchar would save a bit storage
-  #        but I can't figure out how to mix uint8 with uint32 efficiently.
-  vertexct = mesh['num_vertices']
-  trianglect = len(mesh['faces']) // 3
+      for frag in frags:
+        frag_segid = filename_to_segid(frag['filename'])
+        contents[frag_segid] = frag['fragments']
 
-  # Header
-  plydata = bytearray("""ply
-format binary_little_endian 1.0
-element vertex {}
-property float x
-property float y
-property float z
-element face {}
-property list int int vertex_indices
-end_header
-""".format(vertexct, trianglect).encode('utf8'))
-
-  # Vertex data (x y z)
-  plydata.extend(mesh['vertices'].tobytes())
-
-  # Faces (3 f1 f2 f3)
-  plydata.extend(
-      np.insert(mesh['faces'].reshape(-1, 3), 0, 3, axis=1).tobytes())
-
-  return plydata
+    return contents
