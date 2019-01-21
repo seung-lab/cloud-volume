@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from .exceptions import UnsupportedProtocolError
+from .exceptions import UnsupportedProtocolError, UnsupportedDataFormatError
 
 if sys.version_info < (3,):
     integer_types = (int, long, np.integer)
@@ -70,6 +70,14 @@ BucketPath = namedtuple('BucketPath',
   ('protocol', 'bucket', 'path')
 )
 
+ExtractedDataFormat = namedtuple('ExtractedDataFormat',
+  ('dataformat', 'cloudpath')
+)
+
+ExtractedProtocolFormat = namedtuple('ExtractedProtocolFormat',
+  ('protocol', 'path')
+)
+
 ExtractedPath = namedtuple('ExtractedPath', 
   ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
 )
@@ -107,12 +115,33 @@ def extract_bucket_path(cloudpath):
 
   return BucketPath(protocol, bucket, cloudpath)
 
-def extract_path(cloudpath):
-  """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
-  protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
-  bucket_re = r'^(/?[~\d\w_\.\-]+)/'
-  tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
+def extract_dataformat(cloudurl):
+  dataformat_re = r'^(precomputed|graphene|boss)://'
+  match = re.match(dataformat_re, cloudurl)
+  error = UnsupportedDataFormatError("""
+    Cloud path must conform to FORMAT://PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
+    Example: precomputed://gs://test_bucket/mouse_dataset/em
 
+    Supported data formats: precomputed, graphene, boss
+
+    Received: {}
+    """.format(cloudurl))
+
+  match = re.match(dataformat_re, cloudurl)
+
+  if not match:
+    # TODO raise a warning that you didn't specify a format
+    # and we are assuming you wanted precomputed
+    return ExtractedDataFormat('precomputed', cloudurl)
+  else:
+    (dataformat,) = match.groups()
+    cloudpath = re.sub(dataformat_re, '', cloudurl)
+
+    return ExtractedDataFormat(dataformat, cloudpath)
+
+
+def extract_protocol(cloudpath):
+  protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
   error = UnsupportedProtocolError("""
     Cloud path must conform to PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
     Example: gs://test_bucket/mouse_dataset/em
@@ -121,16 +150,22 @@ def extract_path(cloudpath):
 
     Received: {}
     """.format(cloudpath))
-
   match = re.match(protocol_re, cloudpath)
-
   if not match:
     raise error
-
   (protocol,) = match.groups()
   cloudpath = re.sub(protocol_re, '', cloudpath)
   if protocol == 'file':
     cloudpath = toabs(cloudpath)
+  return ExtractedProtocolFormat(protocol, cloudpath)
+
+
+def extract_path(cloudpath):
+  """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
+  bucket_re = r'^(/?[~\d\w_\.\-]+)/'
+  tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
+
+  protocol, cloudpath = extract_protocol(cloudpath)
 
   match = re.match(bucket_re, cloudpath)
   if not match:
