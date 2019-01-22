@@ -113,6 +113,14 @@ def aws_credentials(bucket = '', service = 'aws'):
       with open(aws_credentials_path, 'r') as f:
         aws_credentials = json.loads(f.read())
       break
+  
+  if not aws_credentials:
+    # did not find any secret json file, will try to find it in environment variables
+    if 'AWS_ACCESS_KEY_ID' in os.environ and 'AWS_SECRET_ACCESS_KEY' in os.environ:
+      aws_credentials = {
+        'AWS_ACCESS_KEY_ID': os.environ['AWS_ACCESS_KEY_ID'],
+        'AWS_SECRET_ACCESS_KEY': os.environ['AWS_SECRET_ACCESS_KEY']
+      }
 
   AWS_CREDENTIALS_CACHE[service][bucket] = aws_credentials
   return aws_credentials
