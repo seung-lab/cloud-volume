@@ -154,6 +154,7 @@ class SimpleStorage(object):
     return content
 
   def get_files(self, file_paths):
+    return self._interface.get_files(file_paths)
     results = []
     for path in tqdm(file_paths, disable=(not self.progress), desc="Downloading"):
       error = None 
@@ -360,36 +361,46 @@ class Storage(ThreadedQueue):
 
     results = []
 
-    def get_file_thunk(path, interface):
-      result = error = None 
+    def get_file_thunk(paths, interface):
+      results.extend(interface.get_files(paths))
 
-      try:
-        result = interface.get_file(path)
-      except Exception as err:
-        error = err
-        # important to print immediately because 
-        # errors are collected at the end
-        print(err) 
-      
-      content, encoding = result
-      content = compression.decompress(content, encoding)
-
-      results.append({
-        "filename": path,
-        "content": content,
-        "error": error,
-      })
-
-    for path in file_paths:
-      if len(self._threads):
-        self.put(partial(get_file_thunk, path))
-      else:
-        get_file_thunk(path, self._interface)
-
-    desc = 'Downloading' if self.progress else None
-    self.wait(desc)
+    if len(self._threads):
+      for block in scatter(file_paths, len(self._threads)):
+        self.put(partial(get_file_thunk, block))
+    else:
+      get_file_thunk(file_paths, self._interface)
 
     return results
+
+    #   result = error = None 
+
+    #   try:
+    #     result = interface.get_file(path)
+    #   except Exception as err:
+    #     error = err
+    #     # important to print immediately because 
+    #     # errors are collected at the end
+    #     print(err) 
+      
+    #   content, encoding = result
+    #   content = compression.decompress(content, encoding)
+
+    #   results.append({
+    #     "filename": path,
+    #     "content": content,
+    #     "error": error,
+    #   })
+
+    # for path in file_paths:
+    #   if len(self._threads):
+    #     self.put(partial(get_file_thunk, path))
+    #   else:
+    #     get_file_thunk(path, self._interface)
+
+    # desc = 'Downloading' if self.progress else None
+    # self.wait(desc)
+
+    # return results
 
   def delete_file(self, file_path):
 
@@ -497,6 +508,28 @@ class FileInterface(object):
       return data, encoding
     except IOError:
       return None, encoding
+
+  def get_files(self, file_paths):
+    results = []
+
+    for path in file_paths:
+      error = None
+      try:
+        content, encoding = self.get_file(path)
+      except Exception as err:
+        # important to print immediately because 
+        # errors are collected at the end
+        print(err)
+        error = err
+
+      content = self.compression.decompress(content, encoding)
+      results.append({
+        "filename": path,
+        "content": content,
+        "error": error,
+      })
+
+    return results
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
