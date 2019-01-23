@@ -713,6 +713,59 @@ class HttpInterface(object):
     resp.close()
     return result, None  # content, encoding
 
+  def get_files(self, file_paths):
+    available = list(file_paths)
+    running = deque()
+
+    def _send_next_request():
+      try:
+        file_path = available[-1]
+      except IndexError: # no further jobs available
+        return None
+
+      key = self.get_path_to_file(file_path)
+
+      try:
+        stream_id = self._conn.request('GET', key)
+      except h2.exceptions.TooManyStreamsError: # hit server limit
+        return None
+
+      running.append((file_path, stream_id))
+      del available[-1]
+
+      return stream_id
+
+    def _get_response(file_path, stream_id):
+      if stream_id is None:
+        resp = self._conn.get_response()
+      else:
+        resp = self._conn.get_response(stream_id)
+
+      err = exceptions.from_http_status(resp.status, resp.reason)
+      resp_data = resp.read()
+      resp.close()
+      if isinstance(err, (exceptions.HTTPServerError)):
+        print("Repeatable Server Error")
+        return self.get_file(file_path)
+      elif isinstance(err, (exceptions.HTTPClientError)):
+        print("Bad Client Error")
+        raise err
+      else:
+        return resp_data
+
+    result = {file_path: None for file_path in file_paths}
+    stream_id = _send_next_request()
+
+    while running:
+      if stream_id is not None:
+        stream_id = _send_next_request()
+      else:
+        file_path, stream_id = running.popleft()
+        result[file_path] = _get_response(file_path, stream_id)
+        stream_id = _send_next_request()
+
+    return result
+
   @retry(retry=tenacity.retry_if_exception_type(exceptions.HTTPServerError))
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
