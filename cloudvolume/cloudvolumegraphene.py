@@ -22,7 +22,7 @@ from .lib import (
     jsonify, generate_slices
 )
 from cloudvolume import CloudVolume
-from .meshservice import GrapheneMeshService
+from .meshservicegraphene import GrapheneMeshService
 from .skeletonservice import PrecomputedSkeletonService
 from .storage import SimpleStorage, Storage, reset_connection_pools
 
@@ -73,7 +73,6 @@ class CloudVolumeGraphene(object):
         self.bounded = bool(bounded)
         self.fill_missing = bool(fill_missing)
         self.progress = bool(progress)
-        self.shared_memory_id = self.generate_shared_memory_location()
         if type(output_to_shared_memory) == str:
             self.shared_memory_id = str(output_to_shared_memory)
 
@@ -97,6 +96,10 @@ class CloudVolumeGraphene(object):
 ### Graphene specific properties:
 
     @property
+    def info(self):
+        return self._info_dict
+
+    @property
     def cloud_url(self):
         return self._cloud_url
 
@@ -115,6 +118,11 @@ class CloudVolumeGraphene(object):
     @property
     def graph_chunk_size(self):
         return self._info_dict["graph"]["chunk_size"]
+
+    @property
+    def mesh_chunk_size(self):
+        #TODO: add this as new parameter to the info as it can be different from the chunkedgraph chunksize
+        return self.graph_chunk_size
 
     @property
     def _storage(self):
@@ -169,6 +177,10 @@ class CloudVolumeGraphene(object):
     @property
     def encoding(self):
         return self._cv.encoding
+
+    @property
+    def compressed_segmentation_block_size(self):
+        return self._cv.compressed_segmentation_block_size
 
     @property
     def num_channels(self):
@@ -271,7 +283,7 @@ class CloudVolumeGraphene(object):
             leaves = self._get_leaves(root_id, bbox)
             seg_cutout[np.isin(sup_voxels_cutout, leaves)] = root_id
         return seg_cutout
-        
+
     def _get_leaves(self, root_id, bbox):
         """
         get the supervoxels for this root_id
