@@ -8,18 +8,25 @@ import os
 import shutil
 import sys
 
-from functools import reduce
-
 from cloudvolume.exceptions import AlignmentError
-from cloudvolume import CloudVolume, chunks, Storage
-from cloudvolume.lib import mkdir, Bbox, Vec, yellow
+from cloudvolume import CloudVolume, chunks
+from cloudvolume.lib import Bbox, Vec, yellow
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
-  TEST_NUMBER, create_image, 
+  TEST_NUMBER,  
   delete_layer, create_layer,
   create_volume_from_image
 )
 from cloudvolume import txrx
+
+
+def test_from_numpy():
+  arr = np.random.random_integers(0, high=255, size=(64,128,128))
+  arr = np.asarray(arr, dtype=np.uint8)
+  vol = CloudVolume.from_numpy(arr)
+  arr2 = vol[:,:,:]
+  np.alltrue(arr == arr2)
+  shutil.rmtree('tmp')
 
 def test_cloud_access():
   vol = CloudVolume('gs://seunglab-test/test_v0/image')

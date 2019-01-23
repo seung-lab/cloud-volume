@@ -1,12 +1,10 @@
 from __future__ import print_function
 
-from functools import partial
 import itertools
 import collections
 import json
 import json5
 import os
-import re
 import sys
 import uuid
 import weakref
@@ -19,16 +17,15 @@ import multiprocessing as mp
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from .secrets import boss_credentials, CLOUD_VOLUME_DIR
+from .secrets import boss_credentials
 
-from . import lib, chunks
+from . import lib
 from .cacheservice import CacheService
 from . import exceptions 
 from .lib import ( 
-  toabs, colorize, red, yellow, 
-  mkdir, clamp, xyzrange, Vec, 
-  Bbox, min2, max2, check_bounds, 
-  jsonify, generate_slices
+  colorize, red, mkdir, Vec, Bbox,  
+  jsonify, generate_slices,
+  generate_random_string
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
@@ -159,6 +156,27 @@ class CloudVolume(object):
     self.mip = mip
 
     self.pid = os.getpid()
+
+  @classmethod
+  def from_numpy(cls, arr, vol_path='file://tmp/'+generate_random_string(),
+                  resolution=(4,4,40), voxel_offset=(0,0,0), 
+                  chunk_size=(64,64,64)):
+    mkdir(vol_path)
+    if arr.dtype == np.uint8 or arr.dtype == np.float32:
+      layer_type = 'image'
+    elif arr.dtype == np.uint32 or arr.dtype == np.uint64:
+      layer_type = 'segmentation'
+
+    # cloud volume use fortran order, so we need to transpose 
+    # arr = np.transpose(arr)
+    # import pdb; pdb.set_trace()
+    info = cls.create_new_info(1, layer_type, arr.dtype.name, 'raw', resolution, voxel_offset, arr.shape)
+    vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=True) 
+    # save the info file
+    vol.commit_info()
+    # save the numpy array
+    vol[:,:,:] = arr
+    return vol 
 
   def __setstate__(self, d):
     """Called when unpickling which is integral to multiprocessing."""
@@ -889,7 +907,6 @@ class CloudVolume(object):
       destvol.commit_provenance()
     except exceptions.ScaleUnavailableError:
       destvol = CloudVolume(cloudpath)
-      num_missing = len(self.scales) - len(destvol.scales)
       for i in range(len(destvol.scales) + 1, len(self.scales)):
         destvol.scales.append(
           self.scales[i]
