@@ -41,7 +41,7 @@ class CloudVolumeGraphene(object):
     """ This is CloudVolumeGraphene
     """
 
-    def __init__(self, info_endpoint, mip=0, bounded=True, autocrop=False,
+    def __init__(self, cloud_url, mip=0, bounded=True, autocrop=False,
                  fill_missing=False,
                  cache=False, compress_cache=None, cdn_cache=True,
                  progress=INTERACTIVE, provenance=None,
@@ -49,8 +49,24 @@ class CloudVolumeGraphene(object):
                  output_to_shared_memory=False):
 
         # Read info from chunkedgraph endpoint
-        self._info_endpoint = info_endpoint
+        self._cloud_url = cloud_url
         self._info_dict = self.read_info()
+
+        self._cv = CloudVolume(cloudpath=self.cloudpath,
+                               info=self._info_dict,
+                               mip=mip,
+                               bounded=bounded,
+                               autocrop=autocrop,
+                               fill_missing=fill_missing,
+                               cache=cache,
+                               compress_cache=compress_cache,
+                               cdn_cache=cdn_cache,
+                               progress=progress,
+                               provenance=provenance,
+                               compress=compress,
+                               non_aligned_writes=non_aligned_writes,
+                               parallel=parallel,
+                               output_to_shared_memory=output_to_shared_memory)
 
         # Init other parameters
         self.autocrop = bool(autocrop)
@@ -78,27 +94,19 @@ class CloudVolumeGraphene(object):
         self._mip = mip
         self.pid = os.getpid()
 
-        self._cv = CloudVolume(cloudpath=self.cloudpath,
-                               info=self._info_dict,
-                               mip=mip,
-                               bounded=bounded,
-                               autocrop=autocrop,
-                               fill_missing=fill_missing,
-                               cache=cache,
-                               compress_cache=compress_cache,
-                               cdn_cache=cdn_cache,
-                               progress=progress,
-                               provenance=provenance,
-                               compress=compress,
-                               non_aligned_writes=non_aligned_writes,
-                               parallel=parallel,
-                               output_to_shared_memory=output_to_shared_memory)
-
 ### Graphene specific properties:
 
     @property
+    def cloud_url(self):
+        return self._cloud_url
+
+    @property
     def info_endpoint(self):
-        return self._info_endpoint
+        return f"{self.cloud_url}/info"
+
+    @property
+    def manifest_endpoint(self):
+        return f"{self.cloud_url.replace('segmentation', 'meshing')}/manifest"
 
     @property
     def cloudpath(self):
