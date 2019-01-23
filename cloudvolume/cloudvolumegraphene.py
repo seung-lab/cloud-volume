@@ -45,7 +45,7 @@ class CloudVolumeGraphene(object):
                  fill_missing=False,
                  cache=False, compress_cache=None, cdn_cache=True,
                  progress=INTERACTIVE, provenance=None,
-                 compress=None,  parallel=1,
+                 compress=None, parallel=1,
                  output_to_shared_memory=False):
 
         # Read info from chunkedgraph endpoint
@@ -272,7 +272,7 @@ class CloudVolumeGraphene(object):
         root_id: uint64 root id to find supervoxels for
         bounds: 3x2 numpy array of bounds [[minx,maxx],[miny,maxy],[minz,maxz]]
         """
-        url = "{}/segment/{root_id}/leaves".format(self._info_endpoint, root_id)
+        url = f"{self._info_endpoint}/segment/{root_id}/leaves"
         query_d = {}
         if bounds is not None:
             bounds_str = []
