@@ -423,6 +423,12 @@ class Bbox(object):
 
   @classmethod
   def from_list(cls, lst):
+    '''
+    from_list(cls, lst)
+    the lst length should be 6
+    the first three values are the start, and the last 3 values are the stop 
+    '''
+    assert len(lst) == 6
     return Bbox( lst[:3], lst[3:6] )
 
   def to_filename(self):
