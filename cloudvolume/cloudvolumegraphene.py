@@ -172,10 +172,6 @@ class CloudVolumeGraphene(object):
         return self._cv.encoding
 
     @property
-    def compressed_segmentation_block_size(self):
-        return self._cv.compressed_segmentation_block_size
-
-    @property
     def num_channels(self):
         return self._cv.num_channels
 
@@ -238,12 +234,6 @@ class CloudVolumeGraphene(object):
         self.cache = CacheService(cache, weakref.proxy(self))
         self.mesh = GrapheneMeshService(weakref.proxy(self))
         self.skeleton = PrecomputedSkeletonService(weakref.proxy(self))
-
-    def generate_shared_memory_location(self):
-        return self._cv.generate_shared_memory_location()
-
-    def unlink_shared_memory(self):
-        return self._cv.unlink_shared_memory
 
     def mip_bounds(self, mip):
         self._cv.mip_bounds(mip)
