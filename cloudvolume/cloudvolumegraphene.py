@@ -274,6 +274,6 @@ class CloudVolumeGraphene(object):
             query_d['bounds'] = bounds_str
 
         response = self.session.post(url, json=[root_id], params=query_d)
-     
+
         assert(response.status_code == 200)
         return np.frombuffer(response.content, dtype=np.uint64)
