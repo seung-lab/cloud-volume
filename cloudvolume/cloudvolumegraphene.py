@@ -219,7 +219,7 @@ class CloudVolumeGraphene(object):
         Reads info from chunkedgraph endpoint and extracts relevant information
         """
 
-        r = requests.get(self.info_endpoint)
+        r = requests.get(os.path.join(self.info_endpoint, "/info"))
         assert r.status_code == 200
         info_dict = json.loads(r.content)
         return info_dict
@@ -254,3 +254,26 @@ class CloudVolumeGraphene(object):
 
     def download_to_shared_memory(self, slices, location=None):
         return self._cv.download_to_shared_memory(slices, location)
+
+    def _get_leaves(self, root_id, bounds=None):
+        """
+        get the supervoxels for this root_id
+
+        params
+        ------
+        root_id: uint64 root id to find supervoxels for
+        bounds: 3x2 numpy array of bounds [[minx,maxx],[miny,maxy],[minz,maxz]]
+        """
+        url = "{}/segment/{root_id}/leaves".format(self._info_endpoint, root_id)
+        query_d = {}
+        if bounds is not None:
+            bounds_str = []
+            for b in bounds:
+                bounds_str.append("-".join(str(b2) for b2 in b))
+            bounds_str = "_".join(bounds_str)
+            query_d['bounds'] = bounds_str
+
+        response = self.session.post(url, json=[root_id], params=query_d)
+     
+        assert(response.status_code == 200)
+        return np.frombuffer(response.content, dtype=np.uint64)
