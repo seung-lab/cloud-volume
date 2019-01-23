@@ -45,7 +45,7 @@ class CloudVolumeGraphene(object):
                  fill_missing=False,
                  cache=False, compress_cache=None, cdn_cache=True,
                  progress=INTERACTIVE, provenance=None,
-                 compress=None, non_aligned_writes=False, parallel=1,
+                 compress=None,  parallel=1,
                  output_to_shared_memory=False):
 
         # Read info from chunkedgraph endpoint
@@ -64,7 +64,7 @@ class CloudVolumeGraphene(object):
                                progress=progress,
                                provenance=provenance,
                                compress=compress,
-                               non_aligned_writes=non_aligned_writes,
+                               non_aligned_writes=False,
                                parallel=parallel,
                                output_to_shared_memory=output_to_shared_memory)
 
