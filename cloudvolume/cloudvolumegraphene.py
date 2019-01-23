@@ -116,7 +116,6 @@ class CloudVolumeGraphene(object):
     def graph_chunk_size(self):
         return self._info_dict["graph"]["chunk_size"]
 
-
     @property
     def _storage(self):
         return self._cv._storage
@@ -250,23 +249,46 @@ class CloudVolumeGraphene(object):
     def exists(self, bbox_or_slices):
         return self._cv.exists(bbox_or_slices)
 
-    def _get_leaves(self, root_id, bounds=None):
+    @staticmethod
+    def _convert_root_id_list(root_ids):
+        if isinstance(root_ids, int):
+            return [root_ids]
+        if isinstance(root_ids, list):
+            return np.array(root_ids, dtype=np.uint64)
+        if isinstance(root_ids, np.array):
+            return np.array(root_ids.ravel(), dtype=np.uint64)
+        return root_ids
+
+    def __getitem__(self, slices):
+        assert(len(slices) == 4)
+        sup_voxels_cutout = self._cv.__getitem__(*slices[:-1])
+        root_ids = slices[-1]
+        root_ids = self._convert_root_id_list(root_ids)
+        bbox, steps, channel_slice = self._cv.__interpret_slices(slices[:-1])
+
+        seg_cutout = np.zeros(sup_voxels_cutout.shape, dtype=np.uint64)
+        for root_id in root_ids:
+            leaves = self._get_leaves(root_id, bbox)
+            seg_cutout[np.isin(sup_voxels_cutout, leaves)] = root_id
+        return seg_cutout
+        
+    def _get_leaves(self, root_id, bbox):
         """
         get the supervoxels for this root_id
 
         params
         ------
         root_id: uint64 root id to find supervoxels for
-        bounds: 3x2 numpy array of bounds [[minx,maxx],[miny,maxy],[minz,maxz]]
+        bbox: cloudvolume.lib.Bbox 3d bounding box for segmentation
         """
         url = f"{self._info_endpoint}/segment/{root_id}/leaves"
-        query_d = {}
-        if bounds is not None:
-            bounds_str = []
-            for b in bounds:
-                bounds_str.append("-".join(str(b2) for b2 in b))
-            bounds_str = "_".join(bounds_str)
-            query_d['bounds'] = bounds_str
+        bounds_str = []
+        for sl in bbox.to_slices():
+            bounds_str.append(f"{sl.start}-{sl.end}")
+        bounds_str = "_".join(bounds_str)
+        query_d = {
+            'bounds': bounds_str
+        }
 
         response = self.session.post(url, json=[root_id], params=query_d)
 
