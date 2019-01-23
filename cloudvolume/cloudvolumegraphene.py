@@ -271,12 +271,34 @@ class CloudVolumeGraphene(object):
             return np.array(root_ids.ravel(), dtype=np.uint64)
         return root_ids
 
+    def __interpret_slices(self, slices):
+        """
+        Convert python slice objects into a more useful and computable form:
+
+        - requested_bbox: A bounding box representing the volume requested
+        - steps: the requested stride over x,y,z
+        - channel_slice: A python slice object over the channel dimension
+
+        Returned as a tuple: (requested_bbox, steps, channel_slice)
+        """
+        maxsize = list(self.bounds.maxpt) + [ 1 ]
+        minsize = list(self.bounds.minpt) + [ 0 ]
+
+        slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
+        channel_slice = slices.pop()
+
+        minpt = Vec(*[ slc.start for slc in slices ])
+        maxpt = Vec(*[ slc.stop for slc in slices ]) 
+        steps = Vec(*[ slc.step for slc in slices ])
+
+        return Bbox(minpt, maxpt), steps, channel_slice
+        
     def __getitem__(self, slices):
         assert(len(slices) == 4)
-        sup_voxels_cutout = self._cv.__getitem__(*slices[:-1])
+        sup_voxels_cutout = self._cv.__getitem__(slices[:-1])
         root_ids = slices[-1]
         root_ids = self._convert_root_id_list(root_ids)
-        bbox, steps, channel_slice = self._cv.__interpret_slices(slices[:-1])
+        bbox, steps, channel_slice = self.__interpret_slices(slices[:-1])
 
         seg_cutout = np.zeros(sup_voxels_cutout.shape, dtype=np.uint64)
         for root_id in root_ids:
@@ -293,16 +315,16 @@ class CloudVolumeGraphene(object):
         root_id: uint64 root id to find supervoxels for
         bbox: cloudvolume.lib.Bbox 3d bounding box for segmentation
         """
-        url = f"{self._info_endpoint}/segment/{root_id}/leaves"
+        url = f"{self._cloud_url}/segment/{root_id}/leaves"
         bounds_str = []
         for sl in bbox.to_slices():
-            bounds_str.append(f"{sl.start}-{sl.end}")
+            bounds_str.append(f"{sl.start}-{sl.stop}")
         bounds_str = "_".join(bounds_str)
         query_d = {
             'bounds': bounds_str
         }
 
-        response = self.session.post(url, json=[root_id], params=query_d)
+        response = requests.post(url, json=[root_id], params=query_d)
 
         assert(response.status_code == 200)
         return np.frombuffer(response.content, dtype=np.uint64)
