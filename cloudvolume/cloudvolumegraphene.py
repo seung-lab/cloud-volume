@@ -227,7 +227,7 @@ class CloudVolumeGraphene(object):
         Reads info from chunkedgraph endpoint and extracts relevant information
         """
 
-        r = requests.get(os.path.join(self._cloud_url, "/info"))
+        r = requests.get(os.path.join(self._cloud_url, "info"))
         assert r.status_code == 200
         info_dict = json.loads(r.content)
         return info_dict
