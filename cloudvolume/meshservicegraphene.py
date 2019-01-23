@@ -39,17 +39,20 @@ class GrapheneMeshService(object):
     def __init__(self, vol):
         self.vol = vol
 
-    def _get_manifest(self, seg_id, lod=0):
-        url = f"{self.vol.manifest_endpoint}/{seg_id}:{lod}"
+    def _get_fragment_filenames(self, seg_id, lod=0):
+        #TODO: add lod to endpoint
+
+        url = f"{self.vol.manifest_endpoint}/{seg_id}:{lod}?verify=True"
         r = requests.get(url)
         assert r.status_code == 200
-        manifest = json.loads(r.content)["fragments"]
 
-        return manifest
+        filenames = json.loads(r.content)["fragments"]
 
-    def _get_mesh_fragments(self, paths):
+        return filenames
+
+    def _get_mesh_fragments(self, filenames):
         mesh_dir = self.vol.info['mesh']
-        paths = [os.path.join(mesh_dir, path) for path in paths]
+        paths = [f"{mesh_dir}/{filename}" for filename in filenames]
         with Storage(self.vol.layer_cloudpath,
                      progress=self.vol.progress) as stor:
             fragments = stor.get_files(paths)
@@ -99,15 +102,15 @@ class GrapheneMeshService(object):
             assert len(seg_id) == 1
             seg_id = seg_id[0]
 
-        fragment_paths = self._get_manifest(seg_id)
-        fragments = self._get_mesh_fragments(fragment_paths)
+        fragment_filenames = self._get_fragment_filenames(seg_id)
+        fragments = self._get_mesh_fragments(fragment_filenames)
         # fragments = sorted(fragments, key=lambda frag: frag['filename'])  # make decoding deterministic
 
         # decode all the fragments
         meshdata = []
         for frag in tqdm(fragments, disable=(not self.vol.progress),
                          desc="Decoding Mesh Buffer"):
-            mesh = decode_mesh_buffer(frag)
+            mesh = decode_mesh_buffer(frag["content"])
             meshdata.append(mesh)
 
         return self._produce_output(meshdata,

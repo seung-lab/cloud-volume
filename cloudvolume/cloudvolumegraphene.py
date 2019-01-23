@@ -135,6 +135,10 @@ class CloudVolumeGraphene(object):
 ### CloudVolume properties:
 
     @property
+    def layer_cloudpath(self):
+        return self._cv.layer_cloudpath
+
+    @property
     def mip(self):
         return self._cv.mip
 
