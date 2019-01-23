@@ -250,9 +250,6 @@ class CloudVolumeGraphene(object):
     def exists(self, bbox_or_slices):
         return self._cv.exists(bbox_or_slices)
 
-    def download_to_shared_memory(self, slices, location=None):
-        return self._cv.download_to_shared_memory(slices, location)
-
     def _get_leaves(self, root_id, bounds=None):
         """
         get the supervoxels for this root_id
