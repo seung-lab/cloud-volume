@@ -123,7 +123,7 @@ class PrecomputedMeshService(object):
   def _get_manifests(self, segids):
     segids = toiter(segids)
     mesh_dir = self.vol.info['mesh']
-    
+
     paths = [ self._manifest_path(segid) for segid in segids ]
 
     with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
@@ -266,26 +266,3 @@ class PrecomputedMeshService(object):
 
     with open(filepath, 'wb') as f:
       f.write(data)
-
-
-class GrapheneMeshService(PrecomputedMeshService):
-  def __init__(self, *args, **kwargs):
-    super(GrapheneMeshService, self).__init__(*args, **kwargs)
-
-  def _get_manifests(self, segids):
-    segids = toiter(segids)
-
-    contents = {}
-    for segid in segids:
-      url = f"{self.vol.manifest_endpoint}/1.0/{segid}/manifest"
-      r = requests.get(url)
-
-      assert r.status_code == 200
-
-      frags = json.load(r.content)
-
-      for frag in frags:
-        frag_segid = filename_to_segid(frag['filename'])
-        contents[frag_segid] = frag['fragments']
-
-    return contents
