@@ -48,15 +48,22 @@ def test_read_write():
 
   delete_layer("/tmp/removeme/read_write")
 
-def test_http11_read():
-  with Storage("http://storage.googleapis.com/seunglab-test/test_v0/black/") as stor:
-    info = stor.get_json("info")
-    assert isinstance(stor._interface._conn._conn, HTTP11Connection)
-
-  assert info == {
-    "data_type": "uint8",
-    "num_channels": 1,
-    "scales": [
+def test_http_read():
+  protocols = [
+    {
+      'expected_connection': HTTP11Connection,
+      'url': "http://storage.googleapis.com/seunglab-test/test_v0/black/",
+    },
+    {
+      'expected_connection': HTTP20Connection,
+      'url': "https://storage.googleapis.com/seunglab-test/test_v0/black/",
+    }
+  ]
+  
+  expected_content = {
+      "data_type": "uint8",
+      "num_channels": 1,
+      "scales": [
       {
         "chunk_sizes": [[64, 64, 50]],
         "encoding": "raw",
@@ -69,27 +76,55 @@ def test_http11_read():
     "type": "image",
   }
 
-def test_http20_read():
-  with Storage("https://storage.googleapis.com/seunglab-test/test_v0/black/") as stor:
-    info = stor.get_json("info")
-    # Connection should be upgraded to HTTP/2 after first response
-    assert isinstance(stor._interface._conn._conn, HTTP20Connection)
+  for protocol in protocols:
+    with Storage(protocol["url"]) as stor:
+      info = stor.get_json("info")
+      assert isinstance(
+          stor._interface._conn._conn,
+          protocol["expected_connection"]
+      )
+      assert info == expected_content
 
-  assert info == {
-    "data_type": "uint8",
-    "num_channels": 1,
-    "scales": [
-      {
-        "chunk_sizes": [[64, 64, 50]],
-        "encoding": "raw",
-        "key": "6_6_30",
-        "resolution": [6, 6, 30],
-        "size": [1024, 1024, 100],
-        "voxel_offset": [0, 0, 0],
-      }
-    ],
-    "type": "image",
-  }
+def test_http_exists():
+  urls = [
+      "http://storage.googleapis.com/seunglab-test/test_v0/black/",
+      "https://storage.googleapis.com/seunglab-test/test_v0/black/",
+  ]
+  for num_threads in range(0,11,5):
+    num_infos = max(num_threads, 1)
+    for url in urls:
+      with Storage(url, n_threads=num_threads) as stor:
+        results = stor.files_exist(
+            ['info' for i in range(num_infos)] + \
+            ['no-info' for i in range(num_infos)]
+        )
+
+      for path, exists in results.items():
+        if path == 'info':
+          assert exists is True
+        else:
+          assert exists is False
+
+def test_http_get_files():
+  urls = [
+      "http://storage.googleapis.com/seunglab-test/test_v0/black/",
+      "https://storage.googleapis.com/seunglab-test/test_v0/black/",
+  ]
+  for num_threads in range(0,11,5):
+    num_infos = max(num_threads, 1)
+    for url in urls:
+      with Storage(url, n_threads=num_threads) as stor:
+        results = stor.get_files(
+            ['info' for i in range(num_infos)] + \
+            ['no-info' for i in range(num_infos)]
+        )
+
+      assert len(results) == 2*num_infos
+      for result in results:
+        if result['filename'] == 'info':
+          assert result['error'] is None and result['content'] is not None
+        else:
+          assert result['error'] is not None and result['content'] is None
 
 def test_delete():
   urls = [
