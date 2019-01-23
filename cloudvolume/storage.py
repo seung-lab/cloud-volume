@@ -149,29 +149,10 @@ class SimpleStorage(object):
     return json.loads(content.decode('utf8'))
 
   def get_file(self, file_path):
-    content, encoding = self._interface.get_file(file_path)
-    content = compression.decompress(content, encoding, filename=file_path)
-    return content
+    return self._interface.get_file(file_path)
 
   def get_files(self, file_paths):
     return self._interface.get_files(file_paths)
-    results = []
-    for path in tqdm(file_paths, disable=(not self.progress), desc="Downloading"):
-      error = None 
-
-      try:
-        content = self.get_file(path)
-      except Exception as err:
-        error = err 
-        content = None 
-
-      results.append({
-        'filename': path,
-        'content': content,
-        'error': error,
-      })
-
-    return results 
 
   def delete_file(self, file_path):
     self._interface.delete_file(file_path)
@@ -246,6 +227,8 @@ class Storage(ThreadedQueue):
     elif self._path.protocol in ('s3', 'matrix'):
       self._interface_cls = S3Interface
     elif self._path.protocol in ('http', 'https'):
+      print("WARNING: Hyper HTTPInterface not thread-safe - disabling multithreading...")
+      n_threads = 0
       self._interface_cls = HttpInterface
     else:
       raise exceptions.UnsupportedProtocolError(str(self._path))
@@ -350,9 +333,7 @@ class Storage(ThreadedQueue):
     return json.loads(content.decode('utf8'))
 
   def get_file(self, file_path):
-    content, encoding = self._interface.get_file(file_path)
-    content = compression.decompress(content, encoding, filename=file_path)
-    return content
+    return self._interface.get_file(file_path)
 
   def get_files(self, file_paths):
     """
@@ -370,37 +351,10 @@ class Storage(ThreadedQueue):
     else:
       get_file_thunk(file_paths, self._interface)
 
+    desc = 'Downloading' if self.progress else None
+    self.wait(desc)
+
     return results
-
-    #   result = error = None 
-
-    #   try:
-    #     result = interface.get_file(path)
-    #   except Exception as err:
-    #     error = err
-    #     # important to print immediately because 
-    #     # errors are collected at the end
-    #     print(err) 
-      
-    #   content, encoding = result
-    #   content = compression.decompress(content, encoding)
-
-    #   results.append({
-    #     "filename": path,
-    #     "content": content,
-    #     "error": error,
-    #   })
-
-    # for path in file_paths:
-    #   if len(self._threads):
-    #     self.put(partial(get_file_thunk, path))
-    #   else:
-    #     get_file_thunk(path, self._interface)
-
-    # desc = 'Downloading' if self.progress else None
-    # self.wait(desc)
-
-    # return results
 
   def delete_file(self, file_path):
 
@@ -494,20 +448,19 @@ class FileInterface(object):
 
   def get_file(self, file_path):
     path = self.get_path_to_file(file_path)
-
     compressed = os.path.exists(path + '.gz')
-      
+
     if compressed:
       path += '.gz'
 
     encoding = 'gzip' if compressed else None
-    
+
     try:
       with open(path, 'rb') as f:
         data = f.read()
-      return data, encoding
+      return compression.decompress(data, encoding, filename=file_path)
     except IOError:
-      return None, encoding
+      return None
 
   def get_files(self, file_paths):
     results = []
@@ -515,18 +468,18 @@ class FileInterface(object):
     for path in file_paths:
       error = None
       try:
-        content, encoding = self.get_file(path)
+        content = self.get_file(path)
       except Exception as err:
-        # important to print immediately because 
+        content, encoding = None, None
+        error = err
+        # important to print immediately because
         # errors are collected at the end
         print(err)
-        error = err
 
-      content = self.compression.decompress(content, encoding)
       results.append({
-        "filename": path,
-        "content": content,
-        "error": error,
+          "filename": path,
+          "content": content,
+          "error": error,
       })
 
     return results
@@ -617,10 +570,32 @@ class GoogleCloudStorageInterface(object):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.get_blob( key )
     if not blob:
-      return None, None # content, encoding
+      return None
 
-    # blob handles the decompression so the encoding is None
-    return blob.download_as_string(), None # content, encoding
+    # blob handles the decompression
+    return blob.download_as_string()
+
+  def get_files(self, file_paths):
+    results = []
+
+    for path in file_paths:
+      error = None
+      try:
+        content = self.get_file(path)
+      except Exception as err:
+        content = None
+        error = err
+        # important to print immediately because
+        # errors are collected at the end
+        print(err)
+
+      results.append({
+          "filename": path,
+          "content": content,
+          "error": error,
+      })
+
+    return results
 
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
@@ -709,9 +684,10 @@ class HttpInterface(object):
       resp.close()
       raise err
 
+    # hyper is taking care of content decoding
     result = resp.read()
     resp.close()
-    return result, None  # content, encoding
+    return result
 
   def get_files(self, file_paths):
     available = list(file_paths)
@@ -742,18 +718,16 @@ class HttpInterface(object):
         resp = self._conn.get_response(stream_id)
 
       err = exceptions.from_http_status(resp.status, resp.reason)
-      resp_data = resp.read()
+      content = resp.read()
       resp.close()
       if isinstance(err, (exceptions.HTTPServerError)):
-        print("Repeatable Server Error")
         return self.get_file(file_path)
       elif isinstance(err, (exceptions.HTTPClientError)):
-        print("Bad Client Error")
         raise err
       else:
-        return resp_data
+        return content
 
-    result = {file_path: None for file_path in file_paths}
+    results = []
     stream_id = _send_next_request()
 
     while running:
@@ -761,10 +735,25 @@ class HttpInterface(object):
         stream_id = _send_next_request()
       else:
         file_path, stream_id = running.popleft()
-        result[file_path] = _get_response(file_path, stream_id)
+        error = None
+        try:
+          content = _get_response(file_path, stream_id)
+        except Exception as err:
+          content = None
+          error = err
+          # important to print immediately because
+          # errors are collected at the end
+          print(file_path, err)
+
         stream_id = _send_next_request()
 
-    return result
+        results.append({
+            "filename": file_path,
+            "content": content,
+            "error": error,
+        })
+
+    return results
 
   @retry(retry=tenacity.retry_if_exception_type(exceptions.HTTPServerError))
   def exists(self, file_path):
@@ -815,10 +804,8 @@ class HttpInterface(object):
       if isinstance(err, (exceptions.NotFound, exceptions.Forbidden)):
         return False
       elif isinstance(err, (exceptions.HTTPServerError)):
-        print("Repeatable Server Error")
         return self.exists(file_path)
       elif isinstance(err, (exceptions.HTTPClientError)):
-        print("Bad Client Error")
         raise err
       else:
         return True
@@ -888,12 +875,36 @@ class S3Interface(object):
       if 'ContentEncoding' in resp:
         encoding = resp['ContentEncoding']
 
-      return resp['Body'].read(), encoding
-    except botocore.exceptions.ClientError as err: 
+      content = resp['Body'].read()
+      return compression.decompress(content, encoding)
+
+    except botocore.exceptions.ClientError as err:
       if err.response['Error']['Code'] == 'NoSuchKey':
-        return None, None
+        return None
       else:
         raise
+
+  def get_files(self, file_paths):
+    results = []
+
+    for path in file_paths:
+      error = None
+      try:
+        content = self.get_file(path)
+      except Exception as err:
+        content = None
+        error = err
+        # important to print immediately because
+        # errors are collected at the end
+        print(err)
+
+      results.append({
+          "filename": path,
+          "content": content,
+          "error": error,
+      })
+
+    return results
 
   def exists(self, file_path):
     exists = True
