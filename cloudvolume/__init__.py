@@ -1,6 +1,7 @@
 from .connectionpools import ConnectionPool
 from .cloudvolume import CloudVolume
 from .cloudvolumegraphene import CloudVolumeGraphene
+from .cloud_factory import CloudVolumeFactory
 from .lib import Bbox
 from .provenance import DataLayerProvenance
 from .skeletonservice import PrecomputedSkeleton, SkeletonEncodeError, SkeletonDecodeError
