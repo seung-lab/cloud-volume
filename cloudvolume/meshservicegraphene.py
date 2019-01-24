@@ -17,6 +17,39 @@ from cloudvolume import meshservice
 
 SEGIDRE = re.compile(r'/(\d+):0.*?$')
 
+def remove_duplicate_vertices_cross_chunks(verts, faces, chunk_size):
+    # find all vertices that are exactly on chunk_size boundaries
+    is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
+    # # uniq_vertices, uniq_faces, vert_face_counts = np.unique(vertices[faces],
+    #                                                         return_inverse=True,
+    #                                                         return_counts=True,
+    #                                                         axis=0)
+    # find all vertices that have exactly 2 duplicates
+    unique_vertices, unique_inverse, counts = np.unique(verts,
+                                                        return_inverse=True,
+                                                        return_counts=True,
+                                                        axis=0)
+    only_double = np.where(counts == 2)[0]
+    is_doubled = np.isin(unique_inverse, only_double)
+    # this stores whether each vertex should be merged or not
+    do_merge = np.array(is_doubled & is_chunk_aligned)
+
+    # setup an artificial 4th coordinate for vertex positions
+    # which will be unique in general, 
+    # but then repeated for those that are merged
+    new_vertices = np.hstack((verts, np.arange(verts.shape[0])[:, np.newaxis]))
+    new_vertices[do_merge, 3] = -1
+    fa = np.array(faces)
+    n_faces = fa.shape[0]
+    n_dim = fa.shape[1]
+    
+    # use unique to make the artificial vertex list unique and reindex faces
+    vertices, newfaces = np.unique(new_vertices[faces.ravel(),:], return_inverse=True, axis=0)
+    faces = newfaces.reshape((n_faces, n_dim))
+    faces = faces.astype(np.uint32)
+
+    return vertices[:,0:3], faces
+
 def decode_mesh_buffer(fragment):
   num_vertices = struct.unpack("=I", fragment[0:4])[0]
   try:
@@ -72,7 +105,7 @@ class GrapheneMeshService(object):
                                         return_inverse=True, axis=0)
             faces = faces.astype(np.uint32)
         else:
-            vertices, faces = meshservice.remove_duplicate_vertices_cross_chunks(
+            vertices, faces = remove_duplicate_vertices_cross_chunks(
                 vertices, faces, self.vol.mesh_chunk_size)
         return {
             'num_vertices': len(vertices),
