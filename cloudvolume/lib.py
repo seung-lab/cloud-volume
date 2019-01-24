@@ -229,21 +229,42 @@ def xyzrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
   rangeargs = ( (start, end, stride) for start, end, stride in zip(start_vec, end_vec, stride_vec) )
   xyzranges = [ range(*arg) for arg in rangeargs ]
   
-  # iterate then x first, then y, then z
+  # iterate x first, then y, then z
   # this way you process in the xy plane slice by slice
   # but you don't create process lots of prefix-adjacent keys
   # since all the keys start with X
-  zyxranges = xyzranges[::-1]
 
   def vectorize():
-    pt = Vec(0,0,0)
-    for z,y,x in product(*zyxranges):
-      pt.x, pt.y, pt.z = x, y, z
-      yield pt
+    for z,y,x in product(*xyzranges[::-1]):
+      yield Vec(x,y,z)
 
   return vectorize()
 
+def zyxrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
+  if end_vec is None:
+    end_vec = start_vec
+    start_vec = (0,0,0)
+
+  start_vec = np.array(start_vec, dtype=int)
+  end_vec = np.array(end_vec, dtype=int)
+
+  rangeargs = ( (start, end, stride) for start, end, stride in zip(start_vec, end_vec, stride_vec) )
+  xyzranges = [ range(*arg) for arg in rangeargs ]
+  
+  # iterate x first, then y, then z
+  # this way you process in the xy plane slice by slice
+  # but you don't create process lots of prefix-adjacent keys
+  # since all the keys start with X
+
+  def vectorize():
+    for z,y,x in product(*xyzranges[::-1]):
+      yield Vec(z,y,x)
+
+  return vectorize()
+
+
 def map2(fn, a, b):
+  """map the function to all the elements of a and b"""
   assert len(a) == len(b), "Vector lengths do not match: {} (len {}), {} (len {})".format(a[:3], len(a), b[:3], len(b))
 
   result = np.empty(len(a))
@@ -273,7 +294,9 @@ def check_bounds(val, low, high):
 class Vec(np.ndarray):
     def __new__(cls, *args, **kwargs):
       dtype = kwargs['dtype'] if 'dtype' in kwargs else int
-      return super(Vec, cls).__new__(cls, shape=(len(args),), buffer=np.array(args).astype(dtype), dtype=dtype)
+      obj = super(Vec, cls).__new__(cls, shape=(len(args),), buffer=np.array(args).astype(dtype), dtype=dtype)
+      obj.isfortran = kwargs['isfortran'] if 'isfortran' in kwargs else True
+      return obj
 
     @classmethod
     def clamp(cls, val, minvec, maxvec):
@@ -323,13 +346,22 @@ def floating(lst):
 
 class Bbox(object):
   """Represents a three dimensional cuboid in space."""
-  def __init__(self, a, b, dtype=None):
+  def __init__(self, a, b, dtype=None, isfortran=True):
     if dtype is None:
       if floating(a) or floating(b):
         dtype = np.float32
       else:
         dtype = np.int32
-
+    
+    self.isfortran = isfortran
+    if isfortran:
+      a = a[:3]
+      b = b[:3]
+    else:
+      # the last 3 indexes are z,y,x
+      a = a[-3:]
+      b = b[-3:]
+      
     self.minpt = Vec(
       min(a[0], b[0]),
       min(a[1], b[1]),
@@ -356,35 +388,35 @@ class Bbox(object):
       return Bbox( (0,0,0), (0,0,0) )
 
     result = Bbox( (0,0,0), (0,0,0) )
-    result.minpt.x = max(bbx1.minpt.x, bbx2.minpt.x)
-    result.minpt.y = max(bbx1.minpt.y, bbx2.minpt.y)
-    result.minpt.z = max(bbx1.minpt.z, bbx2.minpt.z)
-    result.maxpt.x = min(bbx1.maxpt.x, bbx2.maxpt.x)
-    result.maxpt.y = min(bbx1.maxpt.y, bbx2.maxpt.y)
-    result.maxpt.z = min(bbx1.maxpt.z, bbx2.maxpt.z)
+    result.minpt[0] = max(bbx1.minpt[0], bbx2.minpt[0])
+    result.minpt[1] = max(bbx1.minpt[1], bbx2.minpt[1])
+    result.minpt[2] = max(bbx1.minpt[2], bbx2.minpt[2])
+    result.maxpt[0] = min(bbx1.maxpt[0], bbx2.maxpt[0])
+    result.maxpt[1] = min(bbx1.maxpt[1], bbx2.maxpt[1])
+    result.maxpt[2] = min(bbx1.maxpt[2], bbx2.maxpt[2])
 
     return result
 
   @classmethod
   def intersects(cls, bbx1, bbx2):
     return (
-          bbx1.minpt.x < bbx2.maxpt.x 
-      and bbx1.maxpt.x > bbx2.minpt.x 
-      and bbx1.minpt.y < bbx2.maxpt.y
-      and bbx1.maxpt.y > bbx2.minpt.y
-      and bbx1.minpt.z < bbx2.maxpt.z
-      and bbx1.maxpt.z > bbx2.minpt.z 
+          bbx1.minpt[0] < bbx2.maxpt[0]
+      and bbx1.maxpt[0] > bbx2.minpt[0] 
+      and bbx1.minpt[1] < bbx2.maxpt[1]
+      and bbx1.maxpt[1] > bbx2.minpt[1]
+      and bbx1.minpt[2] < bbx2.maxpt[2]
+      and bbx1.maxpt[2] > bbx2.minpt[2] 
     )
 
   @classmethod
   def near_edge(cls, bbx1, bbx2, distance=0):
     return (
-         abs(bbx1.minpt.x - bbx2.minpt.x) <= distance
-      or abs(bbx1.minpt.y - bbx2.minpt.y) <= distance
-      or abs(bbx1.minpt.z - bbx2.minpt.z) <= distance
-      or abs(bbx1.maxpt.x - bbx2.maxpt.x) <= distance
-      or abs(bbx1.maxpt.y - bbx2.maxpt.y) <= distance
-      or abs(bbx1.maxpt.z - bbx2.maxpt.z) <= distance
+         abs(bbx1.minpt[0] - bbx2.minpt[0]) <= distance
+      or abs(bbx1.minpt[1] - bbx2.minpt[1]) <= distance
+      or abs(bbx1.minpt[2] - bbx2.minpt[2]) <= distance
+      or abs(bbx1.maxpt[0] - bbx2.maxpt[0]) <= distance
+      or abs(bbx1.maxpt[1] - bbx2.maxpt[1]) <= distance
+      or abs(bbx1.maxpt[2] - bbx2.maxpt[2]) <= distance
     )
 
   @classmethod
@@ -406,21 +438,39 @@ class Bbox(object):
     return Bbox( (0,0,0), vec, dtype=dtype)
 
   @classmethod
-  def from_filename(cls, filename, dtype=int):
+  def from_filename(cls, filename, dtype=int, filename_order='xyz', bbox_order='xyz'):
+    """
+    filename_order: (str) the order of filename, could be xyz or zyx
+    bbox_order: (str) the order of Bbox, could be xyz or zyx
+    """
     match = re.search(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz)?$', os.path.basename(filename))
 
-    (xmin, xmax,
-     ymin, ymax,
-     zmin, zmax) = map(int, match.groups())
+    if filename_order == 'xyz':
+      (xmin, xmax,
+      ymin, ymax,
+      zmin, zmax) = map(int, match.groups())
+    else:
+      raise NotImplementedError
 
-    return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
+    if bbox_order == 'xyz':
+      return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
+    elif bbox_order == 'zyx':
+      return Bbox( (zmin, ymin, xmin), (zmax, ymax, xmax), dtype=dtype )
+    else:
+      raise NameError
 
   @classmethod
-  def from_slices(cls, slices3):
-    return Bbox(
-      (slices3[0].start, slices3[1].start, slices3[2].start), 
-      (slices3[0].stop, slices3[1].stop, slices3[2].stop) 
-    )
+  def from_slices(cls, slices3, order='xyz'):
+    if order == 'xyz':
+      return Bbox(
+        (slices3[0].start, slices3[1].start, slices3[2].start), 
+        (slices3[0].stop, slices3[1].stop, slices3[2].stop) 
+      )
+    elif order == 'zyx':
+      return Bbox(
+        (slices3[-3].start, slices3[-2].start, slices3[-1].start), 
+        (slices3[-3].stop, slices3[-2].stop, slices3[-1].stop) 
+      )
 
   @classmethod
   def from_list(cls, lst):
@@ -440,11 +490,18 @@ class Bbox(object):
     )
 
   def to_slices(self):
-    return (
-      slice(int(self.minpt.x), int(self.maxpt.x)),
-      slice(int(self.minpt.y), int(self.maxpt.y)),
-      slice(int(self.minpt.z), int(self.maxpt.z))
-    )
+    if self.isfortran:
+      return (
+        slice(int(self.minpt.x), int(self.maxpt.x)),
+        slice(int(self.minpt.y), int(self.maxpt.y)),
+        slice(int(self.minpt.z), int(self.maxpt.z))
+      )
+    else:
+      return (
+        slice(int(self.minpt.z), int(self.maxpt.z)),
+        slice(int(self.minpt.y), int(self.maxpt.y)),
+        slice(int(self.minpt.x), int(self.maxpt.x))
+      )
 
   def to_list(self):
     return list(self.minpt) + list(self.maxpt)
@@ -780,11 +837,18 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
 
   print("Saving to {}".format(directory))
 
-  indexmap = {
-    'x': 0,
-    'y': 1,
-    'z': 2,
-  }
+  if np.isfortran(image):
+    indexmap = {
+      'x': 0,
+      'y': 1,
+      'z': 2,
+    }
+  else:
+    indexmap = {
+      'x': -1,
+      'y': -2,
+      'z': -3
+    }
 
   index = indexmap[axis]
 

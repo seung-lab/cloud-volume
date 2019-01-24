@@ -22,12 +22,14 @@ from cloudvolume import txrx
 def test_from_numpy():
   arr = np.random.random_integers(0, high=255, size=(128,128, 128))
   arr = np.asarray(arr, dtype=np.uint8)
+  arr = np.asfortranarray(arr)
   vol = CloudVolume.from_numpy(arr)
   arr2 = vol[:,:,:]
   np.alltrue(arr == arr2)
   
   arr = np.random.randn(128,128, 128, 3)
   arr = np.asarray(arr, dtype=np.float32)
+  arr = np.asfortranarray(arr)
   vol = CloudVolume.from_numpy(arr)
   arr2 = vol[:,:,:]
   np.alltrue(arr == arr2)
@@ -210,9 +212,9 @@ def test_parallel_shared_memory_write():
 
   shareddata[:] = 0
   shareddata[:,0,0] = 1
-  cv.upload_from_shared_memory(shm_location, bbox=Bbox((0,0,0), (256,256,128)), order='C')
-  assert np.all(cv[0,0,:] == 1)
-  assert np.all(cv[1,0,:] == 0)
+  cv.upload_from_shared_memory(shm_location, bbox=Bbox((0,0,0), (128,256,256)), order='C')
+  assert np.alltrue(cv[0,0,:] == 1)
+  assert np.alltrue(cv[1,0,:] == 0)
 
   mmapfh.close()
   shm.unlink(shm_location)

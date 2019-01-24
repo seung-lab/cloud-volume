@@ -107,10 +107,12 @@ class CloudVolume(object):
         '' means no compression (same as False).
     non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing safe without careful design.
       When not enabled, a ValueError is thrown for non-aligned writes.
+    order: (str) whether the memory layout is fortran order or C order. We use fortran order in default 
+      for consisitancy with neuroglancer precomputed. options: {'F', 'C'}
   """
   def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
       cache=False, compress_cache=None, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
+      compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False, order='F'):
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
@@ -159,6 +161,14 @@ class CloudVolume(object):
 
     self.pid = os.getpid()
 
+    # memory layout order
+    if order == 'F':
+      self.isfortran = True
+    elif order == 'C':
+      self.isfortran = False 
+    else:
+      raise NameError
+
   @classmethod
   def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
                   resolution=(4,4,40), voxel_offset=(0,0,0), 
@@ -181,8 +191,9 @@ class CloudVolume(object):
     else:
       raise NotImplementedError
 
+    order = 'F' if np.isfortran(arr) else 'C'
     info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, 'raw', resolution, voxel_offset, arr.shape[:3])
-    vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=False) 
+    vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=False, order=order) 
     # save the info file
     vol.commit_info()
     vol.provenance.processing.append({
@@ -504,7 +515,7 @@ class CloudVolume(object):
                           if s["resolution"] == mip))
       else:  # mip specified by index into downsampling hierarchy
         self._mip = self.available_mips[mip]
-    except Exception as err:
+    except Exception:
       if isinstance(mip, list):
         opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
       else:
@@ -564,7 +575,10 @@ class CloudVolume(object):
 
   def mip_shape(self, mip):
     size = self.mip_volume_size(mip)
-    return Vec(size.x, size.y, size.z, self.num_channels)
+    if self.isfortran:
+      return Vec(size[0], size[1], size[2], self.num_channels)
+    else:
+      return Vec(self.num_channels, size[0], size[1], size[2])
 
   @property
   def volume_size(self):
@@ -668,6 +682,13 @@ class CloudVolume(object):
   def bounds(self):
     """Returns a bounding box for the dataset with dimensions in voxels"""
     return self.mip_bounds(self.mip)
+
+  @property
+  def order(self):
+    if self.isfortran:
+      return 'F'
+    else:
+      return 'C'
 
   def mip_bounds(self, mip):
     offset = self.mip_voxel_offset(mip)
@@ -1023,6 +1044,8 @@ class CloudVolume(object):
     return self.cache.flush(preserve=preserve)
 
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
+    # boss interface only works with fortran order indexing now.
+    assert self.isfortran
     bounds = Bbox.clamp(requested_bbox, self.bounds)
     
     if bounds.subvoxel():
@@ -1064,19 +1087,30 @@ class CloudVolume(object):
     return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
   def __setitem__(self, slices, img):
-    if type(slices) == Bbox:
-      slices = slices.to_slices()
+    if isinstance(slices, Bbox):
+        slices = slices.to_slices()
 
     imgshape = list(img.shape)
     if len(imgshape) == 3:
-      imgshape = imgshape + [ self.num_channels ]
+      if self.isfortran:
+        imgshape = imgshape + [ self.num_channels ]
+      else:
+        imgshape = [self.num_channels] + imgshape
 
-    maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
-    minsize = list(self.bounds.minpt) + [ 0 ]
+    if self.isfortran:
+      maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
+      minsize = list(self.bounds.minpt) + [ 0 ]
+    else:
+      maxsize = [ self.num_channels ] + list(self.bounds.maxpt)
+      minsize = [ 0 ] + list(self.bounds.minpt)
+
     slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
     bbox = Bbox.from_slices(slices)
 
-    slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
+    if self.isfortran:
+      slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
+    else:
+      slice_shape = [slices[0].stop - slices[0].start] + list(bbox.size3)
 
     if not np.array_equal(imgshape, slice_shape):
       raise exceptions.AlignmentError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
@@ -1086,7 +1120,7 @@ class CloudVolume(object):
         cropped_bbox = Bbox.intersection(bbox, self.bounds)
         dmin = np.absolute(bbox.minpt - cropped_bbox.minpt)
         dmax = dmin + cropped_bbox.size3()
-        img = img[ dmin.x:dmax.x, dmin.y:dmax.y, dmin.z:dmax.z ] 
+        img = img[ dmin[0]:dmax[0], dmin[1]:dmax[1], dmin[2]:dmax[2] ] 
         bbox = cropped_bbox
 
     if bbox.subvoxel():
@@ -1125,6 +1159,7 @@ class CloudVolume(object):
         if you have a 1024x1024x128 volume and you're uploading only a 512x512x64 corner
         touching the origin, your Bbox would be `Bbox( (0,0,0), (512,512,64) )`.
     Optional:
+      order: (str) fortran or C order. options: {'F', 'C'}
       cutout_bbox: (bbox or list of slices) If you only want to upload a section of the
         array, give the bbox in volume coordinates (not image coordinates) that should 
         be cut out. For example, if you only want to upload 256x256x32 of the upper 
@@ -1136,9 +1171,10 @@ class CloudVolume(object):
     Returns: void
     """
     def tobbox(x):
-      if type(x) == Bbox:
-        return x 
-      return Bbox.from_slices(x)
+      if isinstance(x, Bbox):
+        return x
+      else: 
+        return Bbox.from_slices(x)
         
     bbox = tobbox(bbox)
     cutout_bbox = tobbox(cutout_bbox) if cutout_bbox else bbox.clone()
@@ -1156,7 +1192,11 @@ class CloudVolume(object):
     if cutout_bbox.subvoxel():
       return
 
-    shape = list(bbox.size3()) + [ self.num_channels ]
+    if order == 'F':
+      shape = list(bbox.size3()) + [ self.num_channels ]
+    else:
+      shape = [self.num_channels] + list(bbox.size3())
+
     mmap_handle, shared_image = sharedmemory.ndarray(
       location=location, shape=shape, dtype=self.dtype, order=order, readonly=True)
 
@@ -1168,7 +1208,10 @@ class CloudVolume(object):
     mmap_handle.close() 
 
   def upload_boss_image(self, img, offset):
-    shape = Vec(*img.shape[:3])
+    if self.isfortran:
+      shape = Vec(*img.shape[:3])
+    else:
+      shape = Vec(*img.shape[-3:])
     offset = Vec(*offset)
 
     bounds = Bbox(offset, shape + offset)
@@ -1195,7 +1238,9 @@ class CloudVolume(object):
 
     rmt = BossRemote(boss_credentials)
     img = img.T
-    img = np.asfortranarray(img.astype(self.dtype))
+    img = img.astype(self.dtype)
+    if self.isfortran:
+      img = np.asfortranarray(img)
 
     rmt.create_cutout(chan, self.mip, x_rng, y_rng, z_rng, img)
 

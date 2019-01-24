@@ -14,7 +14,7 @@ from .exceptions import AlignmentError, EmptyVolumeException
 from .cacheservice import CacheService
 from .lib import ( 
   toabs, colorize, red, yellow, 
-  mkdir, clamp, xyzrange, Vec, 
+  mkdir, clamp, xyzrange, zyxrange, Vec, 
   Bbox, min2, max2, check_bounds, 
   jsonify, generate_slices
 )
@@ -114,9 +114,18 @@ def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1,
   cloudpath_bbox = requested_bbox.expand_to_chunk_size(vol.underlying, offset=vol.voxel_offset)
   cloudpath_bbox = Bbox.clamp(cloudpath_bbox, vol.bounds)
   cloudpaths = list(chunknames(cloudpath_bbox, vol.bounds, vol.key, vol.underlying))
-  shape = list(requested_bbox.size3()) + [ vol.num_channels ]
+
+  if vol.isfortran:
+    shape = list(requested_bbox.size3()) + [ vol.num_channels ]
+  else:
+    shape = [ vol.num_channels ] + list(requested_bbox.size3())
 
   handle = None
+
+  if vol.isfortran:
+    order = 'F'
+  else:
+    order = 'C'
 
   if parallel == 1:
     if output_to_shared_memory:
@@ -124,7 +133,7 @@ def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1,
         location=shared_memory_location, lock=fs_lock)
       shm.track_mmap(array_like)
     else:
-      renderbuffer = np.zeros(shape=shape, dtype=vol.dtype, order='F')
+      renderbuffer = np.zeros(shape=shape, dtype=vol.dtype, order=order)
 
     def process(img3d, bbox):
       shade(renderbuffer, requested_bbox, img3d, bbox)
@@ -149,7 +158,11 @@ def download_single(vol, cloudpath, filename, cache):
         compress=should_compress(vol, iscache=True),
       )
 
-  bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
+  if vol.isfortran:
+    bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
+  else:
+    bbox = Bbox.from_filename(filename, bbox_order='zyx')
+
   img3d = decode(vol, filename, content)
   return img3d, bbox
 
@@ -172,7 +185,11 @@ def download_multiple(vol, cloudpaths, fn):
 
 def decode(vol, filename, content):
   """Decode content according to settings in a cloudvolume instance."""
-  bbox = Bbox.from_filename(filename)
+  if vol.isfortran:
+    bbox = Bbox.from_filename(filename)
+  else:
+    bbox = Bbox.from_filename(filename, bbox_order='zyx')
+
   content_len = len(content) if content is not None else 0
 
   if not content:
@@ -181,7 +198,10 @@ def decode(vol, filename, content):
     else:
       raise EmptyVolumeException(filename)
 
-  shape = list(bbox.size3()) + [ vol.num_channels ]
+  if vol.isfortran:
+    shape = list(bbox.size3()) + [ vol.num_channels ]
+  else:
+    shape = [ vol.num_channels ] + list(bbox.size3())
 
   try:
     return chunks.decode(
@@ -200,7 +220,6 @@ def shade(renderbuffer, bufferbbox, img3d, bbox):
   """Shade a renderbuffer with a downloaded chunk. 
     The buffer will only be painted in the overlapping
     region of the content."""
-
   if not Bbox.intersects(bufferbbox, bbox):
     return
 
@@ -210,13 +229,19 @@ def shade(renderbuffer, bufferbbox, img3d, bbox):
   ZERO3 = Vec(0,0,0)
 
   istart = max2(spt - bbox.minpt, ZERO3)
-  iend = min2(ept - bbox.maxpt, ZERO3) + img3d.shape[:3]
+  if bbox.isfortran:
+    iend = min2(ept - bbox.maxpt, ZERO3) + img3d.shape[:3]
+  else:
+    iend = min2(ept - bbox.maxpt, ZERO3) + img3d.shape[-3:]
 
   rbox = Bbox(spt, ept) - bufferbbox.minpt
-  if len(img3d.shape) == 3:
+  if img3d.ndim == 3:
     img3d = img3d[ :, :, :, np.newaxis]
-  
-  renderbuffer[ rbox.to_slices() ] = img3d[ istart.x:iend.x, istart.y:iend.y, istart.z:iend.z, : ]
+
+  if bbox.isfortran: 
+    renderbuffer[ rbox.to_slices() ] = img3d[ istart.x:iend.x, istart.y:iend.y, istart.z:iend.z, : ]
+  else:
+    renderbuffer[ rbox.to_slices() ] = img3d[ :, istart.z:iend.z, istart.y:iend.y, istart.x:iend.x, : ]
 
 def content_type(vol):
   if vol.encoding == 'jpeg':
@@ -262,8 +287,12 @@ def cdn_cache_control(val):
 
 def check_grid_aligned(vol, img, offset):
   """Returns (is_aligned, img bounds Bbox, nearest bbox inflated to grid aligned)"""
-  shape = Vec(*img.shape)[:3]
-  offset = Vec(*offset)[:3]
+  if vol.isfortran:
+    shape = Vec(*img.shape)[:3]
+    offset = Vec(*offset)[:3]
+  else:
+    shape = Vec(*img.shape)[-3:]
+    offset = Vec(*offset)[-3:]
   bounds = Bbox( offset, shape + offset)
   alignment_check = bounds.expand_to_chunk_size(vol.underlying, vol.voxel_offset)
   alignment_check = Bbox.clamp(alignment_check, vol.bounds)
@@ -309,7 +338,11 @@ def upload_image(vol, img, offset, parallel=1,
     # we're throwing them away so safe to write
     img3d.setflags(write=1) 
     shade(img3d, bbox, img, bounds)
-    single_process_upload(vol, img3d, (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), n_threads=0)
+    if bbox.isfortran:
+      shape = Vec(*img3d.shape[:3])
+    else:
+      shape = Vec(*img3d.shape[-3:])
+    single_process_upload(vol, img3d, (( Vec(0,0,0), shape, bbox.minpt, bbox.maxpt),), n_threads=0)
 
   download_multiple(vol, shell_chunks, fn=shade_and_upload)
 
@@ -382,24 +415,40 @@ def single_process_upload(vol, img, chunk_ranges, n_threads=DEFAULT_THREADS):
   iterator = tqdm(chunk_ranges, desc='Rechunking image', disable=(not vol.progress))
 
   if len(img.shape) == 3:
-    img = img[:, :, :, np.newaxis ]
+    if vol.isfortran:
+      img = img[:, :, :, np.newaxis ]
+    else:
+      img = img[np.newaxis, :, :, :]
 
   for startpt, endpt, spt, ept in iterator:
     if np.array_equal(spt, ept):
       continue
 
-    imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
+    if vol.isfortran:
+      imgchunk = img[ startpt[0]:endpt[0], startpt[1]:endpt[1], startpt[2]:endpt[2], : ]
+    else:
+      imgchunk = img[ :, startpt[0]:endpt[0], startpt[1]:endpt[1], startpt[2]:endpt[2] ]
 
     # handle the edge of the dataset
     clamp_ept = min2(ept, vol.bounds.maxpt)
     newept = clamp_ept - spt
-    imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
+    if vol.isfortran:
+      imgchunk = imgchunk[ :newept[0], :newept[1], :newept[2], : ]
+    else:
+      imgchunk = imgchunk[ :, :newept[0], :newept[1], :newept[2] ]
 
-    filename = "{}-{}_{}-{}_{}-{}".format(
-      spt.x, clamp_ept.x,
-      spt.y, clamp_ept.y, 
-      spt.z, clamp_ept.z
-    )
+    if vol.isfortran:
+      filename = "{}-{}_{}-{}_{}-{}".format(
+        spt[0], clamp_ept[0],
+        spt[1], clamp_ept[1], 
+        spt[2], clamp_ept[2]
+      )
+    else:
+      filename = "{}-{}_{}-{}_{}-{}".format(
+        spt[2], clamp_ept[2],
+        spt[1], clamp_ept[1], 
+        spt[0], clamp_ept[0]
+      )
 
     cloudpath = os.path.join(vol.key, filename)
     encoded = chunks.encode(imgchunk, vol.encoding, vol.compressed_segmentation_block_size)
@@ -431,8 +480,12 @@ def single_process_upload(vol, img, chunk_ranges, n_threads=DEFAULT_THREADS):
 
 
 def generate_chunks(vol, img, offset):
-  shape = Vec(*img.shape)[:3]
-  offset = Vec(*offset)[:3]
+  if vol.isfortran:
+    shape = Vec(*img.shape)[:3]
+    offset = Vec(*offset)[:3]
+  else:
+    shape = Vec(*img.shape)[-3:]
+    offset = Vec(*offset)[-3:]
 
   bounds = Bbox( offset, shape + offset)
 
@@ -448,21 +501,38 @@ def generate_chunks(vol, img, offset):
   img_offset = bounds.minpt - offset
   img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
 
-  for startpt in xyzrange( img_offset, img_end, vol.underlying ):
-    startpt = startpt.clone()
-    endpt = min2(startpt + vol.underlying, shape)
-    spt = (startpt + bounds.minpt).astype(int)
-    ept = (endpt + bounds.minpt).astype(int)
-    yield (startpt, endpt, spt, ept)
+  if vol.isfortran:
+    for startpt in xyzrange( img_offset, img_end, vol.underlying ):
+      startpt = startpt.clone()
+      endpt = min2(startpt + vol.underlying, shape)
+      spt = (startpt + bounds.minpt).astype(int)
+      ept = (endpt + bounds.minpt).astype(int)
+      yield (startpt, endpt, spt, ept)
+  else:
+    for startpt in zyxrange( img_offset, img_end, vol.underlying ):
+      startpt = startpt.clone()
+      endpt = min2(startpt + vol.underlying, shape)
+      spt = (startpt + bounds.minpt).astype(int)
+      ept = (endpt + bounds.minpt).astype(int)
+      yield (startpt, endpt, spt, ept)
+
 
 def chunknames(bbox, volume_bbox, key, chunk_size):
-  for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
-    highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
-    filename = "{}-{}_{}-{}_{}-{}".format(
-      x, highpt.x,
-      y, highpt.y, 
-      z, highpt.z
-    )
-    yield os.path.join(key, filename)
-
-
+  if bbox.isfortran:
+    for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
+      highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
+      filename = "{}-{}_{}-{}_{}-{}".format(
+        x, highpt.x,
+        y, highpt.y, 
+        z, highpt.z
+      )
+      yield os.path.join(key, filename)
+  else:
+    for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
+      highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
+      filename = "{}-{}_{}-{}_{}-{}".format(
+        z, highpt.z,
+        y, highpt.y, 
+        x, highpt.x
+      )
+      yield os.path.join(key, filename)
