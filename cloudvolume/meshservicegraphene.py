@@ -80,7 +80,7 @@ class GrapheneMeshService(object):
             'faces': faces,
         }
 
-    def get(self, seg_id, remove_duplicate_vertices_in_chunk=False):
+    def get(self, seg_id, remove_duplicate_vertices=False):
         """
         Merge fragments derived from these segids into a single vertex and face list.
 
@@ -90,7 +90,7 @@ class GrapheneMeshService(object):
         segid: (iterable or int) segids to render into a single mesh
 
         Optional:
-          remove_duplicate_vertices_in_chunk: bool, fuse exactly matching vertices within a chunk
+          remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
         Returns: {
           num_vertices: int,
           vertices: [ (x,y,z), ... ]  # floats
@@ -114,4 +114,4 @@ class GrapheneMeshService(object):
             meshdata.append(mesh)
 
         return self._produce_output(meshdata,
-                                    remove_duplicate_vertices_in_chunk)
+                                    remove_duplicate_vertices)
