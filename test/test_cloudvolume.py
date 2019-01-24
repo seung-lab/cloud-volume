@@ -34,8 +34,8 @@ def test_from_numpy():
   shutil.rmtree('/tmp/image')
 
 def test_cloud_access():
-  vol = CloudVolume('gs://seunglab-test/test_v0/image')
-  vol = CloudVolume('s3://seunglab-test/test_dataset/image')
+  CloudVolume('gs://seunglab-test/test_v0/image')
+  CloudVolume('s3://seunglab-test/test_dataset/image')
 
 def test_fill_missing():
   info = CloudVolume.create_new_info(
@@ -179,7 +179,7 @@ def test_parallel_write():
 
 def test_parallel_shared_memory_write():
   delete_layer()
-  cv, data = create_layer(size=(256,256,128,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(256,256,128,1), offset=(0,0,0))
 
   shm_location = 'cloudvolume-test-shm-parallel-write'
   mmapfh, shareddata = shm.ndarray(shape=(256,256,128), dtype=np.uint8, location=shm_location)
@@ -279,7 +279,7 @@ def test_autocropped_read():
 
 def test_write():
   delete_layer()
-  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
 
   replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
   cv[0:50,0:50,0:50] = replacement_data
@@ -296,26 +296,26 @@ def test_write():
 
   # out of bounds
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
   with pytest.raises(ValueError):
     cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
   
   # non-aligned writes
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
   with pytest.raises(ValueError):
     cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
   # test bounds check for short boundary chunk
   delete_layer()
-  cv, data = create_layer(size=(25,25,25,1), offset=(1,3,5))
+  cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
   cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
   cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
 def test_non_aligned_write():
   delete_layer()
   offset = Vec(5,7,13)
-  cv, data = create_layer(size=(1024, 1024, 5, 1), offset=offset)
+  cv, _ = create_layer(size=(1024, 1024, 5, 1), offset=offset)
 
   cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
 
@@ -352,7 +352,7 @@ def test_non_aligned_write():
 
   # Big inner shell
   delete_layer()
-  cv, data = create_layer(size=(1024, 1024, 5, 1), offset=offset)
+  cv, _ = create_layer(size=(1024, 1024, 5, 1), offset=offset)
   cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
   middle = Bbox( (512 - 150, 512 - 150, 0), (512 + 150, 512 + 150, 5) ) + offset
 
@@ -370,7 +370,7 @@ def test_non_aligned_write():
 
 def test_autocropped_write():
   delete_layer()
-  cv, data = create_layer(size=(100,100,100,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(100,100,100,1), offset=(0,0,0))
 
   cv.autocrop = True
   cv.bounded = False
@@ -460,14 +460,14 @@ def test_negative_coords_upload_download():
 
 def test_setitem_mismatch():
   delete_layer()
-  cv, data = create_layer(size=(64,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(64,64,64,1), offset=(0,0,0))
 
   with pytest.raises(ValueError):
     cv[0:64,0:64,0:64] = np.zeros(shape=(5,5,5,1), dtype=np.uint8)
 
 def test_bounds():
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(100,100,100))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(100,100,100))
   cv.bounded = True
 
   try:
@@ -494,7 +494,7 @@ def test_bounds():
 
 def test_provenance():
   delete_layer()
-  cv, data = create_layer(size=(64,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(64,64,64,1), offset=(0,0,0))
 
   provobj = json.loads(cv.provenance.serialize())
   assert provobj == {"sources": [], "owners": [], "processing": [], "description": ""}
@@ -835,7 +835,7 @@ def test_cache_validity():
 def test_pickling():
   import pickle
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
   pckl = pickle.dumps(cv)
   cv2 = pickle.loads(pckl)
@@ -847,7 +847,7 @@ def test_multiprocess():
   from concurrent.futures import ProcessPoolExecutor, as_completed
 
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
   cv.commit_info()
 
   # "The ProcessPoolExecutor class has known (unfixable) 
@@ -855,14 +855,13 @@ def test_multiprocess():
   # for mission critical work."
   # https://pypi.org/project/futures/
 
-  layer = cv.cloudpath
   if sys.version_info[0] < 3:
     print(yellow("External multiprocessing not supported in Python 2."))
     return
   
   futures = []
   with ProcessPoolExecutor(max_workers=4) as ppe:
-    for i in range(0, 5):
+    for _ in range(0, 5):
       futures.append(ppe.submit(cv.refresh_info))
 
     for future in as_completed(futures):
@@ -874,7 +873,7 @@ def test_multiprocess():
 def test_exists():
   # Bbox version
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
   defexists = Bbox( (0,0,0), (128,64,64) )
   results = cv.exists(defexists)
@@ -893,7 +892,7 @@ def test_exists():
 
   # Slice version
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
   defexists = np.s_[ 0:128, :, : ]
 
@@ -915,7 +914,7 @@ def test_delete():
 
   # Bbox version
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
   defexists = Bbox( (0,0,0), (128,64,64) )
   results = cv.exists(defexists)
@@ -932,7 +931,7 @@ def test_delete():
 
   # Slice version
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
   defexists = np.s_[ 0:128, :, : ]
 
@@ -949,7 +948,7 @@ def test_delete():
 
   # Check errors
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
   try:
     results = cv.exists( np.s_[1:129, :, :] )
@@ -961,7 +960,7 @@ def test_delete():
 def test_transfer():
   # Bbox version
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
   cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
 
@@ -984,7 +983,7 @@ def test_transfer():
 
 def test_cdn_cache_control():
   delete_layer()
-  cv, data = create_layer(size=(128,10,10,1), offset=(0,0,0))
+  create_layer(size=(128,10,10,1), offset=(0,0,0))
 
   assert txrx.cdn_cache_control(None) == 'max-age=3600, s-max-age=3600'
   assert txrx.cdn_cache_control(0) == 'no-cache'
@@ -1062,9 +1061,7 @@ def test_bbox_to_mip():
 
 def test_slices_from_global_coords():
   delete_layer()
-  cv, data = create_layer(size=(1024, 1024, 5, 1), offset=(7,0,0))
-
-  bbox = Bbox( (10, 10, 1), (100, 100, 2) )
+  cv, _ = create_layer(size=(1024, 1024, 5, 1), offset=(7,0,0))
 
   scale = cv.info['scales'][0]
   scale = copy.deepcopy(scale)
@@ -1094,9 +1091,7 @@ def test_slices_from_global_coords():
 
 def test_slices_to_global_coords():
   delete_layer()
-  cv, data = create_layer(size=(1024, 1024, 5, 1), offset=(7,0,0))
-
-  bbox = Bbox( (10, 10, 1), (100, 100, 2) )
+  cv, _ = create_layer(size=(1024, 1024, 5, 1), offset=(7,0,0))
 
   scale = cv.info['scales'][0]
   scale = copy.deepcopy(scale)
@@ -1159,7 +1154,7 @@ def test_get_mesh_order_stability():
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
   first_mesh = vol.mesh.get([148, 18], fuse=True)
   
-  for i in range(5):
+  for _ in range(5):
     next_mesh = vol.mesh.get([148, 18], fuse=True)
     assert first_mesh['num_vertices'] == next_mesh['num_vertices']
     assert np.all(first_mesh['vertices'] == next_mesh['vertices'])
