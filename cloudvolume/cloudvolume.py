@@ -5,6 +5,7 @@ import collections
 import json
 import json5
 import os
+import re
 import sys
 import uuid
 import weakref
@@ -14,6 +15,7 @@ import numpy as np
 from tqdm import tqdm
 from six import string_types
 import multiprocessing as mp
+from time import strftime
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
@@ -158,22 +160,36 @@ class CloudVolume(object):
     self.pid = os.getpid()
 
   @classmethod
-  def from_numpy(cls, arr, vol_path='file://tmp/'+generate_random_string(),
+  def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
                   resolution=(4,4,40), voxel_offset=(0,0,0), 
-                  chunk_size=(64,64,64)):
-    mkdir(vol_path)
-    if arr.dtype == np.uint8 or arr.dtype == np.float32:
-      layer_type = 'image'
-    elif arr.dtype == np.uint32 or arr.dtype == np.uint64:
-      layer_type = 'segmentation'
+                  chunk_size=(128,128,64), layer_type=None):
+    if re.match('^file://', vol_path):
+      mkdir(vol_path)
 
-    # cloud volume use fortran order, so we need to transpose 
-    # arr = np.transpose(arr)
-    # import pdb; pdb.set_trace()
-    info = cls.create_new_info(1, layer_type, arr.dtype.name, 'raw', resolution, voxel_offset, arr.shape)
-    vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=True) 
+    if not layer_type:
+      if arr.dtype in (np.uint8, np.float32, np.float16, np.float64):
+        layer_type = 'image'
+      elif arr.dtype in (np.uint32, np.uint64, np.uint16):
+        layer_type = 'segmentation'
+      else:
+        raise NotImplementedError
+
+    if arr.ndim == 3:
+      num_channels = 1
+    elif arr.ndim == 4:
+      num_channels = arr.shape[-1]
+    else:
+      raise NotImplementedError
+
+    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, 'raw', resolution, voxel_offset, arr.shape[:3])
+    vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=False) 
     # save the info file
     vol.commit_info()
+    vol.provenance.processing.append({
+      'method': 'from_numpy',
+      'date': strftime('%Y-%m-%d %H:%M %Z')
+    })
+    vol.commit_provenance()
     # save the numpy array
     vol[:,:,:] = arr
     return vol 
@@ -352,7 +368,7 @@ class CloudVolume(object):
       each_factor = Vec(2,2,2)
     
     factor = each_factor.clone()
-    for mip in range(1, experiment.num_hierarchy_levels):
+    for _ in range(1, experiment.num_hierarchy_levels):
       self.add_scale(factor, info=info)
       factor *= each_factor
 
@@ -821,7 +837,7 @@ class CloudVolume(object):
     if type(bbox_or_slices) is Bbox:
       requested_bbox = bbox_or_slices
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
     cloudpaths = list(cloudpaths)
@@ -840,7 +856,7 @@ class CloudVolume(object):
     if type(bbox_or_slices) is Bbox:
       requested_bbox = bbox_or_slices
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
 
     if requested_bbox != realized_bbox:
@@ -875,7 +891,7 @@ class CloudVolume(object):
     if type(bbox) is Bbox:
       requested_bbox = bbox
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox)
     realized_bbox = self.__realized_bbox(requested_bbox)
 
     if requested_bbox != realized_bbox:

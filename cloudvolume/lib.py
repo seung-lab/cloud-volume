@@ -154,7 +154,7 @@ def extract_path(cloudpath):
 def toabs(path):
   home = os.path.join(os.environ['HOME'], '')
   # remove file protocol
-  path = re.sub('^file://?', '', path)
+  # path = re.sub('^file://?', '', path)
   path = re.sub('^~/?', home, path)
   return os.path.abspath(path)
 
@@ -601,11 +601,12 @@ class Bbox(object):
   def clone(self):
     return Bbox(self.minpt, self.maxpt, dtype=self.dtype)
 
-  def astype(self, dtype):
-    result = self.clone()
-    result.minpt = self.minpt.astype(dtype)
-    result.maxpt = self.maxpt.astype(dtype)
-    return result
+  def astype(self, typ):
+    tmp = self.clone()
+    tmp.minpt = tmp.minpt.astype(typ)
+    tmp.maxpt = tmp.maxpt.astype(typ)
+    tmp._dtype = tmp.minpt.dtype 
+    return tmp
 
   def transpose(self):
     return Bbox(self.minpt[::-1], self.maxpt[::-1])
@@ -800,7 +801,7 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
     img = (img - lower) / (upper - lower) * 255.0
     return img.astype(np.uint8)
 
-  if global_norm and image.dtype in (np.floating):
+  if global_norm and np.issubdtype(image.dtype, np.floating):
     image = normalize_float(image)      
 
   for level in tqdm(range(image.shape[index]), desc="Saving Images"):
