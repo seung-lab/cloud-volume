@@ -42,7 +42,7 @@ def remove_duplicate_vertices_cross_chunks(verts, faces, chunk_size):
     fa = np.array(faces)
     n_faces = fa.shape[0]
     n_dim = fa.shape[1]
-    
+
     # use unique to make the artificial vertex list unique and reindex faces
     vertices, newfaces = np.unique(new_vertices[faces.ravel(),:], return_inverse=True, axis=0)
     faces = newfaces.reshape((n_faces, n_dim))
@@ -77,7 +77,8 @@ class GrapheneMeshService(object):
 
         url = f"{self.vol.manifest_endpoint}/{seg_id}:{lod}?verify=True"
         r = requests.get(url)
-        assert r.status_code == 200
+        if (r.status_code != 200):
+            raise Exception(f'manifest endpoint {url} not responding')
 
         filenames = json.loads(r.content)["fragments"]
 
@@ -99,6 +100,10 @@ class GrapheneMeshService(object):
         faces = np.concatenate([
             mesh['faces'] + vertexct[i] for i, mesh in enumerate(mdata)
         ])
+        if len(faces.shape) == 1:
+            assert(len(faces) % 3 == 0)
+            nfaces = int(len(faces)/3)
+            faces = np.reshape(faces, (nfaces, 3))
 
         if remove_duplicate_vertices_in_chunk:
             vertices, faces = np.unique(vertices[faces],
