@@ -187,6 +187,12 @@ def test_bbox_hashing():
   for k,v in d.items():
     assert v == 1
 
+def test_bbox_serialize():
+  bbx = Bbox( (24.125, 2512.2, 2112.3), (33.,532., 124.12412), dtype=np.float32)
+
+  reconstituted = Bbox.deserialize(bbx.serialize())
+  assert bbx == reconstituted
+
 def test_jsonify():
   obj = {
     'x': [ np.array([1,2,3,4,5], dtype=np.uint64) ],
