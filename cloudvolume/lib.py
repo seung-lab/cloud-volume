@@ -153,8 +153,6 @@ def extract_path(cloudpath):
 
 def toabs(path):
   home = os.path.join(os.environ['HOME'], '')
-  # remove file protocol
-  # path = re.sub('^file://?', '', path)
   path = re.sub('^~/?', home, path)
   return os.path.abspath(path)
 
