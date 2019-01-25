@@ -101,10 +101,8 @@ class GrapheneMeshService(object):
             mesh['faces'] + vertexct[i] for i, mesh in enumerate(mdata)
         ])
         if len(faces.shape) == 1:
-            assert(len(faces) % 3 == 0)
-            nfaces = int(len(faces)/3)
-            faces = np.reshape(faces, (nfaces, 3))
-
+            faces = faces.reshape(-1, 3)
+            
         if remove_duplicate_vertices_in_chunk:
             vertices, faces = np.unique(vertices[faces],
                                         return_inverse=True, axis=0)
