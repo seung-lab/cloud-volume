@@ -163,7 +163,8 @@ class CloudVolume(object):
   def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
                   resolution=(4,4,40), voxel_offset=(0,0,0), 
                   chunk_size=(128,128,64), layer_type=None):
-    if re.match('^file://', vol_path):
+    path = lib.extract_path(vol_path)
+    if path.protocol == 'file':
       mkdir(vol_path)
 
     if not layer_type:
