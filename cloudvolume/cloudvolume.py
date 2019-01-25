@@ -407,7 +407,6 @@ class CloudVolume(object):
           """)
         elif self.dtype not in ('uint32', 'uint64'):
           raise ValueError("compressed_segmentation can only be used with uint32 and uint64 data types.")
-
     infojson = jsonify(self.info, 
       sort_keys=True,
       indent=2, 
@@ -697,14 +696,17 @@ class CloudVolume(object):
 
   def bbox_to_mip(self, bbox, mip, to_mip):
     """Convert bbox or slices from one mip level to another."""
-    if not type(bbox) is Bbox:
+    if not isinstance(bbox, Bbox):
       bbox = lib.generate_slices(
         bbox, 
         self.mip_bounds(mip).minpt, 
         self.mip_bounds(mip).maxpt, 
         bounded=False
       )
-      bbox = Bbox.from_slices(bbox)
+      if self.isfortran:
+        bbox = Bbox.from_slices(bbox)
+      else:
+        bbox = Bbox.from_slices(bbox, order='zyx')
 
     def one_level(bbox, mip, to_mip):
       original_dtype = bbox.dtype
@@ -1105,12 +1107,14 @@ class CloudVolume(object):
       minsize = [ 0 ] + list(self.bounds.minpt)
 
     slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
-    bbox = Bbox.from_slices(slices)
+    
 
     if self.isfortran:
+      bbox = Bbox.from_slices(slices)
       slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
     else:
-      slice_shape = [slices[0].stop - slices[0].start] + list(bbox.size3)
+      bbox = Bbox.from_slices(slices, order='zyx')
+      slice_shape = [slices[-4].stop - slices[-4].start] + list(bbox.size3())
 
     if not np.array_equal(imgshape, slice_shape):
       raise exceptions.AlignmentError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
@@ -1131,7 +1135,7 @@ class CloudVolume(object):
     else:
       txrx.upload_image(self, img, bbox.minpt, parallel=self.parallel)
 
-  def upload_from_shared_memory(self, location, bbox, order='F', cutout_bbox=None):
+  def upload_from_shared_memory(self, location, bbox, cutout_bbox=None):
     """
     Upload from a shared memory array. 
 
@@ -1159,7 +1163,6 @@ class CloudVolume(object):
         if you have a 1024x1024x128 volume and you're uploading only a 512x512x64 corner
         touching the origin, your Bbox would be `Bbox( (0,0,0), (512,512,64) )`.
     Optional:
-      order: (str) fortran or C order. options: {'F', 'C'}
       cutout_bbox: (bbox or list of slices) If you only want to upload a section of the
         array, give the bbox in volume coordinates (not image coordinates) that should 
         be cut out. For example, if you only want to upload 256x256x32 of the upper 
@@ -1173,8 +1176,11 @@ class CloudVolume(object):
     def tobbox(x):
       if isinstance(x, Bbox):
         return x
-      else: 
-        return Bbox.from_slices(x)
+      else:
+        if self.isfortran: 
+          return Bbox.from_slices(x)
+        else:
+          return Bbox.from_slices(x, order='zyx')
         
     bbox = tobbox(bbox)
     cutout_bbox = tobbox(cutout_bbox) if cutout_bbox else bbox.clone()
@@ -1192,7 +1198,7 @@ class CloudVolume(object):
     if cutout_bbox.subvoxel():
       return
 
-    if order == 'F':
+    if self.isfortran:
       shape = list(bbox.size3()) + [ self.num_channels ]
     else:
       shape = [self.num_channels] + list(bbox.size3())

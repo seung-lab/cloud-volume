@@ -210,9 +210,13 @@ def test_parallel_shared_memory_write():
   assert np.all(cv[128:,128:,:64] == 3)    
   assert np.all(cv[:,:,64:128] == 2)    
 
+  
+  delete_layer()
+  cv, _ = create_layer(size=(1,128,256,256), offset=(0,0,0), order='C')
+
   shareddata[:] = 0
   shareddata[:,0,0] = 1
-  cv.upload_from_shared_memory(shm_location, bbox=Bbox((0,0,0), (128,256,256)), order='C')
+  cv.upload_from_shared_memory(shm_location, bbox=Bbox((0,0,0), (128,256,256)))
   assert np.alltrue(cv[0,0,:] == 1)
   assert np.alltrue(cv[1,0,:] == 0)
 

@@ -30,12 +30,12 @@ def create_image(size, layer_type="image", dtype=None):
         high = np.array([0], dtype=default(np.uint32)) - 1
         return np.random.randint(high[0], size=size, dtype=default(np.uint32))
 
-def create_layer(size, offset, layer_type="image", layer_name='layer', dtype=None):
+def create_layer(size, offset, layer_type="image", layer_name='layer', dtype=None, order='F'):
     random_data = create_image(size, layer_type, dtype)
-    vol = upload_image(random_data, offset, layer_type, layer_name)
+    vol = upload_image(random_data, offset, layer_type, layer_name, order=order)
     return vol, random_data
 
-def upload_image(image, offset, layer_type, layer_name):
+def upload_image(image, offset, layer_type, layer_name, order='F'):
     lpath = 'file://{}'.format(os.path.join(layer_path, layer_name))
     
     # Jpeg encoding is lossy so it won't work
@@ -45,7 +45,8 @@ def upload_image(image, offset, layer_type, layer_name):
         layer_path=lpath,
         layer_type=layer_type, 
         encoding="raw", 
-        resolution=[1,1,1]
+        resolution=[1,1,1],
+        order=order
     )
     
     return vol
@@ -56,30 +57,35 @@ def delete_layer(path=layer_path):
 
 # Helper Functions
 
-def create_volume_from_image(image, offset, layer_path, layer_type, resolution, encoding):
-  assert layer_type in ('image', 'segmentation', 'affinities')
+def create_volume_from_image(image, offset, layer_path, layer_type, resolution, 
+                                encoding, order='F'):
+    assert layer_type in ('image', 'segmentation', 'affinities')
 
-  offset = Vec(*offset)
-  volsize = Vec(*image.shape[:3])
+    offset = Vec(*offset)
+    if order=='F':
+        volsize = Vec(*image.shape[:3])
+    else:
+        volsize = Vec(*image.shape[-3:])
 
-  data_type = str(image.dtype)
-  bounds = Bbox(offset, offset + volsize)
+    data_type = str(image.dtype)
+    bounds = Bbox(offset, offset + volsize)
 
-  neuroglancer_chunk_size = find_closest_divisor(image.shape[:3], closest_to=[64,64,64])
+    import pdb; pdb.set_trace()
+    neuroglancer_chunk_size = find_closest_divisor(volsize, closest_to=[64,64,64])
 
-  info = CloudVolume.create_new_info(
-    num_channels=1, # Increase this number when we add more tests for RGB
-    layer_type=layer_type, 
-    data_type=data_type, 
-    encoding=encoding,
-    resolution=resolution, 
-    voxel_offset=bounds.minpt, 
-    volume_size=bounds.size3(),
-    mesh=(layer_type == 'segmentation'), 
-    chunk_size=neuroglancer_chunk_size,
-  )
+    info = CloudVolume.create_new_info(
+        num_channels=1, # Increase this number when we add more tests for RGB
+        layer_type=layer_type, 
+        data_type=data_type, 
+        encoding=encoding,
+        resolution=resolution, 
+        voxel_offset=bounds.minpt, 
+        volume_size=bounds.size3(),
+        mesh=(layer_type == 'segmentation'), 
+        chunk_size=neuroglancer_chunk_size,
+    )
 
-  vol = CloudVolume(layer_path, mip=0, info=info)
-  vol.commit_info()
-  vol[:,:,:] = image
-  return vol
+    vol = CloudVolume(layer_path, mip=0, info=info, order=order)
+    vol.commit_info()
+    vol[:,:,:] = image
+    return vol
