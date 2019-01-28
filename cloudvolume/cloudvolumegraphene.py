@@ -46,11 +46,16 @@ class CloudVolumeGraphene(object):
                  cache=False, compress_cache=None, cdn_cache=True,
                  progress=INTERACTIVE, provenance=None,
                  compress=None, parallel=1,
+                 map_gs_to_https=False,
                  output_to_shared_memory=False):
 
         # Read info from chunkedgraph endpoint
         self._cloud_url = cloud_url
         self._info_dict = self.read_info()
+        if map_gs_to_https:
+            new_data_dir = self._info_dict["data_dir"].replace("gs://",
+                                                               "https://storage.googleapis.com/")
+            self._info_dict["data_dir"] = new_data_dir
 
         self._cv = CloudVolume(cloudpath=self.cloudpath,
                                info=self._info_dict,
