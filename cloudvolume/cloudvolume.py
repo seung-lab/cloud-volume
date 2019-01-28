@@ -111,8 +111,10 @@ class CloudVolume(object):
   """
   def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
       cache=False, compress_cache=None, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
+      compress=None, map_gs_to_https=False, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
 
+    if map_gs_to_https:
+       cloudpath=cloudpath.replace("gs://", "https://storage.googleapis.com/")
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
     self.cdn_cache = cdn_cache
