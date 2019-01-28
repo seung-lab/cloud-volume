@@ -5,7 +5,6 @@ import collections
 import json
 import json5
 import os
-import re
 import sys
 import uuid
 import weakref
@@ -162,7 +161,10 @@ class CloudVolume(object):
   @classmethod
   def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
                   resolution=(4,4,40), voxel_offset=(0,0,0), 
-                  chunk_size=(128,128,64), layer_type=None):
+                  chunk_size=(128,128,64), layer_type=None, mip_num=1):
+    """
+    mip_num: (int) number of mip levels in the info file
+    """
     path = lib.extract_path(vol_path)
     if path.protocol == 'file':
       mkdir(vol_path)
@@ -182,7 +184,8 @@ class CloudVolume(object):
     else:
       raise NotImplementedError
 
-    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, 'raw', resolution, voxel_offset, arr.shape[:3])
+    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, 'raw', resolution, 
+                               voxel_offset, arr.shape[:3], chunk_size=chunk_size, mip_num=mip_num)
     vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=False) 
     # save the info file
     vol.commit_info()
@@ -241,7 +244,8 @@ class CloudVolume(object):
     num_channels, layer_type, data_type, encoding, 
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(64,64,64),
-    compressed_segmentation_block_size=(8,8,8)
+    compressed_segmentation_block_size=(8,8,8),
+    mip_num=1 
   ):
     """
     Used for creating new neuroglancer info files.
@@ -261,6 +265,7 @@ class CloudVolume(object):
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
+      mip_num: (int), the number of mip levels.
 
     Returns: dict representing a single mip level that's JSON encodable
     """
@@ -268,15 +273,23 @@ class CloudVolume(object):
       "num_channels": int(num_channels),
       "type": layer_type,
       "data_type": data_type,
-      "scales": [{
+    }
+    
+    # add mip levels
+    info['scales'] = []
+    for mip in range(mip_num):
+      resolution = (resolution[0]*2**mip, resolution[1]*2**mip, resolution[2])
+      voxel_offset = (voxel_offset[0]//2**mip, voxel_offset[1]//2**mip, voxel_offset[2])
+      volume_size = (volume_size[0]//2**mip, volume_size[1]//2**mip, volume_size[2])
+      scale = {
         "encoding": encoding,
         "chunk_sizes": [chunk_size],
         "key": "_".join(map(str, resolution)),
         "resolution": list(map(int, resolution)),
         "voxel_offset": list(map(int, voxel_offset)),
         "size": list(map(int, volume_size)),
-      }],
-    }
+      }
+      info['scales'].append(scale)
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
@@ -286,7 +299,7 @@ class CloudVolume(object):
 
     if skeletons:
       info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
-
+    
     return info
 
   def refresh_info(self):
@@ -505,7 +518,7 @@ class CloudVolume(object):
                           if s["resolution"] == mip))
       else:  # mip specified by index into downsampling hierarchy
         self._mip = self.available_mips[mip]
-    except Exception as err:
+    except Exception:
       if isinstance(mip, list):
         opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
       else:
