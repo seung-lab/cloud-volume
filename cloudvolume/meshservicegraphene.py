@@ -104,9 +104,9 @@ class GrapheneMeshService(object):
             faces = faces.reshape(-1, 3)
             
         if remove_duplicate_vertices_in_chunk:
-            vertices, faces = np.unique(vertices[faces],
+            vertices, faces = np.unique(vertices[faces.reshape(-1)],
                                         return_inverse=True, axis=0)
-            faces = faces.astype(np.uint32)
+            faces = faces.reshape(-1,3).astype(np.uint32)
         else:
             vertices, faces = remove_duplicate_vertices_cross_chunks(
                 vertices, faces, self.vol.mesh_chunk_size)
