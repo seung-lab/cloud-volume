@@ -394,9 +394,9 @@ img = vol[...]
 seg = vol[...]
 
 img.view() # works on VolumeCutouts
-seg.view()
+seg.view() # segmentation type derived from info 
 view(img) # alternative for arbitrary numpy arrays
-view(seg) 
+view(seg, segmentation=True) 
 hyperview(img, seg) # img and seg shape must match
 
 >>> Viewer server listening to http://localhost:8080
