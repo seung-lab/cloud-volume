@@ -620,6 +620,7 @@ class GoogleCloudStorageInterface(object):
     except google.cloud.exceptions.NotFound:
       pass
 
+  @retry
   def list_files(self, prefix, flat=False):
     """
     List the files in the layer with the given prefix. 
@@ -771,10 +772,19 @@ class S3Interface(object):
     layer_path = self.get_path_to_file("")        
     path = os.path.join(layer_path, prefix)
 
-    resp = self._conn.list_objects_v2(
-      Bucket=self._path.bucket,
-      Prefix=path,
-    )
+    @retry
+    def s3lst(continuation_token=None):
+      kwargs = {
+        'Bucket': self._path.bucket,
+        'Prefix': path,
+      }
+
+      if continuation_token:
+        kwargs['ContinuationToken'] = continuation_token
+
+      return self._conn.list_objects_v2(**kwargs)
+
+    resp = s3lst()
 
     def iterate(resp):
       if 'Contents' not in resp.keys():
@@ -793,11 +803,7 @@ class S3Interface(object):
       yield filename
 
     while resp['IsTruncated'] and resp['NextContinuationToken']:
-      resp = self._conn.list_objects_v2(
-        Bucket=self._path.bucket,
-        Prefix=path,
-        ContinuationToken=resp['NextContinuationToken'],
-      )
+      resp = s3lst(resp['NextContinuationToken'])
 
       for filename in iterate(resp):
         yield filename
