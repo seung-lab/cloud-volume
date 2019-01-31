@@ -159,6 +159,7 @@ def download_single(vol, cloudpath, filename, cache):
 def download_multiple(vol, cloudpaths, fn):
   locations = vol.cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(vol.cache.path, vol.key)
+  progress = 'Downloading' if vol.progress else None
 
   pbar = tqdm(total=len(cloudpaths), desc='Downloading', disable=(not vol.progress))
 
@@ -276,18 +277,12 @@ def check_grid_aligned(vol, img, offset):
   is_aligned = np.all(alignment_check.minpt == bounds.minpt) and np.all(alignment_check.maxpt == bounds.maxpt)
   return (is_aligned, bounds, alignment_check) 
 
-def upload_image(
-    vol, img, offset, 
-    parallel=1, 
-    manual_shared_memory_id=None, 
-    manual_shared_memory_bbox=None, 
-    manual_shared_memory_order='F', 
-    delete_black_uploads=False
-  ):
+def upload_image(vol, img, offset, parallel=1, 
+  manual_shared_memory_id=None, manual_shared_memory_bbox=None, manual_shared_memory_order='F'):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
 
-  if not np.issubdtype(img.dtype, np.dtype(vol.dtype).type):
+  if str(vol.dtype) != str(img.dtype):
     raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(vol.dtype, img.dtype))
 
   (is_aligned, bounds, expanded) = check_grid_aligned(vol, img, offset)
