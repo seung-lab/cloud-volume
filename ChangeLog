@@ -1,6 +1,50 @@
 CHANGES
 =======
 
+0.44.1
+------
+
+* Version 0.44.1
+* feat: retry for Storage.list\_files
+* fix(save\_images): typo (#193)
+
+0.44.0
+------
+
+* Version 0.44.0
+* feat: Bbox serialize, deserialize, to\_dict, from\_dict
+* add a little bit comments; add support for environment variables (#185)
+* adding a chunk based duplicate vertex removal function (#182)
+
+0.43.1
+------
+
+* Version 0.43.1
+* fix: numpy 1.16.0 disallows write=True on string buffers
+* fix: remove uniqueItems from layer provenance schema
+
+0.43.0
+------
+
+* Version 0.43.0
+* feat(skeletonservice): joint preserving downsample (#177)
+
+0.42.3
+------
+
+* Version 0.42.3
+* fix: single mesh id save adds file suffix if filepath is None
+* fix: ensure fused mesh construction order stability
+* fix: make mesh vertices a uniform float32 array
+
+0.42.2
+------
+
+* Version 0.42.2
+* fix: https get\_files
+* chore: tab size 2 for test\_storage.py
+* docs: upload ChangeLog
+
 0.42.1
 ------
 
