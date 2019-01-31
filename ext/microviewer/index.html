@@ -63,6 +63,11 @@
             size: size,
           });
         }
+        else if (dtype == 'bool') {
+          return new BooleanDataCube({
+            size: size,
+          });
+        }
 
         return new DataCube({
           bytes: num_bytes,
