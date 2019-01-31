@@ -1061,12 +1061,7 @@ class FloatingPointDataCube extends DataCube {
     const black = transparency ? 0x00000000 : alpha;
 
     if (this.minval === this.maxval) {
-      if (transparency) {
-        val = (this.minval === 0) ? black : 0xffffffff;
-      }
-      else {
-        val = (this.minval === 0) ? black : 0xffffffff; 
-      }
+      val = (this.minval === 0) ? black : 0xffffffff;
 
       for (i = square.length - 1; i >= 0; i--) {
         if (isNaN(square[i]) || square[i] === -Infinity) {
