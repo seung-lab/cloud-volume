@@ -1058,17 +1058,23 @@ class FloatingPointDataCube extends DataCube {
 
     let i = 0;
     let val = 0|0;
+    const black = transparency ? 0x00000000 : alpha;
 
     if (this.minval === this.maxval) {
       if (transparency) {
-        val = (this.minval === 0) ? 0x00000000 : 0xffffffff;
+        val = (this.minval === 0) ? black : 0xffffffff;
       }
       else {
-        val = (this.minval === 0) ? alpha : 0xffffffff; 
+        val = (this.minval === 0) ? black : 0xffffffff; 
       }
 
       for (i = square.length - 1; i >= 0; i--) {
-        data32[i] = val;
+        if (isNaN(square[i]) || square[i] === -Infinity) {
+          data32[i] = black;
+        }
+        else {
+          data32[i] = val;          
+        }
       } 
       return imgdata;
     }
@@ -1118,13 +1124,13 @@ class FloatingPointDataCube extends DataCube {
           data32[i] = alpha;
         }
         else if (isFinite(square[i])) {
+          val = (square[i] * norm - minval) | 0; 
+          data32[i] = (val | val << 8 | val << 16 | alpha);
+        }
+        else {
           data32[i] = (square[i] === +Infinity) 
             ? 0xffffffff 
             : alpha;
-        }
-        else {
-          val = (square[i] * norm - minval) | 0; 
-          data32[i] = (val | val << 8 | val << 16 | alpha);
         }     
       }
     }
