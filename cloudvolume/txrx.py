@@ -156,14 +156,12 @@ def download_single(vol, cloudpath, filename, cache):
   img3d = decode(vol, filename, content)
   return img3d, bbox
 
-# @profile
 def download_multiple(vol, cloudpaths, fn):
   locations = vol.cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(vol.cache.path, vol.key)
 
   pbar = tqdm(total=len(cloudpaths), desc='Downloading', disable=(not vol.progress))
 
-  # @profile
   def process(cloudpath, filename, cache):
     img3d, bbox = download_single(vol, cloudpath, filename, cache)
     fn(img3d, bbox)
@@ -173,11 +171,9 @@ def download_multiple(vol, cloudpaths, fn):
   downloads += [ (vol.layer_cloudpath, filename, vol.cache.enabled) for filename in locations['remote'] ]
 
   p = gevent.pool.Pool(20)
-  # p.map(process, downloads)
   for dl in downloads:
     p.apply_async(process, dl)
   p.join()
-
   pbar.close()
   
 def decode(vol, filename, content):
