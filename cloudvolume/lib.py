@@ -828,8 +828,8 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
     img = (img - lower) / (upper - lower) * 255.0
     return img.astype(np.uint8)
 
-  if global_norm and image.dtype in (np.floating):
-    image = normalize_float(image)      
+  if global_norm and image.dtype in (np.floating,):
+    image = normalize_float(image)
 
   for level in tqdm(range(image.shape[index]), desc="Saving Images"):
     if index == 0:
