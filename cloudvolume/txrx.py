@@ -23,6 +23,9 @@ from .threaded_queue import ThreadedQueue
 from .volumecutout import VolumeCutout
 from . import sharedmemory as shm
 
+import gevent
+import gevent.pool
+
 NON_ALIGNED_WRITE = yellow(
   """
   Non-Aligned writes are disabled by default. There are several good reasons 
@@ -153,23 +156,30 @@ def download_single(vol, cloudpath, filename, cache):
   img3d = decode(vol, filename, content)
   return img3d, bbox
 
+# @profile
 def download_multiple(vol, cloudpaths, fn):
   locations = vol.cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(vol.cache.path, vol.key)
-  progress = 'Downloading' if vol.progress else None
 
-  def process(cloudpath, filename, cache, iface):
+  pbar = tqdm(total=len(cloudpaths), desc='Downloading', disable=(not vol.progress))
+
+  # @profile
+  def process(cloudpath, filename, cache):
     img3d, bbox = download_single(vol, cloudpath, filename, cache)
     fn(img3d, bbox)
+    pbar.update(1)
 
-  with ThreadedQueue(n_threads=DEFAULT_THREADS, progress=progress) as tq:
-    for filename in locations['local']:
-      dl = partial(process, cachedir, filename, False)
-      tq.put(dl)
-    for filename in locations['remote']:
-      dl = partial(process, vol.layer_cloudpath, filename, vol.cache.enabled)
-      tq.put(dl)
+  downloads = [ (cachedir, filename, False) for filename in locations['local'] ]
+  downloads += [ (vol.layer_cloudpath, filename, vol.cache.enabled) for filename in locations['remote'] ]
 
+  p = gevent.pool.Pool(20)
+  # p.map(process, downloads)
+  for dl in downloads:
+    p.apply_async(process, dl)
+  p.join()
+
+  pbar.close()
+  
 def decode(vol, filename, content):
   """Decode content according to settings in a cloudvolume instance."""
   bbox = Bbox.from_filename(filename)
