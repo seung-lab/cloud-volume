@@ -58,7 +58,11 @@ class FileInterface(StorageInterface):
       self._path.bucket, self._path.path, file_path
     )
 
-  def put_file(self, file_path, content, content_type, compress, cache_control=None):
+  def put_file(
+    self, file_path, content, 
+    content_type, compress, 
+    cache_control=None
+  ):
     path = self.get_path_to_file(file_path)
     mkdir(os.path.dirname(path))
 

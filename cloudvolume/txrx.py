@@ -22,7 +22,6 @@ from .lib import (
   jsonify, generate_slices
 )
 from .storage import Storage, SimpleStorage, DEFAULT_THREADS, reset_connection_pools
-from .threaded_queue import ThreadedQueue
 from .volumecutout import VolumeCutout
 from . import sharedmemory as shm
 
@@ -171,9 +170,9 @@ def download_multiple(vol, cloudpaths, fn):
   downloads = [ (cachedir, filename, False) for filename in locations['local'] ]
   downloads += [ (vol.layer_cloudpath, filename, vol.cache.enabled) for filename in locations['remote'] ]
 
-  pool = gevent.pool.Pool(20)
-  for dl in downloads:
-    pool.apply_async(process, dl)
+  pool = gevent.pool.Pool(DEFAULT_THREADS)
+  for cpath, fname, cache in downloads:
+    pool.spawn(process, cpath, fname, cache)
   pool.join()
   pool.kill()
   pbar.close()
@@ -403,6 +402,7 @@ def multi_process_upload(
   global fs_lock
   reset_connection_pools()
   vol.init_submodules(caching)
+  gevent.monkey.patch_all()
 
   shared_shape = img_shape
   if manual_shared_memory_bbox:

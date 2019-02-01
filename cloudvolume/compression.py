@@ -6,6 +6,8 @@ import sys
 from .exceptions import DecompressionError, CompressionError
 from .lib import yellow
 
+COMPRESSION_TYPES = ('', 'gzip', True, False, None)
+
 def decompress(content, encoding, filename='N/A'):
   """
   Decompress file content. 

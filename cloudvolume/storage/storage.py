@@ -35,7 +35,7 @@ def get_interface_class(protocol):
   else:
     raise UnsupportedProtocolError(str(self._path))
 
-class SuperStorage(object):
+class AbstractStorage(object):
   def __init__(self, layer_path, progress=False):
     self.progress = progress
 
@@ -107,7 +107,7 @@ class SuperStorage(object):
   def __exit__(self, exception_type, exception_value, traceback):
     pass
 
-class SimpleStorage(SuperStorage):
+class SimpleStorage(AbstractStorage):
   """
   Access files stored in Google Storage (gs), Amazon S3 (s3), 
   or the local Filesystem (file).
@@ -221,11 +221,181 @@ class SimpleStorage(SuperStorage):
   def __exit__(self, exception_type, exception_value, traceback):
     self._interface.release_connection()
 
-class GreenStorage(SuperStorage):
-  def __init__(self, layer_path, progress=False, concurrency=DEFAULT_THREADS):
+def schedule_green_jobs(
+    fns, concurrency=DEFAULT_THREADS, 
+    progress=None, total=None
+  ):
+
+  total = len(fns) if total is None else total
+  pbar = tqdm(total=total, desc=progress, disable=(not progress))
+  results = []
+  
+  def updatefn(fn):
+    def realupdatefn():
+      res = fn()
+      pbar.update(1)
+      results.append(res)
+    return realupdatefn
+
+  pool = gevent.pool.Pool(concurrency)
+  for fn in fns:
+    pool.spawn( updatefn(fn) )
+
+  pool.join()
+  pool.kill()
+  pbar.close()
+
+  return results
+
+class GreenStorage(AbstractStorage):
+  def __init__(
+    self, layer_path, progress=False, 
+    n_threads=DEFAULT_THREADS, 
+  ):
     super(GreenStorage, self).__init__(layer_path, progress)
-    self.concurrency = concurrency
+    self.concurrency = n_threads if n_threads > 0 else 1
     self.pool = gevent.pool.Pool(self.concurrency)
+
+  def exists(self, file_path):
+    """Test if a single file exists. Returns boolean."""
+    with self.get_connection() as conn:
+      return conn.exists(file_path)
+
+  def files_exist(self, file_paths):
+    """
+    Threaded exists for all file paths.
+
+    file_paths: (list) file paths to test for existence
+
+    Returns: { filepath: bool }
+    """
+    results = {}
+
+    def exist_thunk(paths):
+      with self.get_connection() as conn:
+        results.update(conn.files_exist(paths))
+    
+    schedule_green_jobs(  
+      fns=( partial(exist_thunk, paths) for paths in scatter(file_paths, self.concurrency) ),
+      progress=('Existence Testing' if self.progress else None),
+      concurrency=self.concurrency,
+      total=len(file_paths),
+    )
+
+    return results
+
+  def get_file(self, file_path):
+    with self.get_connection() as conn:
+      content, encoding = conn.get_file(file_path)
+    return compression.decompress(content, encoding, filename=file_path)
+
+  def get_files(self, file_paths):
+    """
+    Returns: [ 
+      { "filename": ..., "content": bytes, "error": exception or None }, 
+      ... 
+    ]
+    """
+    def getfn(path):
+      result = error = None 
+
+      conn = self.get_connection()
+      try:
+        result = conn.get_file(path)
+      except Exception as err:
+        error = err
+        # important to print immediately because 
+        # errors are collected at the end
+        print(err)
+        del conn
+      else:
+        conn.release_connection()
+      
+      content, encoding = result
+      content = compression.decompress(content, encoding)
+
+      return {
+        "filename": path,
+        "content": content,
+        "error": error,
+      }
+
+    return schedule_green_jobs(  
+      fns=( partial(getfn, path) for path in file_paths ),
+      progress=('Downloading' if self.progress else None),
+      concurrency=self.concurrency,
+      total=len(file_paths),
+    )
+
+  def put_files(
+    self, files, 
+    content_type=None, compress=None, 
+    cache_control=None, block=True
+  ):
+    """
+    Put lots of files at once and get a nice progress bar. It'll also wait
+    for the upload to complete, just like get_files.
+
+    Required:
+      files: [ (filepath, content), .... ]
+    """ 
+    if compress not in compression.COMPRESSION_TYPES:
+      raise NotImplementedError()
+
+    def uploadfn(path, content):
+      with self.get_connection() as conn:
+        content = compression.compress(content, method=compress)
+        conn.put_file(
+          file_path=path, 
+          content=content, 
+          content_type=content_type, 
+          compress=compress, 
+          cache_control=cache_control,
+        )
+
+    fns = ( partial(uploadfn, path, content) for path, content in files )
+
+    if block:
+      schedule_green_jobs(
+        fns=fns,
+        progress=('Uploading' if self.progress else None),
+        concurrency=self.concurrency,
+        total=len(files),
+      )
+    else:
+      for fn in fns:
+        self.pool.spawn(fn)
+
+    return self
+
+  def wait(self, desc=None):
+    self.pool.join()
+
+  def start_threads(self):
+    self.pool.kill()
+    self.pool = gevent.pool.Pool(self.concurrency)
+
+  def kill_threads(self):
+    self.pool.kill()
+
+  def delete_file(self, file_path):
+    with self.get_connection() as conn:
+      conn.delete_file(file_path)
+    return self
+
+  def delete_files(self, file_paths):
+    def thunk_delete(path):
+      with self.get_connection() as conn:
+        conn.delete_file(path)
+
+    schedule_green_jobs(
+      fns=( partial(thunk_delete, path) for path in file_paths ),
+      progress=('Deleting' if self.progress else None),
+      concurrency=self.concurrency,
+      total=len(file_paths),
+    )
+    
+    return self
 
   def list_files(self, prefix="", flat=False):
     """
@@ -251,18 +421,17 @@ class GreenStorage(SuperStorage):
       for f in conn.list_files(prefix, flat):
         yield f
 
-  def __del__(self):
-    pass
-
   def __enter__(self):
-    self.pool.kill()
-    self.pool = gevent.pool.Pool(self.concurrency)
+    AbstractStorage.__enter__(self)
+    self.start_threads()
     return self
 
   def __exit__(self, exception_type, exception_value, traceback):
-    self.pool.kill()
+    AbstractStorage.__exit__(self, exception_type, exception_value, traceback)
+    self.pool.join()
+    self.kill_threads()
 
-class ThreadedStorage(SuperStorage, ThreadedQueue):
+class ThreadedStorage(AbstractStorage, ThreadedQueue):
   """
   Access files stored in Google Storage (gs), Amazon S3 (s3), 
   or the local Filesystem (file).
@@ -281,7 +450,7 @@ class ThreadedStorage(SuperStorage, ThreadedQueue):
       uploads and downloads.
   """
   def __init__(self, layer_path, n_threads=20, progress=False):
-    SuperStorage.__init__(self, layer_path, progress)
+    AbstractStorage.__init__(self, layer_path, progress)
     ThreadedQueue.__init__(self, n_threads)
     self._interface = self.get_connection()
 
@@ -484,6 +653,7 @@ class ThreadedStorage(SuperStorage, ThreadedQueue):
     self._interface.release_connection()
 
 # Define alias for Storage
-Storage = ThreadedStorage
+# Storage = ThreadedStorage
+Storage = GreenStorage
 
 

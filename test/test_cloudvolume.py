@@ -161,6 +161,7 @@ def test_parallel_write():
   cv.parallel = 2
   cv[:] = np.zeros(shape=(512,512,128,1), dtype=cv.dtype) + 5
   data = cv[:]
+
   assert np.all(data == 5)
 
   # non-aligned-write
@@ -534,10 +535,10 @@ def test_provenance():
 
 def test_info_provenance_cache():
   image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
-  vol = CloudVolume.from_numpy(
-    image, 
-    voxel_offset=(0,0,0), 
-    vol_path='gs://seunglab-test/cloudvolume/caching', 
+  vol = create_volume_from_image(
+    image=image, 
+    offset=(0,0,0), 
+    layer_path='gs://seunglab-test/cloudvolume/caching', 
     layer_type='image', 
     resolution=(1,1,1), 
     encoding='raw'

@@ -11,13 +11,14 @@ from layer_harness import delete_layer, TEST_NUMBER
 #TODO delete files created by tests
 def test_read_write():
   urls = [
-    "file:///tmp/removeme/read_write",
+    # "file:///tmp/removeme/read_write",
     "gs://seunglab-test/cloudvolume/read_write",
     "s3://seunglab-test/cloudvolume/read_write"
   ]
 
   for num_threads in range(0,11,5):
     for url in urls:
+      print("testing service: ", url)
       url = url + '-' + str(TEST_NUMBER)
       with Storage(url, n_threads=num_threads) as s:
         content = b'some_string'
