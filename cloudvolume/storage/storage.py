@@ -226,7 +226,12 @@ def schedule_green_jobs(
     progress=None, total=None
   ):
 
-  total = len(fns) if total is None else total
+  if total is None:
+    try:
+      total = len(fns)
+    except TypeError: # generators don't have len
+      pass
+
   pbar = tqdm(total=total, desc=progress, disable=(not progress))
   results = []
   
@@ -651,9 +656,5 @@ class ThreadedStorage(AbstractStorage, ThreadedQueue):
   def __exit__(self, exception_type, exception_value, traceback):
     ThreadedQueue.__exit__(self, exception_type, exception_value, traceback)
     self._interface.release_connection()
-
-# Define alias for Storage
-# Storage = ThreadedStorage
-Storage = GreenStorage
 
 
