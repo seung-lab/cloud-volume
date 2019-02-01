@@ -1,0 +1,489 @@
+import six
+from six.moves import queue as Queue
+from collections import defaultdict
+import json
+import os.path
+import re
+from functools import partial
+
+from tqdm import tqdm
+
+from cloudvolume import compression
+from cloudvolume.exceptions import UnsupportedProtocolError
+from cloudvolume.lib import mkdir, extract_bucket_path, scatter
+from cloudvolume.threaded_queue import ThreadedQueue
+
+from .storage_interfaces import (
+  FileInterface, HttpInterface, 
+  S3Interface, GoogleCloudStorageInterface
+)
+
+import gevent
+import gevent.pool
+
+DEFAULT_THREADS = 20
+
+def get_interface_class(protocol):
+  if protocol == 'file':
+    return FileInterface
+  elif protocol == 'gs':
+    return GoogleCloudStorageInterface
+  elif protocol in ('s3', 'matrix'):
+    return S3Interface
+  elif protocol in ('http', 'https'):
+    return HttpInterface
+  else:
+    raise UnsupportedProtocolError(str(self._path))
+
+class SuperStorage(object):
+  def __init__(self, layer_path, progress=False):
+    self.progress = progress
+
+    self._layer_path = layer_path
+    self._path = extract_bucket_path(layer_path)
+    self._interface_cls = get_interface_class(self._path.protocol)
+  
+  @property
+  def layer_path(self):
+    return self._layer_path
+
+  def get_connection(self):
+    return self._interface_cls(self._path)
+
+  def get_path_to_file(self, file_path):
+    return os.path.join(self._layer_path, file_path)
+
+  def put_json(self, file_path, content, content_type='application/json', *args, **kwargs):
+    if type(content) != str:
+      content = json.dumps(content)
+    return self.put_file(file_path, content, content_type=content_type, *args, **kwargs)
+    
+  def get_json(self, file_path):
+    content = self.get_file(file_path)
+    if content is None:
+      return None
+    return json.loads(content.decode('utf8'))
+
+  def put_file(self, file_path, content, content_type=None, compress=None, cache_control=None):
+    """ 
+    Args:
+      filename (string): it can contains folders
+      content (string): binary data to save
+    """
+    return self.put_files([ (file_path, content) ], 
+      content_type=content_type, 
+      compress=compress, 
+      cache_control=cache_control, 
+      block=False
+    )
+
+  def exists(self, file_path):
+    raise NotImplementedError()
+
+  def files_exist(self, file_paths):
+    raise NotImplementedError()
+
+  def get_file(self, file_path):
+    raise NotImplementedError()
+
+  def get_files(self, file_paths):
+    raise NotImplementedError()
+
+  def delete_file(self, file_path):
+    raise NotImplementedError()
+
+  def delete_files(self, file_paths):
+    raise NotImplementedError()
+
+  def list_files(self, prefix="", flat=False):
+    raise NotImplementedError()
+
+  def __del__(self):
+    pass
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exception_type, exception_value, traceback):
+    pass
+
+class SimpleStorage(SuperStorage):
+  """
+  Access files stored in Google Storage (gs), Amazon S3 (s3), 
+  or the local Filesystem (file).
+
+  e.g. with Storage('gs://bucket/dataset/layer') as stor:
+      files = stor.get_file('filename')
+
+  Required:
+    layer_path (str): A protocol prefixed path of the above format.
+      Accepts s3:// gs:// and file://. File paths are absolute.
+
+  Optional:
+    n_threads (int:20): number of threads to use downloading and uplaoding.
+      If 0, execution will be on the main python thread.
+    progress (bool:false): Show a tqdm progress bar for multiple 
+      uploads and downloads.
+  """
+  def __init__(self, layer_path, progress=False):
+    super(SimpleStorage, self).__init__(layer_path, progress)
+    self._interface = self.get_connection()
+
+  def put_files(self, files, content_type=None, compress=None, cache_control=None, block=True):
+    """
+    Put lots of files at once and get a nice progress bar. It'll also wait
+    for the upload to complete, just like get_files.
+
+    Required:
+      files: [ (filepath, content), .... ]
+    """
+    for path, content in tqdm(files, disable=(not self.progress), desc="Uploading"):
+      content = compression.compress(content, method=compress)
+      self._interface.put_file(path, content, content_type, compress, cache_control=cache_control)
+    return self
+
+  def exists(self, file_path):
+    """Test if a single file exists. Returns boolean."""
+    return self._interface.exists(file_path)
+
+  def files_exist(self, file_paths):
+    """
+    Threaded exists for all file paths. 
+
+    file_paths: (list) file paths to test for existence
+
+    Returns: { filepath: bool }
+    """
+    return self._interface.files_exist(file_paths)
+
+  def get_file(self, file_path):
+    content, encoding = self._interface.get_file(file_path)
+    content = compression.decompress(content, encoding, filename=file_path)
+    return content
+
+  def get_files(self, file_paths):
+    results = []
+    for path in tqdm(file_paths, disable=(not self.progress), desc="Downloading"):
+      error = None 
+
+      try:
+        content = self.get_file(path)
+      except Exception as err:
+        error = err 
+        content = None 
+
+      results.append({
+        'filename': path,
+        'content': content,
+        'error': error,
+      })
+
+    return results 
+
+  def delete_file(self, file_path):
+    self._interface.delete_file(file_path)
+
+  def delete_files(self, file_paths):
+    for path in file_paths:
+      self._interface.delete_file(path)
+    return self
+
+  def list_files(self, prefix="", flat=False):
+    """
+    List the files in the layer with the given prefix. 
+
+    flat means only generate one level of a directory,
+    while non-flat means generate all file paths with that 
+    prefix.
+
+    Here's how flat=True handles different senarios:
+      1. partial directory name prefix = 'bigarr'
+        - lists the '' directory and filters on key 'bigarr'
+      2. full directory name prefix = 'bigarray'
+        - Same as (1), but using key 'bigarray'
+      3. full directory name + "/" prefix = 'bigarray/'
+        - Lists the 'bigarray' directory
+      4. partial file name prefix = 'bigarray/chunk_'
+        - Lists the 'bigarray/' directory and filters on 'chunk_'
+    
+    Return: generated sequence of file paths relative to layer_path
+    """
+
+    for f in self._interface.list_files(prefix, flat):
+      yield f
+
+  def __del__(self):
+    self._interface.release_connection()
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, exception_type, exception_value, traceback):
+    self._interface.release_connection()
+
+class GreenStorage(SuperStorage):
+  def __init__(self, layer_path, progress=False, concurrency=DEFAULT_THREADS):
+    super(GreenStorage, self).__init__(layer_path, progress)
+    self.concurrency = concurrency
+    self.pool = gevent.pool.Pool(self.concurrency)
+
+  def list_files(self, prefix="", flat=False):
+    """
+    List the files in the layer with the given prefix. 
+
+    flat means only generate one level of a directory,
+    while non-flat means generate all file paths with that 
+    prefix.
+
+    Here's how flat=True handles different senarios:
+      1. partial directory name prefix = 'bigarr'
+        - lists the '' directory and filters on key 'bigarr'
+      2. full directory name prefix = 'bigarray'
+        - Same as (1), but using key 'bigarray'
+      3. full directory name + "/" prefix = 'bigarray/'
+        - Lists the 'bigarray' directory
+      4. partial file name prefix = 'bigarray/chunk_'
+        - Lists the 'bigarray/' directory and filters on 'chunk_'
+    
+    Return: generated sequence of file paths relative to layer_path
+    """
+    with self.get_connection() as conn:
+      for f in conn.list_files(prefix, flat):
+        yield f
+
+  def __del__(self):
+    pass
+
+  def __enter__(self):
+    self.pool.kill()
+    self.pool = gevent.pool.Pool(self.concurrency)
+    return self
+
+  def __exit__(self, exception_type, exception_value, traceback):
+    self.pool.kill()
+
+class ThreadedStorage(SuperStorage, ThreadedQueue):
+  """
+  Access files stored in Google Storage (gs), Amazon S3 (s3), 
+  or the local Filesystem (file).
+
+  e.g. with Storage('gs://bucket/dataset/layer') as stor:
+      files = stor.get_file('filename')
+
+  Required:
+    layer_path (str): A protocol prefixed path of the above format.
+      Accepts s3:// gs:// and file://. File paths are absolute.
+
+  Optional:
+    n_threads (int:20): number of threads to use downloading and uplaoding.
+      If 0, execution will be on the main python thread.
+    progress (bool:false): Show a tqdm progress bar for multiple 
+      uploads and downloads.
+  """
+  def __init__(self, layer_path, n_threads=20, progress=False):
+    SuperStorage.__init__(self, layer_path, progress)
+    ThreadedQueue.__init__(self, n_threads)
+    self._interface = self.get_connection()
+
+  def _initialize_interface(self):
+    return self._interface_cls(self._path)
+
+  def _close_interface(self, interface):
+    interface.release_connection()
+
+  def _consume_queue(self, terminate_evt):
+    ThreadedQueue._consume_queue(self, terminate_evt)
+    self._interface.release_connection()
+
+  @property
+  def layer_path(self):
+    return self._layer_path
+
+  def get_path_to_file(self, file_path):
+    return os.path.join(self._layer_path, file_path)
+
+  def put_json(self, file_path, content, content_type='application/json', *args, **kwargs):
+    if type(content) != str:
+      content = json.dumps(content)
+    return self.put_file(file_path, content, content_type=content_type, *args, **kwargs)
+  
+  def put_file(self, file_path, content, content_type=None, compress=None, cache_control=None):
+    """ 
+    Args:
+      filename (string): it can contains folders
+      content (string): binary data to save
+    """
+    return self.put_files([ (file_path, content) ], 
+      content_type=content_type, 
+      compress=compress, 
+      cache_control=cache_control, 
+      block=False
+    )
+
+  def put_files(self, files, content_type=None, compress=None, cache_control=None, block=True):
+    """
+    Put lots of files at once and get a nice progress bar. It'll also wait
+    for the upload to complete, just like get_files.
+
+    Required:
+      files: [ (filepath, content), .... ]
+    """
+    def base_uploadfn(path, content, interface):
+      interface.put_file(path, content, content_type, compress, cache_control=cache_control)
+
+    for path, content in files:
+      content = compression.compress(content, method=compress)
+      uploadfn = partial(base_uploadfn, path, content)
+
+      if len(self._threads):
+        self.put(uploadfn)
+      else:
+        uploadfn(self._interface)
+
+    if block:
+      desc = 'Uploading' if self.progress else None
+      self.wait(desc)
+
+    return self
+
+  def exists(self, file_path):
+    """Test if a single file exists. Returns boolean."""
+    return self._interface.exists(file_path)
+
+  def files_exist(self, file_paths):
+    """
+    Threaded exists for all file paths.
+
+    file_paths: (list) file paths to test for existence
+
+    Returns: { filepath: bool }
+    """
+    results = {}
+
+    def exist_thunk(paths, interface):
+      results.update(interface.files_exist(paths))
+
+    if len(self._threads):
+      for block in scatter(file_paths, len(self._threads)):
+        self.put(partial(exist_thunk, block))
+    else:
+      exist_thunk(file_paths, self._interface)
+
+    desc = 'Existence Testing' if self.progress else None
+    self.wait(desc)
+
+    return results
+
+  def get_json(self, file_path):
+    content = self.get_file(file_path)
+    if content is None:
+      return None
+    return json.loads(content.decode('utf8'))
+
+  def get_file(self, file_path):
+    content, encoding = self._interface.get_file(file_path)
+    content = compression.decompress(content, encoding, filename=file_path)
+    return content
+
+  def get_files(self, file_paths):
+    """
+    returns a list of files faster by using threads
+    """
+
+    results = []
+
+    def get_file_thunk(path, interface):
+      result = error = None 
+
+      try:
+        result = interface.get_file(path)
+      except Exception as err:
+        error = err
+        # important to print immediately because 
+        # errors are collected at the end
+        print(err) 
+      
+      content, encoding = result
+      content = compression.decompress(content, encoding)
+
+      results.append({
+        "filename": path,
+        "content": content,
+        "error": error,
+      })
+
+    for path in file_paths:
+      if len(self._threads):
+        self.put(partial(get_file_thunk, path))
+      else:
+        get_file_thunk(path, self._interface)
+
+    desc = 'Downloading' if self.progress else None
+    self.wait(desc)
+
+    return results
+
+  def delete_file(self, file_path):
+
+    def thunk_delete(interface):
+      interface.delete_file(file_path)
+
+    if len(self._threads):
+      self.put(thunk_delete)
+    else:
+      thunk_delete(self._interface)
+
+    return self
+
+  def delete_files(self, file_paths):
+
+    def thunk_delete(path, interface):
+      interface.delete_file(path)
+
+    for path in file_paths:
+      if len(self._threads):
+        self.put(partial(thunk_delete, path))
+      else:
+        thunk_delete(path, self._interface)
+
+    desc = 'Deleting' if self.progress else None
+    self.wait(desc)
+
+    return self
+
+  def list_files(self, prefix="", flat=False):
+    """
+    List the files in the layer with the given prefix. 
+
+    flat means only generate one level of a directory,
+    while non-flat means generate all file paths with that 
+    prefix.
+
+    Here's how flat=True handles different senarios:
+      1. partial directory name prefix = 'bigarr'
+        - lists the '' directory and filters on key 'bigarr'
+      2. full directory name prefix = 'bigarray'
+        - Same as (1), but using key 'bigarray'
+      3. full directory name + "/" prefix = 'bigarray/'
+        - Lists the 'bigarray' directory
+      4. partial file name prefix = 'bigarray/chunk_'
+        - Lists the 'bigarray/' directory and filters on 'chunk_'
+    
+    Return: generated sequence of file paths relative to layer_path
+    """
+
+    for f in self._interface.list_files(prefix, flat):
+      yield f
+
+  def __del__(self):
+    ThreadedQueue.__del__(self)
+    self._interface.release_connection()
+
+  def __exit__(self, exception_type, exception_value, traceback):
+    ThreadedQueue.__exit__(self, exception_type, exception_value, traceback)
+    self._interface.release_connection()
+
+# Define alias for Storage
+Storage = ThreadedStorage
+
+

@@ -8,9 +8,11 @@ import os
 import shutil
 import sys
 
+from functools import reduce
+
 from cloudvolume.exceptions import AlignmentError
-from cloudvolume import CloudVolume, chunks
-from cloudvolume.lib import Bbox, Vec, yellow
+from cloudvolume import CloudVolume, chunks, Storage, view
+from cloudvolume.lib import mkdir, Bbox, Vec, yellow
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
   TEST_NUMBER,  
@@ -33,8 +35,8 @@ def test_from_numpy():
   shutil.rmtree('/tmp/image')
 
 def test_cloud_access():
-  CloudVolume('gs://seunglab-test/test_v0/image')
-  CloudVolume('s3://seunglab-test/test_dataset/image')
+  vol = CloudVolume('gs://seunglab-test/test_v0/image')
+  vol = CloudVolume('s3://seunglab-test/test_dataset/image')
 
 def test_fill_missing():
   info = CloudVolume.create_new_info(
@@ -861,6 +863,7 @@ def test_multiprocess():
   # for mission critical work."
   # https://pypi.org/project/futures/
 
+  layer = cv.cloudpath
   if sys.version_info[0] < 3:
     print(yellow("External multiprocessing not supported in Python 2."))
     return

@@ -5,6 +5,9 @@ import concurrent.futures
 import os
 import signal
 
+import gevent
+import gevent.pool
+
 import numpy as np
 from six.moves import range
 from tqdm import tqdm
@@ -22,9 +25,6 @@ from .storage import Storage, SimpleStorage, DEFAULT_THREADS, reset_connection_p
 from .threaded_queue import ThreadedQueue
 from .volumecutout import VolumeCutout
 from . import sharedmemory as shm
-
-import gevent
-import gevent.pool
 
 NON_ALIGNED_WRITE = yellow(
   """
