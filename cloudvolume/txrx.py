@@ -171,10 +171,11 @@ def download_multiple(vol, cloudpaths, fn):
   downloads = [ (cachedir, filename, False) for filename in locations['local'] ]
   downloads += [ (vol.layer_cloudpath, filename, vol.cache.enabled) for filename in locations['remote'] ]
 
-  p = gevent.pool.Pool(20)
+  pool = gevent.pool.Pool(20)
   for dl in downloads:
-    p.apply_async(process, dl)
-  p.join()
+    pool.apply_async(process, dl)
+  pool.join()
+  pool.kill()
   pbar.close()
   
 def decode(vol, filename, content):
