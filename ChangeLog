@@ -1,6 +1,18 @@
 CHANGES
 =======
 
+0.44.2
+------
+
+* Version 0.44.2
+* docs: add bool as a supported uViewer data type
+* docs: fix display of segmentation in uViewer
+* feat(uViewer): convert 64-bit int data to float64 for display w/ warning
+* refactor(uViewer): remove redundant branch logic
+* fix(uViewer): infinite and nan value handling
+* feat: support boolean arrays in microviewer
+* docs: update AUTHORS and ChangeLog
+
 0.44.1
 ------
 
