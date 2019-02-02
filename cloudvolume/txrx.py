@@ -21,6 +21,7 @@ from .lib import (
   Bbox, min2, max2, check_bounds, 
   jsonify, generate_slices
 )
+from .scheduler import schedule_jobs
 from .storage import Storage, SimpleStorage, DEFAULT_THREADS, reset_connection_pools
 from .volumecutout import VolumeCutout
 from . import sharedmemory as shm
@@ -158,7 +159,6 @@ def download_single(vol, cloudpath, filename, cache):
 def download_multiple(vol, cloudpaths, fn):
   locations = vol.cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(vol.cache.path, vol.key)
-  progress = 'Downloading' if vol.progress else None
 
   pbar = tqdm(total=len(cloudpaths), desc='Downloading', disable=(not vol.progress))
 
@@ -167,15 +167,15 @@ def download_multiple(vol, cloudpaths, fn):
     fn(img3d, bbox)
     pbar.update(1)
 
-  downloads = [ (cachedir, filename, False) for filename in locations['local'] ]
-  downloads += [ (vol.layer_cloudpath, filename, vol.cache.enabled) for filename in locations['remote'] ]
+  downloads = [ partial(process, cachedir, filename, False) for filename in locations['local'] ]
+  downloads += [ partial(process, vol.layer_cloudpath, filename, vol.cache.enabled) for filename in locations['remote'] ]
 
-  pool = gevent.pool.Pool(DEFAULT_THREADS)
-  for cpath, fname, cache in downloads:
-    pool.spawn(process, cpath, fname, cache)
-  pool.join()
-  pool.kill()
-  pbar.close()
+  schedule_jobs(
+    fns=downloads, 
+    concurrency=DEFAULT_THREADS, 
+    progress=('Downloading' if vol.progress else None),
+    total=len(cloudpaths)
+  )
   
 def decode(vol, filename, content):
   """Decode content according to settings in a cloudvolume instance."""
@@ -402,7 +402,8 @@ def multi_process_upload(
   global fs_lock
   reset_connection_pools()
   vol.init_submodules(caching)
-  gevent.monkey.patch_all()
+  # Do not monkey patch here. It causes the 
+  # child process to abort.
 
   shared_shape = img_shape
   if manual_shared_memory_bbox:

@@ -11,7 +11,8 @@ from tqdm import tqdm
 from cloudvolume import compression
 from cloudvolume.exceptions import UnsupportedProtocolError
 from cloudvolume.lib import mkdir, extract_bucket_path, scatter
-from cloudvolume.threaded_queue import ThreadedQueue
+from cloudvolume.threaded_queue import ThreadedQueue, DEFAULT_THREADS
+from cloudvolume.scheduler import schedule_green_jobs
 
 from .storage_interfaces import (
   FileInterface, HttpInterface, 
@@ -20,8 +21,6 @@ from .storage_interfaces import (
 
 import gevent
 import gevent.pool
-
-DEFAULT_THREADS = 20
 
 def get_interface_class(protocol):
   if protocol == 'file':
@@ -220,37 +219,6 @@ class SimpleStorage(AbstractStorage):
 
   def __exit__(self, exception_type, exception_value, traceback):
     self._interface.release_connection()
-
-def schedule_green_jobs(
-    fns, concurrency=DEFAULT_THREADS, 
-    progress=None, total=None
-  ):
-
-  if total is None:
-    try:
-      total = len(fns)
-    except TypeError: # generators don't have len
-      pass
-
-  pbar = tqdm(total=total, desc=progress, disable=(not progress))
-  results = []
-  
-  def updatefn(fn):
-    def realupdatefn():
-      res = fn()
-      pbar.update(1)
-      results.append(res)
-    return realupdatefn
-
-  pool = gevent.pool.Pool(concurrency)
-  for fn in fns:
-    pool.spawn( updatefn(fn) )
-
-  pool.join()
-  pool.kill()
-  pbar.close()
-
-  return results
 
 class GreenStorage(AbstractStorage):
   def __init__(
