@@ -245,7 +245,7 @@ class CloudVolume(object):
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(64,64,64),
     compressed_segmentation_block_size=(8,8,8),
-    mip_num=1 
+    mip_num=1, each_factor=Vec(2,2,1) 
   ):
     """
     Used for creating new neuroglancer info files.
@@ -266,30 +266,32 @@ class CloudVolume(object):
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
       mip_num: (int), the number of mip levels.
+      each_factor: (Vec), the downsampling factor
 
     Returns: dict representing a single mip level that's JSON encodable
     """
+    if not isinstance(each_factor, Vec):
+      each_factor = Vec(*each_factor)
+
     info = {
       "num_channels": int(num_channels),
       "type": layer_type,
       "data_type": data_type,
-    }
-    
-    # add mip levels
-    info['scales'] = []
-    for mip in range(mip_num):
-      resolution = (resolution[0]*2**mip, resolution[1]*2**mip, resolution[2])
-      voxel_offset = (voxel_offset[0]//2**mip, voxel_offset[1]//2**mip, voxel_offset[2])
-      volume_size = (volume_size[0]//2**mip, volume_size[1]//2**mip, volume_size[2])
-      scale = {
+      "scales": [{
         "encoding": encoding,
         "chunk_sizes": [chunk_size],
         "key": "_".join(map(str, resolution)),
         "resolution": list(map(int, resolution)),
         "voxel_offset": list(map(int, voxel_offset)),
         "size": list(map(int, volume_size)),
-      }
-      info['scales'].append(scale)
+      }],
+    }
+   
+    # add mip levels
+    factor = each_factor.clone()
+    for _ in range(1, mip_num):
+      cls.add_scale(factor, info=info)
+      factor *= each_factor
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
