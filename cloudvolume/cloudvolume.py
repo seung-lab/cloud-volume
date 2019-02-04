@@ -166,8 +166,6 @@ class CloudVolume(object):
     mip_num: (int) number of mip levels in the info file
     """
     path = lib.extract_path(vol_path)
-    if path.protocol == 'file':
-      mkdir(vol_path)
 
     if not layer_type:
       if arr.dtype in (np.uint8, np.float32, np.float16, np.float64):
