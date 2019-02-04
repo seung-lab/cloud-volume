@@ -344,6 +344,14 @@ class Bbox(object):
 
     self._dtype = np.dtype(dtype)
 
+  @classmethod
+  def deserialize(cls, bbx_data):
+    bbx_data = json.loads(bbx_data)
+    return Bbox.from_dict(bbx_data)
+
+  def serialize(self):
+    return json.dumps(self.to_dict())
+
   @property 
   def dtype(self):
     return self._dtype
@@ -396,8 +404,15 @@ class Bbox(object):
       return Bbox.from_vec(obj)
     elif typ is str:
       return Bbox.from_filename(obj)
+    elif typ is dict:
+      return Bbox.from_dict(obj)
     else:
       raise NotImplementedError("{} is not a Bbox convertible type.".format(typ))
+
+  @classmethod
+  def from_dict(cls, data):
+    dtype = data['dtype'] if 'dtype' in data else np.float32
+    return Bbox( data['minpt'], data['maxpt'], dtype=dtype)
 
   @classmethod
   def from_vec(cls, vec, dtype=int):
@@ -446,6 +461,13 @@ class Bbox(object):
 
   def to_list(self):
     return list(self.minpt) + list(self.maxpt)
+
+  def to_dict(self):
+    return {
+      'minpt': self.minpt.tolist(),
+      'maxpt': self.maxpt.tolist(),
+      'dtype': np.dtype(self.dtype).name,
+    }
 
   @classmethod
   def expand(cls, *args):

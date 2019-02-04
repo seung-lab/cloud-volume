@@ -12,7 +12,7 @@ from six.moves import range
 import numpy as np
 from tqdm import tqdm
 
-from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath
+from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath, yellow
 
 DEFAULT_PORT = 8080
 
@@ -90,6 +90,17 @@ def view(
   img = to3d(img)
   resolution = getresolution(img, resolution)
   offset = getoffset(img, offset)
+
+  # Makes sense for viewing not segmentation 
+  # which requires uints currently. (Jan. 2019)
+  if np.dtype(img.dtype).itemsize == 8 and not np.issubdtype(img.dtype, np.float64):
+    print(yellow(
+      """
+Converting {} to float64 for display. 
+Javascript does not support native 64-bit integer arrays.
+      """.format(img.dtype)
+    ))
+    img = img.astype(np.float64)
 
   cutout = VolumeCutout(
     buf=img,
