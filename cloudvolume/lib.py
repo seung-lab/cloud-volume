@@ -4,13 +4,13 @@ from six.moves import range, reduce
 from collections import namedtuple
 import json
 import os
-import io
 import re 
 import sys
 import math
-import shutil
 import operator
 import time
+import random
+import string 
 from itertools import product
 
 import numpy as np
@@ -106,6 +106,10 @@ def extract_bucket_path(cloudpath):
   cloudpath = re.sub(bucket_re, '', cloudpath)
 
   return BucketPath(protocol, bucket, cloudpath)
+
+def generate_random_string(size=6):
+  return ''.join(random.SystemRandom().choice(string.ascii_lowercase + \
+                  string.digits) for _ in range(size))
 
 def extract_path(cloudpath):
   """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
@@ -351,11 +355,6 @@ class Bbox(object):
   @property 
   def dtype(self):
     return self._dtype
-
-  def astype(self, dtype):
-    self._dtype = np.dtype(dtype)
-    self.minpt = self.minpt.astype(self.dtype)
-    self.maxpt = self.maxpt.astype(self.dtype)
 
   @classmethod
   def intersection(cls, bbx1, bbx2):
@@ -619,21 +618,15 @@ class Bbox(object):
   def contains_bbox(self, bbox):
     return self.contains(bbox.minpt) and self.contains(bbox.maxpt)
 
+  def clone(self):
+    return Bbox(self.minpt, self.maxpt, dtype=self.dtype)
+
   def astype(self, typ):
     tmp = self.clone()
     tmp.minpt = tmp.minpt.astype(typ)
     tmp.maxpt = tmp.maxpt.astype(typ)
-    tmp.dtype = tmp.minpt.dtype 
+    tmp._dtype = tmp.minpt.dtype 
     return tmp
-
-  def clone(self):
-    return Bbox(self.minpt, self.maxpt, dtype=self.dtype)
-
-  def astype(self, dtype):
-    result = self.clone()
-    result.minpt = self.minpt.astype(dtype)
-    result.maxpt = self.maxpt.astype(dtype)
-    return result
 
   def transpose(self):
     return Bbox(self.minpt[::-1], self.maxpt[::-1])
@@ -828,8 +821,8 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
     img = (img - lower) / (upper - lower) * 255.0
     return img.astype(np.uint8)
 
-  if global_norm and image.dtype in (np.floating,):
-    image = normalize_float(image)
+  if global_norm and np.issubdtype(image.dtype, np.floating):
+    image = normalize_float(image)      
 
   for level in tqdm(range(image.shape[index]), desc="Saving Images"):
     if index == 0:
@@ -839,7 +832,7 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
     elif index == 2:
       img = image[:, :, level, channel ]
     else:
-      raise NotImplemented
+      raise NotImplementedError
 
     num_channels = img.shape[2]
 

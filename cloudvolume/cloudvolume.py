@@ -1,12 +1,10 @@
 from __future__ import print_function
 
-from functools import partial
 import itertools
 import collections
 import json
 import json5
 import os
-import re
 import sys
 import uuid
 import weakref
@@ -16,19 +14,19 @@ import numpy as np
 from tqdm import tqdm
 from six import string_types
 import multiprocessing as mp
+from time import strftime
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from .secrets import boss_credentials, CLOUD_VOLUME_DIR
+from .secrets import boss_credentials
 
-from . import lib, chunks
+from . import lib
 from .cacheservice import CacheService
 from . import exceptions 
 from .lib import ( 
-  toabs, colorize, red, yellow, 
-  mkdir, clamp, xyzrange, Vec, 
-  Bbox, min2, max2, check_bounds, 
-  jsonify, generate_slices
+  colorize, red, mkdir, Vec, Bbox,  
+  jsonify, generate_slices,
+  generate_random_string
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
@@ -160,6 +158,44 @@ class CloudVolume(object):
 
     self.pid = os.getpid()
 
+  @classmethod
+  def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
+                  resolution=(4,4,40), voxel_offset=(0,0,0), 
+                  chunk_size=(128,128,64), layer_type=None, mip_num=1):
+    """
+    mip_num: (int) number of mip levels in the info file
+    """
+    path = lib.extract_path(vol_path)
+
+    if not layer_type:
+      if arr.dtype in (np.uint8, np.float32, np.float16, np.float64):
+        layer_type = 'image'
+      elif arr.dtype in (np.uint32, np.uint64, np.uint16):
+        layer_type = 'segmentation'
+      else:
+        raise NotImplementedError
+
+    if arr.ndim == 3:
+      num_channels = 1
+    elif arr.ndim == 4:
+      num_channels = arr.shape[-1]
+    else:
+      raise NotImplementedError
+
+    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, 'raw', resolution, 
+                               voxel_offset, arr.shape[:3], chunk_size=chunk_size, mip_num=mip_num)
+    vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=False) 
+    # save the info file
+    vol.commit_info()
+    vol.provenance.processing.append({
+      'method': 'from_numpy',
+      'date': strftime('%Y-%m-%d %H:%M %Z')
+    })
+    vol.commit_provenance()
+    # save the numpy array
+    vol[:,:,:] = arr
+    return vol 
+
   def __setstate__(self, d):
     """Called when unpickling which is integral to multiprocessing."""
     self.__dict__ = d 
@@ -206,7 +242,8 @@ class CloudVolume(object):
     num_channels, layer_type, data_type, encoding, 
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(64,64,64),
-    compressed_segmentation_block_size=(8,8,8)
+    compressed_segmentation_block_size=(8,8,8),
+    mip_num=1, factor=Vec(2,2,1) 
   ):
     """
     Used for creating new neuroglancer info files.
@@ -226,9 +263,14 @@ class CloudVolume(object):
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
+      mip_num: (int), the number of mip levels.
+      factor: (Vec), the downsampling factor for each mip level
 
     Returns: dict representing a single mip level that's JSON encodable
     """
+    if not isinstance(factor, Vec):
+      factor = Vec(*factor)
+
     info = {
       "num_channels": int(num_channels),
       "type": layer_type,
@@ -242,6 +284,12 @@ class CloudVolume(object):
         "size": list(map(int, volume_size)),
       }],
     }
+   
+    # add mip levels
+    factor_in_mip = factor.clone()
+    for _ in range(1, mip_num):
+      cls.add_scale(factor_in_mip, info=info)
+      factor_in_mip *= factor
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
@@ -251,7 +299,7 @@ class CloudVolume(object):
 
     if skeletons:
       info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
-
+    
     return info
 
   def refresh_info(self):
@@ -334,7 +382,7 @@ class CloudVolume(object):
       each_factor = Vec(2,2,2)
     
     factor = each_factor.clone()
-    for mip in range(1, experiment.num_hierarchy_levels):
+    for _ in range(1, experiment.num_hierarchy_levels):
       self.add_scale(factor, info=info)
       factor *= each_factor
 
@@ -470,7 +518,7 @@ class CloudVolume(object):
                           if s["resolution"] == mip))
       else:  # mip specified by index into downsampling hierarchy
         self._mip = self.available_mips[mip]
-    except Exception as err:
+    except Exception:
       if isinstance(mip, list):
         opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
       else:
@@ -803,7 +851,7 @@ class CloudVolume(object):
     if type(bbox_or_slices) is Bbox:
       requested_bbox = bbox_or_slices
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
     cloudpaths = list(cloudpaths)
@@ -822,7 +870,7 @@ class CloudVolume(object):
     if type(bbox_or_slices) is Bbox:
       requested_bbox = bbox_or_slices
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
 
     if requested_bbox != realized_bbox:
@@ -857,7 +905,7 @@ class CloudVolume(object):
     if type(bbox) is Bbox:
       requested_bbox = bbox
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox)
     realized_bbox = self.__realized_bbox(requested_bbox)
 
     if requested_bbox != realized_bbox:
@@ -889,7 +937,6 @@ class CloudVolume(object):
       destvol.commit_provenance()
     except exceptions.ScaleUnavailableError:
       destvol = CloudVolume(cloudpath)
-      num_missing = len(self.scales) - len(destvol.scales)
       for i in range(len(destvol.scales) + 1, len(self.scales)):
         destvol.scales.append(
           self.scales[i]
