@@ -264,7 +264,7 @@ class CloudVolume(object):
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
       mip_num: (int), the number of mip levels.
-      each_factor: (Vec), the downsampling factor
+      factor: (Vec), the downsampling factor for each mip level
 
     Returns: dict representing a single mip level that's JSON encodable
     """
