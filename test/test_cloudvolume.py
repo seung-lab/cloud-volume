@@ -138,7 +138,7 @@ def test_ellipsis_read():
 def test_parallel_read():
   paths = [
     'gs://seunglab-test/test_v0/image',
-    # 's3://seunglab-test/test_v0/image',
+    's3://seunglab-test/test_v0/image',
   ]
 
   for cloudpath in paths:

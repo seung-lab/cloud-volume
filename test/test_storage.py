@@ -8,10 +8,9 @@ import time
 from cloudvolume.storage import Storage
 from layer_harness import delete_layer, TEST_NUMBER
 
-#TODO delete files created by tests
 def test_read_write():
   urls = [
-    # "file:///tmp/removeme/read_write",
+    "file:///tmp/removeme/read_write",
     "gs://seunglab-test/cloudvolume/read_write",
     "s3://seunglab-test/cloudvolume/read_write"
   ]
