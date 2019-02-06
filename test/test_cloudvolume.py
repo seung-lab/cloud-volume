@@ -11,7 +11,7 @@ import sys
 from functools import reduce
 
 from cloudvolume.exceptions import AlignmentError
-from cloudvolume import CloudVolume, chunks, Storage, view
+from cloudvolume import CloudVolume, chunks, Storage
 from cloudvolume.lib import mkdir, Bbox, Vec, yellow
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
