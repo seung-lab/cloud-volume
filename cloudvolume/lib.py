@@ -410,6 +410,10 @@ class Bbox(object):
       raise NotImplementedError("{} is not a Bbox convertible type.".format(typ))
 
   @classmethod
+  def from_delta(cls, minpt, plus):
+    return Bbox( minpt, Vec(*minpt) + plus )
+
+  @classmethod
   def from_dict(cls, data):
     dtype = data['dtype'] if 'dtype' in data else np.float32
     return Bbox( data['minpt'], data['maxpt'], dtype=dtype)
