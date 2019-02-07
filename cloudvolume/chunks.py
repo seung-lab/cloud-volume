@@ -46,7 +46,7 @@ def encode(img_chunk, encoding, block_size=None):
     return encode_kempressed(img_chunk)
   elif encoding == "fpzip":
     img_chunk = np.asfortranarray(img_chunk)
-    return fpzip.compress(img_chunk)
+    return fpzip.compress(img_chunk, order='F')
   elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
   elif encoding == "jpeg":
@@ -137,11 +137,11 @@ def encode_raw(subvol):
 
 def encode_kempressed(subvol):
   data = 2.0 + np.swapaxes(subvol, 2,3)
-  return fpzip.compress(data)
+  return fpzip.compress(data, order='F')
 
 def decode_kempressed(bytestring):
   """subvol not bytestring since numpy conversion is done inside fpzip extension."""
-  subvol = fpzip.decompress(bytestring)
+  subvol = fpzip.decompress(bytestring, order='F')
   return np.swapaxes(subvol, 3,2) - 2.0
 
 def decode_npz(string):
