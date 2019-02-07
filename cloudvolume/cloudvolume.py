@@ -288,7 +288,7 @@ class CloudVolume(object):
     # add mip levels
     factor_in_mip = factor.clone()
     for _ in range(1, mip_num):
-      cls.add_scale(factor_in_mip, info=info)
+      cls.add_scale(cls, factor_in_mip, info=info)
       factor_in_mip *= factor
 
     if encoding == 'compressed_segmentation':

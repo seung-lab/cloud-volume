@@ -22,13 +22,13 @@ from cloudvolume import txrx
 def test_from_numpy():
   arr = np.random.random_integers(0, high=255, size=(128,128, 128))
   arr = np.asarray(arr, dtype=np.uint8)
-  vol = CloudVolume.from_numpy(arr)
+  vol = CloudVolume.from_numpy(arr, mip_num=2)
   arr2 = vol[:,:,:]
   np.alltrue(arr == arr2)
   
   arr = np.random.randn(128,128, 128, 3)
   arr = np.asarray(arr, dtype=np.float32)
-  vol = CloudVolume.from_numpy(arr)
+  vol = CloudVolume.from_numpy(arr, mip_num=2)
   arr2 = vol[:,:,:]
   np.alltrue(arr == arr2)
   shutil.rmtree('/tmp/image')
