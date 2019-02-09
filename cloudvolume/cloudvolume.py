@@ -284,12 +284,25 @@ class CloudVolume(object):
         "size": list(map(int, volume_size)),
       }],
     }
-   
-    # add mip levels
+    
+    def downscale(size, factor_in_mip, roundingfn):
+      smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
+      return list(map(int, roundingfn(smaller)))
+    
+    fullres = info['scales'][0]
     factor_in_mip = factor.clone()
+ 
+    # add mip levels
     for _ in range(1, mip_num):
-      cls.add_scale(cls, factor_in_mip, info=info)
       factor_in_mip *= factor
+      newscale = {
+        u"encoding": encoding,
+        u"chunk_sizes": [ list(map(int, chunk_size)) ],
+        u"resolution": list(map(int, Vec(*fullres['resolution']) * factor_in_mip )),
+        u"voxel_offset": downscale(fullres['voxel_offset'], factor_in_mip, np.floor),
+        u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
+      }
+      info['scales'].append(newscale)
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
