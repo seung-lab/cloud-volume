@@ -168,7 +168,7 @@ class CloudVolume(object):
     path = lib.extract_path(vol_path)
 
     if not layer_type:
-      if arr.dtype in (np.uint8, np.float32, np.float16, np.float64):
+      if arr.dtype in (np.bool, np.uint8, np.float32, np.float16, np.float64):
         layer_type = 'image'
       elif arr.dtype in (np.uint32, np.uint64, np.uint16):
         layer_type = 'segmentation'
