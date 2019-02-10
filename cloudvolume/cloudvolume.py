@@ -161,9 +161,12 @@ class CloudVolume(object):
   @classmethod
   def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
                   resolution=(4,4,40), voxel_offset=(0,0,0), 
-                  chunk_size=(128,128,64), layer_type=None, mip_num=1):
+                  chunk_size=(128,128,64), layer_type=None, max_mip=0):
     """
-    mip_num: (int) number of mip levels in the info file
+    max_mip: (int) the maximum mip level id in the info file. 
+    Note that currently the numpy array can only sit in mip 0,
+    the max_mip was only created in info file.
+    the numpy array itself was not downsampled. 
     """
     path = lib.extract_path(vol_path)
 
@@ -183,7 +186,7 @@ class CloudVolume(object):
       raise NotImplementedError
 
     info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, 'raw', resolution, 
-                               voxel_offset, arr.shape[:3], chunk_size=chunk_size, mip_num=mip_num)
+                               voxel_offset, arr.shape[:3], chunk_size=chunk_size, max_mip=max_mip)
     vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=False) 
     # save the info file
     vol.commit_info()
@@ -243,7 +246,7 @@ class CloudVolume(object):
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(64,64,64),
     compressed_segmentation_block_size=(8,8,8),
-    mip_num=1, factor=Vec(2,2,1) 
+    max_mip=0, factor=Vec(2,2,1) 
   ):
     """
     Used for creating new neuroglancer info files.
@@ -263,7 +266,7 @@ class CloudVolume(object):
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
-      mip_num: (int), the number of mip levels.
+      max_mip: (int), the maximum mip level id.
       factor: (Vec), the downsampling factor for each mip level
 
     Returns: dict representing a single mip level that's JSON encodable
@@ -293,7 +296,7 @@ class CloudVolume(object):
     factor_in_mip = factor.clone()
  
     # add mip levels
-    for _ in range(1, mip_num):
+    for _ in range(max_mip):
       new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
       newscale = {
         u"encoding": encoding,
