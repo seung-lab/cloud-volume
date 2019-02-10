@@ -294,10 +294,12 @@ class CloudVolume(object):
  
     # add mip levels
     for _ in range(1, mip_num):
+      new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
       newscale = {
         u"encoding": encoding,
         u"chunk_sizes": [ list(map(int, chunk_size)) ],
-        u"resolution": list(map(int, Vec(*fullres['resolution']) * factor_in_mip )),
+        u"key": "_".join(map(str, new_resolution)),
+        u"resolution": new_resolution,
         u"voxel_offset": downscale(fullres['voxel_offset'], factor_in_mip, np.floor),
         u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
       }
