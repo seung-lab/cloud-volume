@@ -294,7 +294,6 @@ class CloudVolume(object):
  
     # add mip levels
     for _ in range(1, mip_num):
-      factor_in_mip *= factor
       newscale = {
         u"encoding": encoding,
         u"chunk_sizes": [ list(map(int, chunk_size)) ],
@@ -303,6 +302,7 @@ class CloudVolume(object):
         u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
       }
       info['scales'].append(newscale)
+      factor_in_mip *= factor
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
