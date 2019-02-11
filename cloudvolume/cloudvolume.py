@@ -796,8 +796,8 @@ class CloudVolume(object):
       u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
-      u"voxel_offset": downscale(fullres['voxel_offset'], np.floor),
-      u"size": downscale(fullres['size'], np.ceil),
+      u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
+      u"size": downscale(fullres['size'], factor, np.ceil),
     }
 
     if newscale['encoding'] == 'compressed_segmentation':
