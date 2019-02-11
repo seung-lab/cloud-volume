@@ -45,6 +45,11 @@ except AttributeError:
 def warn(text):
   print(colorize('yellow', text))
 
+def downscale(size, factor_in_mip, roundingfn):
+  smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
+  return list(map(int, roundingfn(smaller)))
+
+
 class CloudVolume(object):
   """
   CloudVolume represents an interface to a dataset layer at a given
@@ -161,17 +166,19 @@ class CloudVolume(object):
   @classmethod
   def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
                   resolution=(4,4,40), voxel_offset=(0,0,0), 
-                  chunk_size=(128,128,64), layer_type=None, mip_num=1):
+                  chunk_size=(128,128,64), layer_type=None, max_mip=0,
+                  encoding='raw', compress=None):
     """
-    mip_num: (int) number of mip levels in the info file
+    max_mip: (int) the maximum mip level id in the info file. 
+    Note that currently the numpy array can only sit in mip 0,
+    the max_mip was only created in info file.
+    the numpy array itself was not downsampled. 
     """
-    path = lib.extract_path(vol_path)
-
     if not layer_type:
-      if arr.dtype in (np.uint8, np.float32, np.float16, np.float64):
-        layer_type = 'image'
-      elif arr.dtype in (np.uint32, np.uint64, np.uint16):
+      if arr.dtype in (np.uint32, np.uint64, np.uint16):
         layer_type = 'segmentation'
+      elif np.issubdtype(arr.dtype, np.integer) or np.issubdtype(arr.dtype, np.float):
+        layer_type = 'image'
       else:
         raise NotImplementedError
 
@@ -182,9 +189,9 @@ class CloudVolume(object):
     else:
       raise NotImplementedError
 
-    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, 'raw', resolution, 
-                               voxel_offset, arr.shape[:3], chunk_size=chunk_size, mip_num=mip_num)
-    vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=False) 
+    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, encoding, resolution, 
+                               voxel_offset, arr.shape[:3], chunk_size=chunk_size, max_mip=max_mip)
+    vol = CloudVolume(vol_path, info=info, bounded=True, compress=compress) 
     # save the info file
     vol.commit_info()
     vol.provenance.processing.append({
@@ -236,14 +243,14 @@ class CloudVolume(object):
             self.path
         ))
       raise
-      
+     
   @classmethod
   def create_new_info(cls, 
     num_channels, layer_type, data_type, encoding, 
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(64,64,64),
     compressed_segmentation_block_size=(8,8,8),
-    mip_num=1, factor=Vec(2,2,1) 
+    max_mip=0, factor=Vec(2,2,1) 
   ):
     """
     Used for creating new neuroglancer info files.
@@ -263,7 +270,7 @@ class CloudVolume(object):
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
-      mip_num: (int), the number of mip levels.
+      max_mip: (int), the maximum mip level id.
       factor: (Vec), the downsampling factor for each mip level
 
     Returns: dict representing a single mip level that's JSON encodable
@@ -284,11 +291,22 @@ class CloudVolume(object):
         "size": list(map(int, volume_size)),
       }],
     }
-   
-    # add mip levels
+    
+    fullres = info['scales'][0]
     factor_in_mip = factor.clone()
-    for _ in range(1, mip_num):
-      cls.add_scale(factor_in_mip, info=info)
+ 
+    # add mip levels
+    for _ in range(max_mip):
+      new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
+      newscale = {
+        u"encoding": encoding,
+        u"chunk_sizes": [ list(map(int, chunk_size)) ],
+        u"key": "_".join(map(str, new_resolution)),
+        u"resolution": new_resolution,
+        u"voxel_offset": downscale(fullres['voxel_offset'], factor_in_mip, np.floor),
+        u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
+      }
+      info['scales'].append(newscale)
       factor_in_mip *= factor
 
     if encoding == 'compressed_segmentation':
@@ -769,10 +787,6 @@ class CloudVolume(object):
     if not chunk_size:
       chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
 
-    def downscale(size, roundingfn):
-      smaller = Vec(*size, dtype=np.float32) / Vec(*factor)
-      return list(map(int, roundingfn(smaller)))
-
     if encoding is None:
       encoding = fullres['encoding']
 
@@ -780,8 +794,8 @@ class CloudVolume(object):
       u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
-      u"voxel_offset": downscale(fullres['voxel_offset'], np.floor),
-      u"size": downscale(fullres['size'], np.ceil),
+      u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
+      u"size": downscale(fullres['size'], factor, np.ceil),
     }
 
     if newscale['encoding'] == 'compressed_segmentation':
@@ -1216,6 +1230,4 @@ class CloudVolume(object):
   def save_mesh(self, *args, **kwargs):
     warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
     self.mesh.save(*args, **kwargs)
-    
-
 
