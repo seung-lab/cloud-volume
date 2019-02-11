@@ -167,7 +167,7 @@ class CloudVolume(object):
   def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
                   resolution=(4,4,40), voxel_offset=(0,0,0), 
                   chunk_size=(128,128,64), layer_type=None, max_mip=0,
-                  encoding='raw'):
+                  encoding='raw', compress=None):
     """
     max_mip: (int) the maximum mip level id in the info file. 
     Note that currently the numpy array can only sit in mip 0,
@@ -193,7 +193,7 @@ class CloudVolume(object):
 
     info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, encoding, resolution, 
                                voxel_offset, arr.shape[:3], chunk_size=chunk_size, max_mip=max_mip)
-    vol = CloudVolume(vol_path, info=info, bounded=True) 
+    vol = CloudVolume(vol_path, info=info, bounded=True, compress=compress) 
     # save the info file
     vol.commit_info()
     vol.provenance.processing.append({
