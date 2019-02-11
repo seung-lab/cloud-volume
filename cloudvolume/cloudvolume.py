@@ -45,6 +45,11 @@ except AttributeError:
 def warn(text):
   print(colorize('yellow', text))
 
+def downscale(size, factor_in_mip, roundingfn):
+  smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
+  return list(map(int, roundingfn(smaller)))
+
+
 class CloudVolume(object):
   """
   CloudVolume represents an interface to a dataset layer at a given
@@ -161,17 +166,18 @@ class CloudVolume(object):
   @classmethod
   def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
                   resolution=(4,4,40), voxel_offset=(0,0,0), 
-                  chunk_size=(128,128,64), layer_type=None, max_mip=0):
+                  chunk_size=(128,128,64), layer_type=None, max_mip=0,
+                  encoding='raw'):
     """
     max_mip: (int) the maximum mip level id in the info file. 
     Note that currently the numpy array can only sit in mip 0,
     the max_mip was only created in info file.
     the numpy array itself was not downsampled. 
     """
-    path = lib.extract_path(vol_path)
-
     if not layer_type:
-      if arr.dtype in (np.bool, np.uint8, np.float32, np.float16, np.float64):
+      if arr.dtype in (np.uint32, np.uint64, np.uint16):
+        layer_type = 'segmentation'
+      elif np.issubdtype(arr.dtype, np.integer) or np.issubdtype(arr.dtype, np.float):
         layer_type = 'image'
       elif arr.dtype in (np.uint32, np.uint64, np.uint16):
         layer_type = 'segmentation'
@@ -185,9 +191,9 @@ class CloudVolume(object):
     else:
       raise NotImplementedError
 
-    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, 'raw', resolution, 
+    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, encoding, resolution, 
                                voxel_offset, arr.shape[:3], chunk_size=chunk_size, max_mip=max_mip)
-    vol = CloudVolume(vol_path, info=info, bounded=True, autocrop=False) 
+    vol = CloudVolume(vol_path, info=info, bounded=True) 
     # save the info file
     vol.commit_info()
     vol.provenance.processing.append({
@@ -239,7 +245,7 @@ class CloudVolume(object):
             self.path
         ))
       raise
-      
+     
   @classmethod
   def create_new_info(cls, 
     num_channels, layer_type, data_type, encoding, 
@@ -287,10 +293,6 @@ class CloudVolume(object):
         "size": list(map(int, volume_size)),
       }],
     }
-    
-    def downscale(size, factor_in_mip, roundingfn):
-      smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
-      return list(map(int, roundingfn(smaller)))
     
     fullres = info['scales'][0]
     factor_in_mip = factor.clone()
@@ -787,10 +789,6 @@ class CloudVolume(object):
     if not chunk_size:
       chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
 
-    def downscale(size, roundingfn):
-      smaller = Vec(*size, dtype=np.float32) / Vec(*factor)
-      return list(map(int, roundingfn(smaller)))
-
     if encoding is None:
       encoding = fullres['encoding']
 
@@ -1234,6 +1232,4 @@ class CloudVolume(object):
   def save_mesh(self, *args, **kwargs):
     warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
     self.mesh.save(*args, **kwargs)
-    
-
 
