@@ -404,7 +404,7 @@ hyperview(img, seg) # img and seg shape must match
 
 ## Python 2.7 End of Life
 
-Python 2.7 End of Life date is January, 1 2020. CloudVolume will support Python 2.7 up to that point and possibly a few months after. Numpy will be dropping support on January 1. We may accelerate the deprecation schedule if substantial technical problems arise with supporting Python 2.7, but so far the impact has been mostly limited.
+Python 2.7's [End of Life date](https://pythonclock.org/) is January, 1 2020. CloudVolume will support Python 2.7 up to that point and possibly a few months after. Numpy will be dropping support on January 1. We may accelerate the deprecation schedule if substantial technical problems arise with supporting Python 2.7, but so far the impact has been mostly limited.
 
 ## Related Projects
 

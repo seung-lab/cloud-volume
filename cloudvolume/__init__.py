@@ -15,4 +15,4 @@ from . import txrx
 from . import viewer
 from .viewer import view, hyperview
 
-__version__ = '0.45.0'
+__version__ = '0.46.0'
