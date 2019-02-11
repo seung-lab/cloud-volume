@@ -49,36 +49,44 @@ def downscale(size, factor_in_mip, roundingfn):
   smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
   return list(map(int, roundingfn(smaller)))
 
-
 class CloudVolume(object):
   """
-  CloudVolume represents an interface to a dataset layer at a given
-  mip level. You can use it to send and receive data from neuroglancer
-  datasets on supported hosts like Google Storage, S3, and local Filesystems.
+  CloudVolume reads and writes chunked numpy arrays from Neuroglancer volumes 
+  in "Precomputed" format, a simple hackable representation for arbitrarily 
+  large volumetric images. A CloudVolume instance represents a dataset 
+  interface at a given mip level (i.e. it doesn't load the entire dataset into
+  memory).  
 
-  Uploading to and downloading from a neuroglancer dataset requires specifying
-  an `info` file located at the root of a data layer. Amongst other things, 
-  the bounds of the volume are described in the info file via a 3D "offset" 
-  and 3D "shape" in voxels.
+  Neuroglancer datasets have metadata requires specified in an `info` file 
+  located at the root of a data layer. Among other things, the bounds of the 
+  volume are described in the info file via a 3D "offset" and 3D "shape" 
+  in voxels.
 
   Required:
     cloudpath: Path to the dataset layer. This should match storage's supported
       providers.
 
-      e.g. Google: gs://neuroglancer/$DATASET/$LAYER/
-           S3    : s3://neuroglancer/$DATASET/$LAYER/
+      e.g. Google: gs://$BUCKET/$DATASET/$LAYER/
+           S3    : s3://$BUCKET/$DATASET/$LAYER/
            Lcl FS: file:///tmp/$DATASET/$LAYER/
            Boss  : boss://$COLLECTION/$EXPERIMENT/$CHANNEL
+           HTTP/S: http(s)://.../$CHANNEL
+           matrix: matrix://$BUCKET/$DATASET/$LAYER/
   Optional:
-    mip: (int or iterable) Which level of downsampling to read to/write from.
-        0 is the highest resolution. Can also specify the voxel resolution as
-        an iterable. 
+    mip: (int or iterable) Which level of downsampling to read and write from.
+        0 is the highest resolution. You can also specify the voxel resolution
+        like mip=[6,6,30] which will search for the appropriate mip level.
     bounded: (bool) If a region outside of volume bounds is accessed:
         True: Throw an error
-        False: Fill the region with black (useful for e.g. marching cubes's 1px boundary)
-    autocrop: (bool) If the uploaded or downloaded region exceeds bounds, process only the
-      area contained in bounds. Only has effect when bounded=True.
-    fill_missing: (bool) If a file inside volume bounds is unable to be fetched:
+        False: Allow accessing the region. If no files are present, an error 
+            will still be thrown. Consider combining with `fill_missing=True`
+            though this can be dangrous if you're not sure that all files
+            exist.
+    autocrop: (bool) If the specified retrieval bounding box region exceeds 
+        volume bounds, process only the area contained inside the volume. 
+        This can be useful way to ensure that you are staying inside the 
+        bounds when `bounded=True`.
+    fill_missing: (bool) If a chunk file is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
     cache: (bool or str) Store downloaded and uploaded files in a cache on disk 
@@ -86,35 +94,51 @@ class CloudVolume(object):
         - falsey value: no caching will occur.
         - True: cache will be located in a standard location.
         - non-empty string: cache is located at this file path
-    compress_cache: (None or bool) If not None, override default compression behavior for the cache.
-    cdn_cache: (int, bool, or str) Sets the Cache-Control HTTP header on uploaded image files.
-      Most cloud providers perform some kind of caching. As of this writing, Google defaults to
-      3600 seconds. Most of the time you'll want to go with the default. 
+    compress_cache: (None or bool) If not None, override default compression 
+        behavior for the cache.
+    cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
+      image files. Most cloud providers perform some kind of caching. As of 
+      this writing, Google defaults to 3600 seconds. Most of the time you'll 
+      want to go with the default. 
       - int: number of seconds for cache to be considered fresh (max-age)
       - bool: True: max-age=3600, False: no-cache
       - str: set the header manually
-    info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
-            This is useful when creating new datasets.
-    parallel (int: 1, bool): number of extra processes to launch, 1 means only use the main process. If parallel is True
-      use the number of CPUs returned by multiprocessing.cpu_count()
-    output_to_shared_memory (deprecated, bool: False, str): Write results to shared memory. Don't make copies from this buffer
-      and don't automatically unlink it. If a string is provided, use that shared memory location rather than
-      the default. Please use vol.download_to_shared_memory(slices_or_bbox) instead.
-    provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
-            This is useful when doing multiprocessing.
+    info: (dict) In lieu of fetching a neuroglancer info file, use this one.
+        This is useful when creating new datasets.
+    parallel (int: 1, bool): Number of extra processes to launch, 1 means only 
+        use the main process. If parallel is True use the number of CPUs 
+        returned by multiprocessing.cpu_count(). When parallel > 1, shared
+        memory is used by the underlying download.
+    output_to_shared_memory (deprecated, bool: False, str): 
+      Please use vol.download_to_shared_memory(slices_or_bbox) instead.
+    provenance: (string, dict, or object) In lieu of fetching a provenance 
+        file, use this one. 
     progress: (bool) Show tqdm progress bars. 
         Defaults True in interactive python, False in script execution mode.
     compress: (bool, str, None) pick which compression method to use. 
-      None: (default) Use the pre-programmed recommendation (e.g. gzip raw arrays and compressed_segmentation)
-      bool: True=gzip, False=no compression, Overrides defaults
-      str: 'gzip', extension so that we can add additional methods in the future like lz4 or zstd. 
-        '' means no compression (same as False).
-    non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing safe without careful design.
-      When not enabled, a ValueError is thrown for non-aligned writes.
+        None: (default) gzip for raw arrays and no additional compression
+          for compressed_segmentation and fpzip.
+        bool: 
+          True=gzip, 
+          False=no compression, Overrides defaults
+        str: 
+          'gzip': Extension so that we can add additional methods in the future 
+                  like lz4 or zstd. 
+          '': no compression (same as False).
+    non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing 
+        safe without careful design. When not enabled, a 
+        cloudvolume.exceptions.AlignmentError is thrown for non-aligned writes. 
+        Read more: 
+
+        https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
   """
-  def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
-      cache=False, compress_cache=None, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
+  def __init__(self, 
+    cloudpath, mip=0, bounded=True, autocrop=False, 
+    fill_missing=False, cache=False, compress_cache=None, 
+    cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
+    compress=None, non_aligned_writes=False, parallel=1, 
+    output_to_shared_memory=False
+  ):
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
@@ -164,10 +188,12 @@ class CloudVolume(object):
     self.pid = os.getpid()
 
   @classmethod
-  def from_numpy(cls, arr, vol_path='file:///tmp/image/'+generate_random_string(),
-                  resolution=(4,4,40), voxel_offset=(0,0,0), 
-                  chunk_size=(128,128,64), layer_type=None, max_mip=0,
-                  encoding='raw', compress=None):
+  def from_numpy(cls, 
+      arr, vol_path='file:///tmp/image/'+generate_random_string(),
+      resolution=(4,4,40), voxel_offset=(0,0,0), 
+      chunk_size=(128,128,64), layer_type=None, max_mip=0,
+      encoding='raw', compress=None
+    ):
     """
     max_mip: (int) the maximum mip level id in the info file. 
     Note that currently the numpy array can only sit in mip 0,
