@@ -177,7 +177,8 @@ class CloudVolume(object):
     if not layer_type:
       if arr.dtype in (np.uint32, np.uint64, np.uint16):
         layer_type = 'segmentation'
-      elif np.issubdtype(arr.dtype, np.integer) or np.issubdtype(arr.dtype, np.float):
+      elif arr.dtype==np.bool or np.issubdtype(arr.dtype, np.integer) \
+                                or np.issubdtype(arr.dtype, np.floating):
         layer_type = 'image'
       else:
         raise NotImplementedError
