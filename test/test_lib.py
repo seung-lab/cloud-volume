@@ -193,6 +193,14 @@ def test_bbox_serialize():
   reconstituted = Bbox.deserialize(bbx.serialize())
   assert bbx == reconstituted
 
+def test_bbox_volume():
+  bbx = Bbox( (0,0,0), (2000, 2000, 2000) )
+  # important thing is 8B is > int32 size
+  assert bbx.volume() == 8000000000
+
+  bbx = bbx.astype(np.float32)
+  assert bbx.volume() == 8000000000
+
 def test_jsonify():
   obj = {
     'x': [ np.array([1,2,3,4,5], dtype=np.uint64) ],
@@ -202,4 +210,4 @@ def test_jsonify():
   }
 
   assert lib.jsonify(obj, sort_keys=True) == r"""{"w": "1 2 34 5", "x": [[1, 2, 3, 4, 5]], "y": [{}, {}], "z": 5}"""
-  
+
