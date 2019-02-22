@@ -402,12 +402,17 @@ hyperview(img, seg) # img and seg shape must match
 >>> Viewer server listening to http://localhost:8080
 ```
 
-## Spinoff Projects
+## Python 2.7 End of Life
 
-CloudVolume in Julia - https://github.com/seung-lab/CloudVolume.jl   
-fpzip Python Package - https://github.com/seung-lab/fpzip  
-compressed_segmentation Python Package - https://github.com/seung-lab/compressedseg  
-Igneous - https://github.com/seung-lab/igneous   
+Python 2.7's [End of Life date](https://pythonclock.org/) is January, 1 2020. CloudVolume will support Python 2.7 up to that point and possibly a few months after. Numpy will be dropping support on January 1. We may accelerate the deprecation schedule if substantial technical problems arise with supporting Python 2.7, but so far the impact has been mostly limited.
+
+## Related Projects
+
+1. [Igneous](https://github.com/seung-lab/igneous): Computational pipeline for visualizing neuroglancer volumes.
+2. [CloudVolume.jl](https://github.com/seung-lab/CloudVolume.jl): CloudVolume in Julia
+3. [fpzip](https://github.com/seung-lab/fpzip): A Python Package for the C++ code by Lindstrom et al.  
+4. [compressed_segmentation](https://github.com/seung-lab/compressedseg): A Python Package wrapping the code for the compressed_segmentation format developed by Jeremy Maitin-Shepard and Stephen Plaza.
+5. [Kimimaro](https://github.com/seung-lab/kimimaro): High performance skeletonization of densely labeled 3D volumes.
 
 ## Acknowledgments
 

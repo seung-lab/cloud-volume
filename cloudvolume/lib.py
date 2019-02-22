@@ -522,7 +522,10 @@ class Bbox(object):
     return np.all(self.minpt <= self.maxpt)
 
   def volume(self):
-    return self.size3().rectVolume()
+    if np.issubdtype(self.dtype, np.integer):
+      return self.size3().astype(np.int64).rectVolume()
+    else:
+      return self.size3().astype(np.float64).rectVolume()
 
   def center(self):
     return (self.minpt + self.maxpt) / 2.0
