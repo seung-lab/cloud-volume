@@ -1,7 +1,6 @@
 language: python
 python:
 - '2.7'
-- '3.4'
 - '3.5'
 - '3.6'
 - '3.7-dev'
@@ -28,14 +27,3 @@ script:
 - if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then py.test -v -x test; fi
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 -m pytest -v -x test; fi
 
-deploy:
-  provider: gcs
-  skip_cleanup: true
-  access_key_id: GOOGTWIGKTY4NTZHBB6KVEXQ
-  secret_access_key:
-    secure: mI/yADCoZYm/lAKMLvQJwZrqgBpkJZKSyxMlJranZQPx7BbjiyP9+qpbvX6euC/uVb84vlyTgV5agoZtT7il+XeFUoNpaWKjnZG5jll1U9FtHiXjJ2u1mRNOu+T3dxzcmLFdJQY2lXNjXTR1b/IWWzJD0OZyiqfWniaV4UIq/jkcpnx1zJTuT6KFSmstlv2OSWlGi9pCgQexBIiaC2a2X907tf57souBUO9DqM0cCdSHhJUXlyzEHGN3pBz5Dsn8vGEXLcmYZB15hetRv+zSC1n2Df1Ybdh9GIQZGQSI3dxWr7X0Ak1XgipcXh3Fw0r0xV3MmWFU08L0Vh+Gff8/jPUNAGyY0hLNPKI0IGayGZufI/mhrCDdyTHxdiHI1szb6ErO6S6gsMTxHkr/bxzW+2ub3RvgX2kmmRs+2ILKn/WWR6PQyBvrr3OS6gMTVT0gggL/t81z/yGOe/LFA9DHyncksXr8fAEt27TP6djEbF/ucYXvgpOo0EppriHH9/iFKdnw5+7Yk6cOEeJDFS2mwzi/Ft+vYRDUINOpO1IJ0IR3bf+JF65X3az4BwuGrkvBiRCNJcPjaC2g3VAnVByA1Kl2zjEF5lJTSMMOwPqsNDlN4C9Xh3TRQDllXvvzctYhRpP+h3iNAzk/50w+WNxa942Y86qfTa1fHR61w4dmFn8=
-  bucket: seunglab-python-builds
-  local-dir: dist
-  on:
-    repo: seung-lab/cloud-volume
-    branch: master
