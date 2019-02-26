@@ -181,12 +181,13 @@ class GoogleCloudStorageInterface(StorageInterface):
   @retry
   def get_file(self, file_path):
     key = self.get_path_to_file(file_path)
-    blob = self._bucket.get_blob( key )
-    if not blob:
-      return None, None # content, encoding
+    blob = self._bucket.blob( key )
 
-    # blob handles the decompression so the encoding is None
-    return blob.download_as_string(), None # content, encoding
+    try:
+      # blob handles the decompression so the encoding is None
+      return blob.download_as_string(), None # content, encoding
+    except google.cloud.exceptions.NotFound as err:
+      return None, None
 
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
