@@ -89,8 +89,10 @@ def multi_process_download(cv, bufferbbox, caching, cloudpaths):
   download_multiple(cv, cloudpaths, fn=process)
   array_like.close()
 
-def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel, 
-  shared_memory_location, output_to_shared_memory):
+def multi_process_cutout(
+    vol, requested_bbox, cloudpaths, parallel, 
+    shared_memory_location, output_to_shared_memory
+  ):
   global fs_lock
 
   cloudpaths_by_process = []
@@ -110,8 +112,11 @@ def multi_process_cutout(vol, requested_bbox, cloudpaths, parallel,
 
   return mmap_handle, renderbuffer
 
-def cutout(vol, requested_bbox, steps, channel_slice=slice(None), parallel=1, 
-  shared_memory_location=None, output_to_shared_memory=False):
+def cutout(
+    vol, requested_bbox, steps, 
+    channel_slice=slice(None), parallel=1, 
+    shared_memory_location=None, output_to_shared_memory=False
+  ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   global fs_lock
 
@@ -161,12 +166,9 @@ def download_multiple(vol, cloudpaths, fn):
   locations = vol.cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(vol.cache.path, vol.key)
 
-  pbar = tqdm(total=len(cloudpaths), desc='Downloading', disable=(not vol.progress))
-
   def process(cloudpath, filename, cache):
     img3d, bbox = download_single(vol, cloudpath, filename, cache)
     fn(img3d, bbox)
-    pbar.update(1)
 
   local_downloads = ( partial(process, cachedir, filename, False) for filename in locations['local'] )
   remote_downloads = ( partial(process, vol.layer_cloudpath, filename, vol.cache.enabled) for filename in locations['remote'] )
@@ -280,8 +282,14 @@ def check_grid_aligned(vol, img, offset):
   is_aligned = np.all(alignment_check.minpt == bounds.minpt) and np.all(alignment_check.maxpt == bounds.maxpt)
   return (is_aligned, bounds, alignment_check) 
 
-def upload_image(vol, img, offset, parallel=1, 
-  manual_shared_memory_id=None, manual_shared_memory_bbox=None, manual_shared_memory_order='F'):
+def upload_image(
+    vol, img, offset, 
+    parallel=1, 
+    manual_shared_memory_id=None, 
+    anual_shared_memory_bbox=None, 
+    manual_shared_memory_order='F',
+    delete_black_uploads=False
+  ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
 
