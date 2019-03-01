@@ -3,7 +3,7 @@ from cloudvolume import CloudVolumeGraphene
 from .lib import extract_dataformat
 
 
-def CloudVolumeFactory(cloudurl, *args, gs_replace=True, **kwargs):
+def CloudVolumeFactory(cloudurl, *args, map_gs_to_https=True, **kwargs):
     # split cloudurl into format and cloudpath
     dataformat = extract_dataformat(cloudurl)
 
