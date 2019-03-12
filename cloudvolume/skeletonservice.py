@@ -612,7 +612,13 @@ class PrecomputedSkeleton(object):
 
     vertex_index = {}
     label_index = {}
+    parents = {}
+    N = 0
+
     for i, line in enumerate(lines):
+      if line.replace(r"\s", '') == '':
+        continue
+
       (vid, vtype, x, y, z, radius, parent_id) = line.split(" ")
       
       coord = tuple([ float(_) for _ in (x,y,z) ])
@@ -621,14 +627,20 @@ class PrecomputedSkeleton(object):
 
       vertex_index[coord] = i 
       label_index[vid] = coord
+      parents[i] = parent_id
 
       vertices.append(coord)
-
-      if parent_id >= 0:
-        edges.append( (i, vertex_index[label_index[parent_id]]) )
-
       vertex_types.append(int(vtype))
       radii.append(float(radius))
+
+      N += 1
+
+    for i in range(N):
+      parent_id = parents[i]
+      if parent_id < 0:
+        continue
+
+      edges.append( (i, vertex_index[label_index[parent_id]]) )
 
     return PrecomputedSkeleton(vertices, edges, radii, vertex_types)
 

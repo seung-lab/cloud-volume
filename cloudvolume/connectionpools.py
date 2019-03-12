@@ -3,11 +3,18 @@ import threading
 import time
 from functools import partial
 
-from google.cloud.storage import Client
 import boto3 
+from google.cloud.storage import Client
+import tenacity
 
 from .secrets import google_credentials, aws_credentials
 from .exceptions import UnsupportedProtocolError
+
+retry = tenacity.retry(
+  reraise=True, 
+  stop=tenacity.stop_after_attempt(7), 
+  wait=tenacity.wait_random_exponential(0.5, 60.0),
+)
 
 class ConnectionPool(object):
   """
@@ -86,6 +93,7 @@ class S3ConnectionPool(ConnectionPool):
     self.credentials = aws_credentials(bucket, service)
     super(S3ConnectionPool, self).__init__()
 
+  @retry
   def _create_connection(self):
     if self.service in ('aws', 's3'):
       return boto3.client(
@@ -117,6 +125,7 @@ class GCloudBucketPool(ConnectionPool):
     self.project, self.credentials = google_credentials(bucket)
     super(GCloudBucketPool, self).__init__()
 
+  @retry
   def _create_connection(self):
     client = Client(
       credentials=self.credentials,

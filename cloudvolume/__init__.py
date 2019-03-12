@@ -17,4 +17,4 @@ from . import txrx
 from . import viewer
 from .viewer import view, hyperview
 
-__version__ = '0.43.1-graphene'
+__version__ = '0.47.1-graphene'

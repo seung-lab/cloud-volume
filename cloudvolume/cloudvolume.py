@@ -1,12 +1,10 @@
 from __future__ import print_function
 
-from functools import partial
 import itertools
 import collections
 import json
 import json5
 import os
-import re
 import sys
 import uuid
 import weakref
@@ -16,19 +14,19 @@ import numpy as np
 from tqdm import tqdm
 from six import string_types
 import multiprocessing as mp
+from time import strftime
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from .secrets import boss_credentials, CLOUD_VOLUME_DIR
+from .secrets import boss_credentials
 
-from . import lib, chunks
+from . import lib
 from .cacheservice import CacheService
 from . import exceptions 
 from .lib import ( 
-  toabs, colorize, red, yellow, 
-  mkdir, clamp, xyzrange, Vec, 
-  Bbox, min2, max2, check_bounds, 
-  jsonify, generate_slices
+  colorize, red, mkdir, Vec, Bbox,  
+  jsonify, generate_slices,
+  generate_random_string
 )
 from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
@@ -47,35 +45,48 @@ except AttributeError:
 def warn(text):
   print(colorize('yellow', text))
 
+def downscale(size, factor_in_mip, roundingfn):
+  smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
+  return list(map(int, roundingfn(smaller)))
+
 class CloudVolume(object):
   """
-  CloudVolume represents an interface to a dataset layer at a given
-  mip level. You can use it to send and receive data from neuroglancer
-  datasets on supported hosts like Google Storage, S3, and local Filesystems.
+  CloudVolume reads and writes chunked numpy arrays from Neuroglancer volumes 
+  in "Precomputed" format, a simple hackable representation for arbitrarily 
+  large volumetric images. A CloudVolume instance represents a dataset 
+  interface at a given mip level (i.e. it doesn't load the entire dataset into
+  memory).  
 
-  Uploading to and downloading from a neuroglancer dataset requires specifying
-  an `info` file located at the root of a data layer. Amongst other things, 
-  the bounds of the volume are described in the info file via a 3D "offset" 
-  and 3D "shape" in voxels.
+  Neuroglancer datasets have metadata requires specified in an `info` file 
+  located at the root of a data layer. Among other things, the bounds of the 
+  volume are described in the info file via a 3D "offset" and 3D "shape" 
+  in voxels.
 
   Required:
     cloudpath: Path to the dataset layer. This should match storage's supported
       providers.
 
-      e.g. Google: gs://neuroglancer/$DATASET/$LAYER/
-           S3    : s3://neuroglancer/$DATASET/$LAYER/
+      e.g. Google: gs://$BUCKET/$DATASET/$LAYER/
+           S3    : s3://$BUCKET/$DATASET/$LAYER/
            Lcl FS: file:///tmp/$DATASET/$LAYER/
            Boss  : boss://$COLLECTION/$EXPERIMENT/$CHANNEL
+           HTTP/S: http(s)://.../$CHANNEL
+           matrix: matrix://$BUCKET/$DATASET/$LAYER/
   Optional:
-    mip: (int or iterable) Which level of downsampling to read to/write from.
-        0 is the highest resolution. Can also specify the voxel resolution as
-        an iterable. 
+    mip: (int or iterable) Which level of downsampling to read and write from.
+        0 is the highest resolution. You can also specify the voxel resolution
+        like mip=[6,6,30] which will search for the appropriate mip level.
     bounded: (bool) If a region outside of volume bounds is accessed:
         True: Throw an error
-        False: Fill the region with black (useful for e.g. marching cubes's 1px boundary)
-    autocrop: (bool) If the uploaded or downloaded region exceeds bounds, process only the
-      area contained in bounds. Only has effect when bounded=True.
-    fill_missing: (bool) If a file inside volume bounds is unable to be fetched:
+        False: Allow accessing the region. If no files are present, an error 
+            will still be thrown. Consider combining with `fill_missing=True`
+            though this can be dangrous if you're not sure that all files
+            exist.
+    autocrop: (bool) If the specified retrieval bounding box region exceeds 
+        volume bounds, process only the area contained inside the volume. 
+        This can be useful way to ensure that you are staying inside the 
+        bounds when `bounded=True`.
+    fill_missing: (bool) If a chunk file is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
     cache: (bool or str) Store downloaded and uploaded files in a cache on disk 
@@ -83,35 +94,51 @@ class CloudVolume(object):
         - falsey value: no caching will occur.
         - True: cache will be located in a standard location.
         - non-empty string: cache is located at this file path
-    compress_cache: (None or bool) If not None, override default compression behavior for the cache.
-    cdn_cache: (int, bool, or str) Sets the Cache-Control HTTP header on uploaded image files.
-      Most cloud providers perform some kind of caching. As of this writing, Google defaults to
-      3600 seconds. Most of the time you'll want to go with the default. 
+    compress_cache: (None or bool) If not None, override default compression 
+        behavior for the cache.
+    cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
+      image files. Most cloud providers perform some kind of caching. As of 
+      this writing, Google defaults to 3600 seconds. Most of the time you'll 
+      want to go with the default. 
       - int: number of seconds for cache to be considered fresh (max-age)
       - bool: True: max-age=3600, False: no-cache
       - str: set the header manually
-    info: (dict) in lieu of fetching a neuroglancer info file, use this provided one.
-            This is useful when creating new datasets.
-    parallel (int: 1, bool): number of extra processes to launch, 1 means only use the main process. If parallel is True
-      use the number of CPUs returned by multiprocessing.cpu_count()
-    output_to_shared_memory (deprecated, bool: False, str): Write results to shared memory. Don't make copies from this buffer
-      and don't automatically unlink it. If a string is provided, use that shared memory location rather than
-      the default. Please use vol.download_to_shared_memory(slices_or_bbox) instead.
-    provenance: (string, dict, or object) in lieu of fetching a neuroglancer provenance file, use this provided one.
-            This is useful when doing multiprocessing.
+    info: (dict) In lieu of fetching a neuroglancer info file, use this one.
+        This is useful when creating new datasets.
+    parallel (int: 1, bool): Number of extra processes to launch, 1 means only 
+        use the main process. If parallel is True use the number of CPUs 
+        returned by multiprocessing.cpu_count(). When parallel > 1, shared
+        memory is used by the underlying download.
+    output_to_shared_memory (deprecated, bool: False, str): 
+      Please use vol.download_to_shared_memory(slices_or_bbox) instead.
+    provenance: (string, dict, or object) In lieu of fetching a provenance 
+        file, use this one. 
     progress: (bool) Show tqdm progress bars. 
         Defaults True in interactive python, False in script execution mode.
     compress: (bool, str, None) pick which compression method to use. 
-      None: (default) Use the pre-programmed recommendation (e.g. gzip raw arrays and compressed_segmentation)
-      bool: True=gzip, False=no compression, Overrides defaults
-      str: 'gzip', extension so that we can add additional methods in the future like lz4 or zstd. 
-        '' means no compression (same as False).
-    non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing safe without careful design.
-      When not enabled, a ValueError is thrown for non-aligned writes.
+        None: (default) gzip for raw arrays and no additional compression
+          for compressed_segmentation and fpzip.
+        bool: 
+          True=gzip, 
+          False=no compression, Overrides defaults
+        str: 
+          'gzip': Extension so that we can add additional methods in the future 
+                  like lz4 or zstd. 
+          '': no compression (same as False).
+    non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing 
+        safe without careful design. When not enabled, a 
+        cloudvolume.exceptions.AlignmentError is thrown for non-aligned writes. 
+        Read more: 
+
+        https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
   """
-  def __init__(self, cloudpath, mip=0, bounded=True, autocrop=False, fill_missing=False, 
-      cache=False, compress_cache=None, cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-      compress=None, map_gs_to_https=False, non_aligned_writes=False, parallel=1, output_to_shared_memory=False):
+  def __init__(self, 
+    cloudpath, mip=0, bounded=True, autocrop=False, 
+    fill_missing=False, cache=False, compress_cache=None, 
+    cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
+    compress=None, non_aligned_writes=False, parallel=1, 
+    output_to_shared_memory=False
+  ):
 
     if map_gs_to_https:
        cloudpath=cloudpath.replace("gs://", "https://storage.googleapis.com/")
@@ -162,6 +189,49 @@ class CloudVolume(object):
 
     self.pid = os.getpid()
 
+  @classmethod
+  def from_numpy(cls, 
+      arr, vol_path='file:///tmp/image/'+generate_random_string(),
+      resolution=(4,4,40), voxel_offset=(0,0,0), 
+      chunk_size=(128,128,64), layer_type=None, max_mip=0,
+      encoding='raw', compress=None
+    ):
+    """
+    max_mip: (int) the maximum mip level id in the info file. 
+    Note that currently the numpy array can only sit in mip 0,
+    the max_mip was only created in info file.
+    the numpy array itself was not downsampled. 
+    """
+    if not layer_type:
+      if arr.dtype in (np.bool, np.uint32, np.uint64, np.uint16):
+        layer_type = 'segmentation'
+      elif np.issubdtype(arr.dtype, np.integer) \
+                        or np.issubdtype(arr.dtype, np.floating):
+        layer_type = 'image'
+      else:
+        raise NotImplementedError
+
+    if arr.ndim == 3:
+      num_channels = 1
+    elif arr.ndim == 4:
+      num_channels = arr.shape[-1]
+    else:
+      raise NotImplementedError
+
+    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, encoding, resolution, 
+                               voxel_offset, arr.shape[:3], chunk_size=chunk_size, max_mip=max_mip)
+    vol = CloudVolume(vol_path, info=info, bounded=True, compress=compress) 
+    # save the info file
+    vol.commit_info()
+    vol.provenance.processing.append({
+      'method': 'from_numpy',
+      'date': strftime('%Y-%m-%d %H:%M %Z')
+    })
+    vol.commit_provenance()
+    # save the numpy array
+    vol[:,:,:] = arr
+    return vol 
+
   def __setstate__(self, d):
     """Called when unpickling which is integral to multiprocessing."""
     self.__dict__ = d 
@@ -202,13 +272,14 @@ class CloudVolume(object):
             self.path
         ))
       raise
-      
+     
   @classmethod
   def create_new_info(cls, 
     num_channels, layer_type, data_type, encoding, 
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(64,64,64),
-    compressed_segmentation_block_size=(8,8,8)
+    compressed_segmentation_block_size=(8,8,8),
+    max_mip=0, factor=Vec(2,2,1) 
   ):
     """
     Used for creating new neuroglancer info files.
@@ -228,9 +299,14 @@ class CloudVolume(object):
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
+      max_mip: (int), the maximum mip level id.
+      factor: (Vec), the downsampling factor for each mip level
 
     Returns: dict representing a single mip level that's JSON encodable
     """
+    if not isinstance(factor, Vec):
+      factor = Vec(*factor)
+
     info = {
       "num_channels": int(num_channels),
       "type": layer_type,
@@ -244,6 +320,23 @@ class CloudVolume(object):
         "size": list(map(int, volume_size)),
       }],
     }
+    
+    fullres = info['scales'][0]
+    factor_in_mip = factor.clone()
+ 
+    # add mip levels
+    for _ in range(max_mip):
+      new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
+      newscale = {
+        u"encoding": encoding,
+        u"chunk_sizes": [ list(map(int, chunk_size)) ],
+        u"key": "_".join(map(str, new_resolution)),
+        u"resolution": new_resolution,
+        u"voxel_offset": downscale(fullres['voxel_offset'], factor_in_mip, np.floor),
+        u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
+      }
+      info['scales'].append(newscale)
+      factor_in_mip *= factor
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
@@ -253,7 +346,7 @@ class CloudVolume(object):
 
     if skeletons:
       info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
-
+    
     return info
 
   def refresh_info(self):
@@ -336,7 +429,7 @@ class CloudVolume(object):
       each_factor = Vec(2,2,2)
     
     factor = each_factor.clone()
-    for mip in range(1, experiment.num_hierarchy_levels):
+    for _ in range(1, experiment.num_hierarchy_levels):
       self.add_scale(factor, info=info)
       factor *= each_factor
 
@@ -472,7 +565,7 @@ class CloudVolume(object):
                           if s["resolution"] == mip))
       else:  # mip specified by index into downsampling hierarchy
         self._mip = self.available_mips[mip]
-    except Exception as err:
+    except Exception:
       if isinstance(mip, list):
         opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
       else:
@@ -723,10 +816,6 @@ class CloudVolume(object):
     if not chunk_size:
       chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
 
-    def downscale(size, roundingfn):
-      smaller = Vec(*size, dtype=np.float32) / Vec(*factor)
-      return list(map(int, roundingfn(smaller)))
-
     if encoding is None:
       encoding = fullres['encoding']
 
@@ -734,8 +823,8 @@ class CloudVolume(object):
       u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
-      u"voxel_offset": downscale(fullres['voxel_offset'], np.floor),
-      u"size": downscale(fullres['size'], np.ceil),
+      u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
+      u"size": downscale(fullres['size'], factor, np.ceil),
     }
 
     if newscale['encoding'] == 'compressed_segmentation':
@@ -805,7 +894,7 @@ class CloudVolume(object):
     if type(bbox_or_slices) is Bbox:
       requested_bbox = bbox_or_slices
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
     cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
     cloudpaths = list(cloudpaths)
@@ -824,7 +913,7 @@ class CloudVolume(object):
     if type(bbox_or_slices) is Bbox:
       requested_bbox = bbox_or_slices
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox_or_slices)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox_or_slices)
     realized_bbox = self.__realized_bbox(requested_bbox)
 
     if requested_bbox != realized_bbox:
@@ -859,7 +948,7 @@ class CloudVolume(object):
     if type(bbox) is Bbox:
       requested_bbox = bbox
     else:
-      (requested_bbox, steps, channel_slice) = self.__interpret_slices(bbox)
+      (requested_bbox, _, _) = self.__interpret_slices(bbox)
     realized_bbox = self.__realized_bbox(requested_bbox)
 
     if requested_bbox != realized_bbox:
@@ -891,7 +980,6 @@ class CloudVolume(object):
       destvol.commit_provenance()
     except exceptions.ScaleUnavailableError:
       destvol = CloudVolume(cloudpath)
-      num_missing = len(self.scales) - len(destvol.scales)
       for i in range(len(destvol.scales) + 1, len(self.scales)):
         destvol.scales.append(
           self.scales[i]
@@ -1171,6 +1259,4 @@ class CloudVolume(object):
   def save_mesh(self, *args, **kwargs):
     warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
     self.mesh.save(*args, **kwargs)
-    
-
 

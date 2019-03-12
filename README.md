@@ -381,7 +381,7 @@ You can then point any hosted version of neuroglancer at it using `precomputed:/
 
 ### Microviewer
 
-CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports uint8, uint16, uint32, float32, and float64 data types for both images and segmentation and can render a composite overlay of image and segmentation.  
+CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports bool, uint8, uint16, uint32, float32, and float64 data types for both images and segmentation and can render a composite overlay of image and segmentation.  
 
 You can launch a viewer using the `.view()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
 
@@ -394,20 +394,25 @@ img = vol[...]
 seg = vol[...]
 
 img.view() # works on VolumeCutouts
-seg.view()
+seg.view() # segmentation type derived from info 
 view(img) # alternative for arbitrary numpy arrays
-view(seg) 
+view(seg, segmentation=True) 
 hyperview(img, seg) # img and seg shape must match
 
 >>> Viewer server listening to http://localhost:8080
 ```
 
-## Spinoff Projects
+## Python 2.7 End of Life
 
-CloudVolume in Julia - https://github.com/seung-lab/CloudVolume.jl   
-fpzip Python Package - https://github.com/seung-lab/fpzip  
-compressed_segmentation Python Package - https://github.com/seung-lab/compressedseg  
-Igneous - https://github.com/seung-lab/igneous   
+Python 2.7's [End of Life date](https://pythonclock.org/) is January, 1 2020. CloudVolume will support Python 2.7 up to that point and possibly a few months after. Numpy will be dropping support on January 1. We may accelerate the deprecation schedule if substantial technical problems arise with supporting Python 2.7, but so far the impact has been mostly limited.
+
+## Related Projects
+
+1. [Igneous](https://github.com/seung-lab/igneous): Computational pipeline for visualizing neuroglancer volumes.
+2. [CloudVolume.jl](https://github.com/seung-lab/CloudVolume.jl): CloudVolume in Julia
+3. [fpzip](https://github.com/seung-lab/fpzip): A Python Package for the C++ code by Lindstrom et al.  
+4. [compressed_segmentation](https://github.com/seung-lab/compressedseg): A Python Package wrapping the code for the compressed_segmentation format developed by Jeremy Maitin-Shepard and Stephen Plaza.
+5. [Kimimaro](https://github.com/seung-lab/kimimaro): High performance skeletonization of densely labeled 3D volumes.
 
 ## Acknowledgments
 

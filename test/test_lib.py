@@ -42,7 +42,7 @@ def test_find_closest_divisor():
 def test_path_extraction():
   def shoulderror(url):
     try:
-        path = lib.extract_path(url)
+        lib.extract_path(url)
         assert False, url
     except:
         pass
@@ -176,7 +176,7 @@ def test_bbox_hashing():
   d[bbx] = 1
 
   assert len(d) == 1
-  for k,v in d.items():
+  for _,v in d.items():
     assert v == 1
 
   bbx = Bbox( (1., 1.3, 2.), (3., 4., 4.) )
@@ -184,8 +184,22 @@ def test_bbox_hashing():
   d[bbx] = 1
 
   assert len(d) == 1
-  for k,v in d.items():
+  for _,v in d.items():
     assert v == 1
+
+def test_bbox_serialize():
+  bbx = Bbox( (24.125, 2512.2, 2112.3), (33.,532., 124.12412), dtype=np.float32)
+
+  reconstituted = Bbox.deserialize(bbx.serialize())
+  assert bbx == reconstituted
+
+def test_bbox_volume():
+  bbx = Bbox( (0,0,0), (2000, 2000, 2000) )
+  # important thing is 8B is > int32 size
+  assert bbx.volume() == 8000000000
+
+  bbx = bbx.astype(np.float32)
+  assert bbx.volume() == 8000000000
 
 def test_jsonify():
   obj = {
@@ -196,4 +210,4 @@ def test_jsonify():
   }
 
   assert lib.jsonify(obj, sort_keys=True) == r"""{"w": "1 2 34 5", "x": [[1, 2, 3, 4, 5]], "y": [{}, {}], "z": 5}"""
-  
+

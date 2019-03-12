@@ -920,6 +920,62 @@ class DataCube {
   }
 }
 
+class BooleanDataCube extends DataCube {
+  constructor (args) {
+    args.bytes = 1;
+    super(args);
+  }
+
+  /* grayImageSlice
+   *
+   * Generate an ImageData object that encodes a grayscale 
+   * representation of an on-axis 2D slice of the data cube.
+   *
+   * Required:
+   *   [0] axis: 'x', 'y', or 'z'
+   *   [1] index: 0 - axis size - 1
+   * Optional:
+   *   [2] transparency - black pixels are transparent
+   *   [3] copy - whether to allocate new memory (true) or reuse a shared cache for this function (false)
+   *
+   * Return: imagedata
+   */
+  grayImageSlice (axis, index, transparency=false, copy=true) {
+    let _this = this;
+
+    let square = this.slice(axis, index, /*copy=*/false);
+    let sizes = this.faceDimensions(axis);
+
+    let imgdata = copy
+      ? this.canvas_context.createImageData(sizes[0], sizes[1])
+      : this.cached_imgdata.getImageData(sizes[0], sizes[1]);
+
+    let data32 = new Uint32Array(imgdata.data.buffer);
+
+    const alpha = this.isLittleEndian() 
+      ? 0xff000000
+      : 0x000000ff;
+
+    let i = 0;
+    let tmp = 0;
+
+    if (transparency) {
+      for (i = square.length - 1; i >= 0; i--) {
+        tmp = 0x00 - square[i];
+        data32[i] = (tmp | tmp << 8 | tmp << 16 | (tmp && alpha));
+      }
+    }
+    else {
+      for (i = square.length - 1; i >= 0; i--) {
+        tmp = 0x00 - square[i];
+        data32[i] = (tmp | tmp << 8 | tmp << 16 | alpha);
+      }
+    }
+
+    return imgdata;
+  }
+}
+
 class FloatingPointDataCube extends DataCube {
   constructor (args) {
     super(args);
@@ -1002,17 +1058,18 @@ class FloatingPointDataCube extends DataCube {
 
     let i = 0;
     let val = 0|0;
+    const black = transparency ? 0x00000000 : alpha;
 
     if (this.minval === this.maxval) {
-      if (transparency) {
-        val = (this.minval === 0) ? 0x00000000 : 0xffffffff;
-      }
-      else {
-        val = (this.minval === 0) ? alpha : 0xffffffff; 
-      }
+      val = (this.minval === 0) ? black : 0xffffffff;
 
       for (i = square.length - 1; i >= 0; i--) {
-        data32[i] = val;
+        if (isNaN(square[i]) || square[i] === -Infinity) {
+          data32[i] = black;
+        }
+        else {
+          data32[i] = val;          
+        }
       } 
       return imgdata;
     }
@@ -1062,13 +1119,13 @@ class FloatingPointDataCube extends DataCube {
           data32[i] = alpha;
         }
         else if (isFinite(square[i])) {
+          val = (square[i] * norm - minval) | 0; 
+          data32[i] = (val | val << 8 | val << 16 | alpha);
+        }
+        else {
           data32[i] = (square[i] === +Infinity) 
             ? 0xffffffff 
             : alpha;
-        }
-        else {
-          val = (square[i] * norm - minval) | 0; 
-          data32[i] = (val | val << 8 | val << 16 | alpha);
         }     
       }
     }
