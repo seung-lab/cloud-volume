@@ -153,7 +153,7 @@ def extract_path(cloudpath):
 
 def toabs(path):
   home = os.path.join(os.environ['HOME'], '')
-  path = re.sub('^~/?', home, path)
+  path = re.sub('^~%c?' % os.path.sep, home, path)
   return os.path.abspath(path)
 
 def mkdir(path):
