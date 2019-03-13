@@ -586,10 +586,11 @@ class GoogleCloudStorageInterface(object):
     except google.cloud.exceptions.NotFound as err:
       return None, None
 
+  @retry
   def exists(self, file_path):
     key = self.get_path_to_file(file_path)
-    blob = self._bucket.get_blob(key)
-    return blob is not None
+    blob = self._bucket.blob(key)
+    return blob.exists()
 
   def files_exist(self, file_paths):
     result = {path: None for path in file_paths}
@@ -736,6 +737,7 @@ class S3Interface(object):
       else:
         raise
 
+  @retry
   def exists(self, file_path):
     exists = True
     try:
