@@ -142,7 +142,7 @@ def generate_random_string(size=6):
   return ''.join(random.SystemRandom().choice(string.ascii_lowercase + \
                   string.digits) for _ in range(size))
 
-def extract_path(cloudpath):
+def extract_protocol(cloudpath):
   """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
   protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
   bucket_re = r'^(/?[~\d\w_\.\-]+)/'
