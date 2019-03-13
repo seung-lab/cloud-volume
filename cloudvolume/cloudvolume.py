@@ -500,8 +500,8 @@ class CloudVolume(object):
       return self.provenance
 
     with self._storage as stor:
-      if stor.exists('provenance'):
-        provfile = stor.get_file('provenance')
+      provfile = stor.get_file('provenance')
+      if provfile:
         provfile = provfile.decode('utf-8')
 
         try:
