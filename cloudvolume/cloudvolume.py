@@ -137,7 +137,7 @@ class CloudVolume(object):
     fill_missing=False, cache=False, compress_cache=None, 
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
     compress=None, non_aligned_writes=False, parallel=1, 
-    output_to_shared_memory=False
+    output_to_shared_memory=False, map_gs_to_https=False
   ):
 
     if map_gs_to_https:
