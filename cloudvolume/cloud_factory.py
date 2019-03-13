@@ -11,6 +11,6 @@ def CloudVolumeFactory(cloudurl, *args, map_gs_to_https=True, **kwargs):
     if dataformat.dataformat == "precomputed":
         return CloudVolume(dataformat.cloudpath, *args, **kwargs)
     elif dataformat.dataformat == "graphene":
-        return CloudVolumeGraphene(dataformat.cloudpath, *args, **kwargs)
+        return CloudVolumeGraphene(dataformat.cloudpath, *args, **kwargs, map_gs_to_https=map_gs_to_https)
     # elif dataformat.dataformat == "boss":
     #     return CloudVolumeBoss(dataformat.cloudpath, *args, **kwargs)
