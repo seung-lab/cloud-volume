@@ -817,8 +817,8 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
 
   channel = slice(None) if channel is None else channel
 
-  if len(image.shape) == 3:
-    image = image[:,:,:, np.newaxis ]
+  while image.ndim < 4:
+    image = image[..., np.newaxis ]
 
   def normalize_float(img):
     img = np.copy(img)
@@ -839,7 +839,7 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
     elif index == 2:
       img = image[:, :, level, channel ]
     else:
-      raise NotImplementedError
+      raise IndexError("Index {} is not valid. Expected 0, 1, or 2.".format(index))
 
     num_channels = img.shape[2]
 
