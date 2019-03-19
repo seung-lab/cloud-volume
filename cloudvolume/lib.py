@@ -795,7 +795,7 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
 
   image: A 3D or 4D numpy array. Supported dtypes: integer, float, boolean
   axis: 'x', 'y', 'z'
-  channel: None, 0,1,2, etc, which channel to serialize. Does all by default.
+  channel: None, 0, 1, 2, etc, which channel to serialize. Does all by default.
   directory: override the default output directory
   global_norm: Normalize floating point volumes globally or per slice?
   image_format: 'PNG', 'JPEG', etc
