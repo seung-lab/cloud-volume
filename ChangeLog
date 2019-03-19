@@ -1,6 +1,55 @@
 CHANGES
 =======
 
+0.47.4
+------
+
+* Version 0.47.4
+* feat: more robust provenance refreshes (#205)
+* changing to an os independant character (#204)
+
+0.47.3
+------
+
+* Version 0.47.3
+* fix: add exp backoff to connection creation in connection pool
+
+0.47.2
+------
+
+* Version 0.47.2
+* perf: 1.5-2x faster CloudVolume on Google Cloud Storage (#202)
+
+0.47.1
+------
+
+* Version 0.47.1
+* chore: make sure intern is bumped to the latest version 0.9.13
+* chore: drop python 3.4 testing
+* chore: remove old python builds deployment
+* fix: Bbox.volume() would easily overflow
+* fix(from\_numpy): add boolean and use floating abstract dtype (#200)
+
+0.47.0
+------
+
+* Version 0.47.0
+* docs: Updated CloudVolume docstring
+* fix: from\_numpy error when using multiple mip levels (#197)
+* docs: Python 2.7 EOL statement + pretty up "Spinoff Projects"
+* Version 0.46.0
+* feat: Bbox.from\_delta
+* chore: fpzip 1.1.3 compatibility (#196)
+* fix: more robust SWC importer
+
+0.45.0
+------
+
+* Version 0.45.0
+* feat: from\_numpy function to create a Precomputed Volume (#188)
+* add support for default region (#195)
+* docs: update ChangeLog
+
 0.44.2
 ------
 
