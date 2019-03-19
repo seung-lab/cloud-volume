@@ -841,6 +841,9 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
     else:
       raise IndexError("Index {} is not valid. Expected 0, 1, or 2.".format(index))
 
+    while img.ndim < 3:
+      img = img[..., np.newaxis ]
+
     num_channels = img.shape[2]
 
     for channel_index in range(num_channels):
