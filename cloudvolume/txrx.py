@@ -275,7 +275,7 @@ def upload_image(vol, img, offset, parallel=1,
   """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
 
-  if str(vol.dtype) != str(img.dtype):
+  if not np.issubdtype(img.dtype, vol.dtype):
     raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(vol.dtype, img.dtype))
 
   (is_aligned, bounds, expanded) = check_grid_aligned(vol, img, offset)
