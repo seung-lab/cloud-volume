@@ -15,6 +15,8 @@ from .lib import red, toiter
 from .storage import Storage
 from cloudvolume import meshservice
 
+import DracoPy
+
 SEGIDRE = re.compile(r'/(\d+):0.*?$')
 
 def remove_duplicate_vertices_cross_chunks(verts, faces, chunk_size):
@@ -65,7 +67,28 @@ def decode_mesh_buffer(fragment):
     'num_vertices': num_vertices,
     'vertices': vertices.reshape( num_vertices, 3 ),
     'faces': faces,
+    'was_draco_encoded': False
   }
+
+def decode_draco_mesh_buffer(fragment):
+    try:
+        mesh_object = DracoPy.decode_buffer_to_mesh(fragment)
+        vertices = np.array(mesh_object.points)
+        faces = np.array(mesh_object.faces)
+    except ValueError:
+        raise ValueError("Not a valid draco mesh")
+
+    assert len(vertices) % 3 == 0, "Draco mesh vertices not 3-D"
+    num_vertices = len(vertices) // 3
+
+    # For now, just return this dict until we figure out
+    # how exactly to deal with Draco's lossiness/duplicate vertices
+    return {
+        'num_vertices': num_vertices,
+        'vertices': vertices.reshape(num_vertices, 3),
+        'faces': faces,
+        'was_draco_encoded': True
+    }
 
 
 class GrapheneMeshService(object):
@@ -146,7 +169,11 @@ class GrapheneMeshService(object):
         meshdata = []
         for frag in tqdm(fragments, disable=(not self.vol.progress),
                          desc="Decoding Mesh Buffer"):
-            mesh = decode_mesh_buffer(frag["content"])
+            try:
+                # EAFP
+                mesh = decode_draco_mesh_buffer(frag["content"])
+            except ValueError:
+                mesh = decode_mesh_buffer(frag["content"])
             meshdata.append(mesh)
 
         return self._produce_output(meshdata,
