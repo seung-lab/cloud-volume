@@ -93,7 +93,7 @@ class GrapheneMeshService(object):
 
         return fragments
 
-    def _produce_output(self, mdata, remove_duplicate_vertices_in_chunk):
+    def _produce_output(self, mdata, remove_duplicate_vertices_in_chunk, mend_cross_chunk=True):
         vertexct = np.zeros(len(mdata) + 1, np.uint32)
         vertexct[1:] = np.cumsum([x['num_vertices'] for x in mdata])
         vertices = np.concatenate([x['vertices'] for x in mdata])
@@ -107,7 +107,7 @@ class GrapheneMeshService(object):
             vertices, faces = np.unique(vertices[faces.reshape(-1)],
                                         return_inverse=True, axis=0)
             faces = faces.reshape(-1,3).astype(np.uint32)
-        else:
+        elif mend_cross_chunk:
             vertices, faces = remove_duplicate_vertices_cross_chunks(
                 vertices, faces, self.vol.mesh_chunk_size)
         return {
@@ -116,7 +116,7 @@ class GrapheneMeshService(object):
             'faces': faces,
         }
 
-    def get(self, seg_id, remove_duplicate_vertices=False):
+    def get(self, seg_id, remove_duplicate_vertices=False, mend_cross_chunk=True):
         """
         Merge fragments derived from these segids into a single vertex and face list.
 
@@ -150,4 +150,5 @@ class GrapheneMeshService(object):
             meshdata.append(mesh)
 
         return self._produce_output(meshdata,
-                                    remove_duplicate_vertices)
+                                    remove_duplicate_vertices,
+                                    mend_cross_chunk)
