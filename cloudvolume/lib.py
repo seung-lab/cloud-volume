@@ -795,7 +795,7 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
 
   image: A 3D or 4D numpy array. Supported dtypes: integer, float, boolean
   axis: 'x', 'y', 'z'
-  channel: None, 0,1,2, etc, which channel to serialize. Does all by default.
+  channel: None, 0, 1, 2, etc, which channel to serialize. Does all by default.
   directory: override the default output directory
   global_norm: Normalize floating point volumes globally or per slice?
   image_format: 'PNG', 'JPEG', etc
@@ -817,8 +817,8 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
 
   channel = slice(None) if channel is None else channel
 
-  if len(image.shape) == 3:
-    image = image[:,:,:, np.newaxis ]
+  while image.ndim < 4:
+    image = image[..., np.newaxis ]
 
   def normalize_float(img):
     img = np.copy(img)
@@ -839,7 +839,10 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
     elif index == 2:
       img = image[:, :, level, channel ]
     else:
-      raise NotImplementedError
+      raise IndexError("Index {} is not valid. Expected 0, 1, or 2.".format(index))
+
+    while img.ndim < 3:
+      img = img[..., np.newaxis ]
 
     num_channels = img.shape[2]
 
