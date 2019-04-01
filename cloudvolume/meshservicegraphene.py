@@ -67,7 +67,7 @@ def decode_mesh_buffer(fragment):
     'num_vertices': num_vertices,
     'vertices': vertices.reshape( num_vertices, 3 ),
     'faces': faces,
-    'was_draco_encoded': False
+    'encoding_type': 'precomputed'
   }
 
 def decode_draco_mesh_buffer(fragment):
@@ -87,7 +87,7 @@ def decode_draco_mesh_buffer(fragment):
         'num_vertices': num_vertices,
         'vertices': vertices.reshape(num_vertices, 3),
         'faces': faces,
-        'was_draco_encoded': True
+        'encoding_type': 'draco'
     }
 
 
@@ -170,9 +170,9 @@ class GrapheneMeshService(object):
         for frag in tqdm(fragments, disable=(not self.vol.progress),
                          desc="Decoding Mesh Buffer"):
             try:
-                # EAFP
+                # Easier to ask forgiveness than permission
                 mesh = decode_draco_mesh_buffer(frag["content"])
-            except ValueError:
+            except DracoPy.FileTypeException:
                 mesh = decode_mesh_buffer(frag["content"])
             meshdata.append(mesh)
 
