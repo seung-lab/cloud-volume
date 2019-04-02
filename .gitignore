@@ -109,3 +109,5 @@ test.py
 # Saved Images Cache
 saved_images
 
+# Prophylactic for accidently uploading secrets
+*secret.json
