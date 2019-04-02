@@ -107,11 +107,11 @@ class CloudVolumeGraphene(object):
 
     @property
     def info_endpoint(self):
-        return f"{self.cloud_url}/info"
+        return "%s/info"%self.cloud_url
 
     @property
     def manifest_endpoint(self):
-        return f"{self.cloud_url.replace('segmentation', 'meshing')}/manifest"
+        return "%s/manifest"%self.cloud_url.replace('segmentation', 'meshing')
 
     @property
     def cloudpath(self):
@@ -273,7 +273,7 @@ class CloudVolumeGraphene(object):
             return [root_ids]
         if isinstance(root_ids, list):
             return np.array(root_ids, dtype=np.uint64)
-        if isinstance(root_ids, np.array):
+        if isinstance(root_ids, (np.ndarray, np.generic)):
             return np.array(root_ids.ravel(), dtype=np.uint64)
         return root_ids
 
@@ -321,7 +321,7 @@ class CloudVolumeGraphene(object):
         root_id: uint64 root id to find supervoxels for
         bbox: cloudvolume.lib.Bbox 3d bounding box for segmentation
         """
-        url = f"{self._cloud_url}/segment/{root_id}/leaves"
+        url = "%s/segment/%d/leaves" % (self._cloud_url, root_id)
         bounds_str = []
         for sl in bbox.to_slices():
             bounds_str.append(f"{sl.start}-{sl.stop}")
@@ -330,7 +330,7 @@ class CloudVolumeGraphene(object):
             'bounds': bounds_str
         }
 
-        response = requests.post(url, json=[root_id], params=query_d)
+        response = requests.post(url, json=[int(root_id)], params=query_d)
 
         assert(response.status_code == 200)
         return np.frombuffer(response.content, dtype=np.uint64)

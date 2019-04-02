@@ -75,7 +75,7 @@ class GrapheneMeshService(object):
     def _get_fragment_filenames(self, seg_id, lod=0):
         #TODO: add lod to endpoint
 
-        url = f"{self.vol.manifest_endpoint}/{seg_id}:{lod}?verify=True"
+        url = "%s/%s:%s?verify=True" % (self.vol.manifest_endpoint, seg_id, lod)
         r = requests.get(url)
         if (r.status_code != 200):
             raise Exception(f'manifest endpoint {url} not responding')
@@ -86,7 +86,7 @@ class GrapheneMeshService(object):
 
     def _get_mesh_fragments(self, filenames):
         mesh_dir = self.vol.info['mesh']
-        paths = [f"{mesh_dir}/{filename}" for filename in filenames]
+        paths = ["%s/%s" % (mesh_dir, filename) for filename in filenames]
         with Storage(self.vol.layer_cloudpath,
                      progress=self.vol.progress) as stor:
             fragments = stor.get_files(paths)
