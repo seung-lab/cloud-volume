@@ -85,14 +85,15 @@ def encode_jpeg(arr):
   assert arr.dtype == np.uint8
 
   # simulate multi-channel array for single channel arrays
-  if len(arr.shape) == 3:
-    arr = np.expand_dims(arr, 3) # add channels to end of x,y,z
+  while arr.ndim < 4:
+    arr = arr[..., np.newaxis] # add channels to end of x,y,z
 
-  arr = arr.T # channels, z, y, x
-  reshaped = arr.reshape(arr.shape[3] * arr.shape[2], arr.shape[1] * arr.shape[0])
-  if arr.shape[0] == 1:
-    img = Image.fromarray(reshaped, mode='L')
-  elif arr.shape[0] == 3:
+  reshaped = arr.T 
+  reshaped = np.moveaxis(reshaped, 0, -1)
+  reshaped = reshaped.reshape(reshaped.shape[0], reshaped.shape[1] * reshaped.shape[2], reshaped.shape[3])
+  if reshaped.shape[2] == 1:
+    img = Image.fromarray(reshaped[:,:,0], mode='L')
+  elif reshaped.shape[2] == 3:
     img = Image.fromarray(reshaped, mode='RGB')
   else:
     raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
