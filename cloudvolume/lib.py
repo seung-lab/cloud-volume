@@ -173,15 +173,16 @@ def extract_path(cloudpath):
   protocol, cloudpath = extract_protocol(cloudpath)
 
   match = re.match(bucket_re, cloudpath)
+
   if not match:
-    raise error
+    raise Exception('cannot extract path from {}'.format(cloudpath))
 
   (bucket,) = match.groups()
   cloudpath = re.sub(bucket_re, '', cloudpath)
 
   match = re.search(tail_re, cloudpath)
   if not match:
-    raise error
+    raise Exception('cannot match tail of path from {}'.format(cloudpath))
   dataset, layer = match.groups()
 
   intermediate_path = re.sub(tail_re, '', cloudpath)
