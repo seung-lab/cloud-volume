@@ -305,6 +305,9 @@ class CloudVolume(object):
     if not isinstance(factor, Vec):
       factor = Vec(*factor)
 
+    if not isinstance(data_type, str):
+      data_type = np.dtype(data_type).name
+
     info = {
       "num_channels": int(num_channels),
       "type": layer_type,
