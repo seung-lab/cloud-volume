@@ -110,7 +110,7 @@ class S3ConnectionPool(ConnectionPool):
         endpoint_url='https://s3-hpcrc.rc.princeton.edu',
       )
     else:
-      raise UnsupportedProtocolError("{} unknown. Choose from 's3' or 'matrix'.")
+      raise UnsupportedProtocolError("{} unknown. Choose from 's3' or 'matrix'.", self.service)
       
   def close(self, conn):
     try:
