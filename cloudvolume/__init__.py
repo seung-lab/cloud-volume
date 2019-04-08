@@ -1,6 +1,6 @@
 from .connectionpools import ConnectionPool
 from .cloudvolume import CloudVolume
-from .lib import Bbox
+from .lib import Bbox, Vec
 from .provenance import DataLayerProvenance
 from .skeletonservice import PrecomputedSkeleton, SkeletonEncodeError, SkeletonDecodeError
 from .storage import Storage
