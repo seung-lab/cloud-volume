@@ -109,8 +109,6 @@ class CloudVolume(object):
         use the main process. If parallel is True use the number of CPUs 
         returned by multiprocessing.cpu_count(). When parallel > 1, shared
         memory is used by the underlying download.
-    output_to_shared_memory (deprecated, bool: False, str): 
-      Please use vol.download_to_shared_memory(slices_or_bbox) instead.
     provenance: (string, dict, or object) In lieu of fetching a provenance 
         file, use this one. 
     progress: (bool) Show tqdm progress bars. 
@@ -136,8 +134,7 @@ class CloudVolume(object):
     cloudpath, mip=0, bounded=True, autocrop=False, 
     fill_missing=False, cache=False, compress_cache=None, 
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-    compress=None, non_aligned_writes=False, parallel=1, 
-    output_to_shared_memory=False
+    compress=None, non_aligned_writes=False, parallel=1
   ):
 
     self.autocrop = bool(autocrop)
@@ -149,12 +146,6 @@ class CloudVolume(object):
     self.progress = bool(progress)
     self.path = lib.extract_path(cloudpath)
     self.shared_memory_id = self.generate_shared_memory_location()
-    if type(output_to_shared_memory) == str:
-      self.shared_memory_id = str(output_to_shared_memory)
-    self.output_to_shared_memory = bool(output_to_shared_memory)
-
-    if self.output_to_shared_memory:
-      warn("output_to_shared_memory as an attribute is deprecated. Please use vol.download_to_shared_memory(slices_or_bbox) instead.")
 
     if type(parallel) == bool:
       self.parallel = mp.cpu_count() if parallel == True else 1
@@ -1024,8 +1015,7 @@ class CloudVolume(object):
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
     if self.path.protocol != 'boss':
-      return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel,
-        shared_memory_location=self.shared_memory_id, output_to_shared_memory=self.output_to_shared_memory)
+      return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
 
     return self._boss_cutout(requested_bbox, steps, channel_slice)
 
