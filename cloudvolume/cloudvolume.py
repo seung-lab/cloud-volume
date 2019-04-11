@@ -727,6 +727,11 @@ class CloudVolume(object):
     shape = self.mip_volume_size(mip)
     return Bbox( offset, offset + shape )
 
+  def point_to_mip(self, pt, mip, to_mip):
+    pt = Vec(*pt)
+    downsample_ratio = self.mip_resolution(mip).astype(np.float32) / self.mip_resolution(to_mip).astype(np.float32)
+    return np.floor(pt * downsample_ratio)
+
   def bbox_to_mip(self, bbox, mip, to_mip):
     """Convert bbox or slices from one mip level to another."""
     if not type(bbox) is Bbox:
@@ -1018,6 +1023,36 @@ class CloudVolume(object):
       return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
 
     return self._boss_cutout(requested_bbox, steps, channel_slice)
+
+  def download_point(self, pt, size=256, mip=None):
+    """
+    Download to the right of point given in mip 0 coords.
+    Useful for quickly visualizing a neuroglancer coordinate
+    at an arbitary mip level.
+
+    pt: (x,y,z)
+    size: int or (sx,sy,sz)
+
+    Return: image
+    """
+    if isinstance(size, int):
+      size = Vec(size, size, size)
+    else:
+      size = Vec(*size)
+
+    if mip is None:
+      mip = self.mip
+
+    size2 = size // 2
+
+    pt = self.point_to_mip(pt, mip=0, to_mip=mip)
+    bbox = Bbox(pt - size2, pt + size2)
+    
+    saved_mip = self.mip 
+    self.mip = mip 
+    img = self[bbox]
+    self.mip = saved_mip
+    return img
 
   def download_to_shared_memory(self, slices, location=None):
     """
