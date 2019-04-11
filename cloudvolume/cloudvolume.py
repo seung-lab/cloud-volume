@@ -130,18 +130,24 @@ class CloudVolume(object):
         Read more: 
 
         https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
+    delete_black_uploads: (bool) If set to True, on uploading an entirely black chunk,
+        issue a DELETE request instead of a PUT. This can be useful for avoiding storing
+        waste on borders, but also some storage systems using erasure coding don't do well 
+        with file sizes measured in bytes after compression.
   """
   def __init__(self, 
     cloudpath, mip=0, bounded=True, autocrop=False, 
     fill_missing=False, cache=False, compress_cache=None, 
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-    compress=None, non_aligned_writes=False, parallel=1
+    compress=None, non_aligned_writes=False, parallel=1,
+    delete_black_uploads=False
   ):
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
     self.cdn_cache = cdn_cache
     self.compress = compress
+    self.delete_black_uploads = bool(delete_black_uploads)
     self.fill_missing = bool(fill_missing)
     self.non_aligned_writes = bool(non_aligned_writes)
     self.progress = bool(progress)
@@ -1199,7 +1205,11 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       self.upload_boss_image(img, bbox.minpt)
     else:
-      txrx.upload_image(self, img, bbox.minpt, parallel=self.parallel)
+      txrx.upload_image(
+        self, img, bbox.minpt, 
+        parallel=self.parallel, 
+        delete_black_uploads=self.delete_black_uploads
+      )
 
   def upload_from_shared_memory(self, location, bbox, order='F', cutout_bbox=None):
     """
