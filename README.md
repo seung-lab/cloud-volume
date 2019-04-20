@@ -176,6 +176,7 @@ image = vol[:,:,:] # Download the entire image stack into a numpy array
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
+img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
 
 # Microviewer
 img = vol[64:1028, 64:1028, 64:128]
@@ -320,6 +321,7 @@ Better documentation coming later, but for now, here's a summary of the most use
 * download_to_shared_memory - Instead of using ordinary numpy memory allocations, download to shared memory.
     Be careful, shared memory is like a file and doesn't disappear unless explicitly unlinked. (`vol.unlink_shared_memory()`)
 * upload_from_shared_memory - Upload from a given shared memory block without making a copy.
+* download_point - Download the region around this mip 0 coordinate at a given mip level.
 
 ### CloudVolume Properties
 
@@ -347,7 +349,7 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * encoding (str, r) - The neuroglancer info encoding. e.g. 'raw', 'jpeg', 'npz'
 * resolution (Vec3, r)* - The 3D physical resolution of a voxel in nanometers at the working mip level.
 * downsample_ratio (Vec3, r) - Ratio of the current resolution to the highest resolution mip available.
-* underlying (Vec3, r)* - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
+* chunk_size (Vec3, r)* - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
 * key (str, r)* - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
 * bounds (Bbox, r)* - A Bbox object that represents the bounds of the entire volume.
 * shared_memory_id (str, rw) - Shared memory location used for parallel operation or for output.
