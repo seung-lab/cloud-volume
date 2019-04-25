@@ -208,7 +208,7 @@ skel = PrecomputedSkeleton.from_swc(swcstr) # decode an SWC file
 skel_str = skel.to_swc() # convert to SWC file in string representation
 
 skel.cable_length() # sum of all edge lengths
-skel = skel.downsample(2, preserve_endpoints=True) # reduce size of skeleton by factor of 2 while ensuring the endpoints aren't stripped
+skel = skel.downsample(2) # reduce size of skeleton by factor of 2 
 
 skel1 == skel2 # check if contents of internal arrays match
 PrecomputedSkeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
