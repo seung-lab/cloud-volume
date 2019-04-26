@@ -14,6 +14,7 @@ import psutil
 
 import time
 
+from .exceptions import SharedMemoryReadError, SharedMemoryAllocationError
 from .lib import Bbox, Vec, mkdir
 
 mmaps = []
@@ -23,12 +24,6 @@ EMULATED_SHM_DIRECTORY = '/tmp/cloudvolume-shm'
 
 EMULATE_SHM = not os.path.isdir(SHM_DIRECTORY)
 PLATFORM_SHM_DIRECTORY = SHM_DIRECTORY if not EMULATE_SHM else EMULATED_SHM_DIRECTORY
-
-class SharedMemoryReadError(Exception):
-  pass
-
-class SharedMemoryAllocationError(Exception):
-  pass
 
 def reinit():
   """For use after a process fork only. Trashes bad file descriptors and resets tracking."""

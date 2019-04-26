@@ -64,3 +64,11 @@ class SkeletonEncodeError(Exception):
 class UnsupportedProtocolError(ValueError):
   """Unknown protocol extension."""
   pass
+
+class SharedMemoryReadError(Exception):
+  """Unable to open shared memory."""
+  pass
+
+class SharedMemoryAllocationError(Exception):
+  """Not enough space left to allocate memory."""
+  pass
