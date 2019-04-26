@@ -95,11 +95,15 @@ class GrapheneMeshService(object):
     def __init__(self, vol):
         self.vol = vol
 
-    def _get_fragment_filenames(self, seg_id, lod=0):
+    def _get_fragment_filenames(self, seg_id, lod=0, level=2):
         #TODO: add lod to endpoint
 
         url = "%s/%s:%s?verify=True" % (self.vol.manifest_endpoint, seg_id, lod)
-        r = requests.get(url)
+        if level is not None:
+            r = requests.get(url, data=json.dumps({"start_layer":level}))
+        else:
+            requests.get(url)
+        
         if (r.status_code != 200):
             raise Exception(f'manifest endpoint {url} not responding')
 
