@@ -15,7 +15,7 @@ from .lib import red, toiter, Bbox
 from .storage import Storage
 from cloudvolume import meshservice
 
-#import DracoPy
+import DracoPy
 
 SEGIDRE = re.compile(r'/(\d+):0.*?$')
 
@@ -70,25 +70,25 @@ def decode_mesh_buffer(fragment):
     'encoding_type': 'precomputed'
   }
 
-# def decode_draco_mesh_buffer(fragment):
-#     try:
-#         mesh_object = DracoPy.decode_buffer_to_mesh(fragment)
-#         vertices = np.array(mesh_object.points)
-#         faces = np.array(mesh_object.faces)
-#     except ValueError:
-#         raise ValueError("Not a valid draco mesh")
+def decode_draco_mesh_buffer(fragment):
+    try:
+        mesh_object = DracoPy.decode_buffer_to_mesh(fragment)
+        vertices = np.array(mesh_object.points)
+        faces = np.array(mesh_object.faces)
+    except ValueError:
+        raise ValueError("Not a valid draco mesh")
 
-#     assert len(vertices) % 3 == 0, "Draco mesh vertices not 3-D"
-#     num_vertices = len(vertices) // 3
+    assert len(vertices) % 3 == 0, "Draco mesh vertices not 3-D"
+    num_vertices = len(vertices) // 3
 
-#     # For now, just return this dict until we figure out
-#     # how exactly to deal with Draco's lossiness/duplicate vertices
-#     return {
-#         'num_vertices': num_vertices,
-#         'vertices': vertices.reshape(num_vertices, 3),
-#         'faces': faces,
-#         'encoding_type': 'draco'
-#     }
+    # For now, just return this dict until we figure out
+    # how exactly to deal with Draco's lossiness/duplicate vertices
+    return {
+        'num_vertices': num_vertices,
+        'vertices': vertices.reshape(num_vertices, 3),
+        'faces': faces,
+        'encoding_type': 'draco'
+    }
 
 
 class GrapheneMeshService(object):
@@ -191,11 +191,11 @@ class GrapheneMeshService(object):
         meshdata = []
         for frag in tqdm(fragments, disable=(not self.vol.progress),
                          desc="Decoding Mesh Buffer"):
-            # try:
-            #     # Easier to ask forgiveness than permission
-            #     mesh = decode_draco_mesh_buffer(frag["content"])
-            # except DracoPy.FileTypeException:
-            mesh = decode_mesh_buffer(frag["content"])
+            try:
+                # Easier to ask forgiveness than permission
+                mesh = decode_draco_mesh_buffer(frag["content"])
+            except DracoPy.FileTypeException:
+                mesh = decode_mesh_buffer(frag["content"])
             meshdata.append(mesh)
         if len(meshdata)==0:
             raise Exception('no mesh fragments found')
