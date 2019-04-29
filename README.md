@@ -178,6 +178,9 @@ listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
 
+# Server 
+vol.view() # launches neuroglancer compatible web server on http://localhost:1337
+
 # Microviewer
 img = vol[64:1028, 64:1028, 64:128]
 img.view() # launches web viewer on http://localhost:8080
