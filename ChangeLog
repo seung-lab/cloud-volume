@@ -1,6 +1,37 @@
 CHANGES
 =======
 
+0.49.0
+------
+
+* Version 0.49.0
+* docs: added neuroglancer view server invocation to examples
+* feat: neuroglancer compatible link with vol.view() (#214)
+* docs: remove obsolete downsample parameter
+* docs: underlying -> chunk\_size, download\_point
+* fix: upgrade urllib3 (#213)
+
+0.48.0
+------
+
+* Version 0.48.0
+* feat: download\_point lets you download a cutout from just a coordinate
+* refactor: remove deprecated "output\_to\_shared\_memory" parameter
+* feat: export Vec class for use in other applications
+* misc enhancements (#209)
+* fix: missing protocol in error message
+
+0.47.5
+------
+
+* Version 0.47.5
+* feat: create\_new\_info accepts numpy datatypes for 'data\_type'
+* fix: color jpeg encoding support (#210)
+* fix: FutureWarning on type coercion
+* chore: prophylactic to avoid accidently uploading secrets
+* fix: more robust dtype detection
+* fix: select single channel in save\_images (#207)
+
 0.47.4
 ------
 
@@ -37,6 +68,10 @@ CHANGES
 * docs: Updated CloudVolume docstring
 * fix: from\_numpy error when using multiple mip levels (#197)
 * docs: Python 2.7 EOL statement + pretty up "Spinoff Projects"
+
+0.46.0
+------
+
 * Version 0.46.0
 * feat: Bbox.from\_delta
 * chore: fpzip 1.1.3 compatibility (#196)
