@@ -2,7 +2,7 @@ backports-abc==0.5
 boto3>=1.4.7
 chardet==3.0.4
 compressed-segmentation>=1.0.0
-# DracoPy>=0.0.7
+DracoPy>=0.0.10
 fpzip>=1.1.3
 google-auth>=1.0.2
 google-cloud-storage>=1.10.0
