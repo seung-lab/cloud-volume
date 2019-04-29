@@ -11,7 +11,7 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from .lib import red, toiter
+from .lib import red, toiter, Bbox
 from .storage import Storage
 from cloudvolume import meshservice
 
@@ -95,14 +95,28 @@ class GrapheneMeshService(object):
     def __init__(self, vol):
         self.vol = vol
 
-    def _get_fragment_filenames(self, seg_id, lod=0, level=2):
+    def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
         #TODO: add lod to endpoint
+        query_d = {
+            'verify': True
+        }
+        if bbox is not None:
+            bounds_str = []
+            for sl in bbox.to_slices():
+                bounds_str.append(f"{sl.start}-{sl.stop}")
+            bounds_str = "_".join(bounds_str)
+            query_d['bounds']=bounds_str
 
-        url = "%s/%s:%s?verify=True" % (self.vol.manifest_endpoint, seg_id, lod)
+        url = "%s/%s:%s" % (self.vol.manifest_endpoint, seg_id, lod)
+        
+          
         if level is not None:
-            r = requests.get(url, data=json.dumps({"start_layer":level}))
+            r = requests.get(url,
+                             data=json.dumps({"start_layer":level}),
+                             params=query_d)
         else:
-            requests.get(url)
+            requests.get(url,
+                         params=query_d)
         
         if (r.status_code != 200):
             raise Exception(f'manifest endpoint {url} not responding')
@@ -143,7 +157,7 @@ class GrapheneMeshService(object):
             'faces': faces,
         }
 
-    def get(self, seg_id, remove_duplicate_vertices=False):
+    def get(self, seg_id, remove_duplicate_vertices=False, level=2, bounding_box=None):
         """
         Merge fragments derived from these segids into a single vertex and face list.
 
@@ -154,6 +168,8 @@ class GrapheneMeshService(object):
 
         Optional:
           remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
+          level: int, level of mesh to return. None to return highest available (default 2) 
+          bounding_box: Bbox, bounding box to restrict mesh download to
         Returns: {
           num_vertices: int,
           vertices: [ (x,y,z), ... ]  # floats
@@ -165,7 +181,9 @@ class GrapheneMeshService(object):
             assert len(seg_id) == 1
             seg_id = seg_id[0]
 
-        fragment_filenames = self._get_fragment_filenames(seg_id)
+        fragment_filenames = self._get_fragment_filenames(seg_id,
+                                                          level=level,
+                                                          bbox=bounding_box)
         fragments = self._get_mesh_fragments(fragment_filenames)
         # fragments = sorted(fragments, key=lambda frag: frag['filename'])  # make decoding deterministic
 
