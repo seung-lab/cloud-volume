@@ -591,8 +591,16 @@ class CloudVolume(object):
     return self.info['scales'][mip]
 
   @property
+  def basepath(self):
+    return os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset_name)
+
+  @property 
+  def layerpath(self):
+    return os.path.join(self.basepath, self.layer)
+
+  @property
   def base_cloudpath(self):
-    return self.path.protocol + "://" + os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset_name)
+    return self.path.protocol + "://" + self.basepath
 
   @property 
   def cloudpath(self):
@@ -1285,4 +1293,12 @@ class CloudVolume(object):
   def save_mesh(self, *args, **kwargs):
     warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
     self.mesh.save(*args, **kwargs)
+
+  def view(self, port=1337):
+    import cloudvolume.server
+
+    if self.path.protocol != "file":
+      raise NotImplementedError("Only the file protocol is currently supported.")
+
+    cloudvolume.server.view(self.base_cloudpath, port=port)
 
