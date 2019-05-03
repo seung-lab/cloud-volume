@@ -8,6 +8,7 @@ import os
 import sys
 import uuid
 import weakref
+import traceback
 
 from six.moves import range
 import numpy as np
@@ -1032,7 +1033,7 @@ class CloudVolume(object):
 
     return self._boss_cutout(requested_bbox, steps, channel_slice)
 
-  def download_point(self, pt, size=256, mip=None):
+  def download_point(self, pt, size=256, mip=None, allow_cropped=False):
     """
     Download to the right of point given in mip 0 coords.
     Useful for quickly visualizing a neuroglancer coordinate
@@ -1055,10 +1056,19 @@ class CloudVolume(object):
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
     bbox = Bbox(pt - size2, pt + size2)
+
+    if allow_cropped:
+      bbox = Bbox.clamp(bbox, self.mip_bounds(mip))
     
     saved_mip = self.mip 
-    self.mip = mip 
-    img = self[bbox]
+    self.mip = mip
+    try:
+      img = self[bbox]
+    except ValueError:
+      self.mip = saved_mip
+      print(traceback.format_exc())
+      raise ValueError(
+          'A border of bbox of size {} at point {} is out of bounds (see above trace)'.format(size, pt))
     self.mip = saved_mip
     return img
 
