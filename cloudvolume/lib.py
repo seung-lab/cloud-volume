@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from .exceptions import UnsupportedProtocolError
+from .exceptions import UnsupportedProtocolError, OutOfBoundsError
 
 if sys.version_info < (3,):
     integer_types = (int, long, np.integer)
@@ -265,7 +265,7 @@ def clamp(val, low, high):
 
 def check_bounds(val, low, high):
   if val > high or val < low:
-    raise ValueError('Value {} cannot be outside of inclusive range {} to {}'.format(val,low,high))
+    raise OutOfBoundsError('Value {} cannot be outside of inclusive range {} to {}'.format(val,low,high))
   return val
 
 class Vec(np.ndarray):
