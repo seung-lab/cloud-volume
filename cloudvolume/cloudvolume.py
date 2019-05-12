@@ -8,6 +8,7 @@ import os
 import sys
 import uuid
 import weakref
+import traceback
 
 from six.moves import range
 import numpy as np
@@ -1057,8 +1058,14 @@ class CloudVolume(object):
     bbox = Bbox(pt - size2, pt + size2)
     
     saved_mip = self.mip 
-    self.mip = mip 
-    img = self[bbox]
+    self.mip = mip
+    try:
+      img = self[bbox]
+    except exceptions.OutOfBoundsError:
+      self.mip = saved_mip
+      print(traceback.format_exc())
+      raise exceptions.OutOfBoundsError(
+          'A border of bbox of size {} at point {} is out of bounds (see above trace)'.format(size, pt))
     self.mip = saved_mip
     return img
 
