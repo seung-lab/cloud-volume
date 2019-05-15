@@ -86,7 +86,7 @@ class CloudVolume(object):
     autocrop: (bool) If the specified retrieval bounding box region exceeds 
         volume bounds, process only the area contained inside the volume. 
         This can be useful way to ensure that you are staying inside the 
-        bounds when `bounded=True`.
+        bounds when `bounded=False`.
     fill_missing: (bool) If a chunk file is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
