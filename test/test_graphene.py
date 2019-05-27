@@ -80,6 +80,3 @@ def graphene_vol(cv_supervoxels,  requests_mock, N=64):
     )
 
     yield gcv
-
-def test_graphene_download(graphene_vol):
-    
