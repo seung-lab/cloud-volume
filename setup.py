@@ -12,5 +12,6 @@ setuptools.setup(
       '../ext/microviewer/*',
     ],
   },
+  long_description_content_type="text/markdown",
   pbr=True)
 
