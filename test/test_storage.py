@@ -106,6 +106,17 @@ def test_delete():
       s.delete_file('delete-test-compressed').wait()
       assert s.get_file('delete-test-compressed') is None
 
+      # Reset for batch delete
+      s.put_file('delete-test', content, compress=None).wait()
+      s.put_file('delete-test-compressed', content, compress='gzip').wait()
+      assert s.get_file('delete-test') == content
+      assert s.get_file('delete-test-compressed') == content
+
+      s.delete_files(['delete-test', 'delete-nonexistent',
+                      'delete-test-compressed']).wait()
+      assert s.get_file('delete-test') is None
+      assert s.get_file('delete-test-compressed') is None
+
 def test_compression():
   urls = [
     "file:///tmp/removeme/compress",
