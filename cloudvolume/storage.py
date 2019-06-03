@@ -683,6 +683,8 @@ class HttpInterface(object):
   def get_file(self, file_path):
     key = self.get_path_to_file(file_path)
     resp = requests.get(key)
+    if resp.status_code == 404:
+      return None, None
     resp.raise_for_status()
     return resp.content, resp.encoding
 
