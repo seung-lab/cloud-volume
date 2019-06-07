@@ -499,12 +499,18 @@ class CloudVolume(object):
       if provfile:
         provfile = provfile.decode('utf-8')
 
+        # The json5 decoder is *very* slow
+        # so use the stricter but much faster json 
+        # decoder first, and try it only if it fails.
         try:
-          provfile = json5.loads(provfile)
-        except ValueError:
-          raise ValueError(red("""The provenance file could not be JSON decoded. 
-            Please reformat the provenance file before continuing. 
-            Contents: {}""".format(provfile)))
+          provfile = json.loads(provfile)
+        except json.decoder.JSONDecodeError:
+          try:
+            provfile = json5.loads(provfile)
+          except ValueError:
+            raise ValueError(red("""The provenance file could not be JSON decoded. 
+              Please reformat the provenance file before continuing. 
+              Contents: {}""".format(provfile)))
       else:
         provfile = {
           "sources": [],
