@@ -305,7 +305,7 @@ class CloudVolumeGraphene(object):
         root_ids = slices[-1]
         root_ids = self._convert_root_id_list(root_ids)
         bbox, steps, channel_slice = self.__interpret_slices(slices[:-1])
-
+        bbox = bbox * [2**self.mip, 2**self.mip, 1]
         seg_cutout = np.zeros(sup_voxels_cutout.shape, dtype=np.uint64)
         for root_id in root_ids:
             leaves = self._get_leaves(root_id, bbox)
