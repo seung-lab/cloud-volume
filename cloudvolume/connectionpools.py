@@ -132,4 +132,4 @@ class GCloudBucketPool(ConnectionPool):
       project=self.project,
     )
 
-    return client.get_bucket(self.bucket)
+    return client.bucket(self.bucket)
