@@ -8,13 +8,17 @@ from cloudvolume import CloudVolume
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
 image = vol[:,:,:] # Download a whole image stack into a numpy array from the cloud
 vol[:,:,:] = image # Upload an entire image stack from a numpy array to the cloud
+
+label = 1
+mesh = vol.mesh.get(label) 
+skel = vol.skeletons.get(label)
 ```
 
-CloudVolume is a Python library for reading and writing chunked numpy arrays from [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a simple hackable representation for arbitrarily large volumetric images. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, and other dependency free tasks that might be applied to petavoxel scale images.
+CloudVolume is a serverless Python client for reading and writing chunked numpy arrays from [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a simple hackable representation for arbitrarily large volumetric images. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, and other dependency free tasks that might be applied to petavoxel scale images.
 
 Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports hierarchical file system paths (or simulates them via path strings).
 
-The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers.
+The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment vector fields, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers.
 
 CloudVolume can be used in single or multi-process capacity and can be optimized to use no more than a little over a single cutout's worth of memory. It supports reading and writing the `compressed_segmentation` format via a C++ extension by Jeremy Maitin-Shepard, Stephen Plaza, and William Silversmith and a fallback to a pure python library provided by Yann Leprince.  
 
