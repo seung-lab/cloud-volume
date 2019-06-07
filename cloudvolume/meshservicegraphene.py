@@ -197,6 +197,7 @@ class GrapheneMeshService(object):
             # except DracoPy.FileTypeException:
             mesh = decode_mesh_buffer(frag["content"])
             meshdata.append(mesh)
-
+        if len(meshdata)==0:
+            raise Exception('no mesh fragments found')
         return self._produce_output(meshdata,
                                     remove_duplicate_vertices)
