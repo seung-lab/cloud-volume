@@ -1,6 +1,16 @@
 CHANGES
 =======
 
+0.49.1
+------
+
+* Version 0.49.1
+* feat: Support for GCS Batch Delete (#219)
+* docs: fix typo on autocrop (should be False, not True)
+* chore: update Trove classifiers, add markdown description classification
+* Add allow\_cropped flag to CloudVolume.download\_point (#215)
+* docs: replace npm server with vol.view() in documentation
+
 0.49.0
 ------
 
