@@ -107,15 +107,17 @@
             SLICE.z = (y * (SIZE.z - 1))|0;
           }
 
+          render(); 
+        });
+      }
+
+      function update_pxvalue () {
           PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
 
           vol.hover_id = null;
           if (vol.is_segmentation) {
             vol.hover_id = PXVALUE[0];
           }
-
-          render(); 
-        });
       }
 
       function setup_hyper_volume (data) {
@@ -362,6 +364,7 @@
       }
 
       function render () {
+        update_pxvalue();
         _needsrender = true;
       }
 
