@@ -9,7 +9,7 @@ import re
 import requests
 import sys
 import weakref
-
+import fastremap
 import numpy as np
 import multiprocessing as mp
 
@@ -301,15 +301,20 @@ class CloudVolumeGraphene(object):
         
     def __getitem__(self, slices):
         assert(len(slices) == 4)
-        sup_voxels_cutout = self._cv.__getitem__(slices[:-1])
+        seg_cutout = self._cv.__getitem__(slices[:-1])
         root_ids = slices[-1]
         root_ids = self._convert_root_id_list(root_ids)
         bbox, steps, channel_slice = self.__interpret_slices(slices[:-1])
         bbox = bbox * [2**self.mip, 2**self.mip, 1]
-        seg_cutout = np.zeros(sup_voxels_cutout.shape, dtype=np.uint64)
+        print(bbox, self.bounds)
+        bbox=bbox.intersection(self.bounds* [2**self.mip, 2**self.mip, 1], bbox)
+        print(bbox)
+        remap_d = {}
         for root_id in root_ids:
             leaves = self._get_leaves(root_id, bbox)
-            seg_cutout[np.isin(sup_voxels_cutout, leaves)] = root_id
+            remap_d.update(dict(zip(leaves, [root_id]*len(leaves))))
+        seg_cutout = fastremap.remap(seg_cutout, remap_d, preserve_missing_labels=True)
+            # seg_cutout[np.isin(sup_voxels_cutout, leaves)] = root_id
         return seg_cutout
 
     def _get_leaves(self, root_id, bbox):
