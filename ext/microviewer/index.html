@@ -256,7 +256,7 @@
 
       $(document).on('wheel', function (e) {
         var delta = clamp(e.originalEvent.deltaY, -1, 1);
-        delta = Math.round(delta);
+        delta = -Math.round(delta);
         move_slice(delta);
       });
 
