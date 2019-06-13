@@ -7,8 +7,7 @@ import sys
 import multiprocessing as mp
 
 from six.moves import range
-import posix_ipc
-from posix_ipc import O_CREAT
+
 import numpy as np
 import psutil
 
@@ -21,7 +20,13 @@ mmaps = []
 SHM_DIRECTORY = '/dev/shm/'
 EMULATED_SHM_DIRECTORY = '/tmp/cloudvolume-shm'
 
-EMULATE_SHM = not os.path.isdir(SHM_DIRECTORY)
+try:
+  import posix_ipc
+  from posix_ipc import O_CREAT
+  EMULATE_SHM = not os.path.isdir(SHM_DIRECTORY)
+except ImportError:
+  EMULATE_SHM = True
+
 PLATFORM_SHM_DIRECTORY = SHM_DIRECTORY if not EMULATE_SHM else EMULATED_SHM_DIRECTORY
 
 class SharedMemoryReadError(Exception):
