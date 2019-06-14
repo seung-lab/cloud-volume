@@ -777,6 +777,17 @@ class S3Interface(object):
 
   @retry
   def delete_file(self, file_path):
+
+    # Not necessary to handle 404s here.
+    # From the boto3 documentation:
+
+    # delete_object(**kwargs)
+    # Removes the null version (if there is one) of an object and inserts a delete marker, 
+    # which becomes the latest version of the object. If there isn't a null version, 
+    # Amazon S3 does not remove any objects.
+
+    # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.delete_object
+
     self._conn.delete_object(
       Bucket=self._path.bucket,
       Key=self.get_path_to_file(file_path),
