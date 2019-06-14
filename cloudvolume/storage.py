@@ -777,10 +777,14 @@ class S3Interface(object):
 
   @retry
   def delete_file(self, file_path):
-    self._conn.delete_object(
-      Bucket=self._path.bucket,
-      Key=self.get_path_to_file(file_path),
-    )
+    try:
+      self._conn.delete_object(
+        Bucket=self._path.bucket,
+        Key=self.get_path_to_file(file_path),
+      )
+    except botocore.exceptions.ClientError as e:
+      if e.response['Error']['Code'] != "404":
+        raise
 
   def delete_files(self, file_paths):
     for path in file_paths:
