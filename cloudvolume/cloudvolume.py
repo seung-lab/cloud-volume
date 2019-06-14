@@ -1177,16 +1177,19 @@ class CloudVolume(object):
     if type(slices) == Bbox:
       slices = slices.to_slices()
 
-    imgshape = list(img.shape)
-    if len(imgshape) == 3:
-      imgshape = imgshape + [ self.num_channels ]
-
     maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
     minsize = list(self.bounds.minpt) + [ 0 ]
     slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
     bbox = Bbox.from_slices(slices)
 
     slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
+
+    if np.isscalar(img):
+      img = np.zeros(slice_shape, dtype=self.dtype) + img
+
+    imgshape = list(img.shape)
+    if len(imgshape) == 3:
+      imgshape = imgshape + [ self.num_channels ]
 
     if not np.array_equal(imgshape, slice_shape):
       raise exceptions.AlignmentError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
