@@ -496,7 +496,13 @@ def test_provenance():
   cv, _ = create_layer(size=(64,64,64,1), offset=(0,0,0))
 
   provobj = json.loads(cv.provenance.serialize())
-  assert provobj == {"sources": [], "owners": [], "processing": [], "description": ""}
+  provobj['processing'] = [] # from_numpy
+  assert provobj == {
+    "sources": [], 
+    "owners": [], 
+    "processing": [], 
+    "description": ""
+  }
 
   cv.provenance.sources.append('cooldude24@princeton.edu')
   cv.commit_provenance()
