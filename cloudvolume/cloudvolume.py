@@ -132,13 +132,8 @@ class CloudVolume(object):
         https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
     delete_black_uploads: (bool) If set to True, on uploading an entirely black chunk,
         issue a DELETE request instead of a PUT. This can be useful for avoiding storing
-<<<<<<< HEAD
-        waste on borders, but also some storage systems using erasure coding don't do well 
-        with file sizes measured in bytes after compression.
-=======
         tiny files in the region around an ROI. Some storage systems using erasure coding 
         don't do well with file sizes.
->>>>>>> 3d0ad061d97caa2e73161293c9ad52bab37c30d8
   """
   def __init__(self, 
     cloudpath, mip=0, bounded=True, autocrop=False, 

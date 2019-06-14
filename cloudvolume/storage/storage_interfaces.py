@@ -416,7 +416,6 @@ class S3Interface(StorageInterface):
     S3_POOL[self._path.protocol][self._path.bucket].release_connection(self._conn)
 
 
-
 def _radix_sort(L, i=0):
   """
   Most significant char radix sort
