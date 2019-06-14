@@ -273,8 +273,10 @@ def check_grid_aligned(vol, img, offset):
 def upload_image(
     vol, img, offset, 
     parallel=1, 
-    manual_shared_memory_id=None, manual_shared_memory_bbox=None, 
-    manual_shared_memory_order='F', delete_black_uploads=False
+    manual_shared_memory_id=None, 
+    manual_shared_memory_bbox=None, 
+    manual_shared_memory_order='F', 
+    delete_black_uploads=False
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
@@ -310,7 +312,7 @@ def upload_image(
       manual_shared_memory_id=manual_shared_memory_id, 
       manual_shared_memory_bbox=manual_shared_memory_bbox,
       manual_shared_memory_order=manual_shared_memory_order, 
-      delete_black_uploads=delete_black_uploads
+      delete_black_uploads=delete_black_uploads,
     )
 
   # Download the shell, paint, and upload
@@ -323,22 +325,32 @@ def upload_image(
     # we're throwing them away so safe to write
     img3d.setflags(write=1) 
     shade(img3d, bbox, img, bounds)
-    single_process_upload(vol, img3d, (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), n_threads=0)
+    single_process_upload(
+      vol, img3d, 
+      (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), 
+      n_threads=0,
+      delete_black_uploads=delete_black_uploads,
+    )
 
   download_multiple(vol, shell_chunks, fn=shade_and_upload)
 
 def upload_aligned(
     vol, img, offset, 
     parallel=1, 
-    manual_shared_memory_id=None, manual_shared_memory_bbox=None, 
-    manual_shared_memory_order='F', delete_black_uploads=False
+    manual_shared_memory_id=None, 
+    manual_shared_memory_bbox=None, 
+    manual_shared_memory_order='F', 
+    delete_black_uploads=False
   ):
   global fs_lock
 
   chunk_ranges = list(generate_chunks(vol, img, offset))
 
   if parallel == 1:
-    single_process_upload(vol, img, chunk_ranges)
+    single_process_upload(
+      vol, img, chunk_ranges, 
+      delete_black_uploads=delete_black_uploads
+    )
     return
 
   length = (len(chunk_ranges) // parallel) or 1
@@ -361,8 +373,11 @@ def upload_aligned(
 
   mpu = partial(multi_process_upload, 
     vol, img.shape, offset, 
-    shared_memory_id, manual_shared_memory_bbox, manual_shared_memory_order, 
-    vol.cache.enabled
+    shared_memory_id, 
+    manual_shared_memory_bbox, 
+    manual_shared_memory_order, 
+    vol.cache.enabled, 
+    delete_black_uploads
   )
 
   cleanup_shm = shared_memory_id if not manual_shared_memory_id else None
@@ -374,8 +389,15 @@ def upload_aligned(
     array_like.close()
     shm.unlink(vol.shared_memory_id)
 
-def multi_process_upload(vol, img_shape, offset, 
-  shared_memory_id, manual_shared_memory_bbox, manual_shared_memory_order, caching, chunk_ranges):
+def multi_process_upload(
+    vol, img_shape, offset, 
+    shared_memory_id, 
+    manual_shared_memory_bbox, 
+    manual_shared_memory_order, 
+    caching, 
+    delete_black_uploads,
+    chunk_ranges
+  ):
   global fs_lock
   reset_connection_pools()
   vol.init_submodules(caching)
@@ -384,15 +406,24 @@ def multi_process_upload(vol, img_shape, offset,
   if manual_shared_memory_bbox:
     shared_shape = list(manual_shared_memory_bbox.size3()) + [ vol.num_channels ]
 
-  array_like, renderbuffer = shm.ndarray(shape=shared_shape, dtype=vol.dtype, 
-      location=shared_memory_id, order=manual_shared_memory_order, lock=fs_lock, readonly=True)
+  array_like, renderbuffer = shm.ndarray(
+    shape=shared_shape, 
+    dtype=vol.dtype, 
+    location=shared_memory_id, 
+    order=manual_shared_memory_order, 
+    lock=fs_lock, 
+    readonly=True
+  )
 
   if manual_shared_memory_bbox:
     cutout_bbox = Bbox( offset, offset + img_shape[:3] )
     delta_box = cutout_bbox.clone() - manual_shared_memory_bbox.minpt
     renderbuffer = renderbuffer[ delta_box.to_slices() ]
 
-  single_process_upload(vol, renderbuffer, chunk_ranges)
+  single_process_upload(
+    vol, renderbuffer, chunk_ranges, 
+    delete_black_uploads=delete_black_uploads
+  )
   array_like.close()
 
 def single_process_upload(

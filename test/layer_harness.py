@@ -38,14 +38,17 @@ def create_layer(size, offset, layer_type="image", layer_name='layer', dtype=Non
 def upload_image(image, offset, layer_type, layer_name):
     lpath = 'file://{}'.format(os.path.join(layer_path, layer_name))
     
+    neuroglancer_chunk_size = find_closest_divisor(image.shape[:3], closest_to=[64,64,64])
+
     # Jpeg encoding is lossy so it won't work
-    vol = create_volume_from_image(
-        image, 
-        offset=offset,
-        layer_path=lpath,
-        layer_type=layer_type, 
-        encoding="raw", 
-        resolution=[1,1,1]
+    vol = CloudVolume.from_numpy(
+      image, 
+      vol_path=lpath,
+      resolution=(1,1,1), 
+      voxel_offset=offset, 
+      chunk_size=neuroglancer_chunk_size, 
+      layer_type=layer_type, 
+      encoding='raw', 
     )
     
     return vol
@@ -53,33 +56,3 @@ def upload_image(image, offset, layer_type, layer_name):
 def delete_layer(path=layer_path):
     if os.path.exists(path):
         shutil.rmtree(path)  
-
-# Helper Functions
-
-def create_volume_from_image(image, offset, layer_path, layer_type, resolution, encoding):
-  assert layer_type in ('image', 'segmentation', 'affinities')
-
-  offset = Vec(*offset)
-  volsize = Vec(*image.shape[:3])
-
-  data_type = str(image.dtype)
-  bounds = Bbox(offset, offset + volsize)
-
-  neuroglancer_chunk_size = find_closest_divisor(image.shape[:3], closest_to=[64,64,64])
-
-  info = CloudVolume.create_new_info(
-    num_channels=1, # Increase this number when we add more tests for RGB
-    layer_type=layer_type, 
-    data_type=data_type, 
-    encoding=encoding,
-    resolution=resolution, 
-    voxel_offset=bounds.minpt, 
-    volume_size=bounds.size3(),
-    mesh=(layer_type == 'segmentation'), 
-    chunk_size=neuroglancer_chunk_size,
-  )
-
-  vol = CloudVolume(layer_path, mip=0, info=info)
-  vol.commit_info()
-  vol[:,:,:] = image
-  return vol

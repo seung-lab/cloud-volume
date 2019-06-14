@@ -132,8 +132,13 @@ class CloudVolume(object):
         https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
     delete_black_uploads: (bool) If set to True, on uploading an entirely black chunk,
         issue a DELETE request instead of a PUT. This can be useful for avoiding storing
+<<<<<<< HEAD
         waste on borders, but also some storage systems using erasure coding don't do well 
         with file sizes measured in bytes after compression.
+=======
+        tiny files in the region around an ROI. Some storage systems using erasure coding 
+        don't do well with file sizes.
+>>>>>>> 3d0ad061d97caa2e73161293c9ad52bab37c30d8
   """
   def __init__(self, 
     cloudpath, mip=0, bounded=True, autocrop=False, 
@@ -1177,16 +1182,19 @@ class CloudVolume(object):
     if type(slices) == Bbox:
       slices = slices.to_slices()
 
-    imgshape = list(img.shape)
-    if len(imgshape) == 3:
-      imgshape = imgshape + [ self.num_channels ]
-
     maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
     minsize = list(self.bounds.minpt) + [ 0 ]
     slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
     bbox = Bbox.from_slices(slices)
 
     slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
+
+    if np.isscalar(img):
+      img = np.zeros(slice_shape, dtype=self.dtype) + img
+
+    imgshape = list(img.shape)
+    if len(imgshape) == 3:
+      imgshape = imgshape + [ self.num_channels ]
 
     if not np.array_equal(imgshape, slice_shape):
       raise exceptions.AlignmentError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
@@ -1277,8 +1285,14 @@ class CloudVolume(object):
     delta_box = cutout_bbox.clone() - bbox.minpt
     cutout_image = shared_image[ delta_box.to_slices() ]
     
-    txrx.upload_image(self, cutout_image, cutout_bbox.minpt, parallel=self.parallel, 
-      manual_shared_memory_id=location, manual_shared_memory_bbox=bbox, manual_shared_memory_order=order)
+    txrx.upload_image(
+      self, cutout_image, cutout_bbox.minpt, 
+      parallel=self.parallel, 
+      manual_shared_memory_id=location, 
+      manual_shared_memory_bbox=bbox, 
+      manual_shared_memory_order=order,
+      delete_black_uploads=self.delete_black_uploads,
+    )
     mmap_handle.close() 
 
   def upload_boss_image(self, img, offset):

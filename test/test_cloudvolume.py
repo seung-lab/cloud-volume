@@ -14,8 +14,7 @@ from cloudvolume.lib import Bbox, Vec, yellow
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
   TEST_NUMBER,  
-  delete_layer, create_layer,
-  create_volume_from_image
+  delete_layer, create_layer
 )
 from cloudvolume import txrx
 
@@ -497,7 +496,13 @@ def test_provenance():
   cv, _ = create_layer(size=(64,64,64,1), offset=(0,0,0))
 
   provobj = json.loads(cv.provenance.serialize())
-  assert provobj == {"sources": [], "owners": [], "processing": [], "description": ""}
+  provobj['processing'] = [] # from_numpy
+  assert provobj == {
+    "sources": [], 
+    "owners": [], 
+    "processing": [], 
+    "description": ""
+  }
 
   cv.provenance.sources.append('cooldude24@princeton.edu')
   cv.commit_provenance()
@@ -527,10 +532,10 @@ def test_provenance():
 
 def test_info_provenance_cache():
   image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
-  vol = create_volume_from_image(
-    image=image, 
-    offset=(0,0,0), 
-    layer_path='gs://seunglab-test/cloudvolume/caching', 
+  vol = CloudVolume.from_numpy(
+    image, 
+    voxel_offset=(0,0,0), 
+    vol_path='gs://seunglab-test/cloudvolume/caching', 
     layer_type='image', 
     resolution=(1,1,1), 
     encoding='raw'
@@ -602,13 +607,14 @@ def test_caching():
   dirpath = '/tmp/cloudvolume/caching-volume-' + str(TEST_NUMBER)
   layer_path = 'file://' + dirpath
 
-  vol = create_volume_from_image(
-    image=image, 
-    offset=(0,0,0), 
-    layer_path=layer_path, 
+  vol = CloudVolume.from_numpy(
+    image, 
+    voxel_offset=(0,0,0), 
+    vol_path=layer_path, 
     layer_type='image', 
     resolution=(1,1,1), 
-    encoding='raw'
+    encoding='raw',
+    chunk_size=(64,64,64),
   )
 
   vol.cache.enabled = True
@@ -737,10 +743,10 @@ def test_cache_compression_setting():
   dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
   layer_path = 'file://' + dirpath
 
-  vol = create_volume_from_image(
-    image=image, 
-    offset=(1,1,1), 
-    layer_path=layer_path, 
+  vol = CloudVolume.from_numpy(
+    image, 
+    voxel_offset=(1,1,1), 
+    vol_path=layer_path, 
     layer_type='image', 
     resolution=(1,1,1), 
     encoding='raw'
@@ -771,10 +777,10 @@ def test_cache_validity():
   dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
   layer_path = 'file://' + dirpath
 
-  vol = create_volume_from_image(
-    image=image, 
-    offset=(1,1,1), 
-    layer_path=layer_path, 
+  vol = CloudVolume.from_numpy(
+    image, 
+    voxel_offset=(1,1,1), 
+    vol_path=layer_path, 
     layer_type='image', 
     resolution=(1,1,1), 
     encoding='raw'
@@ -956,6 +962,21 @@ def test_delete():
     pass
   else:
     assert False
+
+def test_delete_black_uploads():
+  for parallel in (1,2):
+    delete_layer()
+    cv, _ = create_layer(size=(256,256,256,1), offset=(0,0,0))
+
+    ls = os.listdir('/tmp/removeme/layer/1_1_1/')
+    assert len(ls) == 64
+
+    cv.parallel = parallel
+    cv.delete_black_uploads = True
+    cv[64:64+128,64:64+128,64:64+128] = 0
+
+    ls = os.listdir('/tmp/removeme/layer/1_1_1/')
+    assert len(ls) == (64 - 8) 
 
 def test_transfer():
   # Bbox version
