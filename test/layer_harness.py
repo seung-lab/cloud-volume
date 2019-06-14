@@ -43,7 +43,7 @@ def upload_image(image, offset, layer_type, layer_name):
       image, 
       vol_path=lpath,
       resolution=(1,1,1), 
-      voxel_offset=(0,0,0), 
+      voxel_offset=offset, 
       chunk_size=(64,64,64), 
       layer_type=layer_type, 
       encoding='raw', 
