@@ -1280,8 +1280,14 @@ class CloudVolume(object):
     delta_box = cutout_bbox.clone() - bbox.minpt
     cutout_image = shared_image[ delta_box.to_slices() ]
     
-    txrx.upload_image(self, cutout_image, cutout_bbox.minpt, parallel=self.parallel, 
-      manual_shared_memory_id=location, manual_shared_memory_bbox=bbox, manual_shared_memory_order=order)
+    txrx.upload_image(
+      self, cutout_image, cutout_bbox.minpt, 
+      parallel=self.parallel, 
+      manual_shared_memory_id=location, 
+      manual_shared_memory_bbox=bbox, 
+      manual_shared_memory_order=order,
+      delete_black_uploads=self.delete_black_uploads,
+    )
     mmap_handle.close() 
 
   def upload_boss_image(self, img, offset):
