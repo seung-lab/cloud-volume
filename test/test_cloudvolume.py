@@ -533,8 +533,8 @@ def test_provenance():
 def test_info_provenance_cache():
   image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
   vol = CloudVolume.from_numpy(
-    image=image, 
-    offset=(0,0,0), 
+    image, 
+    voxel_offset=(0,0,0), 
     vol_path='gs://seunglab-test/cloudvolume/caching', 
     layer_type='image', 
     resolution=(1,1,1), 
@@ -608,12 +608,13 @@ def test_caching():
   layer_path = 'file://' + dirpath
 
   vol = CloudVolume.from_numpy(
-    image=image, 
-    offset=(0,0,0), 
+    image, 
+    voxel_offset=(0,0,0), 
     vol_path=layer_path, 
     layer_type='image', 
     resolution=(1,1,1), 
-    encoding='raw'
+    encoding='raw',
+    chunk_size=(64,64,64),
   )
 
   vol.cache.enabled = True
