@@ -272,7 +272,8 @@ vol.cache.flush_provenance()
 CloudVolume(cloudpath, 
      mip=0, bounded=True, fill_missing=False, autocrop=False, 
      cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, 
-     provenance=None, compress=None, non_aligned_writes=False, parallel=1)
+     provenance=None, compress=None, non_aligned_writes=False, parallel=1,
+     delete_black_uploads=False)
 ```
 
 * mip - Which mip level to access
@@ -290,6 +291,7 @@ CloudVolume(cloudpath,
     Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes)
 * parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
    that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
+* delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all zeros. This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
 
 ### CloudVolume Methods
 
@@ -337,6 +339,7 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * bounded (bool:True, rw) - If a region outside of volume bounds is accessed throw an error if True or Fill the region with black (useful for e.g. marching cubes's 1px boundary) if False.
 * autocrop (bool:False, rw) - If bounded is False and this option is True, automatically crop requested uploads and downloads to the volume boundary.
 * fill_missing (bool:False, rw) - If a file inside volume bounds is unable to be fetched use a block of zeros if True, else throw an error.
+* delete_black_uploads (bool:False, rw) - If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all zeros.
 * info (dict, rw) - Python dict representation of Neuroglancer info JSON file. You must call `vol.commit_info()` to save your changes to storage.
 * provenance (dict-like, rw) - Data layer provenance file representation. You must call `vol.commit_provenance()` to save your changes to storage.
 * available_mips (list of ints, r) - Query which mip levels are defined for reading and writing.
