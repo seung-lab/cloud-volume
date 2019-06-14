@@ -38,13 +38,15 @@ def create_layer(size, offset, layer_type="image", layer_name='layer', dtype=Non
 def upload_image(image, offset, layer_type, layer_name):
     lpath = 'file://{}'.format(os.path.join(layer_path, layer_name))
     
+    neuroglancer_chunk_size = find_closest_divisor(image.shape[:3], closest_to=[64,64,64])
+
     # Jpeg encoding is lossy so it won't work
     vol = CloudVolume.from_numpy(
       image, 
       vol_path=lpath,
       resolution=(1,1,1), 
       voxel_offset=offset, 
-      chunk_size=(64,64,64), 
+      chunk_size=neuroglancer_chunk_size, 
       layer_type=layer_type, 
       encoding='raw', 
     )
