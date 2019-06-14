@@ -14,8 +14,7 @@ from cloudvolume.lib import Bbox, Vec, yellow
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
   TEST_NUMBER,  
-  delete_layer, create_layer,
-  create_volume_from_image
+  delete_layer, create_layer
 )
 from cloudvolume import txrx
 
@@ -737,10 +736,10 @@ def test_cache_compression_setting():
   dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
   layer_path = 'file://' + dirpath
 
-  vol = create_volume_from_image(
-    image=image, 
-    offset=(1,1,1), 
-    layer_path=layer_path, 
+  vol = CloudVolume.from_numpy(
+    image, 
+    voxel_offset=(1,1,1), 
+    vol_path=layer_path, 
     layer_type='image', 
     resolution=(1,1,1), 
     encoding='raw'
@@ -771,10 +770,10 @@ def test_cache_validity():
   dirpath = '/tmp/cloudvolume/caching-validity-' + str(TEST_NUMBER)
   layer_path = 'file://' + dirpath
 
-  vol = create_volume_from_image(
-    image=image, 
-    offset=(1,1,1), 
-    layer_path=layer_path, 
+  vol = CloudVolume.from_numpy(
+    image, 
+    voxel_offset=(1,1,1), 
+    vol_path=layer_path, 
     layer_type='image', 
     resolution=(1,1,1), 
     encoding='raw'
