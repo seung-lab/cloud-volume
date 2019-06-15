@@ -1337,7 +1337,7 @@ class CloudVolume(object):
 
     rmt.create_cutout(chan, self.mip, x_rng, y_rng, z_rng, img)
 
-  def view(self, port=1337):
+  def viewer(self, port=1337):
     import cloudvolume.server
 
     if self.path.protocol != "file":
