@@ -395,10 +395,6 @@ class CloudVolume(object):
       )
     return info
 
-  def refreshInfo(self):
-    warn("WARNING: refreshInfo is deprecated. Use refresh_info instead.")
-    return self.refresh_info()
-
   def fetch_boss_info(self):
     experiment = ExperimentResource(
       name=self.path.dataset, 
@@ -456,10 +452,6 @@ class CloudVolume(object):
       factor *= each_factor
 
     return info
-
-  def commitInfo(self):
-    warn("WARNING: commitInfo is deprecated use commit_info instead.")
-    return self.commit_info()
 
   def commit_info(self):
     if self.path.protocol == 'boss':
@@ -1344,10 +1336,6 @@ class CloudVolume(object):
     img = np.asfortranarray(img.astype(self.dtype))
 
     rmt.create_cutout(chan, self.mip, x_rng, y_rng, z_rng, img)
-
-  def save_mesh(self, *args, **kwargs):
-    warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
-    self.mesh.save(*args, **kwargs)
 
   def view(self, port=1337):
     import cloudvolume.server
