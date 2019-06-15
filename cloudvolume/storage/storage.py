@@ -218,6 +218,25 @@ class SimpleStorage(StorageBase):
   def __exit__(self, exception_type, exception_value, traceback):
     self._interface.release_connection()
 
+  def __getitem__(self, key):
+    content = self.get_file(key)
+    if content is None:
+      return None
+    try:
+      return json.loads(content.decode('utf8'))
+    except LookupError:
+      return content
+    except json.decoder.JSONDecodeError:
+      return content
+
+  def __setitem__(self, key, value):
+    if type(key) == tuple:
+      key, kwargs = key
+    else:
+      kwargs = {}
+
+    self.put_item(key, value, **kwargs)
+
 class GreenStorage(StorageBase):
   def __init__(
     self, layer_path, progress=False, 
