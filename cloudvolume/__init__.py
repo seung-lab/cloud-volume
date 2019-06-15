@@ -51,7 +51,7 @@ from .cloudvolume import CloudVolume
 from .lib import Bbox, Vec
 from .provenance import DataLayerProvenance
 from .skeletonservice import PrecomputedSkeleton, SkeletonEncodeError, SkeletonDecodeError
-from .storage import Storage, SingleStorage
+from .storage import Storage
 from .threaded_queue import ThreadedQueue
 from .exceptions import EmptyVolumeException, EmptyRequestException, AlignmentError
 from .volumecutout import VolumeCutout
