@@ -1142,11 +1142,6 @@ class CloudVolume(object):
     return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel, 
       shared_memory_location=location, output_to_shared_memory=True)
 
-  def flush_cache(self, preserve=None):
-    """See vol.cache.flush"""
-    warn("CloudVolume.flush_cache(...) is deprecated. Please use CloudVolume.cache.flush(...) instead.")
-    return self.cache.flush(preserve=preserve)
-
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     bounds = Bbox.clamp(requested_bbox, self.bounds)
     
