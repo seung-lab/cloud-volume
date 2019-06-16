@@ -1,3 +1,4 @@
+from collections import defaultdict
 import errno
 import math
 import mmap

@@ -33,7 +33,7 @@ from .meshservice import PrecomputedMeshService
 from .provenance import DataLayerProvenance
 from .skeletonservice import PrecomputedSkeletonService
 from .storage import SimpleStorage, Storage, reset_connection_pools
-from . import txrx
+import datasource.precomputed
 from .volumecutout import VolumeCutout
 from . import sharedmemory
 
@@ -183,6 +183,11 @@ class CloudVolume(object):
     self.init_submodules(cache)
     self.cache.compress = compress_cache
 
+    if self.path.layer == 'info':
+      warn("WARNING: Your layer is named 'info', is that what you meant? {}".format(
+          self.path
+      ))
+
     if info is None:
       self.refresh_info()
       if self.cache.enabled:
@@ -277,20 +282,6 @@ class CloudVolume(object):
     """Unlink the current shared memory location from the filesystem."""
     return sharedmemory.unlink(self.shared_memory_id)
 
-  @property
-  def _storage(self):
-    if self.path.protocol == 'boss':
-      return None
-    
-    try:
-      return SimpleStorage(self.layer_cloudpath)
-    except:
-      if self.path.layer == 'info':
-        warn("WARNING: Your layer is named 'info', is that what you meant? {}".format(
-            self.path
-        ))
-      raise
-     
   @classmethod
   def create_new_info(cls, 
     num_channels, layer_type, data_type, encoding, 
@@ -372,197 +363,16 @@ class CloudVolume(object):
 
   def refresh_info(self):
     """Restore the current info from cache or storage."""
-    if self.cache.enabled:
-      info = self.cache.get_json('info')
-      if info:
-        self.info = info
-        return self.info
-
-    self.info = self._fetch_info()
-    self.cache.maybe_cache_info()
-    return self.info
-
-  def _fetch_info(self):
-    if self.path.protocol == "boss":
-      return self.fetch_boss_info()
-    
-    with self._storage as stor:
-      info = stor.get_json('info')
-
-    if info is None:
-      raise exceptions.InfoUnavailableError(
-        red('No info file was found: {}'.format(self.info_cloudpath))
-      )
-    return info
-
-  def fetch_boss_info(self):
-    experiment = ExperimentResource(
-      name=self.path.dataset, 
-      collection_name=self.path.bucket
-    )
-    rmt = BossRemote(boss_credentials)
-    experiment = rmt.get_project(experiment)
-
-    coord_frame = CoordinateFrameResource(name=experiment.coord_frame)
-    coord_frame = rmt.get_project(coord_frame)
-
-    channel = ChannelResource(self.path.layer, self.path.bucket, self.path.dataset)
-    channel = rmt.get_project(channel)    
-
-    unit_factors = {
-      'nanometers': 1,
-      'micrometers': 1e3,
-      'millimeters': 1e6,
-      'centimeters': 1e7,
-    }
-
-    unit_factor = unit_factors[coord_frame.voxel_unit]
-
-    cf = coord_frame
-    resolution = [ cf.x_voxel_size, cf.y_voxel_size, cf.z_voxel_size ]
-    resolution = [ int(round(_)) * unit_factor for _ in resolution ]
-
-    bbox = Bbox(
-      (cf.x_start, cf.y_start, cf.z_start),
-      (cf.x_stop, cf.y_stop, cf.z_stop)
-    )
-    bbox.maxpt = bbox.maxpt 
-
-    layer_type = 'unknown'
-    if 'type' in channel.raw:
-      layer_type = channel.raw['type']
-
-    info = CloudVolume.create_new_info(
-      num_channels=1,
-      layer_type=layer_type,
-      data_type=channel.datatype,
-      encoding='raw',
-      resolution=resolution,
-      voxel_offset=bbox.minpt,
-      volume_size=bbox.size3(),
-    )
-
-    each_factor = Vec(2,2,1)
-    if experiment.hierarchy_method == 'isotropic':
-      each_factor = Vec(2,2,2)
-    
-    factor = each_factor.clone()
-    for _ in range(1, experiment.num_hierarchy_levels):
-      self.add_scale(factor, info=info)
-      factor *= each_factor
-
-    return info
+    return self.metadata.refresh_info()
 
   def commit_info(self):
-    if self.path.protocol == 'boss':
-      return self 
-
-    for scale in self.scales:
-      if scale['encoding'] == 'compressed_segmentation':
-        if 'compressed_segmentation_block_size' not in scale.keys():
-          raise KeyError("""
-            'compressed_segmentation_block_size' must be set if 
-            compressed_segmentation is set as the encoding.
-
-            A typical value for compressed_segmentation_block_size is (8,8,8)
-
-            Info file specification:
-            https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/README.md#info-json-file-specification
-          """)
-        elif self.dtype not in ('uint32', 'uint64'):
-          raise ValueError("compressed_segmentation can only be used with uint32 and uint64 data types.")
-
-    infojson = jsonify(self.info, 
-      sort_keys=True,
-      indent=2, 
-      separators=(',', ': ')
-    )
-
-    with self._storage as stor:
-      stor.put_file('info', infojson, 
-        content_type='application/json', 
-        cache_control='no-cache'
-      )
-    self.cache.maybe_cache_info()
-    return self
+    return self.metadata.commit_info()
 
   def refresh_provenance(self):
-    if self.cache.enabled:
-      prov = self.cache.get_json('provenance')
-      if prov:
-        self.provenance = DataLayerProvenance(**prov)
-        return self.provenance
-
-    self.provenance = self._fetch_provenance()
-    self.cache.maybe_cache_provenance()
-    return self.provenance
-
-  def _cast_provenance(self, prov):
-    if isinstance(prov, DataLayerProvenance):
-      return prov
-    elif isinstance(prov, string_types):
-      prov = json.loads(prov)
-
-    provobj = DataLayerProvenance(**prov)
-    provobj.sources = provobj.sources or []  
-    provobj.owners = provobj.owners or []
-    provobj.processing = provobj.processing or []
-    provobj.description = provobj.description or ""
-    provobj.validate()
-    return provobj
-
-  def _fetch_provenance(self):
-    if self.path.protocol == 'boss':
-      return self.provenance
-
-    with self._storage as stor:
-      provfile = stor.get_file('provenance')
-      if provfile:
-        provfile = provfile.decode('utf-8')
-
-        # The json5 decoder is *very* slow
-        # so use the stricter but much faster json 
-        # decoder first, and try it only if it fails.
-        try:
-          provfile = json.loads(provfile)
-        except json.decoder.JSONDecodeError:
-          try:
-            provfile = json5.loads(provfile)
-          except ValueError:
-            raise ValueError(red("""The provenance file could not be JSON decoded. 
-              Please reformat the provenance file before continuing. 
-              Contents: {}""".format(provfile)))
-      else:
-        provfile = {
-          "sources": [],
-          "owners": [],
-          "processing": [],
-          "description": "",
-        }
-
-    return self._cast_provenance(provfile)
+    return self.metadata.refresh_info()
 
   def commit_provenance(self):
-    if self.path.protocol == 'boss':
-      return self.provenance
-
-    prov = self.provenance.serialize()
-
-    # hack to pretty print provenance files
-    prov = json.loads(prov)
-    prov = jsonify(prov, 
-      sort_keys=True,
-      indent=2, 
-      separators=(',', ': ')
-    )
-
-    with self._storage as stor:
-      stor.put_file('provenance', prov, 
-        content_type='application/json',
-        cache_control='no-cache',
-      )
-    self.cache.maybe_cache_provenance()
-    return self.provenance
+    return self.metadata.commit_provenance()
 
   @property
   def dataset_name(self):
@@ -657,7 +467,7 @@ class CloudVolume(object):
 
   @property
   def volume_size(self):
-    """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels) similar to numpy.""" 
+    """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels).""" 
     return self.mip_volume_size(self.mip)
 
   def mip_volume_size(self, mip):
@@ -857,7 +667,7 @@ class CloudVolume(object):
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
       u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
-      u"size": downscale(fullres['size'], factor, np.ceil),
+      u"size": downscalef(ullres['size'], factor, np.ceil),
     }
 
     if newscale['encoding'] == 'compressed_segmentation':
@@ -1056,7 +866,7 @@ class CloudVolume(object):
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
     if self.path.protocol != 'boss':
-      return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
+      return txrx.download_image(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
 
     return self._boss_cutout(requested_bbox, steps, channel_slice)
 
@@ -1139,49 +949,8 @@ class CloudVolume(object):
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
     location = location or self.shared_memory_id
-    return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel, 
+    return txrx.download_image(self, requested_bbox, steps, channel_slice, parallel=self.parallel, 
       shared_memory_location=location, output_to_shared_memory=True)
-
-  def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
-    bounds = Bbox.clamp(requested_bbox, self.bounds)
-    
-    if bounds.subvoxel():
-      raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
-
-    x_rng = [ bounds.minpt.x, bounds.maxpt.x ]
-    y_rng = [ bounds.minpt.y, bounds.maxpt.y ]
-    z_rng = [ bounds.minpt.z, bounds.maxpt.z ]
-
-    layer_type = 'image' if self.layer_type == 'unknown' else self.layer_type
-
-    chan = ChannelResource(
-      collection_name=self.path.bucket, 
-      experiment_name=self.path.dataset, 
-      name=self.path.layer, # Channel
-      type=layer_type, 
-      datatype=self.dtype,
-    )
-
-    rmt = BossRemote(boss_credentials)
-    cutout = rmt.get_cutout(chan, self.mip, x_rng, y_rng, z_rng, no_cache=True)
-    cutout = cutout.T
-    cutout = cutout.astype(self.dtype)
-    cutout = cutout[::steps.x, ::steps.y, ::steps.z]
-
-    if len(cutout.shape) == 3:
-      cutout = cutout.reshape(tuple(list(cutout.shape) + [ 1 ]))
-
-    if self.bounded or self.autocrop or bounds == requested_bbox:
-      return VolumeCutout.from_volume(self, cutout, bounds)
-
-    # This section below covers the case where the requested volume is bigger
-    # than the dataset volume and the bounds guards have been switched 
-    # off. This is useful for Marching Cubes where a 1px excess boundary
-    # is needed.
-    shape = list(requested_bbox.size3()) + [ cutout.shape[3] ]
-    renderbuffer = np.zeros(shape=shape, dtype=self.dtype, order='F')
-    txrx.shade(renderbuffer, requested_bbox, cutout, bounds)
-    return VolumeCutout.from_volume(self, renderbuffer, requested_bbox)
 
   def __setitem__(self, slices, img):
     if type(slices) == Bbox:
@@ -1299,38 +1068,6 @@ class CloudVolume(object):
       delete_black_uploads=self.delete_black_uploads,
     )
     mmap_handle.close() 
-
-  def upload_boss_image(self, img, offset):
-    shape = Vec(*img.shape[:3])
-    offset = Vec(*offset)
-
-    bounds = Bbox(offset, shape + offset)
-
-    if bounds.subvoxel():
-      raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
-
-    x_rng = [ bounds.minpt.x, bounds.maxpt.x ]
-    y_rng = [ bounds.minpt.y, bounds.maxpt.y ]
-    z_rng = [ bounds.minpt.z, bounds.maxpt.z ]
-
-    layer_type = 'image' if self.layer_type == 'unknown' else self.layer_type
-
-    chan = ChannelResource(
-      collection_name=self.path.bucket, 
-      experiment_name=self.path.dataset, 
-      name=self.path.layer, # Channel
-      type=layer_type, 
-      datatype=self.dtype,
-    )
-
-    if img.shape[3] == 1:
-      img = img.reshape( img.shape[:3] )
-
-    rmt = BossRemote(boss_credentials)
-    img = img.T
-    img = np.asfortranarray(img.astype(self.dtype))
-
-    rmt.create_cutout(chan, self.mip, x_rng, y_rng, z_rng, img)
 
   def viewer(self, port=1337):
     import cloudvolume.server
