@@ -8,6 +8,8 @@ import time
 
 from tqdm import tqdm
 
+DEFAULT_THREADS = 20
+
 class ThreadedQueue(object):
   """Grant threaded task processing to any derived class."""
   def __init__(self, n_threads, queue_size=0, progress=None):

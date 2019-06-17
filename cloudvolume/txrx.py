@@ -1,4 +1,5 @@
 from functools import partial
+import itertools
 import math
 import multiprocessing as mp
 import concurrent.futures
@@ -18,8 +19,9 @@ from .lib import (
   Bbox, min2, max2, check_bounds, 
   jsonify, generate_slices
 )
-from .storage import Storage, SimpleStorage, DEFAULT_THREADS, reset_connection_pools
-from .threaded_queue import ThreadedQueue
+from .scheduler import schedule_jobs
+from .storage import Storage, SimpleStorage, reset_connection_pools
+from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from .volumecutout import VolumeCutout
 from . import sharedmemory as shm
 
@@ -156,19 +158,23 @@ def download_single(vol, cloudpath, filename, cache):
 def download_multiple(vol, cloudpaths, fn):
   locations = vol.cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(vol.cache.path, vol.key)
-  progress = 'Downloading' if vol.progress else None
 
-  def process(cloudpath, filename, cache, iface):
+  def process(cloudpath, filename, cache):
     img3d, bbox = download_single(vol, cloudpath, filename, cache)
     fn(img3d, bbox)
 
-  with ThreadedQueue(n_threads=DEFAULT_THREADS, progress=progress) as tq:
-    for filename in locations['local']:
-      dl = partial(process, cachedir, filename, False)
-      tq.put(dl)
-    for filename in locations['remote']:
-      dl = partial(process, vol.layer_cloudpath, filename, vol.cache.enabled)
-      tq.put(dl)
+  local_downloads = ( partial(process, cachedir, filename, False) for filename in locations['local'] )
+  remote_downloads = ( partial(process, vol.layer_cloudpath, filename, vol.cache.enabled) for filename in locations['remote'] )
+
+  downloads = itertools.chain( local_downloads, remote_downloads )
+
+  schedule_jobs(
+    fns=downloads, 
+    concurrency=DEFAULT_THREADS, 
+    progress=('Downloading' if vol.progress else None),
+    total=len(cloudpaths),
+    green=False # not ready for this yet
+  )
 
 def decode(vol, filename, content):
   """Decode content according to settings in a cloudvolume instance."""

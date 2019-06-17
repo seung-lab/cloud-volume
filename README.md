@@ -182,11 +182,11 @@ vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
 
 # Server 
-vol.view() # launches neuroglancer compatible web server on http://localhost:1337
+vol.viewer() # launches neuroglancer compatible web server on http://localhost:1337
 
 # Microviewer
 img = vol[64:1028, 64:1028, 64:128]
-img.view() # launches web viewer on http://localhost:8080
+img.viewer() # launches web viewer on http://localhost:8080
 
 # Meshes
 vol.mesh.save(12345) # save 12345 as ./12345.ply on disk
@@ -376,7 +376,7 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 * `bounds` - The bounding box of the cutout
 * `num_channels` - Alias for `vol.shape[3]`
 * `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
-* `view()` - Start a local web server (http://localhost:8080) that can view small volumes interactively.
+* `viewer()` - Start a local web server (http://localhost:8080) that can view small volumes interactively. This was recently changed from `view` as `view` is a useful numpy method.
 
 ### Viewing a Precomputed Volume on Disk
 
@@ -384,7 +384,7 @@ If you have Precomputed volume onto local disk and would like to point neuroglan
 
 ```python 
 vol = CloudVolume(...)
-vol.view()
+vol.viewer()
 ```
 
 You can then point any version of neuroglancer at it using `precomputed://http://localhost:1337/NAME_OF_LAYER`.  
@@ -393,7 +393,7 @@ You can then point any version of neuroglancer at it using `precomputed://http:/
 
 CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports bool, uint8, uint16, uint32, float32, and float64 numpy data types for both images and segmentation and can render a composite overlay of image and segmentation.  
 
-You can launch a viewer using the `.view()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
+You can launch a viewer using the `.viewer()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
 
 ```python3
 from cloudvolume import CloudVolume, view, hyperview
@@ -403,8 +403,8 @@ seg_vol = CloudVolume(...)
 img = vol[...]
 seg = vol[...]
 
-img.view() # works on VolumeCutouts
-seg.view() # segmentation type derived from info 
+img.viewer() # works on VolumeCutouts
+seg.viewer() # segmentation type derived from info 
 view(img) # alternative for arbitrary numpy arrays
 view(seg, segmentation=True) 
 hyperview(img, seg) # img and seg shape must match
