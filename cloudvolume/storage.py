@@ -172,8 +172,7 @@ class SimpleStorage(object):
     self._interface.delete_file(file_path)
 
   def delete_files(self, file_paths):
-    for path in file_paths:
-      self._interface.delete_file(path)
+    self._interface.delete_files(file_paths)
     return self
 
   def list_files(self, prefix="", flat=False):
@@ -400,17 +399,16 @@ class Storage(ThreadedQueue):
     return self
 
   def delete_files(self, file_paths):
+    def thunk_delete(paths, interface):
+      interface.delete_files(paths)
 
-    def thunk_delete(path, interface):
-      interface.delete_file(path)
+    if len(self._threads):
+      for block in scatter(file_paths, len(self._threads)):
+        self.put(partial(thunk_delete, block))
+    else:
+      thunk_delete(file_paths, self._interface)
 
-    for path in file_paths:
-      if len(self._threads):
-        self.put(partial(thunk_delete, path))
-      else:
-        thunk_delete(path, self._interface)
-
-    desc = 'Deleting' if self.progress else None
+    desc = "Deleting" if self.progress else None
     self.wait(desc)
 
     return self
@@ -507,6 +505,10 @@ class FileInterface(object):
       os.remove(path)
     elif os.path.exists(path + '.gz'):
       os.remove(path + '.gz')
+
+  def delete_files(self, file_paths):
+    for path in file_paths:
+      self.delete_file(path)
 
   def list_files(self, prefix, flat):
     """
@@ -622,6 +624,18 @@ class GoogleCloudStorageInterface(object):
     except google.cloud.exceptions.NotFound:
       pass
 
+  def delete_files(self, file_paths):
+    MAX_BATCH_SIZE = Batch._MAX_BATCH_SIZE
+
+    for i in range(0, len(file_paths), MAX_BATCH_SIZE):
+      try:
+        with self._bucket.client.batch():
+          for file_path in file_paths[i : i + MAX_BATCH_SIZE]:
+            key = self.get_path_to_file(file_path)
+            self._bucket.delete_blob(key)
+      except google.cloud.exceptions.NotFound:
+        pass
+
   @retry
   def list_files(self, prefix, flat=False):
     """
@@ -658,6 +672,9 @@ class HttpInterface(object):
   def delete_file(self, file_path):
     raise NotImplementedError()
 
+  def delete_files(self, file_paths):
+    raise NotImplementedError()
+
   # @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
     raise NotImplementedError()
@@ -666,6 +683,8 @@ class HttpInterface(object):
   def get_file(self, file_path):
     key = self.get_path_to_file(file_path)
     resp = requests.get(key)
+    if resp.status_code == 404:
+      return None, None
     resp.raise_for_status()
     return resp.content, resp.encoding
 
@@ -762,6 +781,10 @@ class S3Interface(object):
       Bucket=self._path.bucket,
       Key=self.get_path_to_file(file_path),
     )
+
+  def delete_files(self, file_paths):
+    for path in file_paths:
+      self.delete_file(path)
 
   def list_files(self, prefix, flat=False):
     """

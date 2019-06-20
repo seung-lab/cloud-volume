@@ -8,14 +8,17 @@ from cloudvolume import CloudVolume
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
 image = vol[:,:,:] # Download a whole image stack into a numpy array from the cloud
 vol[:,:,:] = image # Upload an entire image stack from a numpy array to the cloud
+
+label = 1
+mesh = vol.mesh.get(label) 
+skel = vol.skeletons.get(label)
 ```
 
-
-CloudVolume is a Python library for reading and writing chunked numpy arrays from [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a simple hackable representation for arbitrarily large volumetric images. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, and other dependency free tasks that might be applied to petavoxel scale images.
+CloudVolume is a serverless Python client for reading and writing chunked numpy arrays from [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a simple hackable representation for arbitrarily large volumetric images. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, and other dependency free tasks that might be applied to petavoxel scale images.
 
 Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports hierarchical file system paths (or simulates them via path strings).
 
-The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers.
+The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment vector fields, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers.
 
 CloudVolume can be used in single or multi-process capacity and can be optimized to use no more than a little over a single cutout's worth of memory. It supports reading and writing the `compressed_segmentation` format via a C++ extension by Jeremy Maitin-Shepard, Stephen Plaza, and William Silversmith and a fallback to a pure python library provided by Yann Leprince.  
 
@@ -176,6 +179,10 @@ image = vol[:,:,:] # Download the entire image stack into a numpy array
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
+img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
+
+# Server 
+vol.view() # launches neuroglancer compatible web server on http://localhost:1337
 
 # Microviewer
 img = vol[64:1028, 64:1028, 64:128]
@@ -207,7 +214,7 @@ skel = PrecomputedSkeleton.from_swc(swcstr) # decode an SWC file
 skel_str = skel.to_swc() # convert to SWC file in string representation
 
 skel.cable_length() # sum of all edge lengths
-skel = skel.downsample(2, preserve_endpoints=True) # reduce size of skeleton by factor of 2 while ensuring the endpoints aren't stripped
+skel = skel.downsample(2) # reduce size of skeleton by factor of 2 
 
 skel1 == skel2 # check if contents of internal arrays match
 PrecomputedSkeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
@@ -320,6 +327,7 @@ Better documentation coming later, but for now, here's a summary of the most use
 * download_to_shared_memory - Instead of using ordinary numpy memory allocations, download to shared memory.
     Be careful, shared memory is like a file and doesn't disappear unless explicitly unlinked. (`vol.unlink_shared_memory()`)
 * upload_from_shared_memory - Upload from a given shared memory block without making a copy.
+* download_point - Download the region around this mip 0 coordinate at a given mip level.
 
 ### CloudVolume Properties
 
@@ -347,7 +355,7 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * encoding (str, r) - The neuroglancer info encoding. e.g. 'raw', 'jpeg', 'npz'
 * resolution (Vec3, r)* - The 3D physical resolution of a voxel in nanometers at the working mip level.
 * downsample_ratio (Vec3, r) - Ratio of the current resolution to the highest resolution mip available.
-* underlying (Vec3, r)* - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
+* chunk_size (Vec3, r)* - Size of the underlying chunks that constitute the volume in storage. e.g. Vec(64, 64, 64)
 * key (str, r)* - The 'directory' we're accessing the current working mip level from within the data layer. e.g. '6_6_30'
 * bounds (Bbox, r)* - A Bbox object that represents the bounds of the entire volume.
 * shared_memory_id (str, rw) - Shared memory location used for parallel operation or for output.
@@ -369,19 +377,18 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 
 ### Viewing a Precomputed Volume on Disk
 
-If you have serialized a Precomputed volume onto local disk and would like to point neuroglancer to it, this solution works nicely for experimenting:
+If you have Precomputed volume onto local disk and would like to point neuroglancer to it:
 
-```bash
-npm install http-server -g
-cd $LOCATION_ABOVE_DATA
-http-server -p 3000 --cors
+```python 
+vol = CloudVolume(...)
+vol.view()
 ```
 
-You can then point any hosted version of neuroglancer at it using `precomputed://http://localhost:3000/NAME/OF/LAYER`.
+You can then point any version of neuroglancer at it using `precomputed://http://localhost:1337/NAME_OF_LAYER`.  
 
 ### Microviewer
 
-CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports bool, uint8, uint16, uint32, float32, and float64 data types for both images and segmentation and can render a composite overlay of image and segmentation.  
+CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports bool, uint8, uint16, uint32, float32, and float64 numpy data types for both images and segmentation and can render a composite overlay of image and segmentation.  
 
 You can launch a viewer using the `.view()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
 

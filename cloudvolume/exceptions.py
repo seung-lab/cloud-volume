@@ -31,6 +31,12 @@ class EncodingError(Exception):
   """Generic decoding error. Applies to content aware and unaware codecs."""
   pass
 
+class OutOfBoundsError(ValueError):
+  """
+  Raised upon trying to obtain or assign to a bbox of a volume outside
+  of the volume's bounds
+  """
+
 # Inheritance below done for backwards compatibility reasons.
 
 class DecompressionError(DecodingError):

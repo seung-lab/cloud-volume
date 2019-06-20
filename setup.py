@@ -9,8 +9,9 @@ setuptools.setup(
   },
   package_data={
     'cloudvolume': [
-      '../ext/microviewer/*',
+      './microviewer/*',
     ],
   },
+  long_description_content_type="text/markdown",
   pbr=True)
 

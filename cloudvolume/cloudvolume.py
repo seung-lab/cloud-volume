@@ -8,6 +8,7 @@ import os
 import sys
 import uuid
 import weakref
+import traceback
 
 from six.moves import range
 import numpy as np
@@ -85,7 +86,7 @@ class CloudVolume(object):
     autocrop: (bool) If the specified retrieval bounding box region exceeds 
         volume bounds, process only the area contained inside the volume. 
         This can be useful way to ensure that you are staying inside the 
-        bounds when `bounded=True`.
+        bounds when `bounded=False`.
     fill_missing: (bool) If a chunk file is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
@@ -109,8 +110,6 @@ class CloudVolume(object):
         use the main process. If parallel is True use the number of CPUs 
         returned by multiprocessing.cpu_count(). When parallel > 1, shared
         memory is used by the underlying download.
-    output_to_shared_memory (deprecated, bool: False, str): 
-      Please use vol.download_to_shared_memory(slices_or_bbox) instead.
     provenance: (string, dict, or object) In lieu of fetching a provenance 
         file, use this one. 
     progress: (bool) Show tqdm progress bars. 
@@ -136,8 +135,7 @@ class CloudVolume(object):
     cloudpath, mip=0, bounded=True, autocrop=False, 
     fill_missing=False, cache=False, compress_cache=None, 
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-    compress=None, non_aligned_writes=False, parallel=1, 
-    output_to_shared_memory=False
+    compress=None, non_aligned_writes=False, parallel=1
   ):
 
     self.autocrop = bool(autocrop)
@@ -149,12 +147,6 @@ class CloudVolume(object):
     self.progress = bool(progress)
     self.path = lib.extract_path(cloudpath)
     self.shared_memory_id = self.generate_shared_memory_location()
-    if type(output_to_shared_memory) == str:
-      self.shared_memory_id = str(output_to_shared_memory)
-    self.output_to_shared_memory = bool(output_to_shared_memory)
-
-    if self.output_to_shared_memory:
-      warn("output_to_shared_memory as an attribute is deprecated. Please use vol.download_to_shared_memory(slices_or_bbox) instead.")
 
     if type(parallel) == bool:
       self.parallel = mp.cpu_count() if parallel == True else 1
@@ -507,12 +499,18 @@ class CloudVolume(object):
       if provfile:
         provfile = provfile.decode('utf-8')
 
+        # The json5 decoder is *very* slow
+        # so use the stricter but much faster json 
+        # decoder first, and try it only if it fails.
         try:
-          provfile = json5.loads(provfile)
-        except ValueError:
-          raise ValueError(red("""The provenance file could not be JSON decoded. 
-            Please reformat the provenance file before continuing. 
-            Contents: {}""".format(provfile)))
+          provfile = json.loads(provfile)
+        except json.decoder.JSONDecodeError:
+          try:
+            provfile = json5.loads(provfile)
+          except ValueError:
+            raise ValueError(red("""The provenance file could not be JSON decoded. 
+              Please reformat the provenance file before continuing. 
+              Contents: {}""".format(provfile)))
       else:
         provfile = {
           "sources": [],
@@ -600,8 +598,16 @@ class CloudVolume(object):
     return self.info['scales'][mip]
 
   @property
+  def basepath(self):
+    return os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset_name)
+
+  @property 
+  def layerpath(self):
+    return os.path.join(self.basepath, self.layer)
+
+  @property
   def base_cloudpath(self):
-    return self.path.protocol + "://" + os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset_name)
+    return self.path.protocol + "://" + self.basepath
 
   @property 
   def cloudpath(self):
@@ -735,6 +741,11 @@ class CloudVolume(object):
     offset = self.mip_voxel_offset(mip)
     shape = self.mip_volume_size(mip)
     return Bbox( offset, offset + shape )
+
+  def point_to_mip(self, pt, mip, to_mip):
+    pt = Vec(*pt)
+    downsample_ratio = self.mip_resolution(mip).astype(np.float32) / self.mip_resolution(to_mip).astype(np.float32)
+    return np.floor(pt * downsample_ratio)
 
   def bbox_to_mip(self, bbox, mip, to_mip):
     """Convert bbox or slices from one mip level to another."""
@@ -1024,10 +1035,45 @@ class CloudVolume(object):
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
     if self.path.protocol != 'boss':
-      return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel,
-        shared_memory_location=self.shared_memory_id, output_to_shared_memory=self.output_to_shared_memory)
+      return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
 
     return self._boss_cutout(requested_bbox, steps, channel_slice)
+
+  def download_point(self, pt, size=256, mip=None):
+    """
+    Download to the right of point given in mip 0 coords.
+    Useful for quickly visualizing a neuroglancer coordinate
+    at an arbitary mip level.
+
+    pt: (x,y,z)
+    size: int or (sx,sy,sz)
+
+    Return: image
+    """
+    if isinstance(size, int):
+      size = Vec(size, size, size)
+    else:
+      size = Vec(*size)
+
+    if mip is None:
+      mip = self.mip
+
+    size2 = size // 2
+
+    pt = self.point_to_mip(pt, mip=0, to_mip=mip)
+    bbox = Bbox(pt - size2, pt + size2)
+    
+    saved_mip = self.mip 
+    self.mip = mip
+    try:
+      img = self[bbox]
+    except exceptions.OutOfBoundsError:
+      self.mip = saved_mip
+      print(traceback.format_exc())
+      raise exceptions.OutOfBoundsError(
+          'A border of bbox of size {} at point {} is out of bounds (see above trace)'.format(size, pt))
+    self.mip = saved_mip
+    return img
 
   def download_to_shared_memory(self, slices, location=None):
     """
@@ -1260,4 +1306,12 @@ class CloudVolume(object):
   def save_mesh(self, *args, **kwargs):
     warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
     self.mesh.save(*args, **kwargs)
+
+  def view(self, port=1337):
+    import cloudvolume.server
+
+    if self.path.protocol != "file":
+      raise NotImplementedError("Only the file protocol is currently supported.")
+
+    cloudvolume.server.view(self.base_cloudpath, port=port)
 
