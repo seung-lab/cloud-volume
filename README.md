@@ -24,7 +24,7 @@ CloudVolume can be used in single or multi-process capacity and can be optimized
 
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.4, 3.5, and 3.6 (we've noticed it's faster on Python 3). Some people have used it with Python 3.7. We support Linux and OS X. Windows is currently unsupported. After installation, you'll also need to set up your cloud credentials.  
+Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.4, 3.5, and 3.6 (we've noticed it's faster on Python 3). Some people have used it with Python 3.7. We support Linux and OS X. Windows is currently unsupported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).  
 
 #### `pip` Binary Installation
 
@@ -182,11 +182,11 @@ vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
 
 # Server 
-vol.view() # launches neuroglancer compatible web server on http://localhost:1337
+vol.viewer() # launches neuroglancer compatible web server on http://localhost:1337
 
 # Microviewer
 img = vol[64:1028, 64:1028, 64:128]
-img.view() # launches web viewer on http://localhost:8080
+img.viewer() # launches web viewer on http://localhost:8080
 
 # Meshes
 vol.mesh.save(12345) # save 12345 as ./12345.ply on disk
@@ -272,7 +272,8 @@ vol.cache.flush_provenance()
 CloudVolume(cloudpath, 
      mip=0, bounded=True, fill_missing=False, autocrop=False, 
      cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, 
-     provenance=None, compress=None, non_aligned_writes=False, parallel=1)
+     provenance=None, compress=None, non_aligned_writes=False, parallel=1,
+     delete_black_uploads=False)
 ```
 
 * mip - Which mip level to access
@@ -290,6 +291,7 @@ CloudVolume(cloudpath,
     Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes)
 * parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
    that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
+* delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all zeros. This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
 
 ### CloudVolume Methods
 
@@ -337,6 +339,7 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * bounded (bool:True, rw) - If a region outside of volume bounds is accessed throw an error if True or Fill the region with black (useful for e.g. marching cubes's 1px boundary) if False.
 * autocrop (bool:False, rw) - If bounded is False and this option is True, automatically crop requested uploads and downloads to the volume boundary.
 * fill_missing (bool:False, rw) - If a file inside volume bounds is unable to be fetched use a block of zeros if True, else throw an error.
+* delete_black_uploads (bool:False, rw) - If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all zeros.
 * info (dict, rw) - Python dict representation of Neuroglancer info JSON file. You must call `vol.commit_info()` to save your changes to storage.
 * provenance (dict-like, rw) - Data layer provenance file representation. You must call `vol.commit_provenance()` to save your changes to storage.
 * available_mips (list of ints, r) - Query which mip levels are defined for reading and writing.
@@ -373,7 +376,7 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 * `bounds` - The bounding box of the cutout
 * `num_channels` - Alias for `vol.shape[3]`
 * `save_images()` - Save Z slice PNGs of the current image to `./saved_images` for manual inspection
-* `view()` - Start a local web server (http://localhost:8080) that can view small volumes interactively.
+* `viewer()` - Start a local web server (http://localhost:8080) that can view small volumes interactively. This was recently changed from `view` as `view` is a useful numpy method.
 
 ### Viewing a Precomputed Volume on Disk
 
@@ -381,7 +384,7 @@ If you have Precomputed volume onto local disk and would like to point neuroglan
 
 ```python 
 vol = CloudVolume(...)
-vol.view()
+vol.viewer()
 ```
 
 You can then point any version of neuroglancer at it using `precomputed://http://localhost:1337/NAME_OF_LAYER`.  
@@ -390,7 +393,7 @@ You can then point any version of neuroglancer at it using `precomputed://http:/
 
 CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports bool, uint8, uint16, uint32, float32, and float64 numpy data types for both images and segmentation and can render a composite overlay of image and segmentation.  
 
-You can launch a viewer using the `.view()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
+You can launch a viewer using the `.viewer()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
 
 ```python3
 from cloudvolume import CloudVolume, view, hyperview
@@ -400,8 +403,8 @@ seg_vol = CloudVolume(...)
 img = vol[...]
 seg = vol[...]
 
-img.view() # works on VolumeCutouts
-seg.view() # segmentation type derived from info 
+img.viewer() # works on VolumeCutouts
+seg.viewer() # segmentation type derived from info 
 view(img) # alternative for arbitrary numpy arrays
 view(seg, segmentation=True) 
 hyperview(img, seg) # img and seg shape must match

@@ -52,16 +52,27 @@ def downscale(size, factor_in_mip, roundingfn):
 
 class CloudVolume(object):
   """
-  CloudVolume reads and writes chunked numpy arrays from Neuroglancer volumes 
-  in "Precomputed" format, a simple hackable representation for arbitrarily 
-  large volumetric images. A CloudVolume instance represents a dataset 
-  interface at a given mip level (i.e. it doesn't load the entire dataset into
-  memory).  
+  A "serverless" Python client for reading and writing arbitrarily large 
+  Neuroglancer Precomputed volumes both locally and on cloud services using.  
+  A CloudVolume instance represents a dataset interface at a given mip level 
+  (it doesn't load the entire dataset into memory).  
 
-  Neuroglancer datasets have metadata requires specified in an `info` file 
-  located at the root of a data layer. Among other things, the bounds of the 
-  volume are described in the info file via a 3D "offset" and 3D "shape" 
-  in voxels.
+  Neuroglancer datasets specify metadata in an `info` file located at the root 
+  of a data layer. It contains, among other things, the bounds of the 
+  volume described as a 3D "voxel_offset" and 3D "size" in voxels, and the
+  resolution of the dataset.
+
+  Example:
+
+    from cloudvolume import CloudVolume
+
+    vol = CloudVolume('gs://mylab/mouse/image', progress=True)
+    image = vol[:,:,:] # Download an image stack as a numpy array
+    vol[:,:,:] = image # Upload an image stack from a numpy array
+    
+    label = 1
+    mesh = vol.mesh.get(label) 
+    skel = vol.skeletons.get(label)
 
   Required:
     cloudpath: Path to the dataset layer. This should match storage's supported
@@ -74,29 +85,26 @@ class CloudVolume(object):
            HTTP/S: http(s)://.../$CHANNEL
            matrix: matrix://$BUCKET/$DATASET/$LAYER/
   Optional:
-    mip: (int or iterable) Which level of downsampling to read and write from.
-        0 is the highest resolution. You can also specify the voxel resolution
-        like mip=[6,6,30] which will search for the appropriate mip level.
-    bounded: (bool) If a region outside of volume bounds is accessed:
-        True: Throw an error
-        False: Allow accessing the region. If no files are present, an error 
-            will still be thrown. Consider combining with `fill_missing=True`
-            though this can be dangrous if you're not sure that all files
-            exist.
-    autocrop: (bool) If the specified retrieval bounding box region exceeds 
+    autocrop: (bool) If the specified retrieval bounding box exceeds the
         volume bounds, process only the area contained inside the volume. 
         This can be useful way to ensure that you are staying inside the 
         bounds when `bounded=False`.
-    fill_missing: (bool) If a chunk file is unable to be fetched:
-        True: Use a block of zeros
-        False: Throw an error
-    cache: (bool or str) Store downloaded and uploaded files in a cache on disk 
-      and preferentially read from it before redownloading. 
+    bounded: (bool) If a region outside of volume bounds is accessed:
+        True: Throw an error
+        False: Allow accessing the region. If no files are present, an error 
+            will still be thrown. Consider combining this option with 
+            `fill_missing=True`. However, this can be dangrous as it allows
+            missing files and potentially network errors to be intepreted as 
+            zeros.
+    cache: (bool or str) Store downs and uploads in a cache on disk
+          and preferentially read from it before redownloading.
         - falsey value: no caching will occur.
         - True: cache will be located in a standard location.
         - non-empty string: cache is located at this file path
-    compress_cache: (None or bool) If not None, override default compression 
-        behavior for the cache.
+
+        After initialization, you can adjust this setting via:
+        `cv.cache.enabled = ...` which accepts the same values.
+
     cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
       image files. Most cloud providers perform some kind of caching. As of 
       this writing, Google defaults to 3600 seconds. Most of the time you'll 
@@ -104,16 +112,6 @@ class CloudVolume(object):
       - int: number of seconds for cache to be considered fresh (max-age)
       - bool: True: max-age=3600, False: no-cache
       - str: set the header manually
-    info: (dict) In lieu of fetching a neuroglancer info file, use this one.
-        This is useful when creating new datasets.
-    parallel (int: 1, bool): Number of extra processes to launch, 1 means only 
-        use the main process. If parallel is True use the number of CPUs 
-        returned by multiprocessing.cpu_count(). When parallel > 1, shared
-        memory is used by the underlying download.
-    provenance: (string, dict, or object) In lieu of fetching a provenance 
-        file, use this one. 
-    progress: (bool) Show tqdm progress bars. 
-        Defaults True in interactive python, False in script execution mode.
     compress: (bool, str, None) pick which compression method to use. 
         None: (default) gzip for raw arrays and no additional compression
           for compressed_segmentation and fpzip.
@@ -124,24 +122,50 @@ class CloudVolume(object):
           'gzip': Extension so that we can add additional methods in the future 
                   like lz4 or zstd. 
           '': no compression (same as False).
+    compress_cache: (None or bool) If not None, override default compression 
+        behavior for the cache.
+    delete_black_uploads: (bool) If True, on uploading an entirely black chunk,
+        issue a DELETE request instead of a PUT. This can be useful for avoiding storing
+        tiny files in the region around an ROI. Some storage systems using erasure coding 
+        don't do well with tiny file sizes.
+    fill_missing: (bool) If a chunk file is unable to be fetched:
+        True: Use a block of zeros
+        False: Throw an error
+    info: (dict) In lieu of fetching a neuroglancer info file, use this one.
+        This is useful when creating new datasets and for repeatedly initializing
+        a new cloudvolume instance.
     non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing 
         safe without careful design. When not enabled, a 
         cloudvolume.exceptions.AlignmentError is thrown for non-aligned writes. 
-        Read more: 
-
+        
         https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
+
+    mip: (int or iterable) Which level of downsampling to read and write from.
+        0 is the highest resolution. You can also specify the voxel resolution
+        like mip=[6,6,30] which will search for the appropriate mip level.
+    parallel (int: 1, bool): Number of extra processes to launch, 1 means only 
+        use the main process. If parallel is True use the number of CPUs 
+        returned by multiprocessing.cpu_count(). When parallel > 1, shared
+        memory (Linux) or emulated shared memory via files (other platforms) 
+        is used by the underlying download.
+    progress: (bool) Show progress bars. 
+        Defaults to True in interactive python, False in script execution mode.
+    provenance: (string, dict) In lieu of fetching a provenance 
+        file, use this one. 
   """
   def __init__(self, 
     cloudpath, mip=0, bounded=True, autocrop=False, 
     fill_missing=False, cache=False, compress_cache=None, 
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
-    compress=None, non_aligned_writes=False, parallel=1
+    compress=None, non_aligned_writes=False, parallel=1,
+    delete_black_uploads=False
   ):
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
     self.cdn_cache = cdn_cache
     self.compress = compress
+    self.delete_black_uploads = bool(delete_black_uploads)
     self.fill_missing = bool(fill_missing)
     self.non_aligned_writes = bool(non_aligned_writes)
     self.progress = bool(progress)
@@ -181,12 +205,15 @@ class CloudVolume(object):
 
   @classmethod
   def from_numpy(cls, 
-      arr, vol_path='file:///tmp/image/'+generate_random_string(),
+      arr, 
+      vol_path='file:///tmp/image/'+generate_random_string(),
       resolution=(4,4,40), voxel_offset=(0,0,0), 
       chunk_size=(128,128,64), layer_type=None, max_mip=0,
       encoding='raw', compress=None
     ):
     """
+    Create a new dataset from a numpy array.
+
     max_mip: (int) the maximum mip level id in the info file. 
     Note that currently the numpy array can only sit in mip 0,
     the max_mip was only created in info file.
@@ -247,6 +274,7 @@ class CloudVolume(object):
     return 'cloudvolume-shm-' + str(uuid.uuid4())
 
   def unlink_shared_memory(self):
+    """Unlink the current shared memory location from the filesystem."""
     return sharedmemory.unlink(self.shared_memory_id)
 
   @property
@@ -272,7 +300,7 @@ class CloudVolume(object):
     max_mip=0, factor=Vec(2,2,1) 
   ):
     """
-    Used for creating new neuroglancer info files.
+    Create a new neuroglancer Precomputed info file.
 
     Required:
       num_channels: (int) 1 for grayscale, 3 for RGB 
@@ -343,6 +371,7 @@ class CloudVolume(object):
     return info
 
   def refresh_info(self):
+    """Restore the current info from cache or storage."""
     if self.cache.enabled:
       info = self.cache.get_json('info')
       if info:
@@ -365,10 +394,6 @@ class CloudVolume(object):
         red('No info file was found: {}'.format(self.info_cloudpath))
       )
     return info
-
-  def refreshInfo(self):
-    warn("WARNING: refreshInfo is deprecated. Use refresh_info instead.")
-    return self.refresh_info()
 
   def fetch_boss_info(self):
     experiment = ExperimentResource(
@@ -427,10 +452,6 @@ class CloudVolume(object):
       factor *= each_factor
 
     return info
-
-  def commitInfo(self):
-    warn("WARNING: commitInfo is deprecated use commit_info instead.")
-    return self.commit_info()
 
   def commit_info(self):
     if self.path.protocol == 'boss':
@@ -1121,11 +1142,6 @@ class CloudVolume(object):
     return txrx.cutout(self, requested_bbox, steps, channel_slice, parallel=self.parallel, 
       shared_memory_location=location, output_to_shared_memory=True)
 
-  def flush_cache(self, preserve=None):
-    """See vol.cache.flush"""
-    warn("CloudVolume.flush_cache(...) is deprecated. Please use CloudVolume.cache.flush(...) instead.")
-    return self.cache.flush(preserve=preserve)
-
   def _boss_cutout(self, requested_bbox, steps, channel_slice=slice(None)):
     bounds = Bbox.clamp(requested_bbox, self.bounds)
     
@@ -1171,16 +1187,19 @@ class CloudVolume(object):
     if type(slices) == Bbox:
       slices = slices.to_slices()
 
-    imgshape = list(img.shape)
-    if len(imgshape) == 3:
-      imgshape = imgshape + [ self.num_channels ]
-
     maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
     minsize = list(self.bounds.minpt) + [ 0 ]
     slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
     bbox = Bbox.from_slices(slices)
 
     slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
+
+    if np.isscalar(img):
+      img = np.zeros(slice_shape, dtype=self.dtype) + img
+
+    imgshape = list(img.shape)
+    if len(imgshape) == 3:
+      imgshape = imgshape + [ self.num_channels ]
 
     if not np.array_equal(imgshape, slice_shape):
       raise exceptions.AlignmentError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
@@ -1199,7 +1218,11 @@ class CloudVolume(object):
     if self.path.protocol == 'boss':
       self.upload_boss_image(img, bbox.minpt)
     else:
-      txrx.upload_image(self, img, bbox.minpt, parallel=self.parallel)
+      txrx.upload_image(
+        self, img, bbox.minpt, 
+        parallel=self.parallel, 
+        delete_black_uploads=self.delete_black_uploads
+      )
 
   def upload_from_shared_memory(self, location, bbox, order='F', cutout_bbox=None):
     """
@@ -1267,8 +1290,14 @@ class CloudVolume(object):
     delta_box = cutout_bbox.clone() - bbox.minpt
     cutout_image = shared_image[ delta_box.to_slices() ]
     
-    txrx.upload_image(self, cutout_image, cutout_bbox.minpt, parallel=self.parallel, 
-      manual_shared_memory_id=location, manual_shared_memory_bbox=bbox, manual_shared_memory_order=order)
+    txrx.upload_image(
+      self, cutout_image, cutout_bbox.minpt, 
+      parallel=self.parallel, 
+      manual_shared_memory_id=location, 
+      manual_shared_memory_bbox=bbox, 
+      manual_shared_memory_order=order,
+      delete_black_uploads=self.delete_black_uploads,
+    )
     mmap_handle.close() 
 
   def upload_boss_image(self, img, offset):
@@ -1303,11 +1332,7 @@ class CloudVolume(object):
 
     rmt.create_cutout(chan, self.mip, x_rng, y_rng, z_rng, img)
 
-  def save_mesh(self, *args, **kwargs):
-    warn("WARNING: vol.save_mesh is deprecated. Please use vol.mesh.save(...) instead.")
-    self.mesh.save(*args, **kwargs)
-
-  def view(self, port=1337):
+  def viewer(self, port=1337):
     import cloudvolume.server
 
     if self.path.protocol != "file":

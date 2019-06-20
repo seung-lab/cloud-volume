@@ -1,9 +1,12 @@
 CHANGES
 =======
 
-* avoid files ending up in site-packages/ext upon installation in python
-* make mousewheel scrolling direction match w/s keyboard and neuroglancer behavior
-* update displayed pixel value on change of slice
+0.50.0
+------
+
+* Version 0.50.0
+* feat: delete black uploads flag (#212)
+* docs: add link to public dataset examples
 * docs: update README
 * docs: add description of CloudVolume to \_\_init\_\_.py
 * chore: update ChangeLog AUTHORS
