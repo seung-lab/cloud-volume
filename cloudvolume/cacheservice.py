@@ -11,11 +11,24 @@ def warn(text):
   print(colorize('yellow', text))
 
 class CacheService(object):
-  
-  def __init__(self, path_or_bool, vol):
-    self.vol = vol
-    self.enabled = path_or_bool # on/off or path (on)
-    self.compress = None # None = linked, bool = force
+  def __init__(
+    self, enabled, shared_config, 
+    meta=None, compress=None
+  ):
+    """
+    enabled: bool or path string
+    shared_config: SharedConfiguration 
+    meta: PrecomputedMetadata
+    compress: None = linked to dataset setting, bool = Force
+    """
+
+    self.shared_config = shared_config
+    self.enabled = enabled 
+    self.compress = compress 
+
+    # b/c there's a circular dependency
+    # meta is usually set afterwards
+    self.meta = meta 
 
     self.initialize()
 
@@ -24,7 +37,7 @@ class CacheService(object):
       return 
 
     if not os.path.exists(self.path):
-        mkdir(self.path)
+      mkdir(self.path)
 
     if not os.access(self.path, os.R_OK|os.W_OK):
       raise IOError('Cache directory needs read/write permission: ' + self.path)
@@ -32,7 +45,7 @@ class CacheService(object):
   @property
   def path(self):
     if type(self.enabled) is not str:
-      path = self.vol.path
+      path = self.shared_config.path
       return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
         path.protocol, path.bucket.replace('/', ''), path.intermediate_path,
         path.dataset, path.layer
@@ -42,22 +55,22 @@ class CacheService(object):
   
   def num_files(self, all_mips=False):
     def size(mip):
-      path_at_mip = os.path.join(self.path, self.vol.mip_key(mip))
+      path_at_mip = os.path.join(self.path, self.meta.key(mip))
       if not os.path.exists(path_at_mip):
         return 0
       return len(os.listdir(path_at_mip))
 
     if all_mips:
-      sizes = [ 0 ] * (max(list(self.vol.available_mips)) + 1)
-      for i in self.vol.available_mips:
+      sizes = [ 0 ] * (max(list(self.meta.available_mips)) + 1)
+      for i in self.meta.available_mips:
         sizes[i] = size(i)
       return sizes
     else:
-      return size(self.vol.mip)
+      return size(self.shared_config.mip)
 
   def num_bytes(self, all_mips=False):
     def mip_size(mip):
-      path_at_mip = os.path.join(self.path, self.vol.mip_key(mip))
+      path_at_mip = os.path.join(self.path, self.meta.key(mip))
       if not os.path.exists(path_at_mip):
         return 0
 
@@ -66,16 +79,16 @@ class CacheService(object):
       )
 
     if all_mips:
-      sizes = [ 0 ] * (max(list(self.vol.available_mips)) + 1)
-      for i in self.vol.available_mips:
+      sizes = [ 0 ] * (max(list(self.meta.available_mips)) + 1)
+      for i in self.meta.available_mips:
         sizes[i] = mip_size(i)
       return sizes
     else:
-      return mip_size(self.vol.mip)
+      return mip_size(self.shared_config.mip)
 
   def list(self, mip=None):
-    mip = self.vol.mip if mip is None else mip
-    path = os.path.join(self.path, self.vol.mip_key(mip))
+    mip = self.shared_config.mip if mip is None else mip
+    path = os.path.join(self.path, self.meta.key(mip))
 
     if not os.path.exists(path):
       return []
@@ -115,11 +128,10 @@ class CacheService(object):
       shutil.rmtree(self.path)
       return
 
-    for mip in self.vol.available_mips:
-      preserve_mip = self.vol.slices_from_global_coords(preserve)
-      preserve_mip = Bbox.from_slices(preserve_mip)
+    for mip in self.meta.available_mips:
+      preserve_mip = self.meta.bbox_to_mip(preserve, 0, mip)
+      mip_path = os.path.join(self.path, self.meta.key(mip))
 
-      mip_path = os.path.join(self.path, self.vol.mip_key(mip))
       if not os.path.exists(mip_path):
         continue
 
@@ -152,23 +164,21 @@ class CacheService(object):
     """
     if not os.path.exists(self.path):
       return
-    
+  
+    cur_mip = self.shared_config.mip
+
     if type(region) in (list, tuple):
-      region = generate_slices(region, self.vol.bounds.minpt, self.vol.bounds.maxpt, bounded=False)
+      region = generate_slices(region, self.meta.bounds(cur_mip).minpt, self.meta.bounds(cur_mip).maxpt, bounded=False)
       region = Bbox.from_slices(region)
 
-    mips = self.vol.mip if mips == None else mips
-    if type(mips) == int:
-      mips = (mips, )
+    mips = ( cur_mip, ) if mips == None else mips
 
     for mip in mips:
-      mip_path = os.path.join(self.path, self.vol.mip_key(mip))
+      mip_path = os.path.join(self.path, self.meta.key(mip))
       if not os.path.exists(mip_path):
         continue
 
-      region_mip = self.vol.slices_from_global_coords(region)
-      region_mip = Bbox.from_slices(region_mip)
-
+      region_mip = self.meta.bbox_to_mip(region, mip=0, to_mip=mip)
       for filename in os.listdir(mip_path):
         bbox = Bbox.from_filename(filename)
         if not Bbox.intersects(region, bbox):
@@ -183,7 +193,7 @@ class CacheService(object):
     if not cache_info:
       return
 
-    fresh_info = self.vol._fetch_info()
+    fresh_info = self.meta.fetch_info()
 
     mismatch_error = ValueError("""
       Data layer info file differs from cache. Please check whether this
@@ -237,8 +247,8 @@ class CacheService(object):
     if not cached_prov:
       return
 
-    cached_prov = self.vol._cast_provenance(cached_prov)
-    fresh_prov = self.vol._fetch_provenance()
+    cached_prov = self.meta._cast_provenance(cached_prov)
+    fresh_prov = self.meta.fetch_provenance()
     if cached_prov != fresh_prov:
       warn("""
       WARNING: Cached provenance file does not match source.
@@ -254,21 +264,21 @@ class CacheService(object):
   def maybe_cache_info(self):
     if self.enabled:
       with SimpleStorage('file://' + self.path) as storage:
-        storage.put_file('info', jsonify(self.vol.info), 'application/json')
+        storage.put_file('info', jsonify(self.meta.info), 'application/json')
 
   def maybe_cache_provenance(self):
-    if self.enabled and self.vol.provenance:
+    if self.enabled and self.meta.provenance:
       with SimpleStorage('file://' + self.path) as storage:
-        storage.put_file('provenance', self.vol.provenance.serialize(), 'application/json')
+        storage.put_file('provenance', self.meta.provenance.serialize(), 'application/json')
 
-  def compute_data_locations(self, cloudpaths):
+  def compute_data_locations(self, cloudpaths, mip):
     if not self.enabled:
       return { 'local': [], 'remote': cloudpaths }
 
     def noextensions(fnames):
       return [ os.path.splitext(fname)[0] for fname in fnames ]
 
-    list_dir = mkdir(os.path.join(self.vol.cache_path, self.vol.key))
+    list_dir = mkdir(os.path.join(self.path, self.meta.key(mip)))
     filenames = noextensions(os.listdir(list_dir))
 
     basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }

@@ -1,38 +1,17 @@
+from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
+from .secrets import boss_credentials
 
+from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
 
-
-class BossMetadataService(object):
+class BossMetadata(PrecomputedMetadata):
   def __init__(self, cloudpath, cache, info=None):
-    self. cloudpath = cloudpath
-    self.cache = cache 
-    self.info = info 
-
-    if info is None:
-      self.refresh_info()
-      if self.cache.enabled:
-        self.cache.check_info_validity()
-    else:
-      self.info = info
-
-  def refresh_info(self):
-    """Restore the current info from cache or storage."""
-    if self.cache.enabled:
-      info = self.cache.get_json('info')
-      if info:
-        self.info = info
-        return self.info
-
-    self.info = self.fetch_info()
-    self.cache.maybe_cache_info()
-    return self.info
+    super(self, PrecomputedMetadata).__init__(
+      cloudpath, cache, info=info, provenance=None
+    )
 
   def commit_info(self):
     """BOSS doesn't support editing metadata after creation."""
     pass 
-
-  def commit_provenance(self):
-    """BOSS doesn't support provenance files."""
-    pass
 
   def fetch_info(self):
     experiment = ExperimentResource(
@@ -91,3 +70,11 @@ class BossMetadataService(object):
       factor *= each_factor
 
     return info
+
+  def commit_provenance(self):
+    """BOSS doesn't support provenance files."""
+    pass
+
+  def fetch_provenance(self):
+    """BOSS doesn't support provenance files."""
+    pass

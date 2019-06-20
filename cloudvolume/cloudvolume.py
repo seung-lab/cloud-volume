@@ -3,7 +3,6 @@ from __future__ import print_function
 import itertools
 import collections
 import json
-import json5
 import os
 import sys
 import uuid
@@ -16,10 +15,6 @@ from tqdm import tqdm
 from six import string_types
 import multiprocessing as mp
 from time import strftime
-
-from intern.remote.boss import BossRemote
-from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from .secrets import boss_credentials
 
 from . import lib
 from .cacheservice import CacheService
@@ -49,6 +44,28 @@ def warn(text):
 def downscale(size, factor_in_mip, roundingfn):
   smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
   return list(map(int, roundingfn(smaller)))
+
+class CloudVolumeSharedConfiguration(object):
+  def __init__(
+    self, cache, cdn_cache, compress, mip, 
+    parallel, progress,
+    *args, **kwargs
+  ):
+    if type(parallel) == bool:
+      parallel = mp.cpu_count() if parallel == True else 1
+    elif parallel <= 0:
+      raise ValueError('Number of processes must be >= 1. Got: ' + str(parallel))
+    else:
+      parallel = int(parallel)
+
+    self.cache = cache 
+    self.cdn_cache = cdn_cache
+    self.compress = compress 
+    self.mip = mip
+    self.parallel = parallel 
+    self.progress = bool(progress)
+    self.args = args 
+    self.kwargs = kwargs
 
 class CloudVolume(object):
   """
@@ -163,50 +180,66 @@ class CloudVolume(object):
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
-    self.cdn_cache = cdn_cache
-    self.compress = compress
-    self.delete_black_uploads = bool(delete_black_uploads)
-    self.fill_missing = bool(fill_missing)
-    self.non_aligned_writes = bool(non_aligned_writes)
-    self.progress = bool(progress)
-    self.path = lib.extract_path(cloudpath)
     self.shared_memory_id = self.generate_shared_memory_location()
 
-    if type(parallel) == bool:
-      self.parallel = mp.cpu_count() if parallel == True else 1
-    else:
-      self.parallel = int(parallel)
-    
-    if self.parallel <= 0:
-      raise ValueError('Number of processes must be >= 1. Got: ' + str(self.parallel))
+    self.config = CloudVolumeSharedConfiguration(
+      path=lib.extract_path(cloudpath), 
+      cdn_cache=cdn_cache, 
+      compress=compress, 
+      mip=mip, 
+      parallel=parallel, 
+      progress=progress,
+    )
 
-    self.init_submodules(cache)
-    self.cache.compress = compress_cache
+    self.cache = CacheService(
+      enabled=cache, 
+      shared_config=self.config, 
+      compress=compress_cache,
+    )
 
-    if self.path.layer == 'info':
-      warn("WARNING: Your layer is named 'info', is that what you meant? {}".format(
-          self.path
-      ))
+    self.meta = PrecomputedMetadataSource(
+      cloudpath, 
+      cache=self.cache, 
+      config=self.config, 
+      info=info, 
+      provenance=provenance, 
+    )
+    self.cache.meta = self.meta
 
-    if info is None:
-      self.refresh_info()
-      if self.cache.enabled:
-        self.cache.check_info_validity()
-    else:
-      self.info = info
+    self.imgsrc = PrecomptedImageSource(
+      cloudpath, 
+      delete_black_uploads=bool(delete_black_uploads), 
+      fill_missing=bool(fill_missing), 
+      non_aligned_writes=bool(non_aligned_writes), 
+      cache=self.cache, 
+      config=self.config, 
+      metadata=self.meta, 
+    )
 
-    if provenance is None:
-      self.provenance = None
-      self.refresh_provenance()
-      self.cache.check_provenance_validity()
-    else:
-      self.provenance = self._cast_provenance(provenance)
+    self.meshsrc = PrecomputedMeshService(
+      cloudpath,
+      cache=self.cache, config=self.config,
+      info=self.meta.info,
+    )
+
+    self.skeletons = PrecomputedSkeletonService(
+      cloudpath,
+      cache=self.cache, config=self.config,
+      info=self.meta.info,
+    )
 
     # needs to be set after info is defined since
     # its setter is based off of scales
     self.mip = mip
-
     self.pid = os.getpid()
+
+  @property 
+  def info(self):
+    return self.meta.info
+
+  @property
+  def provenance(self):
+    return self.meta.provenance
 
   @classmethod
   def from_numpy(cls, 
@@ -258,10 +291,10 @@ class CloudVolume(object):
     """Called when unpickling which is integral to multiprocessing."""
     self.__dict__ = d 
 
-    if 'cache' in d:
-      self.init_submodules(d['cache'].enabled)
-    else:
-      self.init_submodules(False)
+    # if 'cache' in d:
+    #   self.init_submodules(d['cache'].enabled)
+    # else:
+    #   self.init_submodules(False)
     
     pid = os.getpid()
     if 'pid' in d and d['pid'] != pid:
@@ -269,11 +302,11 @@ class CloudVolume(object):
       reset_connection_pools() 
       self.pid = pid
   
-  def init_submodules(self, cache):
-    """cache = path or bool"""
-    self.cache = CacheService(cache, weakref.proxy(self)) 
-    self.mesh = PrecomputedMeshService(weakref.proxy(self))
-    self.skeleton = PrecomputedSkeletonService(weakref.proxy(self)) 
+  # def init_submodules(self, cache):
+  #   """cache = path or bool"""
+  #   self.cache = CacheService(cache, weakref.proxy(self)) 
+  #   self.mesh = PrecomputedMeshService(weakref.proxy(self))
+  #   self.skeleton = PrecomputedSkeletonService(weakref.proxy(self)) 
 
   def generate_shared_memory_location(self):
     return 'cloudvolume-shm-' + str(uuid.uuid4())
@@ -363,38 +396,38 @@ class CloudVolume(object):
 
   def refresh_info(self):
     """Restore the current info from cache or storage."""
-    return self.metadata.refresh_info()
+    return self.meta.refresh_info()
 
   def commit_info(self):
-    return self.metadata.commit_info()
+    return self.meta.commit_info()
 
   def refresh_provenance(self):
-    return self.metadata.refresh_info()
+    return self.meta.refresh_info()
 
   def commit_provenance(self):
-    return self.metadata.commit_provenance()
+    return self.meta.commit_provenance()
 
   @property
   def dataset_name(self):
-    return self.path.dataset
+    return self.meta.dataset
   
   @property
   def layer(self):
-    return self.path.layer
+    return self.meta.layer
 
   @property
   def mip(self):
-    return self._mip
+    return self.config.mip
 
   @mip.setter
   def mip(self, mip):
     mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
     try:
       if isinstance(mip, list):  # mip specified by voxel resolution
-        self._mip = next((i for (i,s) in enumerate(self.scales)
+        self.config.mip = next((i for (i,s) in enumerate(self.scales)
                           if s["resolution"] == mip))
       else:  # mip specified by index into downsampling hierarchy
-        self._mip = self.available_mips[mip]
+        self.config.mip = self.available_mips[mip]
     except Exception:
       if isinstance(mip, list):
         opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
@@ -411,34 +444,34 @@ class CloudVolume(object):
 
   @property
   def scales(self):
-    return self.info['scales']
+    return self.meta.scales
 
   @scales.setter
   def scales(self, val):
-    self.info['scales'] = val
+    self.meta.scales = val
 
   @property
   def scale(self):
-    return self.mip_scale(self.mip)
+    return self.meta.scale(self.mip)
 
   @scale.setter
   def scale(self, val):
     self.info['scales'][self.mip] = val
 
   def mip_scale(self, mip):
-    return self.info['scales'][mip]
+    return self.meta.scale(mip)
 
   @property
   def basepath(self):
-    return os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset_name)
+    return self.meta.basepath
 
   @property 
   def layerpath(self):
-    return os.path.join(self.basepath, self.layer)
+    return self.meta.layerpath
 
   @property
   def base_cloudpath(self):
-    return self.path.protocol + "://" + self.basepath
+    return self.meta.base_cloudpath
 
   @property 
   def cloudpath(self):
@@ -446,11 +479,11 @@ class CloudVolume(object):
 
   @property
   def layer_cloudpath(self):
-    return os.path.join(self.base_cloudpath, self.layer)
+    return self.meta.cloudpath
 
   @property
   def info_cloudpath(self):
-    return os.path.join(self.layer_cloudpath, 'info')
+    return self.meta.infopath
 
   @property
   def cache_path(self):
@@ -459,24 +492,23 @@ class CloudVolume(object):
   @property
   def shape(self):
     """Returns Vec(x,y,z,channels) shape of the volume similar to numpy.""" 
-    return self.mip_shape(self.mip)
+    return self.meta.shape(self.mip)
 
   def mip_shape(self, mip):
-    size = self.mip_volume_size(mip)
-    return Vec(size.x, size.y, size.z, self.num_channels)
+    return self.meta.shape(mip)
 
   @property
   def volume_size(self):
     """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels).""" 
-    return self.mip_volume_size(self.mip)
+    return self.meta.volume_size(self.mip)
 
   def mip_volume_size(self, mip):
-    return Vec(*self.info['scales'][mip]['size'])
+    return self.meta.volume_size(mip)
 
   @property
   def available_mips(self):
     """Returns a list of mip levels that are defined."""
-    return range(len(self.info['scales']))
+    return self.meta.available_mips
 
   @property
   def available_resolutions(self):
@@ -486,24 +518,24 @@ class CloudVolume(object):
   @property
   def layer_type(self):
     """e.g. 'image' or 'segmentation'"""
-    return self.info['type']
+    return self.meta.layer_type
 
   @property
   def dtype(self):
     """e.g. 'uint8'"""
-    return self.data_type
+    return self.meta.dtype
 
   @property
   def data_type(self):
-    return self.info['data_type']
+    return self.meta.data_type
 
   @property
   def encoding(self):
     """e.g. 'raw' or 'jpeg'"""
-    return self.mip_encoding(self.mip)
+    return self.meta.encoding(self.mip)
 
   def mip_encoding(self, mip):
-    return self.info['scales'][mip]['encoding']
+    return self.meta.encoding(mip)
 
   @property
   def compressed_segmentation_block_size(self):
@@ -516,102 +548,75 @@ class CloudVolume(object):
 
   @property
   def num_channels(self):
-    return int(self.info['num_channels'])
+    return self.meta.num_channels
 
   @property
   def voxel_offset(self):
     """Vec(x,y,z) start of the dataset in voxels"""
-    return self.mip_voxel_offset(self.mip)
+    return self.meta.voxel_offset(self.mip)
 
   def mip_voxel_offset(self, mip):
-    return Vec(*self.info['scales'][mip]['voxel_offset'])
+    return self.meta.voxel_offset(mip)
 
   @property 
   def resolution(self):
     """Vec(x,y,z) dimensions of each voxel in nanometers"""
-    return self.mip_resolution(self.mip)
+    return self.meta.resolution(self.mip)
 
   def mip_resolution(self, mip):
-    return Vec(*self.info['scales'][mip]['resolution'])
+    return self.meta.resolution(mip)
 
   @property
   def downsample_ratio(self):
     """Describes how downsampled the current mip level is as an (x,y,z) factor triple."""
-    return self.resolution / self.mip_resolution(0)
+    return self.meta.downsample_ratio(self.mip)
 
   @property
   def chunk_size(self):
     """Underlying chunk size dimensions in voxels. Synonym for underlying."""
-    return self.underlying
+    return self.meta.chunk_size(self.mip)
 
   def mip_chunk_size(self, mip):
-    return self.mip_underlying(mip)
+    return self.meta.chunk_size(mip)
 
   @property
   def underlying(self):
     """Underlying chunk size dimensions in voxels. Synonym for chunk_size."""
-    return self.mip_underlying(self.mip)
+    return self.meta.chunk_size(self.mip)
 
   def mip_underlying(self, mip):
-    return Vec(*self.info['scales'][mip]['chunk_sizes'][0])
+    return self.meta.chunk_size(mip)
 
   @property
   def key(self):
     """The subdirectory within the data layer containing the chunks for this mip level"""
-    return self.mip_key(self.mip)
+    return self.meta.key(self.mip)
 
   def mip_key(self, mip):
-    return self.info['scales'][mip]['key']
+    return self.meta.key(mip)
 
   @property
   def bounds(self):
     """Returns a bounding box for the dataset with dimensions in voxels"""
-    return self.mip_bounds(self.mip)
+    return self.meta.bounds(self.mip)
 
   def mip_bounds(self, mip):
-    offset = self.mip_voxel_offset(mip)
-    shape = self.mip_volume_size(mip)
+    offset = self.meta.voxel_offset(mip)
+    shape = self.meta.volume_size(mip)
     return Bbox( offset, offset + shape )
 
   def point_to_mip(self, pt, mip, to_mip):
-    pt = Vec(*pt)
-    downsample_ratio = self.mip_resolution(mip).astype(np.float32) / self.mip_resolution(to_mip).astype(np.float32)
-    return np.floor(pt * downsample_ratio)
+    return self.meta.point_to_mip(pt, mip, to_mip)
 
   def bbox_to_mip(self, bbox, mip, to_mip):
     """Convert bbox or slices from one mip level to another."""
-    if not type(bbox) is Bbox:
-      bbox = lib.generate_slices(
-        bbox, 
-        self.mip_bounds(mip).minpt, 
-        self.mip_bounds(mip).maxpt, 
-        bounded=False
-      )
-      bbox = Bbox.from_slices(bbox)
-
-    def one_level(bbox, mip, to_mip):
-      original_dtype = bbox.dtype
-      # setting type required for Python2
-      downsample_ratio = self.mip_resolution(mip).astype(np.float32) / self.mip_resolution(to_mip).astype(np.float32)
-      bbox = bbox.astype(np.float64)
-      bbox *= downsample_ratio
-      bbox.minpt = np.floor(bbox.minpt)
-      bbox.maxpt = np.ceil(bbox.maxpt)
-      bbox = bbox.astype(original_dtype)
-      return bbox
-
-    delta = 1 if to_mip >= mip else -1
-    while (mip != to_mip):
-      bbox = one_level(bbox, mip, mip + delta)
-      mip += delta
-
-    return bbox
+    return self.meta.bbox_to_mip(bbox, mip, to_mip)
 
   def slices_to_global_coords(self, slices):
     """
     Used to convert from a higher mip level into mip 0 resolution.
     """
-    bbox = self.bbox_to_mip(slices, self.mip, 0)
+    bbox = self.meta.bbox_to_mip(slices, self.mip, 0)
     return bbox.to_slices()
 
   def slices_from_global_coords(self, slices):
@@ -620,12 +625,12 @@ class CloudVolume(object):
     coordinates. This is mainly useful for debugging since the neuroglancer
     client displays the mip 0 coordinates for your cursor.
     """
-    bbox = self.bbox_to_mip(slices, 0, self.mip)
+    bbox = self.meta.bbox_to_mip(slices, 0, self.mip)
     return bbox.to_slices()
 
   def reset_scales(self):
     """Used for manually resetting downsamples if something messed up."""
-    self.info['scales'] = self.info['scales'][0:1]
+    self.meta.reset_scales()
     return self.commit_info()
 
   def add_scale(self, factor, encoding=None, chunk_size=None, info=None):
@@ -642,56 +647,7 @@ class CloudVolume(object):
 
     Returns: info dict
     """
-    if not info:
-      info = self.info
-
-    # e.g. {"encoding": "raw", "chunk_sizes": [[64, 64, 64]], "key": "4_4_40", 
-    # "resolution": [4, 4, 40], "voxel_offset": [0, 0, 0], 
-    # "size": [2048, 2048, 256]}
-    fullres = info['scales'][0]
-
-    # If the voxel_offset is not divisible by the ratio,
-    # zooming out will slightly shift the data.
-    # Imagine the offset is 10
-    #    the mip 1 will have an offset of 5
-    #    the mip 2 will have an offset of 2 instead of 2.5 
-    #        meaning that it will be half a pixel to the left
-    if not chunk_size:
-      chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
-
-    if encoding is None:
-      encoding = fullres['encoding']
-
-    newscale = {
-      u"encoding": encoding,
-      u"chunk_sizes": [ list(map(int, chunk_size)) ],
-      u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
-      u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
-      u"size": downscalef(ullres['size'], factor, np.ceil),
-    }
-
-    if newscale['encoding'] == 'compressed_segmentation':
-      if 'compressed_segmentation_block_size' in fullres:
-        newscale['compressed_segmentation_block_size'] = fullres['compressed_segmentation_block_size']  
-      else: 
-        newscale['compressed_segmentation_block_size'] = (8,8,8)
-
-    newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
-
-    new_res = np.array(newscale['resolution'], dtype=int)
-
-    preexisting = False
-    for index, scale in enumerate(info['scales']):
-      res = np.array(scale['resolution'], dtype=int)
-      if np.array_equal(new_res, res):
-        preexisting = True
-        info['scales'][index] = newscale
-        break
-
-    if not preexisting:    
-      info['scales'].append(newscale)
-
-    return newscale
+    return self.meta.add_scale(factor, encoding, chunk_size, info)
 
   def __interpret_slices(self, slices):
     """
@@ -865,6 +821,9 @@ class CloudVolume(object):
     if self.autocrop:
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
     
+
+    return self.imgsrc.download()
+
     if self.path.protocol != 'boss':
       return txrx.download_image(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
 
@@ -1076,4 +1035,6 @@ class CloudVolume(object):
       raise NotImplementedError("Only the file protocol is currently supported.")
 
     cloudvolume.server.view(self.base_cloudpath, port=port)
+
+
 
