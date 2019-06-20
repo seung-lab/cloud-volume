@@ -1,6 +1,26 @@
 CHANGES
 =======
 
+* avoid files ending up in site-packages/ext upon installation in python
+* make mousewheel scrolling direction match w/s keyboard and neuroglancer behavior
+* update displayed pixel value on change of slice
+* docs: update README
+* docs: add description of CloudVolume to \_\_init\_\_.py
+* chore: update ChangeLog AUTHORS
+
+0.49.3
+------
+
+* Version 0.49.3
+* perf: omit a network request when creating a GCS connection (#223)
+* perf: improve initialization performance of CV
+
+0.49.2
+------
+
+* Version 0.49.2
+* fix: http(s) should handle 404 like gs and s3
+
 0.49.1
 ------
 
@@ -28,7 +48,9 @@ CHANGES
 * feat: download\_point lets you download a cutout from just a coordinate
 * refactor: remove deprecated "output\_to\_shared\_memory" parameter
 * feat: export Vec class for use in other applications
+* feat: export Vec class for use in other applications
 * misc enhancements (#209)
+* misc enhancements
 * fix: missing protocol in error message
 
 0.47.5

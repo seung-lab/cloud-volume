@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .lib import mkdir, save_images
 
-from . import viewer
+from . import microviewer
 
 class VolumeCutout(np.ndarray):
 
@@ -78,4 +78,4 @@ class VolumeCutout(np.ndarray):
 
   def view(self, port=8080):
     """Start a local web app on the given port that lets you explore this cutout."""
-    viewer.run([ self ], port=port)
+    microviewer.run([ self ], port=port)
