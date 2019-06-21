@@ -45,9 +45,9 @@ def downscale(size, factor_in_mip, roundingfn):
   smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
   return list(map(int, roundingfn(smaller)))
 
-class CloudVolumeSharedConfiguration(object):
+class SharedConfiguration(object):
   def __init__(
-    self, cache, cdn_cache, compress, mip, 
+    self, cdn_cache, compress, mip, 
     parallel, progress,
     *args, **kwargs
   ):
@@ -58,7 +58,6 @@ class CloudVolumeSharedConfiguration(object):
     else:
       parallel = int(parallel)
 
-    self.cache = cache 
     self.cdn_cache = cdn_cache
     self.compress = compress 
     self.mip = mip
@@ -178,12 +177,9 @@ class CloudVolume(object):
     delete_black_uploads=False
   ):
 
-    self.autocrop = bool(autocrop)
-    self.bounded = bool(bounded)
     self.shared_memory_id = self.generate_shared_memory_location()
 
-    self.config = CloudVolumeSharedConfiguration(
-      path=lib.extract_path(cloudpath), 
+    self.config = SharedConfiguration(
       cdn_cache=cdn_cache, 
       compress=compress, 
       mip=mip, 
@@ -206,17 +202,17 @@ class CloudVolume(object):
     )
     self.cache.meta = self.meta
 
-    self.imgsrc = PrecomptedImageSource(
+    self.image = PrecomptedImageSource(
       cloudpath, 
+      self.config, self.cache, self.meta,
+      autocrop=bool(autocrop),
+      bounded=bool(bounded),
       delete_black_uploads=bool(delete_black_uploads), 
       fill_missing=bool(fill_missing), 
       non_aligned_writes=bool(non_aligned_writes), 
-      cache=self.cache, 
-      config=self.config, 
-      metadata=self.meta, 
     )
 
-    self.meshsrc = PrecomputedMeshService(
+    self.mesh = PrecomputedMeshService(
       cloudpath,
       cache=self.cache, config=self.config,
       info=self.meta.info,
@@ -232,6 +228,83 @@ class CloudVolume(object):
     # its setter is based off of scales
     self.mip = mip
     self.pid = os.getpid()
+
+  @property 
+  def autocrop(self):
+    return self.image.autocrop
+
+  @autocrop.setter
+  def autocrop(self, val):
+    self.image.autocrop = val
+
+  @property 
+  def bounded(self):
+    return self.image.bounded
+
+  @bounded.setter 
+  def bounded(self, val):
+    self.image.bounded = val
+
+  @property
+  def fill_missing(self):
+    return self.image.fill_missing
+  
+  @fill_missing.setter
+  def fill_missing(self, val):
+    self.image.fill_missing = val
+  
+  def non_aligned_writes(self):
+    return self.image.non_aligned_writes
+
+  @non_aligned_writes.setter
+  def non_aligned_writes(self, val):
+    self.image.non_aligned_writes = val
+
+  def delete_black_uploads(self):
+    return self.image.delete_black_uploads
+
+  @delete_black_uploads.setter
+  def delete_black_uploads(self, val):
+    self.image.delete_black_uploads = val
+
+  @property
+  def parallel(self):
+    return self.config.parallel
+
+  @parallel.setter
+  def parallel(self, num_processes):
+    if type(num_processes) == bool:
+      num_processes = mp.cpu_count() if num_processes == True else 1
+    elif num_processes <= 0:
+      raise ValueError('Number of processes must be >= 1. Got: ' + str(num_processes))
+    else:
+      num_processes = int(num_processes)
+
+    self.config.parallel = num_processes
+
+  @property
+  def cdn_cache(self):
+    return self.config.cdn_cache
+
+  @cdn_cache.setter 
+  def cdn_cache(self, val):
+    self.config.cdn_cache = val
+
+  @property 
+  def compress(self):
+    return self.config.compress
+
+  @compress.setter 
+  def compress(self, val):
+    self.config.compress = val 
+
+  @property 
+  def progress(self):
+    return self.config.progress 
+
+  @progress.setter 
+  def progress(self, val):
+    self.config.progress = bool(val)
 
   @property 
   def info(self):
@@ -659,17 +732,12 @@ class CloudVolume(object):
 
     Returned as a tuple: (requested_bbox, steps, channel_slice)
     """
-    maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
-    minsize = list(self.bounds.minpt) + [ 0 ]
-
-    slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
-    channel_slice = slices.pop()
-
-    minpt = Vec(*[ slc.start for slc in slices ])
-    maxpt = Vec(*[ slc.stop for slc in slices ]) 
+    slices = self.meta.bbox.reify_slices(slices, bounded=self.bounded)
     steps = Vec(*[ slc.step for slc in slices ])
+    channel_slice = slices.pop()
+    requested_bbox = Bbox.from_slices(slices)
 
-    return Bbox(minpt, maxpt), steps, channel_slice
+    return requested_bbox, steps, channel_slice
 
   def __realized_bbox(self, requested_bbox):
     """
@@ -679,7 +747,9 @@ class CloudVolume(object):
 
     Returns: Bbox
     """
-    realized_bbox = requested_bbox.expand_to_chunk_size(self.underlying, offset=self.voxel_offset)
+    realized_bbox = requested_bbox.expand_to_chunk_size(
+      self.meta.chunk_size, offset=self.meta.voxel_offset
+    )
     return Bbox.clamp(realized_bbox, self.bounds)
 
   def exists(self, bbox_or_slices):
@@ -816,18 +886,28 @@ class CloudVolume(object):
     if type(slices) == Bbox:
       slices = slices.to_slices()
 
-    (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
+    slices = self.meta.bbox.reify_slices(slices, bounded=self.bounded)
+    steps = Vec(*[ slc.step for slc in slices ])
+    channel_slice = slices.pop()
+    requested_bbox = Bbox.from_slices(slices)
 
+    img = self.download(requested_bbox)
+    return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
+
+  def download(self, bbx, mip=None, parallel=None):
     if self.autocrop:
-      requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
-    
+      bbx = Bbox.intersection(bbx, self.bounds)
 
-    return self.imgsrc.download()
+    if mip is None:
+      mip = self.mip
 
-    if self.path.protocol != 'boss':
-      return txrx.download_image(self, requested_bbox, steps, channel_slice, parallel=self.parallel)
+    if parallel is None:
+      parallel=self.parallel
 
-    return self._boss_cutout(requested_bbox, steps, channel_slice)
+    return self.image.download(
+      bbx, mip, parallel=parallel, 
+      location=self.shared_memory_location
+    )
 
   def download_point(self, pt, size=256, mip=None):
     """

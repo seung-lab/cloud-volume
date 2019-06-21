@@ -332,10 +332,16 @@ class PrecomputedMetadata(object):
     return self.info['scales'][mip]['key']
 
   def bounds(self, mip):
-    """Returns a bounding box for the dataset with dimensions in voxels"""
-    offset = self.mip_voxel_offset(mip)
-    shape = self.mip_volume_size(mip)
+    """Returns a 3D spatial bounding box for the dataset with dimensions in voxels."""
+    offset = self.voxel_offset(mip)
+    shape = self.volume_size(mip)
     return Bbox( offset, offset + shape )
+
+  def bbox(self, mip):
+    bounds = self.bounds(mip)
+    minpt = list(bounds.minpt) + [ 0 ]
+    maxpt = list(bounds.maxpt) + [ self.num_channels ]
+    return Bbox(minpt, maxpt)
 
   def point_to_mip(self, pt, mip, to_mip):
     pt = Vec(*pt)
@@ -347,8 +353,8 @@ class PrecomputedMetadata(object):
     if not type(bbox) is Bbox:
       bbox = lib.generate_slices(
         bbox, 
-        self.mip_bounds(mip).minpt, 
-        self.mip_bounds(mip).maxpt, 
+        self.bounds(mip).minpt, 
+        self.bounds(mip).maxpt, 
         bounded=False
       )
       bbox = Bbox.from_slices(bbox)

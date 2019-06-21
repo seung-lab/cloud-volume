@@ -26,7 +26,7 @@ class CacheService(object):
     self.enabled = enabled 
     self.compress = compress 
 
-    # b/c there's a circular dependency
+    # b/c there's a semi-circular dependency
     # meta is usually set afterwards
     self.meta = meta 
 

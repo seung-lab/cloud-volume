@@ -53,14 +53,14 @@ class VolumeCutout(np.ndarray):
     self.close()
 
   @classmethod
-  def from_volume(cls, volume, buf, bounds, handle=None):
+  def from_volume(cls, meta, mip, buf, bounds, handle=None):
     return VolumeCutout(
       buf=buf,
-      path=volume.path,
-      cloudpath=volume.cloudpath,
-      resolution=volume.resolution,
-      mip=volume.mip,
-      layer_type=volume.layer_type,
+      path=meta.path,
+      cloudpath=meta.cloudpath,
+      resolution=meta.resolution,
+      mip=meta.mip,
+      layer_type=meta.layer_type,
       bounds=bounds,
       handle=handle,
     )

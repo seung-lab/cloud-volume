@@ -282,49 +282,6 @@ def threaded_upload_chunks(
     cachestorage.wait(desc)
     cachestorage.kill_threads()
 
-
-def content_type(vol):
-  if vol.encoding == 'jpeg':
-    return 'image/jpeg'
-  elif vol.encoding in ('compressed_segmentation', 'fpzip', 'kempressed'):
-    return 'image/x.' + vol.encoding 
-  return 'application/octet-stream'
-
-def should_compress(vol, iscache=False):
-  if iscache and vol.cache.compress != None:
-    return vol.cache.compress
-
-  if vol.compress is None:
-    return 'gzip' if vol.encoding in ('raw', 'compressed_segmentation') else None
-  elif vol.compress == True:
-    return 'gzip'
-  elif vol.compress == False:
-    return None
-  else:
-    return vol.compress
-
-def cdn_cache_control(val):
-  """Translate cdn_cache into a Cache-Control HTTP header."""
-  if val is None:
-    return 'max-age=3600, s-max-age=3600'
-  elif type(val) is str:
-    return val
-  elif type(val) is bool:
-    if val:
-      return 'max-age=3600, s-max-age=3600'
-    else:
-      return 'no-cache'
-  elif type(val) is int:
-    if val < 0:
-      raise ValueError('cdn_cache must be a positive integer, boolean, or string. Got: ' + str(val))
-
-    if val == 0:
-      return 'no-cache'
-    else:
-      return 'max-age={}, s-max-age={}'.format(val, val)
-  else:
-    raise NotImplementedError(type(val) + ' is not a supported cache_control setting.')
-
 def check_grid_aligned(vol, img, offset):
   """Returns (is_aligned, img bounds Bbox, nearest bbox inflated to grid aligned)"""
   shape = Vec(*img.shape)[:3]

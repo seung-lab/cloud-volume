@@ -36,15 +36,16 @@ def reinit():
   global mmaps
   mmaps = []
 
-def bbox2array(vol, bbox, order='F', readonly=False, lock=None, location=None):
+def bbox2array(meta, bbox, location, order='F', readonly=False, lock=None):
   """Convenince method for creating a 
   shared memory numpy array based on a CloudVolume
   and Bbox. c.f. sharedmemory.ndarray for information
   on the optional lock parameter."""
-  location = location or vol.shared_memory_id
-  shape = list(bbox.size3()) + [ vol.num_channels ]
-  return ndarray(shape=shape, dtype=vol.dtype, location=location, 
-    readonly=readonly, lock=lock, order=order)
+  shape = list(bbox.size3()) + [ meta.num_channels ]
+  return ndarray(
+    shape=shape, dtype=meta.dtype, location=location, 
+    readonly=readonly, lock=lock, order=order
+  )
 
 def ndarray(shape, dtype, location, order='F', readonly=False, lock=None, **kwargs):
   """
@@ -70,15 +71,26 @@ def ndarray(shape, dtype, location, order='F', readonly=False, lock=None, **kwar
   Returns: (mmap filehandle, shared ndarray)
   """
   if EMULATE_SHM:
-    return ndarray_fs(shape, dtype, location, lock, readonly, order, **kwargs)
+    return ndarray_fs(
+      shape, dtype, location, lock, 
+      readonly, order, emulate_shm=True, **kwargs
+    )
   return ndarray_shm(shape, dtype, location, readonly, order, **kwargs)
 
-def ndarray_fs(shape, dtype, location, lock, readonly=False, order='F', **kwargs):
+def ndarray_fs(
+    shape, dtype, location, lock, 
+    readonly=False, order='F', emulate_shm=False,
+    **kwargs
+  ):
   """Emulate shared memory using the filesystem."""
   dbytes = np.dtype(dtype).itemsize
   nbytes = Vec(*shape).rectVolume() * dbytes
-  directory = mkdir(EMULATED_SHM_DIRECTORY)
-  filename = os.path.join(directory, location)
+
+  if emulate_shm:
+    directory = mkdir(EMULATED_SHM_DIRECTORY)
+    filename = os.path.join(directory, location)
+  else:
+    filename = location
 
   if lock:
     lock.acquire()

@@ -7,48 +7,70 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
-
-from cloudvolume import lib
+from cloudvolume import Bbox
+from cloudvolume import lib, exceptions
 
 from .rx import download
 from .tx import upload
 
 class PrecomputedImageSource(object):
   def __init__(
-    self, cloudpath, mip=0, bounded=True, autocrop=False, 
-    fill_missing=False, cache=False, compress_cache=None, 
-    cdn_cache=True, progress=INTERACTIVE, 
-    compress=None, non_aligned_writes=False, parallel=1,
+    self, config, meta, cache,
+    autocrop=False, bounded=True,
+    non_aligned_writes=False,
+    fill_missing=False, 
     delete_black_uploads=False
   ):
+    self.config = config
+    self.meta = meta 
+    self.cache = cache 
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
-    self.cdn_cache = cdn_cache
-    self.compress = compress
-    self.delete_black_uploads = bool(delete_black_uploads)
     self.fill_missing = bool(fill_missing)
     self.non_aligned_writes = bool(non_aligned_writes)
-    self.progress = bool(progress)
-    self.path = lib.extract_path(cloudpath)
-    self.shared_memory_id = self.generate_shared_memory_location()
-    
-    self.init_submodules(cache)
-    self.cache.compress = compress_cache
+    self.delete_black_uploads = bool(delete_black_uploads)
 
-    if self.path.layer == 'info':
-      warn("WARNING: Your layer is named 'info', is that what you meant? {}".format(
-          self.path
-      ))
+  def download(
+      self, bbox, mip, parallel=1, 
+      location=None, retain=False,
+      use_shared_memory=False, use_file=False
+    ):
 
-    # needs to be set after info is defined since
-    # its setter is based off of scales
-    self.mip = mip
+    if self.bounded and not self.meta.bounds.contains_bbox(bbox):
+      raise exceptions.OutOfBoundsError("""
+        Requested cutout not contained within dataset bounds.
 
-    self.pid = os.getpid()
+        Cloudpath: {}
+        Requested: {}
+        Bounds: {}
+        Mip: {}
+        Resolution: {}
 
-  def download(self, bbox):
-    pass 
+        Set bounded=False to disable this warning.
+      """.format(
+          self.meta.cloudpath, 
+          bbox, self.meta.bounds, 
+          mip, self.meta.resolution(mip)
+        )
+      )
+
+    if self.autocrop:
+      bbox = Bbox.intersection(bbox, self.meta.bounds)
+
+    return rx.download(
+      bbox, mip, 
+      meta=self.meta,
+      cache=self.cache,
+      parallel=parallel,
+      location=location,
+      retain=retain,
+      use_shared_memory=use_shared_memory,
+      use_file=use_file,
+      fill_missing=self.fill_missing,
+      progress=self.config.progress,
+      compress=self.config.compress,
+    )
 
   def upload(self, bbox):
     pass
