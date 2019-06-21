@@ -51,9 +51,7 @@ CHANGES
 * feat: download\_point lets you download a cutout from just a coordinate
 * refactor: remove deprecated "output\_to\_shared\_memory" parameter
 * feat: export Vec class for use in other applications
-* feat: export Vec class for use in other applications
 * misc enhancements (#209)
-* misc enhancements
 * fix: missing protocol in error message
 
 0.47.5
