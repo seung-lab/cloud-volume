@@ -107,13 +107,6 @@
             SLICE.z = (y * (SIZE.z - 1))|0;
           }
 
-          PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
-
-          vol.hover_id = null;
-          if (vol.is_segmentation) {
-            vol.hover_id = PXVALUE[0];
-          }
-
           render(); 
         });
       }
@@ -151,10 +144,6 @@
             SLICE.y = (x * (SIZE.y - 1))|0;
             SLICE.z = (y * (SIZE.z - 1))|0;
           }
-
-          PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
-          vol.hover_id = vol.segmentation.get(SLICE.x, SLICE.y, SLICE.z);
-          PXVALUE.push(vol.hover_id);
 
           render(); 
         });
@@ -254,7 +243,7 @@
 
       $(document).on('wheel', function (e) {
         var delta = clamp(e.originalEvent.deltaY, -1, 1);
-        delta = Math.round(delta);
+        delta = -Math.round(delta);
         move_slice(delta);
       });
 
@@ -361,7 +350,22 @@
         elems.shape.text( `<${SIZE.x}, ${SIZE.y}, ${SIZE.z}>` );
       }
 
+      function update_pxvalue () {
+          PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
+
+          vol.hover_id = null;
+          if (vol.is_segmentation) {
+            vol.hover_id = PXVALUE[0];
+          }
+
+          if (vol.segmentation) {
+            vol.hover_id = vol.segmentation.get(SLICE.x, SLICE.y, SLICE.z);
+            PXVALUE.push(vol.hover_id);
+          }
+      }
+
       function render () {
+        update_pxvalue();
         _needsrender = true;
       }
 

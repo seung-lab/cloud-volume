@@ -12,7 +12,7 @@ from six.moves import range
 import numpy as np
 from tqdm import tqdm
 
-from .lib import Vec, Bbox, mkdir, save_images, ExtractedPath, yellow
+from cloudvolume.lib import Vec, Bbox, mkdir, save_images, ExtractedPath, yellow
 
 DEFAULT_PORT = 8080
 
@@ -35,7 +35,7 @@ def getoffset(img, offset):
       return Vec(0,0,0)
 
 def to_volumecutout(img, image_type, resolution=None, offset=None, hostname='localhost'):
-  from . import VolumeCutout
+  from cloudvolume.volumecutout import VolumeCutout
   if type(img) == VolumeCutout:
     try:
       img.dataset_name # check if it's an intact VolumeCutout
@@ -85,7 +85,7 @@ def view(
     img, segmentation=False, resolution=None, offset=None,
     hostname="localhost", port=DEFAULT_PORT
   ):
-  from . import VolumeCutout
+  from cloudvolume.volumecutout import VolumeCutout
 
   img = to3d(img)
   resolution = getresolution(img, resolution)
@@ -202,6 +202,6 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
       path = 'index.html'
 
     dirname = os.path.dirname(__file__)
-    filepath = os.path.join(dirname, '../ext/microviewer/' + path)
+    filepath = os.path.join(dirname, './' + path)
     with open(filepath, 'rb') as f:
       self.wfile.write(f.read())  

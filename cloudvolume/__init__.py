@@ -60,7 +60,7 @@ from . import exceptions
 from . import secrets
 from . import txrx
 
-from . import viewer
-from .viewer import view, hyperview
+from . import microviewer
+from .microviewer import view, hyperview
 
 __version__ = '0.50.0'
