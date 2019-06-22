@@ -25,10 +25,9 @@ from .lib import (
   generate_random_string
 )
 from .datasource.precomputed.mesh import PrecomputedMeshSource
-from .daatasource.precomputed.skeleton import PrecomputedSkeletonSource
+from .datasource.precomputed.skeleton import PrecomputedSkeletonSource
 from .provenance import DataLayerProvenance
 from .storage import SimpleStorage, Storage, reset_connection_pools
-import datasource.precomputed
 from .volumecutout import VolumeCutout
 from . import sharedmemory
 
@@ -259,6 +258,7 @@ class CloudVolume(object):
   def fill_missing(self, val):
     self.image.fill_missing = val
   
+  @property
   def non_aligned_writes(self):
     return self.image.non_aligned_writes
 
@@ -266,6 +266,7 @@ class CloudVolume(object):
   def non_aligned_writes(self, val):
     self.image.non_aligned_writes = val
 
+  @property
   def delete_black_uploads(self):
     return self.image.delete_black_uploads
 

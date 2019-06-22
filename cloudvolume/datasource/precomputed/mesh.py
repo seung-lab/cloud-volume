@@ -10,8 +10,8 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from .lib import red, toiter
-from .storage import Storage
+from ...lib import red, toiter
+from ...storage import Storage
 
 SEGIDRE = re.compile(r'/(\d+):0.*?$')
 

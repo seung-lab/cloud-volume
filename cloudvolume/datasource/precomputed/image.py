@@ -7,8 +7,8 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
-from cloudvolume import Bbox
 from cloudvolume import lib, exceptions
+from ...lib import Bbox
 
 from . import tx, rx
 

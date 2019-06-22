@@ -10,7 +10,7 @@ from cloudvolume.exceptions import AlignmentError
 from cloudvolume.cacheservice import CacheService
 from cloudvolume.lib import ( 
   mkdir, clamp, xyzrange, Vec, 
-  Bbox, min2, max2,
+  Bbox, min2, max2, yellow
 )
 from cloudvolume.scheduler import schedule_jobs
 from cloudvolume.storage import Storage, SimpleStorage, reset_connection_pools
@@ -140,7 +140,8 @@ def upload(
 
   download_chunks_threaded(
     meta, cache, mip, shell_chunks, fn=shade_and_upload,
-    fill_missing=False, progress=progres, compress_cache=compress_cache,
+    fill_missing=False, progress=progress, 
+    compress_cache=compress_cache,
     green=False
   )
 

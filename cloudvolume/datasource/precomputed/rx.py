@@ -9,7 +9,7 @@ from tqdm import tqdm
 from cloudvolume import lib, chunks
 from cloudvolume.exceptions import EmptyVolumeException
 from cloudvolume.cacheservice import CacheService
-from cloudvlume.lib import (  
+from cloudvolume.lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, check_bounds, 
   jsonify

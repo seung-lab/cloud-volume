@@ -12,7 +12,7 @@ from cloudvolume import CloudVolume, chunks, Storage, PrecomputedSkeleton
 from cloudvolume.storage import SimpleStorage
 from cloudvolume.lib import mkdir, Bbox, Vec
 
-from cloudvolume.skeletonservice import SkeletonDecodeError
+from cloudvolume.exceptions import SkeletonDecodeError
 
 info = CloudVolume.create_new_info(
   num_channels=1, # Increase this number when we add more tests for RGB
