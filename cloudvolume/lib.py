@@ -480,11 +480,11 @@ class Bbox(object):
 
     for index, slc in enumerate(slices):
       if slc == Ellipsis:
-        fill = len(maxsize) - len(slices) + 1
+        fill = len(self.maxpt) - len(slices) + 1
         slices = slices[:index] +  (fill * [ slice(None, None, None) ]) + slices[index+1:]
         break
 
-    while len(slices) < len(maxsize):
+    while len(slices) < len(self.maxpt):
       slices.append( slice(None, None, None) )
 
     # First three slices are x,y,z, last is channel. 
@@ -495,8 +495,8 @@ class Bbox(object):
       elif slc == Ellipsis:
         raise ValueError("More than one Ellipsis operator used at once.")
       else:
-        start = minsize[index] if slc.start is None else slc.start
-        end = maxsize[index] if slc.stop is None else slc.stop 
+        start = self.minpt[index] if slc.start is None else slc.start
+        end = self.maxpt[index] if slc.stop is None else slc.stop 
         step = 1 if slc.step is None else slc.step
 
         if step < 0:
@@ -508,11 +508,11 @@ class Bbox(object):
         # marching cubes.
         if bounded:
           # if start < 0: # this is support for negative indicies
-            # start = maxsize[index] + start         
-          check_bounds(start, minsize[index], maxsize[index])
+            # start = self.maxpt[index] + start         
+          check_bounds(start, self.minpt[index], self.maxpt[index])
           # if end < 0: # this is support for negative indicies
-          #   end = maxsize[index] + end
-          check_bounds(end, minsize[index], maxsize[index])
+          #   end = self.maxpt[index] + end
+          check_bounds(end, self.minpt[index], self.maxpt[index])
 
         slices[index] = slice(start, end, step)
 

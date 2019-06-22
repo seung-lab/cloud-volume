@@ -8,7 +8,7 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 This datasource contains the code for manipulating images.
 """
 from cloudvolume import lib, exceptions
-from ...lib import Bbox
+from ...lib import Bbox, Vec
 
 from . import tx, rx
 
@@ -42,7 +42,7 @@ class PrecomputedImageSource(object):
     return sharedmemory.unlink(self.shared_memory_id)
 
   def check_bounded(self, bbox, mip):
-    if self.bounded and not self.meta.bounds.contains_bbox(bbox):
+    if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
       raise exceptions.OutOfBoundsError("""
         Requested cutout not contained within dataset bounds.
 
@@ -71,6 +71,9 @@ class PrecomputedImageSource(object):
     if self.autocrop:
       bbox = Bbox.intersection(bbox, self.meta.bounds)
 
+    if location is None:
+      location = self.shared_memory_id
+
     return rx.download(
       bbox, mip, 
       meta=self.meta,
@@ -86,7 +89,8 @@ class PrecomputedImageSource(object):
     )
 
   def upload(
-      self, image, offset, mip, 
+      self, 
+      image, offset, mip, 
       parallel=1,
       location=None, use_shared_memory=False, use_file=False,
     ):
@@ -103,8 +107,11 @@ class PrecomputedImageSource(object):
       bbox = Bbox.intersection(bbox, self.meta.bounds)
       offset = bbox.minpt
 
+    if location is None:
+      location = self.shared_memory_id
+
     return tx.upload(
-      meta, cache,
+      self.meta, self.cache,
       image, offset, mip,
       compress=self.config.compress,
       cdn_cache=self.config.cdn_cache,

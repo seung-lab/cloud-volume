@@ -29,6 +29,8 @@ class PrecomputedMetadata(object):
   def __init__(self, cloudpath, cache=None, info=None, provenance=None):
     self.path = extract_path(cloudpath)
     self.cache = cache
+    if self.cache:
+      self.cache.meta = self
     self.info = None
 
     if info is None:

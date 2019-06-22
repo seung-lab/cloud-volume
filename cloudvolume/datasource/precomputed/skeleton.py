@@ -723,8 +723,9 @@ class PrecomputedSkeleton(object):
     return str(self)
 
 class PrecomputedSkeletonSource(object):
-  def __init__(self, meta, config):
+  def __init__(self, meta, cache, config):
     self.meta = meta
+    self.cache = cache
     self.config = config
 
   @property

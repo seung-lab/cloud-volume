@@ -25,6 +25,7 @@ from .lib import (
   generate_random_string
 )
 
+from .datasource.precomputed.image import PrecomputedImageSource
 from .datasource.precomputed.metadata import PrecomputedMetadata
 from .datasource.precomputed.mesh import PrecomputedMeshSource
 from .datasource.precomputed.skeleton import PrecomputedSkeletonSource
@@ -204,29 +205,18 @@ class CloudVolume(object):
       cloudpath, cache=self.cache, 
       info=info, provenance=provenance, 
     )
-    self.cache.meta = self.meta
 
-    self.image = PrecomptedImageSource(
-      cloudpath, 
-      self.config, self.cache, self.meta,
+    self.image = PrecomputedImageSource(
+      self.config, self.meta, self.cache, 
       autocrop=bool(autocrop),
       bounded=bool(bounded),
-      delete_black_uploads=bool(delete_black_uploads), 
-      fill_missing=bool(fill_missing), 
       non_aligned_writes=bool(non_aligned_writes), 
+      fill_missing=bool(fill_missing), 
+      delete_black_uploads=bool(delete_black_uploads), 
     )
 
-    self.mesh = PrecomputedMeshSource(
-      cloudpath,
-      cache=self.cache, config=self.config,
-      info=self.meta.info,
-    )
-
-    self.skeletons = PrecomputedSkeletonSource(
-      cloudpath,
-      cache=self.cache, config=self.config,
-      info=self.meta.info,
-    )
+    self.mesh = PrecomputedMeshSource(self.meta, self.cache, self.config)
+    self.skeletons = PrecomputedSkeletonSource(self.meta, self.cache, self.config)
 
     # needs to be set after info is defined since
     # its setter is based off of scales
@@ -910,10 +900,7 @@ class CloudVolume(object):
     if parallel is None:
       parallel=self.parallel
 
-    return self.image.download(
-      bbx, mip, parallel=parallel, 
-      location=self.shared_memory_location
-    )
+    return self.image.download(bbx, mip, parallel=parallel)
 
   def download_point(self, pt, size=256, mip=None):
     """
@@ -983,9 +970,6 @@ class CloudVolume(object):
     
     Returns: void
     """
-    if self.path.protocol == 'boss':
-      raise NotImplementedError('BOSS protocol does not support shared memory download.')
-
     if type(slices) == Bbox:
       slices = slices.to_slices()
     (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
@@ -1001,12 +985,10 @@ class CloudVolume(object):
     if type(slices) == Bbox:
       slices = slices.to_slices()
 
-    maxsize = list(self.bounds.maxpt) + [ self.num_channels ]
-    minsize = list(self.bounds.minpt) + [ 0 ]
-    slices = generate_slices(slices, minsize, maxsize, bounded=self.bounded)
+    slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
     bbox = Bbox.from_slices(slices)
-
-    slice_shape = list(bbox.size3()) + [ slices[3].stop - slices[3].start ]
+    slice_shape = list(bbox.size())
+    bbox = Bbox.from_slices(slices[:3])
 
     if np.isscalar(img):
       img = np.zeros(slice_shape, dtype=self.dtype) + img
@@ -1016,7 +998,12 @@ class CloudVolume(object):
       imgshape = imgshape + [ self.num_channels ]
 
     if not np.array_equal(imgshape, slice_shape):
-      raise exceptions.AlignmentError("Illegal slicing, Image shape: {} != {} Slice Shape".format(imgshape, slice_shape))
+      raise exceptions.AlignmentError("""
+        Input image shape does not match slice shape.
+
+        Image Shape: {}  
+        Slice Shape: {}
+      """.format(imgshape, slice_shape))
 
     if self.autocrop:
       if not self.bounds.contains_bbox(bbox):
@@ -1029,14 +1016,7 @@ class CloudVolume(object):
     if bbox.subvoxel():
       return
 
-    if self.path.protocol == 'boss':
-      self.upload_boss_image(img, bbox.minpt)
-    else:
-      txrx.upload_image(
-        self, img, bbox.minpt, 
-        parallel=self.parallel, 
-        delete_black_uploads=self.delete_black_uploads
-      )
+    self.image.upload(img, bbox.minpt, self.mip)
 
   def upload_from_shared_memory(self, location, bbox, order='F', cutout_bbox=None):
     """

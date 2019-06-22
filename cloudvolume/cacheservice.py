@@ -45,7 +45,7 @@ class CacheService(object):
   @property
   def path(self):
     if type(self.enabled) is not str:
-      path = self.shared_config.path
+      path = self.meta.path
       return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
         path.protocol, path.bucket.replace('/', ''), path.intermediate_path,
         path.dataset, path.layer

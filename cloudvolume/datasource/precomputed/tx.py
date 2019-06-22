@@ -74,7 +74,7 @@ def upload(
       """.format(meta.dtype, image.dtype)
     )
 
-  (is_aligned, bounds, expanded) = check_grid_aligned(meta, image, offset)
+  (is_aligned, bounds, expanded) = check_grid_aligned(meta, image, offset, mip)
 
   if is_aligned:
     upload_aligned(
@@ -93,11 +93,15 @@ def upload(
     )
     return
   elif non_aligned_writes == False:
-    msg = NON_ALIGNED_WRITE.format(mip=mip, chunk_size=meta.chunk_size, offset=meta.voxel_offset, got=bounds, check=expanded)
+    msg = NON_ALIGNED_WRITE.format(
+      mip=mip, chunk_size=meta.chunk_size(mip), 
+      offset=meta.voxel_offset(mip), 
+      got=bounds, check=expanded
+    )
     raise AlignmentError(msg)
 
   # Upload the aligned core
-  retracted = bounds.shrink_to_chunk_size(meta.chunk_size, meta.voxel_offset)
+  retracted = bounds.shrink_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
   core_bbox = retracted.clone() - bounds.minpt
 
   if not core_bbox.subvoxel():
@@ -118,8 +122,8 @@ def upload(
     )
 
   # Download the shell, paint, and upload
-  all_chunks = set(chunknames(expanded, meta.bounds, meta.key, meta.chunk_size))
-  core_chunks = set(chunknames(retracted, meta.bounds, meta.key, meta.chunk_size))
+  all_chunks = set(chunknames(expanded, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
+  core_chunks = set(chunknames(retracted, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
   shell_chunks = all_chunks.difference(core_chunks)
 
   def shade_and_upload(img3d, bbox):
@@ -150,6 +154,7 @@ def upload_aligned(
     img, offset, mip,
     compress=None,
     cdn_cache=None,
+    progress=False,
     parallel=1, 
     location=None, 
     location_bbox=None, 
@@ -160,12 +165,14 @@ def upload_aligned(
   ):
   global fs_lock
 
-  chunk_ranges = list(generate_chunks(meta, img, offset))
+  chunk_ranges = list(generate_chunks(meta, img, offset, mip))
 
   if parallel == 1:
     threaded_upload_chunks(
       meta, cache, 
       img, mip, chunk_ranges, 
+      progress=progress,
+      compress=compress, cdn_cache=cdn_cache,
       delete_black_uploads=delete_black_uploads
     )
     return
@@ -294,7 +301,7 @@ def threaded_upload_chunks(
     imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
 
     # handle the edge of the dataset
-    clamp_ept = min2(ept, meta.bounds.maxpt)
+    clamp_ept = min2(ept, meta.bounds(mip).maxpt)
     newept = clamp_ept - spt
     imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
 
@@ -323,23 +330,23 @@ def threaded_upload_chunks(
     cachestorage.wait(desc)
     cachestorage.kill_threads()
 
-def check_grid_aligned(meta, img, offset):
+def check_grid_aligned(meta, img, offset, mip):
   """Returns (is_aligned, img bounds Bbox, nearest bbox inflated to grid aligned)"""
   shape = Vec(*img.shape)[:3]
   offset = Vec(*offset)[:3]
   bounds = Bbox( offset, shape + offset)
-  alignment_check = bounds.expand_to_chunk_size(meta.chunk_size, meta.voxel_offset)
-  alignment_check = Bbox.clamp(alignment_check, meta.bounds)
+  alignment_check = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
+  alignment_check = Bbox.clamp(alignment_check, meta.bounds(mip))
   is_aligned = np.all(alignment_check.minpt == bounds.minpt) and np.all(alignment_check.maxpt == bounds.maxpt)
   return (is_aligned, bounds, alignment_check) 
 
-def generate_chunks(meta, img, offset):
+def generate_chunks(meta, img, offset, mip):
   shape = Vec(*img.shape)[:3]
   offset = Vec(*offset)[:3]
 
   bounds = Bbox( offset, shape + offset)
 
-  alignment_check = bounds.round_to_chunk_size(meta.chunk_size, meta.voxel_offset)
+  alignment_check = bounds.round_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
 
   if not np.all(alignment_check.minpt == bounds.minpt):
     raise AlignmentError("""
@@ -349,17 +356,17 @@ def generate_chunks(meta, img, offset):
       Volume Offset:   {} 
       Nearest Aligned: {}
     """.format(
-      bounds, meta.voxel_offset, alignment_check)
+      bounds, meta.voxel_offset(mip), alignment_check)
     )
 
-  bounds = Bbox.clamp(bounds, meta.bounds)
+  bounds = Bbox.clamp(bounds, meta.bounds(mip))
 
   img_offset = bounds.minpt - offset
   img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
 
-  for startpt in xyzrange( img_offset, img_end, meta.chunk_size ):
+  for startpt in xyzrange( img_offset, img_end, meta.chunk_size(mip) ):
     startpt = startpt.clone()
-    endpt = min2(startpt + meta.chunk_size, shape)
+    endpt = min2(startpt + meta.chunk_size(mip), shape)
     spt = (startpt + bounds.minpt).astype(int)
     ept = (endpt + bounds.minpt).astype(int)
     yield (startpt, endpt, spt, ept)
