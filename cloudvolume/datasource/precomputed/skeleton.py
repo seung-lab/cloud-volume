@@ -12,14 +12,15 @@ except ImportError:
 import numpy as np
 import struct
 
-from . import lib
-from .exceptions import (
+from cloudvolume import lib
+from cloudvolume.exceptions import (
   SkeletonDecodeError, SkeletonEncodeError, 
   SkeletonUnassignedEdgeError
 )
-from .lib import red, Bbox
-from .txrx import cdn_cache_control
-from .storage import Storage, SimpleStorage
+from cloudvolume.lib import red, Bbox
+from cloudvolume.storage import Storage, SimpleStorage
+
+from .common import cdn_cache_control
 
 class PrecomputedSkeleton(object):
   def __init__(self, 
@@ -721,15 +722,16 @@ class PrecomputedSkeleton(object):
   def __repr__(self):
     return str(self)
 
-class PrecomputedSkeletonService(object):
-  def __init__(self, vol):
-    self.vol = vol
+class PrecomputedSkeletonSource(object):
+  def __init__(self, meta, config):
+    self.meta = meta
+    self.config = config
 
   @property
   def path(self):
     path = 'skeletons'
-    if 'skeletons' in self.vol.info:
-      path = self.vol.info['skeletons']
+    if 'skeletons' in self.meta.info:
+      path = self.meta.info['skeletons']
     return path
 
   def get(self, segids):
@@ -758,7 +760,7 @@ class PrecomputedSkeletonService(object):
 
     StorageClass = Storage if len(segids) > 1 else SimpleStorage
 
-    with StorageClass(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
       results = stor.get_files(paths)
 
     for res in results:
@@ -799,13 +801,13 @@ class PrecomputedSkeletonService(object):
 
     StorageClass = Storage if len(skeletons) > 1 else SimpleStorage
 
-    with StorageClass(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
       for skel in skeletons:
         path = os.path.join(self.path, str(skel.id))
         stor.put_file(
           file_path='{}/{}'.format(self.path, str(skel.id)),
           content=skel.encode(),
           compress='gzip',
-          cache_control=cdn_cache_control(self.vol.cdn_cache),
+          cache_control=cdn_cache_control(self.config.cdn_cache),
         )
     

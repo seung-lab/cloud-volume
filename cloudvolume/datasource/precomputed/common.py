@@ -98,7 +98,9 @@ def cdn_cache_control(val):
       return 'no-cache'
   elif type(val) is int:
     if val < 0:
-      raise ValueError('cdn_cache must be a positive integer, boolean, or string. Got: ' + str(val))
+      raise ValueError(
+        'cdn_cache must be a positive integer, boolean, or string. Got: ' + str(val)
+      )
 
     if val == 0:
       return 'no-cache'

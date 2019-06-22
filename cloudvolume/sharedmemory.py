@@ -31,11 +31,6 @@ class SharedMemoryReadError(Exception):
 class SharedMemoryAllocationError(Exception):
   pass
 
-def reinit():
-  """For use after a process fork only. Trashes bad file descriptors and resets tracking."""
-  global mmaps
-  mmaps = []
-
 def bbox2array(meta, bbox, location, order='F', readonly=False, lock=None):
   """Convenince method for creating a 
   shared memory numpy array based on a CloudVolume

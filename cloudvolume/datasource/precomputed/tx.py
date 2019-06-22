@@ -20,6 +20,7 @@ from cloudvolume.volumecutout import VolumeCutout
 import cloudvolume.sharedmemory as shm
 
 from .common import fs_lock, parallel_execution, chunknames, shade
+from .rx import download_chunks_threaded
 
 NON_ALIGNED_WRITE = yellow(
   """
@@ -50,84 +51,120 @@ NON_ALIGNED_WRITE = yellow(
 """)
 
 def upload(
-    vol, img, offset, 
-    parallel=1, 
-    manual_shared_memory_id=None, 
-    manual_shared_memory_bbox=None, 
-    manual_shared_memory_order='F', 
-    delete_black_uploads=False
+    meta, cache,
+    image, offset, mip,
+    compress=None,
+    cdn_cache=None,
+    parallel=1,
+    progress=False,
+    delete_black_uploads=False, 
+    non_aligned_writes=False,
+    location=None, location_bbox=None, location_order='F',
+    use_shared_memory=False, use_file=False
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
 
-  if not np.issubdtype(img.dtype, np.dtype(vol.dtype).type):
-    raise ValueError('The uploaded image data type must match the volume data type. volume: {}, image: {}'.format(vol.dtype, img.dtype))
+  if not np.issubdtype(image.dtype, np.dtype(meta.dtype).type):
+    raise ValueError("""
+      The uploaded image data type must match the volume data type. 
 
-  (is_aligned, bounds, expanded) = check_grid_aligned(vol, img, offset)
+      Volume: {}
+      Image: {}
+      """.format(meta.dtype, image.dtype)
+    )
+
+  (is_aligned, bounds, expanded) = check_grid_aligned(meta, image, offset)
 
   if is_aligned:
     upload_aligned(
-      vol, img, offset, 
+      meta, cache, 
+      image, offset, mip,
+      compress=compress,
+      cdn_cache=cdn_cache,
       parallel=parallel, 
-      manual_shared_memory_id=manual_shared_memory_id, 
-      manual_shared_memory_bbox=manual_shared_memory_bbox,
-      manual_shared_memory_order=manual_shared_memory_order,
-      delete_black_uploads=delete_black_uploads
+      progress=progress,
+      location=location, 
+      location_bbox=location_bbox,
+      location_order=location_order,
+      use_shared_memory=use_shared_memory,
+      use_file=use_file,
+      delete_black_uploads=delete_black_uploads,
     )
     return
-  elif vol.non_aligned_writes == False:
-    msg = NON_ALIGNED_WRITE.format(mip=vol.mip, chunk_size=vol.chunk_size, offset=vol.voxel_offset, got=bounds, check=expanded)
+  elif non_aligned_writes == False:
+    msg = NON_ALIGNED_WRITE.format(mip=mip, chunk_size=meta.chunk_size, offset=meta.voxel_offset, got=bounds, check=expanded)
     raise AlignmentError(msg)
 
   # Upload the aligned core
-  retracted = bounds.shrink_to_chunk_size(vol.underlying, vol.voxel_offset)
+  retracted = bounds.shrink_to_chunk_size(meta.chunk_size, meta.voxel_offset)
   core_bbox = retracted.clone() - bounds.minpt
 
   if not core_bbox.subvoxel():
-    core_img = img[ core_bbox.to_slices() ] 
+    core_img = image[ core_bbox.to_slices() ] 
     upload_aligned(
-      vol, core_img, retracted.minpt, 
+      meta, cache, 
+      image, offset, mip,
+      compress=compress,
+      cdn_cache=cdn_cache,
       parallel=parallel, 
-      manual_shared_memory_id=manual_shared_memory_id, 
-      manual_shared_memory_bbox=manual_shared_memory_bbox,
-      manual_shared_memory_order=manual_shared_memory_order, 
+      progress=progress,
+      location=location, 
+      location_bbox=location_bbox,
+      location_order=location_order,
+      use_shared_memory=use_shared_memory,
+      use_file=use_file,
       delete_black_uploads=delete_black_uploads,
     )
 
   # Download the shell, paint, and upload
-  all_chunks = set(chunknames(expanded, vol.bounds, vol.key, vol.underlying))
-  core_chunks = set(chunknames(retracted, vol.bounds, vol.key, vol.underlying))
+  all_chunks = set(chunknames(expanded, meta.bounds, meta.key, meta.chunk_size))
+  core_chunks = set(chunknames(retracted, meta.bounds, meta.key, meta.chunk_size))
   shell_chunks = all_chunks.difference(core_chunks)
 
   def shade_and_upload(img3d, bbox):
     # decode is returning non-writable chunk
     # we're throwing them away so safe to write
     img3d.setflags(write=1) 
-    shade(img3d, bbox, img, bounds)
+    shade(img3d, bbox, image, bounds)
     threaded_upload_chunks(
-      vol, img3d, 
+      meta, cache, 
+      img3d, mip,
       (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), 
-      n_threads=0,
+      compress=compress, cdn_cache=cdn_cache,
+      progress=progress, n_threads=0, 
       delete_black_uploads=delete_black_uploads,
     )
 
-  download_multiple(vol, shell_chunks, fn=shade_and_upload)
+  compress_cache = should_compress(meta.encoding, compress, cache.compress, iscache=True)
+
+  download_chunks_threaded(
+    meta, cache, mip, shell_chunks, fn=shade_and_upload,
+    fill_missing=False, progress=progres, compress_cache=compress_cache,
+    green=False
+  )
 
 def upload_aligned(
-    vol, img, offset, 
+    meta, cache,
+    img, offset, mip,
+    compress=None,
+    cdn_cache=None,
     parallel=1, 
-    manual_shared_memory_id=None, 
-    manual_shared_memory_bbox=None, 
-    manual_shared_memory_order='F', 
+    location=None, 
+    location_bbox=None, 
+    location_order='F', 
+    use_shared_memory=False,
+    use_file=False,
     delete_black_uploads=False
   ):
   global fs_lock
 
-  chunk_ranges = list(generate_chunks(vol, img, offset))
+  chunk_ranges = list(generate_chunks(meta, img, offset))
 
   if parallel == 1:
     threaded_upload_chunks(
-      vol, img, chunk_ranges, 
+      meta, cache, 
+      img, mip, chunk_ranges, 
       delete_black_uploads=delete_black_uploads
     )
     return
@@ -139,111 +176,114 @@ def upload_aligned(
       chunk_ranges[i:i+length]
     )
 
-  if manual_shared_memory_id:
-    shared_memory_id = manual_shared_memory_id
+  if location:
+    shared_memory_id = location
   else:
     shared_memory_id = vol.shared_memory_id
     array_like, renderbuffer = shm.ndarray(
       shape=img.shape, dtype=img.dtype, 
-      location=shared_memory_id, order=manual_shared_memory_order, 
+      location=shared_memory_id, order=location_order, 
       lock=fs_lock
     )
     renderbuffer[:] = img
 
   mpu = partial(multi_process_upload, 
-    vol, img.shape, offset, 
+    meta, img.shape, offset, 
     shared_memory_id, 
-    manual_shared_memory_bbox, 
-    manual_shared_memory_order, 
-    vol.cache.enabled, 
+    location_bbox, 
+    location_order, 
+    cache.enabled, 
     delete_black_uploads
   )
 
-  cleanup_shm = shared_memory_id if not manual_shared_memory_id else None
+  cleanup_shm = shared_memory_id if not location else None
   parallel_execution(mpu, chunk_ranges_by_process, parallel, cleanup_shm=cleanup_shm)
 
   # If manual mode is enabled, it's the 
   # responsibilty of the user to clean up
-  if not manual_shared_memory_id:
+  if not location:
     array_like.close()
     shm.unlink(vol.shared_memory_id)
 
 def multi_process_upload(
-    vol, img_shape, offset, 
+    meta, img_shape, offset, mip,
     shared_memory_id, 
-    manual_shared_memory_bbox, 
-    manual_shared_memory_order, 
+    location_bbox, 
+    location_order, 
     caching, 
     delete_black_uploads,
     chunk_ranges
   ):
   global fs_lock
   reset_connection_pools()
-  vol.init_submodules(caching)
 
   shared_shape = img_shape
-  if manual_shared_memory_bbox:
-    shared_shape = list(manual_shared_memory_bbox.size3()) + [ vol.num_channels ]
+  if location_bbox:
+    shared_shape = list(location_bbox.size3()) + [ meta.num_channels ]
 
   array_like, renderbuffer = shm.ndarray(
     shape=shared_shape, 
-    dtype=vol.dtype, 
+    dtype=meta.dtype, 
     location=shared_memory_id, 
-    order=manual_shared_memory_order, 
+    order=location_order, 
     lock=fs_lock, 
     readonly=True
   )
 
-  if manual_shared_memory_bbox:
+  if location_bbox:
     cutout_bbox = Bbox( offset, offset + img_shape[:3] )
-    delta_box = cutout_bbox.clone() - manual_shared_memory_bbox.minpt
+    delta_box = cutout_bbox.clone() - location_bbox.minpt
     renderbuffer = renderbuffer[ delta_box.to_slices() ]
 
   threaded_upload_chunks(
-    vol, renderbuffer, chunk_ranges, 
+    meta, cache, 
+    renderbuffer, mip, chunk_ranges, 
     delete_black_uploads=delete_black_uploads
   )
   array_like.close()
 
 def threaded_upload_chunks(
-    vol, img, chunk_ranges, 
+    meta, cache, 
+    img, mip, chunk_ranges, 
+    compress, cdn_cache, progress,
     n_threads=DEFAULT_THREADS,
     delete_black_uploads=False
   ):
-  if vol.cache.enabled:
-    mkdir(vol.cache.path)
-    if vol.progress:
+  
+  if cache.enabled:
+    mkdir(cache.path)
+    if progress:
       print("Caching upload...")
-    cachestorage = Storage('file://' + vol.cache.path, progress=vol.progress, n_threads=n_threads)
+    cachestorage = Storage('file://' + cache.path, progress=progress, n_threads=n_threads)
 
-  cloudstorage = Storage(vol.layer_cloudpath, progress=vol.progress, n_threads=n_threads)
-  iterator = tqdm(chunk_ranges, desc='Rechunking image', disable=(not vol.progress))
+  cloudstorage = Storage(meta.cloudpath, progress=progress, n_threads=n_threads)
+  iterator = tqdm(chunk_ranges, desc='Rechunking image', disable=(not progress))
 
   while img.ndim < 4:
     img = img[ ..., np.newaxis ]
 
   def do_upload(imgchunk, cloudpath):
-    encoded = chunks.encode(imgchunk, vol.encoding, vol.compressed_segmentation_block_size)
+    encoded = chunks.encode(imgchunk, meta.encoding, meta.compressed_segmentation_block_size)
 
     cloudstorage.put_file(
       file_path=cloudpath, 
       content=encoded,
-      content_type=content_type(vol), 
-      compress=should_compress(vol),
-      cache_control=cdn_cache_control(vol.cdn_cache),
+      content_type=content_type(meta.encoding), 
+      compress=should_compress(meta.encoding, compress, cache),
+      cache_control=cdn_cache_control(cdn_cache),
     )
 
-    if vol.cache.enabled:
+    if cache.enabled:
       cachestorage.put_file(
         file_path=cloudpath,
         content=encoded, 
-        content_type=content_type(vol), 
-        compress=should_compress(vol, iscache=True)
+        content_type=content_type(meta.encoding), 
+        compress=should_compress(meta.encoding, compress, cache, iscache=True)
       )
 
   def do_delete(cloudpath):
     cloudstorage.delete_file(cloudpath)
-    if vol.cache.enabled:
+    if cache.enabled:
       cachestorage.delete_file(cloudpath)
 
   for startpt, endpt, spt, ept in iterator:
@@ -253,7 +293,7 @@ def threaded_upload_chunks(
     imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
 
     # handle the edge of the dataset
-    clamp_ept = min2(ept, vol.bounds.maxpt)
+    clamp_ept = min2(ept, meta.bounds.maxpt)
     newept = clamp_ept - spt
     imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
 
@@ -263,7 +303,7 @@ def threaded_upload_chunks(
       spt.z, clamp_ept.z
     )
 
-    cloudpath = os.path.join(vol.key, filename)
+    cloudpath = os.path.join(meta.key(mip), filename)
 
     if delete_black_uploads:
       if np.any(imgchunk):
@@ -273,46 +313,52 @@ def threaded_upload_chunks(
     else:
       do_upload(imgchunk, cloudpath)
 
-  desc = 'Uploading' if vol.progress else None
+  desc = 'Uploading' if progress else None
   cloudstorage.wait(desc)
   cloudstorage.kill_threads()
   
-  if vol.cache.enabled:
-    desc = 'Caching' if vol.progress else None
+  if cache.enabled:
+    desc = 'Caching' if progress else None
     cachestorage.wait(desc)
     cachestorage.kill_threads()
 
-def check_grid_aligned(vol, img, offset):
+def check_grid_aligned(meta, img, offset):
   """Returns (is_aligned, img bounds Bbox, nearest bbox inflated to grid aligned)"""
   shape = Vec(*img.shape)[:3]
   offset = Vec(*offset)[:3]
   bounds = Bbox( offset, shape + offset)
-  alignment_check = bounds.expand_to_chunk_size(vol.underlying, vol.voxel_offset)
-  alignment_check = Bbox.clamp(alignment_check, vol.bounds)
+  alignment_check = bounds.expand_to_chunk_size(meta.chunk_size, meta.voxel_offset)
+  alignment_check = Bbox.clamp(alignment_check, meta.bounds)
   is_aligned = np.all(alignment_check.minpt == bounds.minpt) and np.all(alignment_check.maxpt == bounds.maxpt)
   return (is_aligned, bounds, alignment_check) 
 
-def generate_chunks(vol, img, offset):
+def generate_chunks(meta, img, offset):
   shape = Vec(*img.shape)[:3]
   offset = Vec(*offset)[:3]
 
   bounds = Bbox( offset, shape + offset)
 
-  alignment_check = bounds.round_to_chunk_size(vol.underlying, vol.voxel_offset)
+  alignment_check = bounds.round_to_chunk_size(meta.chunk_size, meta.voxel_offset)
 
   if not np.all(alignment_check.minpt == bounds.minpt):
-    raise AlignmentError('Only chunk aligned writes are currently supported. Got: {}, Volume Offset: {}, Alignment Check: {}'.format(
-      bounds, vol.voxel_offset, alignment_check)
+    raise AlignmentError("""
+      Only chunk aligned writes are supported by this function. 
+
+      Got:             {}
+      Volume Offset:   {} 
+      Nearest Aligned: {}
+    """.format(
+      bounds, meta.voxel_offset, alignment_check)
     )
 
-  bounds = Bbox.clamp(bounds, vol.bounds)
+  bounds = Bbox.clamp(bounds, meta.bounds)
 
   img_offset = bounds.minpt - offset
   img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
 
-  for startpt in xyzrange( img_offset, img_end, vol.underlying ):
+  for startpt in xyzrange( img_offset, img_end, meta.chunk_size ):
     startpt = startpt.clone()
-    endpt = min2(startpt + vol.underlying, shape)
+    endpt = min2(startpt + meta.chunk_size, shape)
     spt = (startpt + bounds.minpt).astype(int)
     ept = (endpt + bounds.minpt).astype(int)
     yield (startpt, endpt, spt, ept)

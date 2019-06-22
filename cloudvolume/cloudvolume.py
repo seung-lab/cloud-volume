@@ -24,9 +24,9 @@ from .lib import (
   jsonify, generate_slices,
   generate_random_string
 )
-from .meshservice import PrecomputedMeshService
+from .datasource.precomputed.mesh import PrecomputedMeshSource
+from .daatasource.precomputed.skeleton import PrecomputedSkeletonSource
 from .provenance import DataLayerProvenance
-from .skeletonservice import PrecomputedSkeletonService
 from .storage import SimpleStorage, Storage, reset_connection_pools
 import datasource.precomputed
 from .volumecutout import VolumeCutout
@@ -179,6 +179,12 @@ class CloudVolume(object):
 
     self.shared_memory_id = self.generate_shared_memory_location()
 
+    # hack around python's inability to 
+    # pass primatives by reference. 
+    # We would like updates to e.g. mip or parallel
+    # to be passively absorbed by all listening 
+    # data sources rather than work hard to actively
+    # synchronize them.
     self.config = SharedConfiguration(
       cdn_cache=cdn_cache, 
       compress=compress, 
@@ -212,13 +218,13 @@ class CloudVolume(object):
       non_aligned_writes=bool(non_aligned_writes), 
     )
 
-    self.mesh = PrecomputedMeshService(
+    self.mesh = PrecomputedMeshSource(
       cloudpath,
       cache=self.cache, config=self.config,
       info=self.meta.info,
     )
 
-    self.skeletons = PrecomputedSkeletonService(
+    self.skeletons = PrecomputedSkeletonSource(
       cloudpath,
       cache=self.cache, config=self.config,
       info=self.meta.info,
@@ -378,8 +384,8 @@ class CloudVolume(object):
   # def init_submodules(self, cache):
   #   """cache = path or bool"""
   #   self.cache = CacheService(cache, weakref.proxy(self)) 
-  #   self.mesh = PrecomputedMeshService(weakref.proxy(self))
-  #   self.skeleton = PrecomputedSkeletonService(weakref.proxy(self)) 
+  #   self.mesh = PrecomputedMeshSource(weakref.proxy(self))
+  #   self.skeleton = PrecomputedSkeletonSource(weakref.proxy(self)) 
 
   def generate_shared_memory_location(self):
     return 'cloudvolume-shm-' + str(uuid.uuid4())
