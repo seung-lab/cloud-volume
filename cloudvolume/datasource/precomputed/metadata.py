@@ -1,7 +1,14 @@
 import json
-import json5
+import os
 
-from ...provenance import DatasetProvenance
+import json5
+import multiprocessing as mp
+import numpy as np
+from six import string_types
+from six.moves import range
+from tqdm import tqdm
+
+from ...provenance import DatasetProvenance, DataLayerProvenance
 from ...storage import SimpleStorage
 
 from ...lib import ( 
@@ -245,7 +252,7 @@ class PrecomputedMetadata(object):
 
   @property
   def basepath(self):
-    return os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset_name)
+    return os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset)
 
   @property 
   def layerpath(self):

@@ -201,11 +201,8 @@ class CloudVolume(object):
     )
 
     self.meta = PrecomputedMetadata(
-      cloudpath, 
-      cache=self.cache, 
-      config=self.config, 
-      info=info, 
-      provenance=provenance, 
+      cloudpath, cache=self.cache, 
+      info=info, provenance=provenance, 
     )
     self.cache.meta = self.meta
 
