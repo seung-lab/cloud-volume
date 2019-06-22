@@ -19,7 +19,11 @@ from cloudvolume.volumecutout import VolumeCutout
 
 import cloudvolume.sharedmemory as shm
 
-from .common import fs_lock, parallel_execution, chunknames, shade
+from .common import (
+  fs_lock, parallel_execution, chunknames, 
+  shade, content_type, cdn_cache_control,
+  should_compress
+)
 from .rx import download_chunks_threaded
 
 NON_ALIGNED_WRITE = yellow(
@@ -140,7 +144,7 @@ def upload(
       delete_black_uploads=delete_black_uploads,
     )
 
-  compress_cache = should_compress(meta.encoding, compress, cache.compress, iscache=True)
+  compress_cache = should_compress(meta.encoding(mip), compress, cache.compress, iscache=True)
 
   download_chunks_threaded(
     meta, cache, mip, shell_chunks, fn=shade_and_upload,
@@ -271,13 +275,13 @@ def threaded_upload_chunks(
     img = img[ ..., np.newaxis ]
 
   def do_upload(imgchunk, cloudpath):
-    encoded = chunks.encode(imgchunk, meta.encoding, meta.compressed_segmentation_block_size)
+    encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size)
 
     cloudstorage.put_file(
       file_path=cloudpath, 
       content=encoded,
-      content_type=content_type(meta.encoding), 
-      compress=should_compress(meta.encoding, compress, cache),
+      content_type=content_type(meta.encoding(mip)), 
+      compress=should_compress(meta.encoding(mip), compress, cache),
       cache_control=cdn_cache_control(cdn_cache),
     )
 
@@ -285,8 +289,8 @@ def threaded_upload_chunks(
       cachestorage.put_file(
         file_path=cloudpath,
         content=encoded, 
-        content_type=content_type(meta.encoding), 
-        compress=should_compress(meta.encoding, compress, cache, iscache=True)
+        content_type=content_type(meta.encoding(mip)), 
+        compress=should_compress(meta.encoding(mip), compress, cache, iscache=True)
       )
 
   def do_delete(cloudpath):

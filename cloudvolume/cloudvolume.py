@@ -342,8 +342,12 @@ class CloudVolume(object):
     else:
       raise NotImplementedError
 
-    info = cls.create_new_info(num_channels, layer_type, arr.dtype.name, encoding, resolution, 
-                               voxel_offset, arr.shape[:3], chunk_size=chunk_size, max_mip=max_mip)
+    info = cls.create_new_info(
+      num_channels, layer_type, arr.dtype.name, 
+      encoding, resolution, 
+      voxel_offset, arr.shape[:3], 
+      chunk_size=chunk_size, max_mip=max_mip
+    )
     vol = CloudVolume(vol_path, info=info, bounded=True, compress=compress) 
     # save the info file
     vol.commit_info()
@@ -882,12 +886,12 @@ class CloudVolume(object):
     if type(slices) == Bbox:
       slices = slices.to_slices()
 
-    slices = self.meta.bbox.reify_slices(slices, bounded=self.bounded)
+    slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
     steps = Vec(*[ slc.step for slc in slices ])
     channel_slice = slices.pop()
     requested_bbox = Bbox.from_slices(slices)
 
-    img = self.download(requested_bbox)
+    img = self.download(requested_bbox, self.mip)
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
   def download(self, bbx, mip=None, parallel=None):

@@ -6,14 +6,13 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
-from cloudvolume import lib, chunks
-from cloudvolume.exceptions import EmptyVolumeException
-from cloudvolume.cacheservice import CacheService
-from cloudvolume.lib import (  
+from ...exceptions import EmptyVolumeException
+from ...lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, check_bounds, 
   jsonify
 )
+from ... import chunks
 
 from cloudvolume.scheduler import schedule_jobs
 from cloudvolume.storage import SimpleStorage, reset_connection_pools
@@ -37,12 +36,16 @@ def download(
   ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
-  full_bbox = requested_bbox.expand_to_chunk_size(meta.chunk_size, offset=meta.voxel_offset)
-  full_bbox = Bbox.clamp(full_bbox, meta.bounds)
-  cloudpaths = list(chunknames(full_bbox, meta.bounds, meta.key, meta.chunk_size))
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  cloudpaths = list(chunknames(
+    full_bbox, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)
+  ))
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
-  compress_cache = should_compress(meta.encoding, compress, cache.compress, iscache=True)
+  compress_cache = should_compress(meta.encoding(mip), compress, cache.compress, iscache=True)
 
   handle = None
 
@@ -167,7 +170,8 @@ def child_process_download(
   array_like.close()
 
 def download_chunk(
-    meta, cache, cloudpath, 
+    meta, cache, 
+    cloudpath, mip,
     filename, fill_missing,
     enable_cache, compress_cache
   ):
@@ -179,12 +183,12 @@ def download_chunk(
       stor.put_file(
         file_path=filename, 
         content=(content or b''), 
-        content_type=content_type(meta.encoding), 
+        content_type=content_type(meta.encoding(mip)), 
         compress=compress_cache,
       )
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
-  img3d = decode(meta, filename, content, fill_missing)
+  img3d = decode(meta, filename, content, fill_missing, mip)
   return img3d, bbox
 
 def download_chunks_threaded(
@@ -197,7 +201,7 @@ def download_chunks_threaded(
 
   def process(cloudpath, filename, enable_cache):
     img3d, bbox = download_chunk(
-      meta, cache, cloudpath, 
+      meta, cache, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache
     )
@@ -220,7 +224,7 @@ def download_chunks_threaded(
     green=green,
   )
 
-def decode(meta, filename, content, fill_missing):
+def decode(meta, filename, content, fill_missing, mip):
   """
   Decode content from bytes into a numpy array using the 
   dataset metadata.
@@ -245,10 +249,10 @@ def decode(meta, filename, content, fill_missing):
   try:
     return chunks.decode(
       content, 
-      encoding=meta.encoding, 
+      encoding=meta.encoding(mip), 
       shape=shape, 
       dtype=meta.dtype, 
-      block_size=meta.compressed_segmentation_block_size,
+      block_size=meta.compressed_segmentation_block_size(mip),
     )
   except Exception as error:
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
