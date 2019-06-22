@@ -24,6 +24,8 @@ from .lib import (
   jsonify, generate_slices,
   generate_random_string
 )
+
+from .datasource.precomputed.metadata import PrecomputedMetadata
 from .datasource.precomputed.mesh import PrecomputedMeshSource
 from .datasource.precomputed.skeleton import PrecomputedSkeletonSource
 from .provenance import DataLayerProvenance
@@ -198,7 +200,7 @@ class CloudVolume(object):
       compress=compress_cache,
     )
 
-    self.meta = PrecomputedMetadataSource(
+    self.meta = PrecomputedMetadata(
       cloudpath, 
       cache=self.cache, 
       config=self.config, 

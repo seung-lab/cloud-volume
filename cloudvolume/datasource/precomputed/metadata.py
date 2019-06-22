@@ -1,12 +1,11 @@
 import json
 import json5
 
-from cloudvolume.lib import jsonify, red, extract_path
-from cloudvolume.provenance import DatasetProvenance
-from cloudvolume.storage import SimpleStorage
+from ...provenance import DatasetProvenance
+from ...storage import SimpleStorage
 
-from .lib import ( 
-  colorize, red, mkdir, Vec, Bbox,  
+from ...lib import ( 
+  extract_path, colorize, red, mkdir, Vec, Bbox,  
   jsonify, generate_slices,
 )
 
