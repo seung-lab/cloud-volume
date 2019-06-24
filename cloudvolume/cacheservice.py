@@ -4,7 +4,11 @@ import shutil
 from .provenance import DataLayerProvenance
 from .storage import SimpleStorage, Storage
 
-from .lib import Bbox, colorize, jsonify, mkdir, toabs, Vec, generate_slices
+from .lib import (
+  Bbox, colorize, jsonify, mkdir, 
+  toabs, Vec, generate_slices,
+  extract_path
+)
 from .secrets import CLOUD_VOLUME_DIR
 
 def warn(text):
@@ -12,7 +16,8 @@ def warn(text):
 
 class CacheService(object):
   def __init__(
-    self, enabled, shared_config, 
+    self, cloudpath, 
+    enabled, shared_config, 
     meta=None, compress=None
   ):
     """
@@ -21,7 +26,7 @@ class CacheService(object):
     meta: PrecomputedMetadata
     compress: None = linked to dataset setting, bool = Force
     """
-
+    self._path = extract_path(cloudpath)
     self.shared_config = shared_config
     self.enabled = enabled 
     self.compress = compress 
@@ -44,14 +49,15 @@ class CacheService(object):
 
   @property
   def path(self):
-    if type(self.enabled) is not str:
-      path = self.meta.path
-      return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-        path.protocol, path.bucket.replace('/', ''), path.intermediate_path,
-        path.dataset, path.layer
-      ))
-    else:
-      return toabs(self.enabled)
+    path = self._path
+    return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
+      path.protocol, path.bucket.replace('/', ''), path.intermediate_path,
+      path.dataset, path.layer
+    ))
+
+  @path.setter
+  def path(self, cloudpath):
+    self._path = extract_path(cloudpath)
   
   def num_files(self, all_mips=False):
     def size(mip):

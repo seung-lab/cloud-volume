@@ -179,8 +179,6 @@ class CloudVolume(object):
     delete_black_uploads=False
   ):
 
-    self.shared_memory_id = self.generate_shared_memory_location()
-
     # hack around python's inability to 
     # pass primatives by reference. 
     # We would like updates to e.g. mip or parallel
@@ -196,7 +194,8 @@ class CloudVolume(object):
     )
 
     self.cache = CacheService(
-      enabled=cache, 
+      cloudpath=(cache if type(cache) == str else cloudpath),
+      enabled=bool(cache), 
       shared_config=self.config, 
       compress=compress_cache,
     )
@@ -380,13 +379,6 @@ class CloudVolume(object):
   #   self.cache = CacheService(cache, weakref.proxy(self)) 
   #   self.mesh = PrecomputedMeshSource(weakref.proxy(self))
   #   self.skeleton = PrecomputedSkeletonSource(weakref.proxy(self)) 
-
-  def generate_shared_memory_location(self):
-    return 'cloudvolume-shm-' + str(uuid.uuid4())
-
-  def unlink_shared_memory(self):
-    """Unlink the current shared memory location from the filesystem."""
-    return sharedmemory.unlink(self.shared_memory_id)
 
   @classmethod
   def create_new_info(cls, 
