@@ -59,7 +59,7 @@ class VolumeCutout(np.ndarray):
       path=meta.path,
       cloudpath=meta.cloudpath,
       resolution=meta.resolution,
-      mip=meta.mip,
+      mip=mip,
       layer_type=meta.layer_type,
       bounds=bounds,
       handle=handle,

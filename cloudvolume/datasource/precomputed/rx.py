@@ -45,7 +45,7 @@ def download(
   ))
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
-  compress_cache = should_compress(meta.encoding(mip), compress, cache.compress, iscache=True)
+  compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
   handle = None
 

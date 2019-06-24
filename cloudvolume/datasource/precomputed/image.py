@@ -96,7 +96,7 @@ class PrecomputedImageSource(object):
     ):
 
     offset = Vec(*offset)
-    bbox = Bbox( offset, offset + Vec(*image.shape) )
+    bbox = Bbox( offset, offset + Vec(*image.shape[:3]) )
 
     self.check_bounded(bbox, mip)
 
