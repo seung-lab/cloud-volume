@@ -1,5 +1,6 @@
 from functools import partial
 import itertools
+import math
 import os
 
 import numpy as np
@@ -82,7 +83,7 @@ def download(
     )
   else:
     handle, renderbuffer = multiprocess_download(
-      requested_bbox, mip, 
+      requested_bbox, mip, cloudpaths,
       meta, cache, compress_cache,
       fill_missing, progress,
       parallel, location, retain, 
