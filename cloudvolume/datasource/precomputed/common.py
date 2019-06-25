@@ -8,7 +8,6 @@ import signal
 
 from ...lib import xyzrange, min2, max2, Vec, Bbox
 
-
 # Used in sharedmemory to emulate shared memory on 
 # OS X using a file, which has that facility but is 
 # more limited than on Linux.

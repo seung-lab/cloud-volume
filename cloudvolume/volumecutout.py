@@ -17,7 +17,7 @@ class VolumeCutout(np.ndarray):
 
   def __init__(self, buf, path, cloudpath, resolution, mip, layer_type, bounds, handle, *args, **kwargs):
     super(VolumeCutout, self).__init__()
-    
+
     self.dataset_name = path.dataset
     self.layer = path.layer
     self.path = path

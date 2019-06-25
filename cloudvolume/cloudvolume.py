@@ -724,7 +724,7 @@ class CloudVolume(object):
 
     Returned as a tuple: (requested_bbox, steps, channel_slice)
     """
-    slices = self.meta.bbox.reify_slices(slices, bounded=self.bounded)
+    slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
     steps = Vec(*[ slc.step for slc in slices ])
     channel_slice = slices.pop()
     requested_bbox = Bbox.from_slices(slices)

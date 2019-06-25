@@ -90,8 +90,10 @@ def download(
       use_shared_memory=(use_file == False)
     )
   
-  # renderbuffer = renderbuffer[ ::steps.x, ::steps.y, ::steps.z, channel_slice ]
-  return VolumeCutout.from_volume(meta, mip, renderbuffer, requested_bbox, handle=handle)
+  return VolumeCutout.from_volume(
+    meta, mip, renderbuffer, 
+    requested_bbox, handle=handle
+  )
 
 def multiprocess_download(
     requested_bbox, mip, cloudpaths,
@@ -108,13 +110,13 @@ def multiprocess_download(
       cloudpaths[i:i+length]
     )
 
-  spd = partial(child_process_download, 
-    meta, cache, compress_cache, 
+  cpd = partial(child_process_download, 
+    meta, cache, mip, compress_cache, 
     requested_bbox, 
     fill_missing, progress,
     location, use_shared_memory
   )
-  parallel_execution(spd, cloudpaths_by_process, parallel, cleanup_shm=location)
+  parallel_execution(cpd, cloudpaths_by_process, parallel, cleanup_shm=location)
 
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
@@ -138,36 +140,37 @@ def multiprocess_download(
   return mmap_handle, renderbuffer
 
 def child_process_download(
-    meta, cache, compress_cache, 
-    bufferbbox, 
+    meta, cache, mip, compress_cache, 
+    dest_bbox, 
     fill_missing, progress,
     location, use_shared_memory,
     cloudpaths
   ):
   reset_connection_pools() # otherwise multi-process hangs
 
-  shape = list(bufferbbox.size3()) + [ meta.num_channels ]
+  shape = list(dest_bbox.size3()) + [ meta.num_channels ]
 
   if use_shared_memory:
-    array_like, renderbuffer = shm.ndarray(
+    array_like, dest_img = shm.ndarray(
       shape, dtype=meta.dtype, 
       location=location, lock=fs_lock
     )
   else:
-    array_like, renderbuffer = shm.ndarray_fs(
+    array_like, dest_img = shm.ndarray_fs(
       shape, dtype=meta.dtype, 
       location=location, emulate_shm=False, 
       lock=fs_lock
     )
 
-  def process(img3d, bbox):
-    shade(renderbuffer, bufferbbox, img3d, bbox)
+  def process(src_img, src_bbox):
+    shade(dest_img, dest_bbox, src_img, src_bbox)
 
   download_chunks_threaded(
     meta, cache, mip, cloudpaths,
     fn=process, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache
   )
+
   array_like.close()
 
 def download_chunk(

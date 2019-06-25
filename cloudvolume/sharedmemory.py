@@ -17,8 +17,6 @@ import time
 
 from .lib import Bbox, Vec, mkdir
 
-mmaps = []
-
 SHM_DIRECTORY = '/dev/shm/'
 EMULATED_SHM_DIRECTORY = '/tmp/cloudvolume-shm'
 
@@ -30,17 +28,6 @@ class SharedMemoryReadError(Exception):
 
 class SharedMemoryAllocationError(Exception):
   pass
-
-def bbox2array(meta, bbox, location, order='F', readonly=False, lock=None):
-  """Convenince method for creating a 
-  shared memory numpy array based on a CloudVolume
-  and Bbox. c.f. sharedmemory.ndarray for information
-  on the optional lock parameter."""
-  shape = list(bbox.size3()) + [ meta.num_channels ]
-  return ndarray(
-    shape=shape, dtype=meta.dtype, location=location, 
-    readonly=readonly, lock=lock, order=order
-  )
 
 def ndarray(shape, dtype, location, order='F', readonly=False, lock=None, **kwargs):
   """
@@ -188,18 +175,6 @@ def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
 
   renderbuffer.setflags(write=(not readonly))
   return array_like, renderbuffer
-
-def track_mmap(array_like):
-  global mmaps
-  mmaps.append(array_like)
-
-def cleanup():
-  global mmaps 
-
-  for array_like in mmaps:
-    if not array_like.closed:
-      array_like.close()
-  mmaps = []
 
 def unlink(location):
   if EMULATE_SHM:

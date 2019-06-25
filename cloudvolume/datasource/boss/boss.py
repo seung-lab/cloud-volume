@@ -16,9 +16,6 @@ from cloudvolume.lib import (
 from cloudvolume.secrets import boss_credentials
 from cloudvolume.volumecutout import VolumeCutout
 
-class 
-
-
 def download(self, requested_bbox, steps, channel_slice=slice(None)):
   bounds = Bbox.clamp(requested_bbox, self.bounds)
   

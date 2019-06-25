@@ -145,7 +145,19 @@ def test_parallel_read():
     vol2 = CloudVolume(cloudpath, parallel=2)
 
     data1 = vol1[:512,:512,:50]
+    img = vol2[:512,:512,:50]
     assert np.all(data1 == vol2[:512,:512,:50])
+
+
+def test_parallel_read_shm():
+  paths = [
+    'gs://seunglab-test/test_v0/image',
+    's3://seunglab-test/test_v0/image',
+  ]
+
+  for cloudpath in paths:
+    vol1 = CloudVolume(cloudpath, parallel=1)
+    vol2 = CloudVolume(cloudpath, parallel=2)
 
     data2 = vol2.download_to_shared_memory(np.s_[:512,:512,:50])
     assert np.all(data1 == data2)
