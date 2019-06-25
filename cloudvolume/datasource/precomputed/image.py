@@ -64,7 +64,8 @@ class PrecomputedImageSource(object):
   def download(
       self, bbox, mip, parallel=1, 
       location=None, retain=False,
-      use_shared_memory=False, use_file=False
+      use_shared_memory=False, use_file=False,
+      order='F'
     ):
 
     self.check_bounded(bbox, mip)
@@ -87,13 +88,15 @@ class PrecomputedImageSource(object):
       fill_missing=self.fill_missing,
       progress=self.config.progress,
       compress=self.config.compress,
+      order=order,
     )
 
   def upload(
       self, 
       image, offset, mip, 
       parallel=1,
-      location=None, use_shared_memory=False, use_file=False,
+      location=None, location_bbox=None, order='F',
+      use_shared_memory=False, use_file=False      
     ):
 
     offset = Vec(*offset)
@@ -119,6 +122,8 @@ class PrecomputedImageSource(object):
       parallel=parallel, 
       progress=self.config.progress,
       location=location, 
+      location_bbox=location_bbox,
+      location_order=order,
       use_shared_memory=use_shared_memory,
       use_file=use_file,
       delete_black_uploads=self.delete_black_uploads,

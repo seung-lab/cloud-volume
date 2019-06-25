@@ -33,7 +33,7 @@ def download(
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, 
-    use_file, compress
+    use_file, compress, order='F'
   ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
@@ -56,21 +56,21 @@ def download(
   if parallel == 1:
     if use_shared_memory: # write to shared memory
       handle, renderbuffer = shm.ndarray(
-        shape, dtype=meta.dtype, order='F',
+        shape, dtype=meta.dtype, order=order,
         location=location, lock=fs_lock
       )
       if not retain:
         shm.unlink(location)
     elif use_file: # write to ordinary file
       handle, renderbuffer = shm.ndarray_fs(
-        shape, dtype=meta.dtype, order='F',
+        shape, dtype=meta.dtype, order=order,
         location=location, lock=fs_lock,
         emulate_shm=False
       )
       if not retain:
         os.unlink(location)
     else:
-      renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order='F')
+      renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
     def process(img3d, bbox):
       shade(renderbuffer, requested_bbox, img3d, bbox)
@@ -87,7 +87,8 @@ def download(
       meta, cache, compress_cache,
       fill_missing, progress,
       parallel, location, retain, 
-      use_shared_memory=(use_file == False)
+      use_shared_memory=(use_file == False),
+      order=order
     )
   
   return VolumeCutout.from_volume(
@@ -100,7 +101,7 @@ def multiprocess_download(
     meta, cache, compress_cache,
     fill_missing, progress,
     parallel, location, 
-    retain, use_shared_memory,
+    retain, use_shared_memory, order
   ):
 
   cloudpaths_by_process = []
@@ -122,11 +123,12 @@ def multiprocess_download(
 
   if use_shared_memory:
     mmap_handle, renderbuffer = shm.ndarray(
-      shape, dtype=meta.dtype, location=location, lock=fs_lock
+      shape, dtype=meta.dtype, order=order, 
+      location=location, lock=fs_lock
     )
   else:
     handle, renderbuffer = shm.ndarray_fs(
-      shape, dtype=meta.dtype, order='F',
+      shape, dtype=meta.dtype, order=order,
       location=location, lock=fs_lock,
       emulate_shm=False
     )    

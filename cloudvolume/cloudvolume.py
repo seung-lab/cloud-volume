@@ -1081,20 +1081,24 @@ class CloudVolume(object):
 
     shape = list(bbox.size3()) + [ self.num_channels ]
     mmap_handle, shared_image = sharedmemory.ndarray(
-      location=location, shape=shape, dtype=self.dtype, order=order, readonly=True)
+      location=location, shape=shape, 
+      dtype=self.dtype, order=order, 
+      readonly=True
+    )
 
     delta_box = cutout_bbox.clone() - bbox.minpt
     cutout_image = shared_image[ delta_box.to_slices() ]
     
-    txrx.upload_image(
-      self, cutout_image, cutout_bbox.minpt, 
+    self.image.upload(
+      cutout_image, cutout_bbox.minpt, self.mip,
       parallel=self.parallel, 
-      manual_shared_memory_id=location, 
-      manual_shared_memory_bbox=bbox, 
-      manual_shared_memory_order=order,
-      delete_black_uploads=self.delete_black_uploads,
+      location=location, 
+      location_bbox=bbox,
+      order=order,
+      use_shared_memory=True,
     )
-    mmap_handle.close() 
+    mmap_handle.close()
+
 
   def viewer(self, port=1337):
     import cloudvolume.server

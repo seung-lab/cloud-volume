@@ -112,7 +112,7 @@ def upload(
     core_img = image[ core_bbox.to_slices() ] 
     upload_aligned(
       meta, cache, 
-      image, offset, mip,
+      core_img, retracted.minpt, mip,
       compress=compress,
       cdn_cache=cdn_cache,
       parallel=parallel, 
@@ -144,7 +144,7 @@ def upload(
       delete_black_uploads=delete_black_uploads,
     )
 
-  compress_cache = should_compress(meta.encoding(mip), compress, cache.compress, iscache=True)
+  compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
   download_chunks_threaded(
     meta, cache, mip, shell_chunks, fn=shade_and_upload,
