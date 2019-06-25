@@ -934,6 +934,10 @@ class CloudVolume(object):
     self.mip = saved_mip
     return img
 
+  def unlink_shared_memory(self):
+    """Unlink the current shared memory location from the filesystem."""
+    return self.image.unlink_shared_memory()
+
   def download_to_shared_memory(self, slices, location=None):
     """
     Download images to a shared memory array. 
@@ -972,10 +976,12 @@ class CloudVolume(object):
 
     if self.autocrop:
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
-    
-    location = location or self.shared_memory_id
-    return txrx.download_image(self, requested_bbox, steps, channel_slice, parallel=self.parallel, 
-      shared_memory_location=location, output_to_shared_memory=True)
+
+    img = self.image.download(
+      requested_bbox, self.mip, parallel=self.parallel,
+      location=location, retain=True, use_shared_memory=True
+    )
+    return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
   def __setitem__(self, slices, img):
     if type(slices) == Bbox:

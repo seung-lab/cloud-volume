@@ -9,6 +9,7 @@ This datasource contains the code for manipulating images.
 """
 from cloudvolume import lib, exceptions
 from ...lib import Bbox, Vec
+from ... import sharedmemory
 
 from . import tx, rx
 
