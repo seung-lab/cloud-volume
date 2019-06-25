@@ -6,6 +6,8 @@ import concurrent.futures
 import os
 import signal
 
+import numpy as np
+
 from ...lib import xyzrange, min2, max2, Vec, Bbox
 
 # Used in sharedmemory to emulate shared memory on 

@@ -56,7 +56,7 @@ class PrecomputedImageSource(object):
         Set bounded=False to disable this warning.
       """.format(
           self.meta.cloudpath, 
-          bbox, self.meta.bounds, 
+          bbox, self.meta.bounds(mip), 
           mip, self.meta.resolution(mip)
         )
       )
@@ -71,7 +71,7 @@ class PrecomputedImageSource(object):
     self.check_bounded(bbox, mip)
 
     if self.autocrop:
-      bbox = Bbox.intersection(bbox, self.meta.bounds)
+      bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
 
     if location is None:
       location = self.shared_memory_id
@@ -105,10 +105,10 @@ class PrecomputedImageSource(object):
     self.check_bounded(bbox, mip)
 
     if self.autocrop:
-      img_bbox = Bbox.intersection(bbox, self.meta.bounds)
+      img_bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
       img_bbox -= (img_bbox.minpt - bbox.minpt)
       image = image[ img_bbox.to_slices() ]
-      bbox = Bbox.intersection(bbox, self.meta.bounds)
+      bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
       offset = bbox.minpt
 
     if location is None:

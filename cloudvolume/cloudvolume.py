@@ -1099,7 +1099,6 @@ class CloudVolume(object):
     )
     mmap_handle.close()
 
-
   def viewer(self, port=1337):
     import cloudvolume.server
 

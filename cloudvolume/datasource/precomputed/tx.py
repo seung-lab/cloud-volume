@@ -188,41 +188,38 @@ def upload_aligned(
       chunk_ranges[i:i+length]
     )
 
-  if location:
-    shared_memory_id = location
-  else:
-    shared_memory_id = vol.shared_memory_id
+  # use_shared_memory means use a predetermined
+  # shared memory location, not no shared memory 
+  # at all.
+  if not use_shared_memory:
     array_like, renderbuffer = shm.ndarray(
       shape=img.shape, dtype=img.dtype, 
-      location=shared_memory_id, order=location_order, 
+      location=location, order=location_order, 
       lock=fs_lock
     )
     renderbuffer[:] = img
 
-  mpu = partial(multi_process_upload, 
-    meta, img.shape, offset, 
-    shared_memory_id, 
-    location_bbox, 
-    location_order, 
-    cache.enabled, 
+  cup = partial(child_upload_process, 
+    meta, cache, 
+    img.shape, offset, mip,
+    compress, cdn_cache, progress,
+    location, location_bbox, location_order, 
     delete_black_uploads
   )
 
-  cleanup_shm = shared_memory_id if not location else None
-  parallel_execution(mpu, chunk_ranges_by_process, parallel, cleanup_shm=cleanup_shm)
+  parallel_execution(cup, chunk_ranges_by_process, parallel, cleanup_shm=location)
 
   # If manual mode is enabled, it's the 
   # responsibilty of the user to clean up
-  if not location:
+  if not use_shared_memory:
     array_like.close()
-    shm.unlink(vol.shared_memory_id)
+    shm.unlink(location)
 
-def multi_process_upload(
-    meta, img_shape, offset, mip,
-    shared_memory_id, 
-    location_bbox, 
-    location_order, 
-    caching, 
+def child_upload_process(
+    meta, cache, 
+    img_shape, offset, mip,
+    compress, cdn_cache, progress,
+    location, location_bbox, location_order, 
     delete_black_uploads,
     chunk_ranges
   ):
@@ -236,7 +233,7 @@ def multi_process_upload(
   array_like, renderbuffer = shm.ndarray(
     shape=shared_shape, 
     dtype=meta.dtype, 
-    location=shared_memory_id, 
+    location=location, 
     order=location_order, 
     lock=fs_lock, 
     readonly=True
@@ -250,6 +247,7 @@ def multi_process_upload(
   threaded_upload_chunks(
     meta, cache, 
     renderbuffer, mip, chunk_ranges, 
+    compress=compress, cdn_cache=cdn_cache, progress=progress,
     delete_black_uploads=delete_black_uploads
   )
   array_like.close()

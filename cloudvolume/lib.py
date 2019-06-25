@@ -351,7 +351,7 @@ class Bbox(object):
 
   @classmethod
   def intersection(cls, bbx1, bbx2):
-    result = Bbox( [ 0 ] * bbx.ndim, [ 0 ] * bbx2.ndim )
+    result = Bbox( [ 0 ] * bbx1.ndim, [ 0 ] * bbx2.ndim )
 
     if not Bbox.intersects(bbx1, bbx2):
       return result
