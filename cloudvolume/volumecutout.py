@@ -46,6 +46,19 @@ class VolumeCutout(np.ndarray):
     except AttributeError:
       pass
 
+  def __getitem__(self, slices):
+    cutout = super(VolumeCutout, self).__getitem__(slices)
+    return VolumeCutout(
+      buf=cutout, 
+      path=self.path, 
+      cloudpath=self.cloudpath, 
+      resolution=self.resolution, 
+      mip=self.mip, 
+      layer_type=self.layer_type, 
+      bounds=self.bounds,
+      handle=None,
+    )
+
   def __del__(self):
     sup = super(VolumeCutout, self)
     if hasattr(sup, '__del__'):
@@ -58,7 +71,7 @@ class VolumeCutout(np.ndarray):
       buf=buf,
       path=meta.path,
       cloudpath=meta.cloudpath,
-      resolution=meta.resolution,
+      resolution=meta.resolution(mip),
       mip=mip,
       layer_type=meta.layer_type,
       bounds=bounds,
