@@ -7,9 +7,11 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
+import itertools
 import uuid
 
 import numpy as np
+from tqdm import tqdm
 
 from cloudvolume import lib, exceptions
 from ...lib import Bbox, Vec
@@ -195,6 +197,8 @@ class PrecomputedImageSource(object):
     block_size (int): number of file chunks to transfer per I/O batch.
     compress (bool): Set to False to upload as uncompressed
     """
+    from cloudvolume import CloudVolume
+
     if mip is None:
       mip = self.config.mip
 
@@ -226,9 +230,9 @@ class PrecomputedImageSource(object):
       step = int(default_block_size_MB // chunk_MB) + 1
 
     try:
-      destvol = CloudVolume(cloudpath, mip=self.meta.mip)
+      destvol = CloudVolume(cloudpath, mip=mip)
     except exceptions.InfoUnavailableError: 
-      destvol = CloudVolume(cloudpath, mip=self.meta.mip, info=self.meta.info, provenance=self.meta.provenance.serialize())
+      destvol = CloudVolume(cloudpath, mip=mip, info=self.meta.info, provenance=self.meta.provenance.serialize())
       destvol.commit_info()
       destvol.commit_provenance()
     except exceptions.ScaleUnavailableError:

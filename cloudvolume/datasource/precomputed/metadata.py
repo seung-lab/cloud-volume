@@ -8,6 +8,7 @@ from six import string_types
 from six.moves import range
 from tqdm import tqdm
 
+from ... import exceptions
 from ...provenance import DatasetProvenance, DataLayerProvenance
 from ...storage import SimpleStorage
 
@@ -89,7 +90,7 @@ class PrecomputedMetadata(object):
 
     if info is None:
       raise exceptions.InfoUnavailableError(
-        red('No info file was found: {}'.format(self.info_cloudpath))
+        red('No info file was found: {}'.format(self.infopath))
       )
     return info
 
@@ -270,7 +271,7 @@ class PrecomputedMetadata(object):
   
   @property
   def infopath(self):
-    return os.path.join(self.layer_cloudpath, 'info')
+    return os.path.join(self.cloudpath, 'info')
 
   def shape(self, mip):
     """Returns Vec(x,y,z,channels) shape of the volume similar to numpy.""" 

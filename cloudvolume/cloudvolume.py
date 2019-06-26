@@ -745,7 +745,7 @@ class CloudVolume(object):
     block_size (int): number of file chunks to transfer per I/O batch.
     compress (bool): Set to False to upload as uncompressed
     """
-    return self.image.transfer_to(cloudpath, bbox, mip, block_size, compress)
+    return self.image.transfer_to(cloudpath, bbox, self.mip, block_size, compress)
 
   def __getitem__(self, slices):
     if type(slices) == Bbox:
