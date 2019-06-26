@@ -46,18 +46,24 @@ class VolumeCutout(np.ndarray):
     except AttributeError:
       pass
 
-  def __getitem__(self, slices):
-    cutout = super(VolumeCutout, self).__getitem__(slices)
-    return VolumeCutout(
-      buf=cutout, 
-      path=self.path, 
-      cloudpath=self.cloudpath, 
-      resolution=self.resolution, 
-      mip=self.mip, 
-      layer_type=self.layer_type, 
-      bounds=self.bounds,
-      handle=None,
-    )
+  # How to add a new attribute to an ndarray:
+  # https://docs.scipy.org/doc/numpy-1.13.0/uer/basics.subclassing.html#simple-example-adding-an-extra-attribute-to-ndarray
+
+  # Overriding __getitem__ and __setitem__ are 
+  # not easy to do. 
+  def __array_finalize__(self, obj):
+    if obj is None: 
+      return
+
+    self.dataset_name = getattr(obj, 'dataset', None)
+    self.layer = getattr(obj, 'layer', None)
+    self.path = getattr(obj, 'path', None)
+    self.resolution = getattr(obj, 'resolution', None)
+    self.cloudpath = getattr(obj, 'cloudpath', None)
+    self.mip = getattr(obj, 'mip', None)
+    self.layer_type = getattr(obj, 'layer_type', None)
+    self.bounds = getattr(obj, 'bounds', None)
+    self.handle = None #getattr(obj, 'handle', None)
 
   def __del__(self):
     sup = super(VolumeCutout, self)
