@@ -215,7 +215,7 @@ class CloudVolume(object):
     )
 
     self.mesh = PrecomputedMeshSource(self.meta, self.cache, self.config)
-    self.skeletons = PrecomputedSkeletonSource(self.meta, self.cache, self.config)
+    self.skeleton = PrecomputedSkeletonSource(self.meta, self.cache, self.config)
 
     # needs to be set after info is defined since
     # its setter is based off of scales
