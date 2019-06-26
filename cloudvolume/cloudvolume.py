@@ -467,7 +467,7 @@ class CloudVolume(object):
     return self.meta.commit_info()
 
   def refresh_provenance(self):
-    return self.meta.refresh_info()
+    return self.meta.refresh_provenance()
 
   def commit_provenance(self):
     return self.meta.commit_provenance()
