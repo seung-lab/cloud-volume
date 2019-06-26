@@ -16,6 +16,7 @@ from ...lib import Bbox, Vec
 from ... import sharedmemory
 from ...storage import Storage
 
+from .common import chunknames
 from . import tx, rx
 
 class PrecomputedImageSource(object):
