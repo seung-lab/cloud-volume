@@ -21,8 +21,7 @@ from .cacheservice import CacheService
 from . import exceptions 
 from .lib import ( 
   colorize, red, mkdir, Vec, Bbox,  
-  jsonify, generate_slices,
-  generate_random_string
+  jsonify, generate_random_string
 )
 
 from .datasource.precomputed.image import PrecomputedImageSource

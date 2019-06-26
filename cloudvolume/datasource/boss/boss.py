@@ -10,8 +10,7 @@ from cloudvolume.cacheservice import CacheService
 from cloudvolume import exceptions 
 from cloudvolume.lib import ( 
   colorize, red, mkdir, Vec, Bbox,  
-  jsonify, generate_slices,
-  generate_random_string
+  jsonify, generate_random_string
 )
 from cloudvolume.secrets import boss_credentials
 from cloudvolume.volumecutout import VolumeCutout

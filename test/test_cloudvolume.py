@@ -692,7 +692,8 @@ def test_caching():
 
   # Test Non-standard Cache Destination
   dirpath = '/tmp/cloudvolume/caching-cache-' + str(TEST_NUMBER)
-  vol.cache.enabled = dirpath
+  vol.cache.enabled = True
+  vol.cache.path = dirpath
   vol[:,:,:] = image
 
   assert len(os.listdir(os.path.join(dirpath, vol.key))) == 8

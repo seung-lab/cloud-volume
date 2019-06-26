@@ -12,8 +12,8 @@ from ...provenance import DatasetProvenance, DataLayerProvenance
 from ...storage import SimpleStorage
 
 from ...lib import ( 
-  extract_path, colorize, red, mkdir, Vec, Bbox,  
-  jsonify, generate_slices,
+  extract_path, colorize, red, mkdir, 
+  Vec, Bbox, jsonify, 
 )
 
 class PrecomputedMetadata(object):
@@ -358,14 +358,7 @@ class PrecomputedMetadata(object):
 
   def bbox_to_mip(self, bbox, mip, to_mip):
     """Convert bbox or slices from one mip level to another."""
-    if not type(bbox) is Bbox:
-      bbox = lib.generate_slices(
-        bbox, 
-        self.bounds(mip).minpt, 
-        self.bounds(mip).maxpt, 
-        bounded=False
-      )
-      bbox = Bbox.from_slices(bbox)
+    bbox = Bbox.create(bbox, self.bounds(mip))
 
     def one_level(bbox, mip, to_mip):
       original_dtype = bbox.dtype

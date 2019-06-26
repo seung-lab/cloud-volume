@@ -169,6 +169,10 @@ class PrecomputedImageSource(object):
         bbox, realized_bbox
       ))
 
+    cloudpaths = list(chunknames(
+      realized_bbox, self.meta.bounds(mip), self.meta.key(mip), self.meta.chunk_size(mip)
+    ))
+
     with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
       storage.delete_files(cloudpaths)
 

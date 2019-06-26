@@ -6,8 +6,7 @@ from .storage import SimpleStorage, Storage
 
 from .lib import (
   Bbox, colorize, jsonify, mkdir, 
-  toabs, Vec, generate_slices,
-  extract_path
+  toabs, Vec, extract_path
 )
 from .secrets import CLOUD_VOLUME_DIR
 
@@ -27,6 +26,8 @@ class CacheService(object):
     compress: None = linked to dataset setting, bool = Force
     """
     self._path = extract_path(cloudpath)
+    self.path = self.default_path()
+
     self.shared_config = shared_config
     self._enabled = enabled 
     self.compress = compress 
@@ -56,17 +57,11 @@ class CacheService(object):
     self._enabled = val 
     self.initialize()
 
-  @property
-  def path(self):
-    path = self._path
+  def default_path(self):
     return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-      path.protocol, path.bucket.replace('/', ''), path.intermediate_path,
-      path.dataset, path.layer
+      self._path.protocol, self._path.bucket.replace('/', ''), self._path.intermediate_path,
+      self._path.dataset, self._path.layer
     ))
-
-  @path.setter
-  def path(self, cloudpath):
-    self._path = extract_path('file://' + cloudpath)
   
   def num_files(self, all_mips=False):
     def size(mip):
@@ -182,10 +177,7 @@ class CacheService(object):
   
     cur_mip = self.shared_config.mip
 
-    if type(region) in (list, tuple):
-      region = generate_slices(region, self.meta.bounds(cur_mip).minpt, self.meta.bounds(cur_mip).maxpt, bounded=False)
-      region = Bbox.from_slices(region)
-
+    region = Bbox.create(region, self.meta.bounds(cur_mip))
     mips = ( cur_mip, ) if mips == None else mips
 
     for mip in mips:

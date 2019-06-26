@@ -780,12 +780,6 @@ class Bbox(object):
   def __repr__(self):
     return "Bbox({},{}, dtype={})".format(list(self.minpt), list(self.maxpt), self.dtype)
 
-# Deprecated
-def generate_slices(slices, minsize, maxsize, bounded=True):
-  """Assisting function for __getitem__. e.g. vol[:,:,:,:]"""
-  bbx = Bbox(minsize, maxsize)
-  return bbx.reify_slices(slices, bounded)
-
 def save_images(image, directory=None, axis='z', channel=None, global_norm=True, image_format='PNG'):
   """
   Serialize a 3D or 4D array into a series of PNGs for visualization.
