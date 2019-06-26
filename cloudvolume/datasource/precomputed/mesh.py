@@ -67,14 +67,14 @@ class PrecomputedMesh(object):
 
   def clone(self):
     if self.normals is None:
-      return Mesh(np.copy(self.vertices), np.copy(self.faces), None)
+      return PrecomputedMesh(np.copy(self.vertices), np.copy(self.faces), None)
     else:
-      return Mesh(np.copy(self.vertices), np.copy(self.faces), np.copy(self.normals))
+      return PrecomputedMesh(np.copy(self.vertices), np.copy(self.faces), np.copy(self.normals))
 
   @classmethod
   def from_precomputed(self, binary):
     """
-    Mesh from_precomputed(self, binary)
+    PrecomputedMesh from_precomputed(self, binary)
 
     Decode a Precomputed format mesh from a byte string.
     
@@ -98,7 +98,7 @@ class PrecomputedMesh(object):
     vertices = vertices.reshape(num_vertices, 3)
     faces = faces.reshape(faces.size // 3, 3)
 
-    return Mesh(vertices, faces, normals=None)
+    return PrecomputedMesh(vertices, faces, normals=None)
 
   def to_precomputed(self):
     """
@@ -155,7 +155,7 @@ class PrecomputedMesh(object):
     faces = np.array(faces, dtype=np.uint32)
     normals = np.array(normals, dtype=np.float32)
 
-    return Mesh(vertices, faces - 1, normals)
+    return PrecomputedMesh(vertices, faces - 1, normals)
 
   def to_obj(self):
     """Return a string representing a .obj file."""
@@ -243,7 +243,7 @@ class PrecomputedMeshSource(object):
     segids = toiter(segids)    
     paths = [ self.manifest_path(segid) for segid in segids ]
 
-    with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+    with Storage(self.meta.cloudpath, progress=self.config.progress) as stor:
       fragments = stor.get_files(paths)
 
     contents = {}
@@ -265,7 +265,7 @@ class PrecomputedMeshSource(object):
   def _check_missing_manifests(self, segids):
     """Check if there are any missing mesh manifests prior to downloading."""
     manifest_paths = [ self.manifest_path(segid) for segid in segids ]
-    with Storage(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
+    with Storage(self.meta.cloudpath, progress=self.config.progress) as stor:
       exists = stor.files_exist(manifest_paths)
 
     dne = []
@@ -318,17 +318,21 @@ class PrecomputedMeshSource(object):
 
     # decode all the fragments
     meshdata = defaultdict(list)
-    for frag in tqdm(fragments, disable=(not self.vol.progress), desc="Decoding Mesh Buffer"):
+    for frag in tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer"):
       segid = filename_to_segid(frag['filename'])
-      mesh = decode_mesh_buffer(frag['filename'], frag['content'])
+      try:
+        mesh = PrecomputedMesh.from_precomputed(frag['content'])
+      except Exception:
+        print(frag['filename'], 'had a problem.')
+        raise
       meshdata[segid].append(mesh)
 
     def produce_output(mdata):
       vertexct = np.zeros(len(mdata) + 1, np.uint32)
-      vertexct[1:] = np.cumsum([ x['num_vertices'] for x in mdata ])
-      vertices = np.concatenate([ x['vertices'] for x in mdata ])
+      vertexct[1:] = np.cumsum([ x.vertices.shape[0] for x in mdata ])
+      vertices = np.concatenate([ x.vertices for x in mdata ])
       faces = np.concatenate([ 
-        mesh['faces'] + vertexct[i] for i, mesh in enumerate(mdata) 
+        mesh.faces + vertexct[i] for i, mesh in enumerate(mdata) 
       ])
 
       if remove_duplicate_vertices:

@@ -1172,19 +1172,19 @@ def test_mesh_fragment_download():
 def test_get_mesh():
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
   mesh = vol.mesh.get(18)
-  assert mesh['num_vertices'] == 6123
-  assert len(mesh['vertices']) == 6123
-  assert len(mesh['faces']) == 36726
-  assert isinstance(mesh['vertices'], np.ndarray)
-  assert mesh['vertices'].dtype == np.float32
-  assert mesh['faces'].dtype == np.uint32
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.faces) == 36726
+  assert isinstance(mesh.vertices, np.ndarray)
+  assert mesh.vertices.dtype == np.float32
+  assert mesh.faces.dtype == np.uint32
 
   meshes = vol.mesh.get([148, 18], fuse=False)
   assert len(meshes) == 2
   mesh = meshes[18]
-  assert mesh['num_vertices'] == 6123
-  assert len(mesh['vertices']) == 6123
-  assert len(mesh['faces']) == 36726
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.faces) == 36726
   
   try:
     vol.mesh.get(666666666)
@@ -1198,9 +1198,9 @@ def test_get_mesh_order_stability():
   
   for _ in range(5):
     next_mesh = vol.mesh.get([148, 18], fuse=True)
-    assert first_mesh['num_vertices'] == next_mesh['num_vertices']
-    assert np.all(first_mesh['vertices'] == next_mesh['vertices'])
-    assert np.all(first_mesh['faces'] == next_mesh['faces'])
+    assert len(first_mesh.vertices) == len(next_mesh.vertices)
+    assert np.all(first_mesh.vertices == next_mesh.vertices)
+    assert np.all(first_mesh.faces == next_mesh.faces)
 
 def test_boss_download():
   vol = CloudVolume('gs://seunglab-test/test_v0/image')
