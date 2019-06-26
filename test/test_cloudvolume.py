@@ -381,6 +381,8 @@ def test_non_aligned_write():
   answer[ 362:662, 362:662, : ] = 1
   assert np.all(cv[:] == answer)    
 
+from cloudvolume import view
+
 def test_autocropped_write():
   delete_layer()
   cv, _ = create_layer(size=(100,100,100,1), offset=(0,0,0))
@@ -413,7 +415,7 @@ def test_writer_last_chunk_smaller():
   cv, data = create_layer(size=(100,64,64,1), offset=(0,0,0))
   cv.info['scales'][0]['chunk_sizes'] = [[ 64,64,64 ]]
   
-  chunks = [ chunk for chunk in generate_chunks(cv, data[:,:,:,:], (0,0,0), cv.mip) ]
+  chunks = [ chunk for chunk in generate_chunks(cv.meta, data[:,:,:,:], (0,0,0), cv.mip) ]
 
   assert len(chunks) == 2
 

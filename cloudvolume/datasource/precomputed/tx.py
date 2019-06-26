@@ -273,7 +273,7 @@ def threaded_upload_chunks(
     img = img[ ..., np.newaxis ]
 
   def do_upload(imgchunk, cloudpath):
-    encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size)
+    encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
 
     cloudstorage.put_file(
       file_path=cloudpath, 

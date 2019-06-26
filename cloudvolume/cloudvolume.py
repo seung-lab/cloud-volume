@@ -714,36 +714,6 @@ class CloudVolume(object):
     """
     return self.meta.add_scale(factor, encoding, chunk_size, info)
 
-  def __interpret_slices(self, slices):
-    """
-    Convert python slice objects into a more useful and computable form:
-
-    - requested_bbox: A bounding box representing the volume requested
-    - steps: the requested stride over x,y,z
-    - channel_slice: A python slice object over the channel dimension
-
-    Returned as a tuple: (requested_bbox, steps, channel_slice)
-    """
-    slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
-    steps = Vec(*[ slc.step for slc in slices ])
-    channel_slice = slices.pop()
-    requested_bbox = Bbox.from_slices(slices)
-
-    return requested_bbox, steps, channel_slice
-
-  def __realized_bbox(self, requested_bbox):
-    """
-    The requested bbox might not be aligned to the underlying chunk grid 
-    or even outside the bounds of the dataset. Convert the request into
-    a bbox representing something that can be actually downloaded.
-
-    Returns: Bbox
-    """
-    realized_bbox = requested_bbox.expand_to_chunk_size(
-      self.meta.chunk_size, offset=self.meta.voxel_offset
-    )
-    return Bbox.clamp(realized_bbox, self.bounds)
-
   def exists(self, bbox_or_slices):
     """
     Produce a summary of whether all the requested chunks exist.
@@ -752,17 +722,7 @@ class CloudVolume(object):
       the requested volume. 
     Returns: { chunk_file_name: boolean, ... }
     """
-    if type(bbox_or_slices) is Bbox:
-      requested_bbox = bbox_or_slices
-    else:
-      (requested_bbox, _, _) = self.__interpret_slices(bbox_or_slices)
-    realized_bbox = self.__realized_bbox(requested_bbox)
-    cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
-    cloudpaths = list(cloudpaths)
-
-    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-      existence_report = storage.files_exist(cloudpaths)
-    return existence_report
+    return self.image.exists(bbox_or_slices)
 
   def delete(self, bbox_or_slices):
     """
@@ -771,27 +731,7 @@ class CloudVolume(object):
     bbox_or_slices: accepts either a Bbox or a tuple of slices representing
       the requested volume. 
     """
-    if type(bbox_or_slices) is Bbox:
-      requested_bbox = bbox_or_slices
-    else:
-      (requested_bbox, _, _) = self.__interpret_slices(bbox_or_slices)
-    realized_bbox = self.__realized_bbox(requested_bbox)
-
-    if requested_bbox != realized_bbox:
-      raise exceptions.AlignmentError(
-        "Unable to delete non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
-        requested_bbox, realized_bbox
-      ))
-
-    cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
-    cloudpaths = list(cloudpaths)
-
-    with Storage(self.layer_cloudpath, progress=self.progress) as storage:
-      storage.delete_files(cloudpaths)
-
-    if self.cache.enabled:
-      with Storage('file://' + self.cache.path, progress=self.progress) as storage:
-        storage.delete_files(cloudpaths)
+    return self.image.delete(bbox_or_slices)
 
   def transfer_to(self, cloudpath, bbox, block_size=None, compress=True):
     """
@@ -806,73 +746,7 @@ class CloudVolume(object):
     block_size (int): number of file chunks to transfer per I/O batch.
     compress (bool): Set to False to upload as uncompressed
     """
-    if type(bbox) is Bbox:
-      requested_bbox = bbox
-    else:
-      (requested_bbox, _, _) = self.__interpret_slices(bbox)
-    realized_bbox = self.__realized_bbox(requested_bbox)
-
-    if requested_bbox != realized_bbox:
-      raise exceptions.AlignmentError(
-        "Unable to transfer non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
-          requested_bbox, realized_bbox
-        ))
-
-    default_block_size_MB = 50 # MB
-    chunk_MB = self.underlying.rectVolume() * np.dtype(self.dtype).itemsize * self.num_channels
-    if self.layer_type == 'image':
-      # kind of an average guess for some EM datasets, have seen up to 1.9x and as low as 1.1
-      # affinites are also images, but have very different compression ratios. e.g. 3x for kempressed
-      chunk_MB /= 1.3 
-    else: # segmentation
-      chunk_MB /= 100.0 # compression ratios between 80 and 800....
-    chunk_MB /= 1024.0 * 1024.0
-
-    if block_size:
-      step = block_size
-    else:
-      step = int(default_block_size_MB // chunk_MB) + 1
-
-    try:
-      destvol = CloudVolume(cloudpath, mip=self.mip)
-    except exceptions.InfoUnavailableError: 
-      destvol = CloudVolume(cloudpath, mip=self.mip, info=self.info, provenance=self.provenance.serialize())
-      destvol.commit_info()
-      destvol.commit_provenance()
-    except exceptions.ScaleUnavailableError:
-      destvol = CloudVolume(cloudpath)
-      for i in range(len(destvol.scales) + 1, len(self.scales)):
-        destvol.scales.append(
-          self.scales[i]
-        )
-      destvol.commit_info()
-      destvol.commit_provenance()
-
-    num_blocks = np.ceil(self.bounds.volume() / self.underlying.rectVolume()) / step
-    num_blocks = int(np.ceil(num_blocks))
-
-    cloudpaths = txrx.chunknames(realized_bbox, self.bounds, self.key, self.underlying)
-
-    pbar = tqdm(
-      desc='Transferring Blocks of {} Chunks'.format(step), 
-      unit='blocks', 
-      disable=(not self.progress),
-      total=num_blocks,
-    )
-
-    with pbar:
-      with Storage(self.layer_cloudpath) as src_stor:
-        with Storage(cloudpath) as dest_stor:
-          for _ in range(num_blocks, 0, -1):
-            srcpaths = list(itertools.islice(cloudpaths, step))
-            files = src_stor.get_files(srcpaths)
-            files = [ (f['filename'], f['content']) for f in files ]
-            dest_stor.put_files(
-              files=files, 
-              compress=compress, 
-              content_type=txrx.content_type(destvol),
-            )
-            pbar.update()
+    return self.image.transfer_to(cloudpath, bbox, mip, block_size, compress)
 
   def __getitem__(self, slices):
     if type(slices) == Bbox:
@@ -970,9 +844,10 @@ class CloudVolume(object):
     
     Returns: void
     """
-    if type(slices) == Bbox:
-      slices = slices.to_slices()
-    (requested_bbox, steps, channel_slice) = self.__interpret_slices(slices)
+    slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
+    steps = Vec(*[ slc.step for slc in slices ])
+    channel_slice = slices.pop()
+    requested_bbox = Bbox.from_slices(slices)
 
     if self.autocrop:
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)

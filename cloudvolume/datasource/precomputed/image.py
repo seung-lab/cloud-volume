@@ -7,13 +7,16 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
+import uuid
+
+import numpy as np
+
 from cloudvolume import lib, exceptions
 from ...lib import Bbox, Vec
 from ... import sharedmemory
+from ...storage import Storage
 
 from . import tx, rx
-
-import uuid
 
 class PrecomputedImageSource(object):
   def __init__(
@@ -105,10 +108,11 @@ class PrecomputedImageSource(object):
     self.check_bounded(bbox, mip)
 
     if self.autocrop:
-      img_bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
-      img_bbox -= (img_bbox.minpt - bbox.minpt)
+      cropped_bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
+      dmin = np.abs(bbox.minpt - cropped_bbox.minpt)
+      img_bbox = Bbox(dmin, dmin + cropped_bbox.size())
       image = image[ img_bbox.to_slices() ]
-      bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
+      bbox = cropped_bbox
       offset = bbox.minpt
 
     if location is None:
@@ -129,4 +133,131 @@ class PrecomputedImageSource(object):
       delete_black_uploads=self.delete_black_uploads,
       non_aligned_writes=self.non_aligned_writes,
     )
+
+  def exists(self, bbox, mip=None):
+    if mip is None:
+      mip = self.config.mip
+
+    bbox = Bbox.create(bbox, self.meta.bounds(mip))
+    realized_bbox = bbox.expand_to_chunk_size(
+      self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
+    )
+    realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
+
+    cloudpaths = list(chunknames(
+      realized_bbox, self.meta.bounds(mip), self.meta.key(mip), self.meta.chunk_size(mip)
+    ))
+
+    with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
+      existence_report = storage.files_exist(cloudpaths)
+    return existence_report    
+
+  def delete(self, bbox, mip=None):
+    if mip is None:
+      mip = self.config.mip
+
+    bbox = Bbox.create(bbox, self.meta.bounds(mip))
+    realized_bbox = bbox.expand_to_chunk_size(
+      self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
+    )
+    realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
+
+    if bbox != realized_bbox:
+      raise exceptions.AlignmentError(
+        "Unable to delete non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
+        bbox, realized_bbox
+      ))
+
+    with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
+      storage.delete_files(cloudpaths)
+
+    if self.cache.enabled:
+      with Storage('file://' + self.cache.path, progress=self.config.progress) as storage:
+        storage.delete_files(cloudpaths)
+
+
+  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True):
+    """
+    Transfer files from one storage location to another, bypassing
+    volume painting. This enables using a single CloudVolume instance
+    to transfer big volumes. In some cases, gsutil or aws s3 cli tools
+    may be more appropriate. This method is provided for convenience. It
+    may be optimized for better performance over time as demand requires.
+
+    cloudpath (str): path to storage layer
+    bbox (Bbox object): ROI to transfer
+    mip (int): resolution level
+    block_size (int): number of file chunks to transfer per I/O batch.
+    compress (bool): Set to False to upload as uncompressed
+    """
+    if mip is None:
+      mip = self.config.mip
+
+    bbox = Bbox.create(bbox, self.meta.bounds(mip))
+    realized_bbox = bbox.expand_to_chunk_size(
+      self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
+    )
+    realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
+
+    if bbox != realized_bbox:
+      raise exceptions.AlignmentError(
+        "Unable to transfer non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
+          bbox, realized_bbox
+        ))
+
+    default_block_size_MB = 50 # MB
+    chunk_MB = self.meta.chunk_size(mip).rectVolume() * np.dtype(self.meta.dtype).itemsize * self.meta.num_channels
+    if self.meta.layer_type == 'image':
+      # kind of an average guess for some EM datasets, have seen up to 1.9x and as low as 1.1
+      # affinites are also images, but have very different compression ratios. e.g. 3x for kempressed
+      chunk_MB /= 1.3 
+    else: # segmentation
+      chunk_MB /= 100.0 # compression ratios between 80 and 800....
+    chunk_MB /= 1024.0 * 1024.0
+
+    if block_size:
+      step = block_size
+    else:
+      step = int(default_block_size_MB // chunk_MB) + 1
+
+    try:
+      destvol = CloudVolume(cloudpath, mip=self.meta.mip)
+    except exceptions.InfoUnavailableError: 
+      destvol = CloudVolume(cloudpath, mip=self.meta.mip, info=self.meta.info, provenance=self.meta.provenance.serialize())
+      destvol.commit_info()
+      destvol.commit_provenance()
+    except exceptions.ScaleUnavailableError:
+      destvol = CloudVolume(cloudpath)
+      for i in range(len(destvol.scales) + 1, len(self.meta.scales)):
+        destvol.scales.append(
+          self.meta.scales[i]
+        )
+      destvol.commit_info()
+      destvol.commit_provenance()
+
+    num_blocks = np.ceil(self.meta.bounds(mip).volume() / self.meta.chunk_size(mip).rectVolume()) / step
+    num_blocks = int(np.ceil(num_blocks))
+
+    cloudpaths = chunknames(bbox, self.meta.bounds(mip), self.meta.key(mip), self.meta.chunk_size(mip))
+
+    pbar = tqdm(
+      desc='Transferring Blocks of {} Chunks'.format(step), 
+      unit='blocks', 
+      disable=(not self.config.progress),
+      total=num_blocks,
+    )
+
+    with pbar:
+      with Storage(self.meta.cloudpath) as src_stor:
+        with Storage(cloudpath) as dest_stor:
+          for _ in range(num_blocks, 0, -1):
+            srcpaths = list(itertools.islice(cloudpaths, step))
+            files = src_stor.get_files(srcpaths)
+            files = [ (f['filename'], f['content']) for f in files ]
+            dest_stor.put_files(
+              files=files, 
+              compress=compress, 
+              content_type=tx.content_type(destvol),
+            )
+            pbar.update()
 

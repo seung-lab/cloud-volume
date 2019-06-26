@@ -374,12 +374,12 @@ class Bbox(object):
     )
 
   @classmethod
-  def create(cls, obj):
+  def create(cls, obj, context):
     typ = type(obj)
     if typ is Bbox:
       return obj
     elif typ is list:
-      return Bbox.from_slices(obj)
+      return Bbox.from_slices(obj, context)
     elif typ is Vec:
       return Bbox.from_vec(obj)
     elif typ is str:
@@ -413,7 +413,10 @@ class Bbox(object):
     return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
 
   @classmethod
-  def from_slices(cls, slices):
+  def from_slices(cls, slices, context=None):
+    if context:
+      slices = context.reify_slices(slices, bounded=False)
+
     return Bbox(
       [ slc.start for slc in slices ],
       [ slc.stop for slc in slices ]
