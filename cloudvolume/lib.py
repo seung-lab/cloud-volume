@@ -378,7 +378,7 @@ class Bbox(object):
     typ = type(obj)
     if typ is Bbox:
       return obj
-    elif typ is list:
+    elif typ in (list, tuple):
       return Bbox.from_slices(obj, context)
     elif typ is Vec:
       return Bbox.from_vec(obj)
