@@ -28,7 +28,7 @@ class CacheService(object):
     """
     self._path = extract_path(cloudpath)
     self.shared_config = shared_config
-    self.enabled = enabled 
+    self._enabled = enabled 
     self.compress = compress 
 
     # b/c there's a semi-circular dependency
@@ -48,6 +48,15 @@ class CacheService(object):
       raise IOError('Cache directory needs read/write permission: ' + self.path)
 
   @property
+  def enabled(self):
+    return self._enabled
+
+  @enabled.setter
+  def enabled(self, val):
+    self._enabled = val 
+    self.initialize()
+
+  @property
   def path(self):
     path = self._path
     return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
@@ -57,7 +66,7 @@ class CacheService(object):
 
   @path.setter
   def path(self, cloudpath):
-    self._path = extract_path(cloudpath)
+    self._path = extract_path('file://' + cloudpath)
   
   def num_files(self, all_mips=False):
     def size(mip):
