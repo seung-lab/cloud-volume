@@ -795,17 +795,7 @@ class CloudVolume(object):
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
     bbox = Bbox(pt - size2, pt + size2)
     
-    saved_mip = self.mip 
-    self.mip = mip
-    try:
-      img = self[bbox]
-    except exceptions.OutOfBoundsError:
-      self.mip = saved_mip
-      print(traceback.format_exc())
-      raise exceptions.OutOfBoundsError(
-          'A border of bbox of size {} at point {} is out of bounds (see above trace)'.format(size, pt))
-    self.mip = saved_mip
-    return img
+    return self.image.download(bbox, mip)
 
   def unlink_shared_memory(self):
     """Unlink the current shared memory location from the filesystem."""
