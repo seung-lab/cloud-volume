@@ -59,6 +59,7 @@ class BossMetadata(PrecomputedMetadata):
       resolution=resolution,
       voxel_offset=bbox.minpt,
       volume_size=bbox.size3(),
+      chunk_size=(512, 512, 16), # fixed in s3 implementation
     )
 
     each_factor = Vec(2,2,1)
