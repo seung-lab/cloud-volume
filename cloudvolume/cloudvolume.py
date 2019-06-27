@@ -235,7 +235,7 @@ class CloudVolume(object):
         autocrop=bool(autocrop),
         bounded=bool(bounded),
         non_aligned_writes=bool(non_aligned_writes), 
-      )      
+      )
 
     self.mesh = PrecomputedMeshSource(self.meta, self.cache, self.config)
     self.skeleton = PrecomputedSkeletonSource(self.meta, self.cache, self.config)
@@ -405,12 +405,6 @@ class CloudVolume(object):
       reset_connection_pools() 
       self.pid = pid
   
-  # def init_submodules(self, cache):
-  #   """cache = path or bool"""
-  #   self.cache = CacheService(cache, weakref.proxy(self)) 
-  #   self.mesh = PrecomputedMeshSource(weakref.proxy(self))
-  #   self.skeleton = PrecomputedSkeletonSource(weakref.proxy(self)) 
-
   @classmethod
   def create_new_info(cls, 
     num_channels, layer_type, data_type, encoding, 
