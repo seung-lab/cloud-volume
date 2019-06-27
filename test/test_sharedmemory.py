@@ -8,7 +8,7 @@ import psutil
 import cloudvolume.sharedmemory as shm
 
 def test_ndarray_fs():
-	location = 'cloudvolume-shm-test-ndarray'
+	location = os.path.join(shm.EMULATED_SHM_DIRECTORY, 'cloudvolume-shm-test-ndarray')
 	array_like, array = shm.ndarray_fs(shape=(2,2,2), dtype=np.uint8, location=location, lock=None)
 	assert np.all(array == np.zeros(shape=(2,2,2), dtype=np.uint8))
 	array[:] = 100
@@ -18,10 +18,8 @@ def test_ndarray_fs():
 	assert np.all(array[:] == 100)
 	array_like.close()
 
-	filename = os.path.join(shm.EMULATED_SHM_DIRECTORY, location)
-
-	assert os.path.exists(filename)
-	assert os.path.getsize(filename) == 8
+	assert os.path.exists(location)
+	assert os.path.getsize(location) == 8
 
 	assert shm.unlink_fs(location) == True
 	assert shm.unlink_fs(location) == False
@@ -42,7 +40,7 @@ def test_ndarray_fs():
 	assert shm.unlink_fs(location) == True
 	assert shm.unlink_fs(location) == False
 
-	assert not os.path.exists(filename)
+	assert not os.path.exists(location)
 
 def test_ndarray_sh():
 	# Don't bother testing on unsupported platforms.
