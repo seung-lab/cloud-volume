@@ -645,7 +645,7 @@ class PrecomputedSkeleton(object):
 
     return PrecomputedSkeleton(vertices, edges, radii, vertex_types)
 
-  def to_swc(self):
+  def to_swc(self, contributors=""):
     """
     Prototype SWC file generator. 
 
@@ -669,7 +669,7 @@ class PrecomputedSkeleton(object):
 
 """.format(
       __version__, 
-      ", ".join([ str(_) for _ in self.vol.provenance.owners ]),
+      contributors,
       datetime.datetime.utcnow().isoformat()
     )
 

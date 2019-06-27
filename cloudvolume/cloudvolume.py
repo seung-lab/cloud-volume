@@ -24,6 +24,8 @@ from .lib import (
   jsonify, generate_random_string
 )
 
+from .datasource.boss.metadata import BossMetadata
+from .datasource.boss.image import BossImageSource 
 from .datasource.precomputed.image import PrecomputedImageSource
 from .datasource.precomputed.metadata import PrecomputedMetadata
 from .datasource.precomputed.mesh import PrecomputedMeshSource
@@ -178,6 +180,8 @@ class CloudVolume(object):
     delete_black_uploads=False
   ):
 
+    path = lib.extract_path(cloudpath)
+
     # hack around python's inability to 
     # pass primatives by reference. 
     # We would like updates to e.g. mip or parallel
@@ -199,19 +203,32 @@ class CloudVolume(object):
       compress=compress_cache,
     )
 
-    self.meta = PrecomputedMetadata(
-      cloudpath, cache=self.cache, 
-      info=info, provenance=provenance, 
-    )
+    if path.protocol != 'boss':
+      self.meta = PrecomputedMetadata(
+        cloudpath, cache=self.cache, 
+        info=info, provenance=provenance, 
+      )
 
-    self.image = PrecomputedImageSource(
-      self.config, self.meta, self.cache, 
-      autocrop=bool(autocrop),
-      bounded=bool(bounded),
-      non_aligned_writes=bool(non_aligned_writes), 
-      fill_missing=bool(fill_missing), 
-      delete_black_uploads=bool(delete_black_uploads), 
-    )
+      self.image = PrecomputedImageSource(
+        self.config, self.meta, self.cache, 
+        autocrop=bool(autocrop),
+        bounded=bool(bounded),
+        non_aligned_writes=bool(non_aligned_writes), 
+        fill_missing=bool(fill_missing), 
+        delete_black_uploads=bool(delete_black_uploads), 
+      )
+    else:
+      self.meta = BossMetadata(
+        cloudpath, cache=self.cache, 
+        info=info, provenance=provenance, 
+      )
+
+      self.image = BossImageSource(
+        self.config, self.meta, self.cache, 
+        autocrop=bool(autocrop),
+        bounded=bool(bounded),
+        non_aligned_writes=bool(non_aligned_writes), 
+      )      
 
     self.mesh = PrecomputedMeshSource(self.meta, self.cache, self.config)
     self.skeleton = PrecomputedSkeletonSource(self.meta, self.cache, self.config)
