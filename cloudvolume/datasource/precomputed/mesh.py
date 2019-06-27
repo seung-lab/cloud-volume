@@ -394,8 +394,6 @@ class PrecomputedMeshSource(object):
     )
     return PrecomputedMesh(vertices, faces, normals=None)
 
-
-
   def save(self, segids, filepath=None, file_format='ply'):
     """
     Save one or more segids into a common mesh format as a single file.
