@@ -1177,7 +1177,7 @@ def test_get_mesh():
   mesh = vol.mesh.get(18)
   assert len(mesh) == 6123
   assert mesh.vertices.shape[0] == 6123
-  assert len(mesh.faces) == 36726
+  assert len(mesh.faces) == 12242
   assert isinstance(mesh.vertices, np.ndarray)
   assert mesh.vertices.dtype == np.float32
   assert mesh.faces.dtype == np.uint32
@@ -1187,7 +1187,7 @@ def test_get_mesh():
   mesh = meshes[18]
   assert len(mesh.vertices) == 6123
   assert len(mesh.vertices) == 6123
-  assert len(mesh.faces) == 36726
+  assert len(mesh.faces) == 12242
   
   try:
     vol.mesh.get(666666666)

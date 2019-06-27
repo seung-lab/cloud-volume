@@ -105,13 +105,7 @@ class PrecomputedMesh(object):
 
     face_vector_map = np.vectorize(lambda x: idx_representative[x])
     eff_faces = face_vector_map(faces)
-    eff_faces = np.sort(eff_faces, axis=1) # sort each face [2,1] => [1,2]
-    eff_faces = eff_faces[np.lexsort(eff_faces[:,::-1].T)] # Sort rows 
     eff_faces = np.unique(eff_faces, axis=0)
-
-    eff_faces = eff_faces[ eff_faces[:,0] != eff_faces[:,1] ] # remove trivial loops
-    eff_faces = eff_faces[ eff_faces[:,1] != eff_faces[:,2] ] # remove trivial loops
-    eff_faces = eff_faces[ eff_faces[:,0] != eff_faces[:,2] ] # remove trivial loops
 
     # normal_vector_map = np.vectorize(lambda idx: normals[idx])
     # eff_normals = normal_vector_map(uniq_idx)
