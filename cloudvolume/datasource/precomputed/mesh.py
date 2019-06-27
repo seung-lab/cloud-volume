@@ -368,9 +368,7 @@ class PrecomputedMeshSource(object):
     for frag in tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer"):
       segid = filename_to_segid(frag['filename'])
       try:
-        print(len(frag['content']))
         mesh = PrecomputedMesh.from_precomputed(frag['content'])
-        print('wow', mesh)
       except Exception:
         print(frag['filename'], 'had a problem.')
         raise
