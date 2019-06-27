@@ -65,28 +65,33 @@ def test_fill_missing():
   delete_layer('/tmp/cloudvolume/empty_volume')
 
 def test_aligned_read():
-  delete_layer()
-  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
-  # the last dimension is the number of channels
-  assert cv[0:50,0:50,0:50].shape == (50,50,50,1)
-  assert np.all(cv[0:50,0:50,0:50] == data)
-  
-  delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
-  # the last dimension is the number of channels
-  assert cv[0:64,0:64,0:64].shape == (64,64,64,1) 
-  assert np.all(cv[0:64,0:64,0:64] ==  data[:64,:64,:64,:])
+  for green in (False, True):
+    print("green", green)
+    delete_layer()
+    cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+    cv.green_threads = green
+    # the last dimension is the number of channels
+    assert cv[0:50,0:50,0:50].shape == (50,50,50,1)
+    assert np.all(cv[0:50,0:50,0:50] == data)
+    
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+    cv.green_threads = green
+    # the last dimension is the number of channels
+    assert cv[0:64,0:64,0:64].shape == (64,64,64,1) 
+    assert np.all(cv[0:64,0:64,0:64] ==  data[:64,:64,:64,:])
 
-  delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0))
-  cutout = cv[10:74,20:84,0:64]
-  # the last dimension is the number of channels
-  assert cutout.shape == (64,64,64,1) 
-  assert np.all(cutout == data[:64,:64,:64,:])
-  # get the second chunk
-  cutout2 = cv[74:138,20:84,0:64]
-  assert cutout2.shape == (64,64,64,1) 
-  assert np.all(cutout2 == data[64:128,:64,:64,:])
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0))
+    cv.green_threads = green
+    cutout = cv[10:74,20:84,0:64]
+    # the last dimension is the number of channels
+    assert cutout.shape == (64,64,64,1) 
+    assert np.all(cutout == data[:64,:64,:64,:])
+    # get the second chunk
+    cutout2 = cv[74:138,20:84,0:64]
+    assert cutout2.shape == (64,64,64,1) 
+    assert np.all(cutout2 == data[64:128,:64,:64,:])
 
 def test_bbox_read():
   delete_layer()
@@ -292,39 +297,45 @@ def test_autocropped_read():
   assert np.all(img == data[0:0, 0:0, 0:0])    
 
 def test_write():
-  delete_layer()
-  cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
+  for green in (False, True):
+    print("green:", green)
+    delete_layer()
+    cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
+    cv.green_threads = green
 
-  replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
-  cv[0:50,0:50,0:50] = replacement_data
-  assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+    replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
+    cv[0:50,0:50,0:50] = replacement_data
+    assert np.all(cv[0:50,0:50,0:50] == replacement_data)
 
-  replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
-  cv[0:50,0:50,0:50] = replacement_data
-  assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+    replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
+    cv[0:50,0:50,0:50] = replacement_data
+    assert np.all(cv[0:50,0:50,0:50] == replacement_data)
 
-  replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
-  bbx = Bbox((0,0,0), (50,50,50))
-  cv[bbx] = replacement_data
-  assert np.all(cv[bbx] == replacement_data)
+    replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
+    bbx = Bbox((0,0,0), (50,50,50))
+    cv[bbx] = replacement_data
+    assert np.all(cv[bbx] == replacement_data)
 
-  # out of bounds
-  delete_layer()
-  cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
-  with pytest.raises(ValueError):
-    cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
-  
-  # non-aligned writes
-  delete_layer()
-  cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
-  with pytest.raises(ValueError):
-    cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
+    # out of bounds
+    delete_layer()
+    cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
+    cv.green_threads = green
+    with pytest.raises(ValueError):
+      cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
+    
+    # non-aligned writes
+    delete_layer()
+    cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
+    cv.green_threads = green
+    with pytest.raises(ValueError):
+      cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
-  # test bounds check for short boundary chunk
-  delete_layer()
-  cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
-  cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
-  cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
+    # test bounds check for short boundary chunk
+    delete_layer()
+    cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
+    cv.green_threads = green
+    cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
+    cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
 def test_non_aligned_write():
   delete_layer()

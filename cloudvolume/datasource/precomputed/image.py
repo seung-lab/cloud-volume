@@ -95,6 +95,7 @@ class PrecomputedImageSource(object):
       progress=self.config.progress,
       compress=self.config.compress,
       order=order,
+      green=self.config.green,
     )
 
   def upload(
@@ -135,6 +136,7 @@ class PrecomputedImageSource(object):
       use_file=use_file,
       delete_black_uploads=self.delete_black_uploads,
       non_aligned_writes=self.non_aligned_writes,
+      green=self.config.green,
     )
 
   def exists(self, bbox, mip=None):

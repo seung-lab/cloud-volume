@@ -63,7 +63,8 @@ def upload(
     delete_black_uploads=False, 
     non_aligned_writes=False,
     location=None, location_bbox=None, location_order='F',
-    use_shared_memory=False, use_file=False
+    use_shared_memory=False, use_file=False,
+    green=False
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
   global NON_ALIGNED_WRITE
@@ -93,6 +94,7 @@ def upload(
       use_shared_memory=use_shared_memory,
       use_file=use_file,
       delete_black_uploads=delete_black_uploads,
+      green=green,
     )
     return
   elif non_aligned_writes == False:
@@ -122,6 +124,7 @@ def upload(
       use_shared_memory=use_shared_memory,
       use_file=use_file,
       delete_black_uploads=delete_black_uploads,
+      green=green,
     )
 
   # Download the shell, paint, and upload
@@ -141,6 +144,7 @@ def upload(
       compress=compress, cdn_cache=cdn_cache,
       progress=progress, n_threads=0, 
       delete_black_uploads=delete_black_uploads,
+      green=green,
     )
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
@@ -149,7 +153,7 @@ def upload(
     meta, cache, mip, shell_chunks, fn=shade_and_upload,
     fill_missing=False, progress=progress, 
     compress_cache=compress_cache,
-    green=False
+    green=green
   )
 
 def upload_aligned(
@@ -164,7 +168,8 @@ def upload_aligned(
     location_order='F', 
     use_shared_memory=False,
     use_file=False,
-    delete_black_uploads=False
+    delete_black_uploads=False,
+    green=False,
   ):
   global fs_lock
 
@@ -176,7 +181,8 @@ def upload_aligned(
       img, mip, chunk_ranges, 
       progress=progress,
       compress=compress, cdn_cache=cdn_cache,
-      delete_black_uploads=delete_black_uploads
+      delete_black_uploads=delete_black_uploads,
+      green=green,
     )
     return
 
@@ -203,7 +209,7 @@ def upload_aligned(
     img.shape, offset, mip,
     compress, cdn_cache, progress,
     location, location_bbox, location_order, 
-    delete_black_uploads
+    delete_black_uploads, green,
   )
 
   parallel_execution(cup, chunk_ranges_by_process, parallel, cleanup_shm=location)
@@ -219,7 +225,7 @@ def child_upload_process(
     img_shape, offset, mip,
     compress, cdn_cache, progress,
     location, location_bbox, location_order, 
-    delete_black_uploads,
+    delete_black_uploads, green,
     chunk_ranges
   ):
   global fs_lock
@@ -247,7 +253,7 @@ def child_upload_process(
     meta, cache, 
     renderbuffer, mip, chunk_ranges, 
     compress=compress, cdn_cache=cdn_cache, progress=progress,
-    delete_black_uploads=delete_black_uploads
+    delete_black_uploads=delete_black_uploads, green=green,
   )
   array_like.close()
 
@@ -256,48 +262,51 @@ def threaded_upload_chunks(
     img, mip, chunk_ranges, 
     compress, cdn_cache, progress,
     n_threads=DEFAULT_THREADS,
-    delete_black_uploads=False
+    delete_black_uploads=False,
+    green=False,
   ):
   
   if cache.enabled:
     mkdir(cache.path)
-    if progress:
-      print("Caching upload...")
-    cachestorage = Storage('file://' + cache.path, progress=progress, n_threads=n_threads)
-
-  cloudstorage = Storage(meta.cloudpath, progress=progress, n_threads=n_threads)
-  iterator = tqdm(chunk_ranges, desc='Rechunking image', disable=(not progress))
 
   while img.ndim < 4:
     img = img[ ..., np.newaxis ]
 
+  remotestor = lambda: SimpleStorage(meta.cloudpath, progress=progress)
+  localstor = lambda: SimpleStorage('file://' + cache.path, progress=progress)
+
   def do_upload(imgchunk, cloudpath):
     encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
 
-    cloudstorage.put_file(
-      file_path=cloudpath, 
-      content=encoded,
-      content_type=content_type(meta.encoding(mip)), 
-      compress=should_compress(meta.encoding(mip), compress, cache),
-      cache_control=cdn_cache_control(cdn_cache),
-    )
-
-    if cache.enabled:
-      cachestorage.put_file(
-        file_path=cloudpath,
-        content=encoded, 
+    with remotestor() as cloudstorage:
+      cloudstorage.put_file(
+        file_path=cloudpath, 
+        content=encoded,
         content_type=content_type(meta.encoding(mip)), 
-        compress=should_compress(meta.encoding(mip), compress, cache, iscache=True)
+        compress=should_compress(meta.encoding(mip), compress, cache),
+        cache_control=cdn_cache_control(cdn_cache),
       )
 
-  def do_delete(cloudpath):
-    cloudstorage.delete_file(cloudpath)
     if cache.enabled:
-      cachestorage.delete_file(cloudpath)
+      with localstor() as cachestorage:
+        cachestorage.put_file(
+          file_path=cloudpath,
+          content=encoded, 
+          content_type=content_type(meta.encoding(mip)), 
+          compress=should_compress(meta.encoding(mip), compress, cache, iscache=True)
+        )
 
-  for startpt, endpt, spt, ept in iterator:
+  def do_delete(cloudpath):
+    with remotestor() as cloudstorage:
+      cloudstorage.delete_file(cloudpath)
+    
+    if cache.enabled:
+      with localstor() as cachestorage:
+        cachestorage.delete_file(cloudpath)
+
+  def process(startpt, endpt, spt, ept):
     if np.array_equal(spt, ept):
-      continue
+      return
 
     imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
 
@@ -322,14 +331,13 @@ def threaded_upload_chunks(
     else:
       do_upload(imgchunk, cloudpath)
 
-  desc = 'Uploading' if progress else None
-  cloudstorage.wait(desc)
-  cloudstorage.kill_threads()
-  
-  if cache.enabled:
-    desc = 'Caching' if progress else None
-    cachestorage.wait(desc)
-    cachestorage.kill_threads()
+  schedule_jobs(
+    fns=( partial(process, *vals) for vals in chunk_ranges ), 
+    concurrency=DEFAULT_THREADS, 
+    progress=('Uploading' if progress else None),
+    total=len(chunk_ranges),
+    green=green,
+  )
 
 def check_grid_aligned(meta, img, offset, mip):
   """Returns (is_aligned, img bounds Bbox, nearest bbox inflated to grid aligned)"""

@@ -33,7 +33,8 @@ def download(
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, 
-    use_file, compress, order='F'
+    use_file, compress, order='F',
+    green=False
   ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
@@ -79,7 +80,7 @@ def download(
       meta, cache, mip, cloudpaths, 
       fn=process, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
-      green=False 
+      green=green 
     )
   else:
     handle, renderbuffer = multiprocess_download(
@@ -88,7 +89,8 @@ def download(
       fill_missing, progress,
       parallel, location, retain, 
       use_shared_memory=(use_file == False),
-      order=order
+      order=order,
+      green=green,
     )
   
   return VolumeCutout.from_volume(
@@ -101,7 +103,8 @@ def multiprocess_download(
     meta, cache, compress_cache,
     fill_missing, progress,
     parallel, location, 
-    retain, use_shared_memory, order
+    retain, use_shared_memory, order,
+    green
   ):
 
   cloudpaths_by_process = []
@@ -115,7 +118,8 @@ def multiprocess_download(
     meta, cache, mip, compress_cache, 
     requested_bbox, 
     fill_missing, progress,
-    location, use_shared_memory
+    location, use_shared_memory,
+    green
   )
   parallel_execution(cpd, cloudpaths_by_process, parallel, cleanup_shm=location)
 
@@ -145,7 +149,7 @@ def child_process_download(
     meta, cache, mip, compress_cache, 
     dest_bbox, 
     fill_missing, progress,
-    location, use_shared_memory,
+    location, use_shared_memory, green,
     cloudpaths
   ):
   reset_connection_pools() # otherwise multi-process hangs
@@ -170,7 +174,8 @@ def child_process_download(
   download_chunks_threaded(
     meta, cache, mip, cloudpaths,
     fn=process, fill_missing=fill_missing,
-    progress=progress, compress_cache=compress_cache
+    progress=progress, compress_cache=compress_cache,
+    green=green
   )
 
   array_like.close()

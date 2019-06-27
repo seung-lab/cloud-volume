@@ -50,8 +50,8 @@ def downscale(size, factor_in_mip, roundingfn):
 
 class SharedConfiguration(object):
   def __init__(
-    self, cdn_cache, compress, mip, 
-    parallel, progress,
+    self, cdn_cache, compress, green, 
+    mip, parallel, progress,
     *args, **kwargs
   ):
     if type(parallel) == bool:
@@ -63,6 +63,7 @@ class SharedConfiguration(object):
 
     self.cdn_cache = cdn_cache
     self.compress = compress 
+    self.green = bool(green)
     self.mip = mip
     self.parallel = parallel 
     self.progress = bool(progress)
@@ -150,6 +151,11 @@ class CloudVolume(object):
     fill_missing: (bool) If a chunk file is unable to be fetched:
         True: Use a block of zeros
         False: Throw an error
+    green_threads: (bool) Use green threads instead of preemptive threads. This
+      can result in higher download performance for some compression types. Preemptive
+      threads seem to reduce performance on multi-core machines that aren't densely
+      loaded as the CPython threads are assigned to multiple cores and the thrashing
+      + GIL reduces performance.
     info: (dict) In lieu of fetching a neuroglancer info file, use this one.
         This is useful when creating new datasets and for repeatedly initializing
         a new cloudvolume instance.
@@ -177,7 +183,7 @@ class CloudVolume(object):
     fill_missing=False, cache=False, compress_cache=None, 
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None, 
     compress=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False
+    delete_black_uploads=False, green_threads=False
   ):
 
     path = lib.extract_path(cloudpath)
@@ -191,6 +197,7 @@ class CloudVolume(object):
     self.config = SharedConfiguration(
       cdn_cache=cdn_cache, 
       compress=compress, 
+      green=green_threads,
       mip=mip, 
       parallel=parallel, 
       progress=progress,
@@ -262,6 +269,14 @@ class CloudVolume(object):
   def fill_missing(self, val):
     self.image.fill_missing = val
   
+  @property
+  def green_threads(self):
+    return self.config.green
+  
+  @green_threads.setter 
+  def green_threads(self, val):
+    self.config.green = bool(val)
+
   @property
   def non_aligned_writes(self):
     return self.image.non_aligned_writes
