@@ -1,11 +1,12 @@
+from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
-from .secrets import boss_credentials
+from ...secrets import boss_credentials
 
 from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
 
 class BossMetadata(PrecomputedMetadata):
   def __init__(self, cloudpath, cache, info=None):
-    super(self, PrecomputedMetadata).__init__(
+    super(BossMetadata, self).__init__(
       cloudpath, cache, info=info, provenance=None
     )
 

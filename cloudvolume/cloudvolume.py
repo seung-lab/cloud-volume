@@ -220,7 +220,7 @@ class CloudVolume(object):
     else:
       self.meta = BossMetadata(
         cloudpath, cache=self.cache, 
-        info=info, provenance=provenance, 
+        info=info, 
       )
 
       self.image = BossImageSource(

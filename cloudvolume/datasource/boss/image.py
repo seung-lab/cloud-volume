@@ -5,15 +5,13 @@ from intern.resource.boss.resource import (
   ChannelResource, ExperimentResource, CoordinateFrameResource
 )
 
-from cloudvolume import lib
-from cloudvolume.cacheservice import CacheService
-from cloudvolume import exceptions 
-from cloudvolume.lib import ( 
+from ... import exceptions 
+from ...lib import ( 
   colorize, red, mkdir, Vec, Bbox,  
   jsonify, generate_random_string
 )
-from cloudvolume.secrets import boss_credentials
-from cloudvolume.volumecutout import VolumeCutout
+from ...secrets import boss_credentials
+from ...volumecutout import VolumeCutout
 
 class BossImageSource(object):
   def __init__(
