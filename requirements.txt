@@ -20,3 +20,4 @@ six>=1.10.0
 tenacity>=4.10.0
 -e git+https://github.com/seung-lab/tqdm.git#egg=tqdm
 urllib3[secure]==1.23
+fastremap
