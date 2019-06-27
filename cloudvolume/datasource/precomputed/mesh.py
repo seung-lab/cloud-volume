@@ -34,10 +34,16 @@ class PrecomputedMesh(object):
     ndarray[float32, ndim=2] self.normals:  [ [nx,ny,nz], ... ]
 
   """
-  def __init__(self, vertices, faces, normals):
-    self.vertices = vertices
-    self.faces = faces
-    self.normals = normals
+  def __init__(self, vertices, faces, normals=None, segid=None):
+    self.vertices = np.array(vertices, dtype=np.float32)
+    self.faces = np.array(faces, dtype=np.uint32)
+
+    if normals is None:
+      self.normals = np.array([], dtype=np.float32).reshape((0,3))
+    else:
+      self.normals = np.array(normals, dtype=np.float32)
+
+    self.segid = segid
 
   def __len__(self):
     return self.vertices.shape[0]
@@ -61,15 +67,56 @@ class PrecomputedMesh(object):
 
   def __repr__(self):
     return "PrecomputedMesh(vertices<{}>, faces<{}>, normals<{}>)".format(
-      self.vertices.shape[0], self.faces.shape[0], 
-      (None if self.normals is None else self.normals.shape[0])
+      self.vertices.shape[0], self.faces.shape[0], self.normals.shape[0]
     )
 
+  def empty(self):
+    return self.vertices.size == 0 or self.faces.size == 0
+
   def clone(self):
-    if self.normals is None:
-      return PrecomputedMesh(np.copy(self.vertices), np.copy(self.faces), None)
-    else:
-      return PrecomputedMesh(np.copy(self.vertices), np.copy(self.faces), np.copy(self.normals))
+    return PrecomputedMesh(np.copy(self.vertices), np.copy(self.faces), np.copy(self.normals))
+
+  @classmethod
+  def concatenate(cls, *meshes):
+    vertex_ct = np.zeros(len(meshes) + 1, np.uint32)
+    vertex_ct[1:] = np.cumsum([ len(mesh) for mesh in meshes ])
+
+    vertices = np.concatenate([ mesh.vertices for mesh in meshes ])
+    
+    faces = np.concatenate([ 
+      mesh.faces + vertex_ct[i] for i, mesh in enumerate(meshes) 
+    ])
+
+    normals = np.concatenate([ mesh.normals for mesh in meshes ])
+
+    return PrecomputedMesh(vertices, faces, normals)
+
+  def consolidate(self):
+    if self.empty():
+      return PrecomputedMesh([], [], normals=None)
+
+    vertices = self.vertices
+    faces = self.faces
+    normals = self.normals
+
+    eff_verts, uniq_idx, idx_representative = np.unique(
+      vertices, axis=0, return_index=True, return_inverse=True
+    )
+
+    face_vector_map = np.vectorize(lambda x: idx_representative[x])
+    eff_faces = face_vector_map(faces)
+    eff_faces = np.sort(eff_faces, axis=1) # sort each face [2,1] => [1,2]
+    eff_faces = eff_faces[np.lexsort(eff_faces[:,::-1].T)] # Sort rows 
+    eff_faces = np.unique(eff_faces, axis=0)
+
+    eff_faces = eff_faces[ eff_faces[:,0] != eff_faces[:,1] ] # remove trivial loops
+    eff_faces = eff_faces[ eff_faces[:,1] != eff_faces[:,2] ] # remove trivial loops
+    eff_faces = eff_faces[ eff_faces[:,0] != eff_faces[:,2] ] # remove trivial loops
+
+    # normal_vector_map = np.vectorize(lambda idx: normals[idx])
+    # eff_normals = normal_vector_map(uniq_idx)
+
+    return PrecomputedMesh(eff_verts, eff_faces, None, segid=self.segid)
 
   @classmethod
   def from_precomputed(self, binary):
@@ -321,39 +368,35 @@ class PrecomputedMeshSource(object):
     for frag in tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer"):
       segid = filename_to_segid(frag['filename'])
       try:
+        print(len(frag['content']))
         mesh = PrecomputedMesh.from_precomputed(frag['content'])
+        print('wow', mesh)
       except Exception:
         print(frag['filename'], 'had a problem.')
         raise
       meshdata[segid].append(mesh)
 
-    def produce_output(mdata):
-      vertexct = np.zeros(len(mdata) + 1, np.uint32)
-      vertexct[1:] = np.cumsum([ x.vertices.shape[0] for x in mdata ])
-      vertices = np.concatenate([ x.vertices for x in mdata ])
-      faces = np.concatenate([ 
-        mesh.faces + vertexct[i] for i, mesh in enumerate(mdata) 
-      ])
+    if not fuse:
+      return { segid: PrecomputedMesh.concatenate(*meshes) for segid, meshes in six.iteritems(meshdata) }
 
-      if remove_duplicate_vertices:
-        if chunk_size:
-          vertices, faces = remove_duplicate_vertices_cross_chunks(
-            vertices, faces, chunk_size
-          )
-        else:
-          vertices, faces = np.unique(vertices[faces], return_inverse=True, axis=0)
-          faces = faces.astype(np.uint32)
+    meshdata = [ (segid, mesh) for segid, mesh in six.iteritems(meshdata) ]
+    meshdata = sorted(meshdata, key=lambda sm: sm[0])
+    meshdata = [ mesh for segid, mesh in meshdata ]
+    meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
+    mesh = PrecomputedMesh.concatenate(*meshdata)
 
-      return PrecomputedMesh(vertices, faces, normals=None)
+    if not remove_duplicate_vertices:
+      return mesh 
 
-    if fuse:
-      meshdata = [ (segid, mdata) for segid, mdata in six.iteritems(meshdata) ]
-      meshdata = sorted(meshdata, key=lambda sm: sm[0])
-      meshdata = [ mdata for segid, mdata in meshdata ]
-      meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
-      return produce_output(meshdata)
-    else:
-      return { segid: produce_output(mdata) for segid, mdata in six.iteritems(meshdata) }
+    if not chunk_size:
+      return mesh.consolidate()
+
+    vertices, faces = remove_duplicate_vertices_cross_chunks(
+      mesh.vertices, mesh.faces, chunk_size
+    )
+    return PrecomputedMesh(vertices, faces, normals=None)
+
+
 
   def save(self, segids, filepath=None, file_format='ply'):
     """
