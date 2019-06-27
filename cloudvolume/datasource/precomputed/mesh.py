@@ -92,6 +92,7 @@ class PrecomputedMesh(object):
     return PrecomputedMesh(vertices, faces, normals)
 
   def consolidate(self):
+    """Remove duplicate vertices and faces. Returns a new mesh object."""
     if self.empty():
       return PrecomputedMesh([], [], normals=None)
 
@@ -401,7 +402,7 @@ class PrecomputedMeshSource(object):
     if type(segids) != list:
       segids = [segids]
 
-    mesh = self.get(segids)
+    mesh = self.get(segids, remove_duplicate_vertices=True)
 
     if file_format == 'obj':
       data = mesh.to_obj()
