@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 
+from cloudvolume import exceptions
 from cloudvolume.exceptions import AlignmentError
 from cloudvolume import CloudVolume, chunks
 from cloudvolume.lib import Bbox, Vec, yellow
@@ -975,7 +976,8 @@ def test_delete():
 
   try:
     results = cv.exists( np.s_[1:129, :, :] )
-  except ValueError:
+    print(results)
+  except exceptions.OutOfBoundsError:
     pass
   else:
     assert False

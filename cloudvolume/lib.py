@@ -374,20 +374,29 @@ class Bbox(object):
     )
 
   @classmethod
-  def create(cls, obj, context):
+  def create(cls, obj, context=None, bounded=False):
     typ = type(obj)
     if typ is Bbox:
-      return obj
+      obj = obj
     elif typ in (list, tuple):
-      return Bbox.from_slices(obj, context)
+      obj = Bbox.from_slices(obj, context, bounded)
     elif typ is Vec:
-      return Bbox.from_vec(obj)
+      obj = Bbox.from_vec(obj)
     elif typ is str:
-      return Bbox.from_filename(obj)
+      obj = Bbox.from_filename(obj)
     elif typ is dict:
-      return Bbox.from_dict(obj)
+      obj = Bbox.from_dict(obj)
     else:
       raise NotImplementedError("{} is not a Bbox convertible type.".format(typ))
+
+    if context and bounded:
+      if not context.contains_bbox(obj):
+        raise OutOfBoundsError(
+          "{} did not fully contain the specified bounding box {}.".format(
+            context, obj
+        ))
+
+    return obj
 
   @classmethod
   def from_delta(cls, minpt, plus):
@@ -413,9 +422,9 @@ class Bbox(object):
     return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
 
   @classmethod
-  def from_slices(cls, slices, context=None):
+  def from_slices(cls, slices, context=None, bounded=False):
     if context:
-      slices = context.reify_slices(slices, bounded=False)
+      slices = context.reify_slices(slices, bounded=bounded)
 
     return Bbox(
       [ slc.start for slc in slices ],

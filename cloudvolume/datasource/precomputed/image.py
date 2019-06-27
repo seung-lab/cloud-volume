@@ -141,7 +141,7 @@ class PrecomputedImageSource(object):
     if mip is None:
       mip = self.config.mip
 
-    bbox = Bbox.create(bbox, self.meta.bounds(mip))
+    bbox = Bbox.create(bbox, self.meta.bounds(mip), bounded=True)
     realized_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
     )
@@ -159,7 +159,7 @@ class PrecomputedImageSource(object):
     if mip is None:
       mip = self.config.mip
 
-    bbox = Bbox.create(bbox, self.meta.bounds(mip))
+    bbox = Bbox.create(bbox, self.meta.bounds(mip), bounded=True)
     realized_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
     )
