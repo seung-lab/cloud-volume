@@ -9,7 +9,7 @@ from cloudvolume import lib, chunks
 from cloudvolume.exceptions import AlignmentError
 from cloudvolume.lib import ( 
   mkdir, clamp, xyzrange, Vec, 
-  Bbox, min2, max2, yellow
+  Bbox, min2, max2
 )
 from cloudvolume.scheduler import schedule_jobs
 from cloudvolume.storage import Storage, SimpleStorage, reset_connection_pools
@@ -18,40 +18,13 @@ from cloudvolume.volumecutout import VolumeCutout
 
 import cloudvolume.sharedmemory as shm
 
+from .. import check_grid_aligned
 from .common import (
   fs_lock, parallel_execution, chunknames, 
   shade, content_type, cdn_cache_control,
   should_compress
 )
 from .rx import download_chunks_threaded
-
-NON_ALIGNED_WRITE = yellow(
-  """
-  Non-Aligned writes are disabled by default. There are several good reasons 
-  not to use them. 
-
-  1) Memory and Network Inefficiency
-    Producing non-aligned writes requires downloading the chunks that overlap
-    with the write area but are not wholly contained. They are then painted
-    in the overlap region and added to the upload queue. This requires
-    the outer shell of the aligned image to be downloaded painted, and uploaded. 
-  2) Race Conditions
-    If you are using multiple instances of CloudVolume, the partially overlapped 
-    chunks will be downloaded, partially painted, and uploaded. If this procedure
-    occurs close in time between two processes, the final chunk may be partially
-    painted. If you are sure only one CloudVolume instance will be accessing an
-    area at any one time, this is not a problem.
-
-  If after reading this you are still sure you want non-aligned writes, you can
-  set non_aligned_writes=True.
-
-  Alignment Check: 
-    Mip:             {mip}
-    Chunk Size:      {chunk_size}
-    Volume Offset:   {offset}
-    Received:        {got} 
-    Nearest Aligned: {check}
-""")
 
 def upload(
     meta, cache,
@@ -67,7 +40,6 @@ def upload(
     green=False
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
-  global NON_ALIGNED_WRITE
 
   if not np.issubdtype(image.dtype, np.dtype(meta.dtype).type):
     raise ValueError("""
@@ -78,7 +50,14 @@ def upload(
       """.format(meta.dtype, image.dtype)
     )
 
-  (is_aligned, bounds, expanded) = check_grid_aligned(meta, image, offset, mip)
+  shape = Vec(*image.shape)[:3]
+  offset = Vec(*offset)[:3]
+  bounds = Bbox( offset, shape + offset)
+
+  is_aligned = check_grid_aligned(
+    meta, image, bounds, mip, 
+    throw_error=(non_aligned_writes == False)
+  )
 
   if is_aligned:
     upload_aligned(
@@ -97,15 +76,9 @@ def upload(
       green=green,
     )
     return
-  elif non_aligned_writes == False:
-    msg = NON_ALIGNED_WRITE.format(
-      mip=mip, chunk_size=meta.chunk_size(mip), 
-      offset=meta.voxel_offset(mip), 
-      got=bounds, check=expanded
-    )
-    raise AlignmentError(msg)
 
   # Upload the aligned core
+  expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
   retracted = bounds.shrink_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
   core_bbox = retracted.clone() - bounds.minpt
 
@@ -338,16 +311,6 @@ def threaded_upload_chunks(
     total=len(chunk_ranges),
     green=green,
   )
-
-def check_grid_aligned(meta, img, offset, mip):
-  """Returns (is_aligned, img bounds Bbox, nearest bbox inflated to grid aligned)"""
-  shape = Vec(*img.shape)[:3]
-  offset = Vec(*offset)[:3]
-  bounds = Bbox( offset, shape + offset)
-  alignment_check = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
-  alignment_check = Bbox.clamp(alignment_check, meta.bounds(mip))
-  is_aligned = np.all(alignment_check.minpt == bounds.minpt) and np.all(alignment_check.maxpt == bounds.maxpt)
-  return (is_aligned, bounds, alignment_check) 
 
 def generate_chunks(meta, img, offset, mip):
   shape = Vec(*img.shape)[:3]

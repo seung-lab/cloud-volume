@@ -24,6 +24,7 @@ from .lib import (
   jsonify, generate_random_string
 )
 
+from .datasource import autocropfn
 from .datasource.boss.metadata import BossMetadata
 from .datasource.boss.image import BossImageSource 
 from .datasource.precomputed.image import PrecomputedImageSource
@@ -899,11 +900,7 @@ class CloudVolume(object):
 
     if self.autocrop:
       if not self.bounds.contains_bbox(bbox):
-        cropped_bbox = Bbox.intersection(bbox, self.bounds)
-        dmin = np.absolute(bbox.minpt - cropped_bbox.minpt)
-        dmax = dmin + cropped_bbox.size3()
-        img = img[ dmin.x:dmax.x, dmin.y:dmax.y, dmin.z:dmax.z ] 
-        bbox = cropped_bbox
+        img, bbox = autocropfn(self.meta, img, bbox, self.mip)
 
     if bbox.subvoxel():
       return

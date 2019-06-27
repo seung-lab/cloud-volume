@@ -18,6 +18,7 @@ from ...lib import Bbox, Vec
 from ... import sharedmemory
 from ...storage import Storage
 
+from .. import autocropfn
 from .common import chunknames
 from . import tx, rx
 
@@ -112,11 +113,7 @@ class PrecomputedImageSource(object):
     self.check_bounded(bbox, mip)
 
     if self.autocrop:
-      cropped_bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
-      dmin = np.abs(bbox.minpt - cropped_bbox.minpt)
-      img_bbox = Bbox(dmin, dmin + cropped_bbox.size())
-      image = image[ img_bbox.to_slices() ]
-      bbox = cropped_bbox
+      image, bbox = autocropfn(self.meta, image, bbox, mip)
       offset = bbox.minpt
 
     if location is None:

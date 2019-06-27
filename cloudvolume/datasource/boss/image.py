@@ -5,6 +5,8 @@ from intern.resource.boss.resource import (
   ChannelResource, ExperimentResource, CoordinateFrameResource
 )
 
+from .. import autocropfn
+
 from ... import exceptions 
 from ...lib import ( 
   colorize, red, mkdir, Vec, Bbox,  
@@ -30,6 +32,9 @@ class BossImageSource(object):
 
   def download(self, bbox, mip):
     bounds = Bbox.clamp(bbox, self.meta.bounds(mip))
+
+    if self.autocrop:
+      image, bounds = autocropfn(self.meta, image, bounds, mip)
     
     if bounds.subvoxel():
       raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
@@ -77,6 +82,15 @@ class BossImageSource(object):
 
     if bounds.subvoxel():
       raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
+
+    if self.autocrop:
+      image, bounds = autocropfn(self.meta, image, bounds, mip)
+      offset = bounds.minpt
+
+    check_grid_aligned(
+      self.meta, image, bounds, mip, 
+      throw_error=(self.non_aligned_writes == False)
+    )
 
     x_rng = [ bounds.minpt.x, bounds.maxpt.x ]
     y_rng = [ bounds.minpt.y, bounds.maxpt.y ]
