@@ -485,6 +485,8 @@ class Bbox(object):
       slices = [ slice(int(slices), int(slices)+1, 1) ]
     elif type(slices) == slice:
       slices = [ slices ]
+    elif type(slices) == Bbox:
+      slices = slices.to_slices()
     elif slices == Ellipsis:
       slices = []
 
@@ -492,11 +494,11 @@ class Bbox(object):
 
     for index, slc in enumerate(slices):
       if slc == Ellipsis:
-        fill = len(self.maxpt) - len(slices) + 1
+        fill = self.ndim - len(slices) + 1
         slices = slices[:index] +  (fill * [ slice(None, None, None) ]) + slices[index+1:]
         break
 
-    while len(slices) < len(self.maxpt):
+    while len(slices) < self.ndim:
       slices.append( slice(None, None, None) )
 
     # First three slices are x,y,z, last is channel. 

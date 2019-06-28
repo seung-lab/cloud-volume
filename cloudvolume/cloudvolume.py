@@ -828,7 +828,7 @@ class CloudVolume(object):
     """Unlink the current shared memory location from the filesystem."""
     return self.image.unlink_shared_memory()
 
-  def download_to_shared_memory(self, slices, location=None):
+  def download_to_shared_memory(self, slices, location=None, mip=None):
     """
     Download images to a shared memory array. 
 
@@ -858,9 +858,12 @@ class CloudVolume(object):
         e.g. 'cloudvolume-shm-RANDOM-STRING' This typically corresponds to a file 
         in `/dev/shm` or `/run/shm/`. It can also be a file if you're using that for mmap. 
     
-    Returns: void
+    Returns: ndarray backed by shared memory
     """
-    slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
+    if mip is None:
+      mip = self.mip
+
+    slices = self.meta.bbox(mip).reify_slices(slices, bounded=self.bounded)
     steps = Vec(*[ slc.step for slc in slices ])
     channel_slice = slices.pop()
     requested_bbox = Bbox.from_slices(slices)
@@ -869,8 +872,39 @@ class CloudVolume(object):
       requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
 
     img = self.image.download(
-      requested_bbox, self.mip, parallel=self.parallel,
+      requested_bbox, mip, parallel=self.parallel,
       location=location, retain=True, use_shared_memory=True
+    )
+    return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
+
+  def download_to_file(self, bbox, path, mip=None):
+    """
+    Download images directly to a file.
+
+    Required:
+      slices: (Bbox) the bounding box the shared array represents. For instance
+        if you have a 1024x1024x128 volume and you're uploading only a 512x512x64 corner
+        touching the origin, your Bbox would be `Bbox( (0,0,0), (512,512,64) )`. 
+      path: (str) 
+    Optional:
+      mip: (int; default: self.mip) The current resolution level.
+
+    Returns: ndarray backed by an mmapped file
+    """
+    if mip is None:
+      mip = self.mip
+
+    slices = self.meta.bbox(mip).reify_slices(slices, bounded=self.bounded)
+    steps = Vec(*[ slc.step for slc in slices ])
+    channel_slice = slices.pop()
+    requested_bbox = Bbox.from_slices(slices)
+
+    if self.autocrop:
+      requested_bbox = Bbox.intersection(requested_bbox, self.bounds)
+
+    img = self.image.download(
+      requested_bbox, mip, parallel=self.parallel,
+      location=lib.toabs(path), retain=True, use_file=True
     )
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
@@ -945,13 +979,8 @@ class CloudVolume(object):
 
     Returns: void
     """
-    def tobbox(x):
-      if type(x) == Bbox:
-        return x 
-      return Bbox.from_slices(x)
-        
-    bbox = tobbox(bbox)
-    cutout_bbox = tobbox(cutout_bbox) if cutout_bbox else bbox.clone()
+    bbox = Bbox.create(bbox)
+    cutout_bbox = Bbox.create(cutout_bbox) if cutout_bbox else bbox.clone()
 
     if not bbox.contains_bbox(cutout_bbox):
       raise exceptions.AlignmentError("""
@@ -983,6 +1012,66 @@ class CloudVolume(object):
       location_bbox=bbox,
       order=order,
       use_shared_memory=True,
+    )
+    mmap_handle.close()
+
+  def upload_from_file(self, location, bbox, order='F', cutout_bbox=None):
+    """
+    Upload from an mmapped file.
+
+    tip: If you want to use slice notation, np.s_[...] will help in a pinch.
+
+    Required:
+      location: (str) Shared memory location e.g. 'cloudvolume-shm-RANDOM-STRING'
+        This typically corresponds to a file in `/dev/shm` or `/run/shm/`. It can 
+        also be a file if you're using that for mmap.
+      bbox: (Bbox or list of slices) the bounding box the shared array represents. For instance
+        if you have a 1024x1024x128 volume and you're uploading only a 512x512x64 corner
+        touching the origin, your Bbox would be `Bbox( (0,0,0), (512,512,64) )`.
+    Optional:
+      cutout_bbox: (bbox or list of slices) If you only want to upload a section of the
+        array, give the bbox in volume coordinates (not image coordinates) that should 
+        be cut out. For example, if you only want to upload 256x256x32 of the upper 
+        rightmost corner of the above example but the entire 512x512x64 array is stored 
+        in memory, you would provide: `Bbox( (256, 256, 32), (512, 512, 64) )`
+
+        By default, just upload the entire image.
+
+    Returns: void
+    """        
+    bbox = tobbox(bbox)
+    cutout_bbox = tobbox(cutout_bbox) if cutout_bbox else bbox.clone()
+
+    if not bbox.contains_bbox(cutout_bbox):
+      raise exceptions.AlignmentError("""
+        The provided cutout is not wholly contained in the given array. 
+        Bbox:        {}
+        Cutout:      {}
+      """.format(bbox, cutout_bbox))
+
+    if self.autocrop:
+      cutout_bbox = Bbox.intersection(cutout_bbox, self.bounds)
+
+    if cutout_bbox.subvoxel():
+      return
+
+    shape = list(bbox.size3()) + [ self.num_channels ]
+    mmap_handle, shared_image = sharedmemory.ndarray_fs(
+      location=lib.toabs(path), shape=shape, 
+      dtype=self.dtype, order=order, 
+      readonly=True
+    )
+
+    delta_box = cutout_bbox.clone() - bbox.minpt
+    cutout_image = shared_image[ delta_box.to_slices() ]
+    
+    self.image.upload(
+      cutout_image, cutout_bbox.minpt, self.mip,
+      parallel=self.parallel, 
+      location=lib.toabs(path), 
+      location_bbox=bbox,
+      order=order,
+      use_file=True,
     )
     mmap_handle.close()
 
