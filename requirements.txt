@@ -18,5 +18,5 @@ protobuf>=3.3.0
 requests>=2.18.4
 six>=1.10.0
 tenacity>=4.10.0
--e git+https://github.com/seung-lab/tqdm.git#egg=tqdm
+tqdm
 urllib3[secure]==1.24.2
