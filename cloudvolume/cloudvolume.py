@@ -45,10 +45,6 @@ except AttributeError:
 def warn(text):
   print(colorize('yellow', text))
 
-def downscale(size, factor_in_mip, roundingfn):
-  smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
-  return list(map(int, roundingfn(smaller)))
-
 class SharedConfiguration(object):
   def __init__(
     self, cdn_cache, compress, green, 
@@ -412,7 +408,7 @@ class CloudVolume(object):
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(64,64,64),
     compressed_segmentation_block_size=(8,8,8),
-    max_mip=0, factor=Vec(2,2,1) 
+    max_mip=0, factor=Vec(2,2,1), *args, **kwargs
   ):
     """
     Create a new neuroglancer Precomputed info file.
@@ -437,53 +433,14 @@ class CloudVolume(object):
 
     Returns: dict representing a single mip level that's JSON encodable
     """
-    if not isinstance(factor, Vec):
-      factor = Vec(*factor)
-
-    if not isinstance(data_type, str):
-      data_type = np.dtype(data_type).name
-
-    info = {
-      "num_channels": int(num_channels),
-      "type": layer_type,
-      "data_type": data_type,
-      "scales": [{
-        "encoding": encoding,
-        "chunk_sizes": [chunk_size],
-        "key": "_".join(map(str, resolution)),
-        "resolution": list(map(int, resolution)),
-        "voxel_offset": list(map(int, voxel_offset)),
-        "size": list(map(int, volume_size)),
-      }],
-    }
-    
-    fullres = info['scales'][0]
-    factor_in_mip = factor.clone()
- 
-    # add mip levels
-    for _ in range(max_mip):
-      new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
-      newscale = {
-        u"encoding": encoding,
-        u"chunk_sizes": [ list(map(int, chunk_size)) ],
-        u"key": "_".join(map(str, new_resolution)),
-        u"resolution": new_resolution,
-        u"voxel_offset": downscale(fullres['voxel_offset'], factor_in_mip, np.floor),
-        u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
-      }
-      info['scales'].append(newscale)
-      factor_in_mip *= factor
-
-    if encoding == 'compressed_segmentation':
-      info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
-
-    if mesh:
-      info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
-
-    if skeletons:
-      info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
-    
-    return info
+    return PrecomputedMetadata.create_info(
+      num_channels, layer_type, data_type, encoding, 
+      resolution, voxel_offset, volume_size, 
+      mesh, skeletons, chunk_size,
+      compressed_segmentation_block_size,
+      max_mip, factor,
+      *args, **kwargs
+    )
 
   def refresh_info(self):
     """Restore the current info from cache or storage."""

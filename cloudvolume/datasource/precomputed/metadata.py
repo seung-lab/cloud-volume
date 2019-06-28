@@ -17,6 +17,10 @@ from ...lib import (
   Vec, Bbox, jsonify, 
 )
 
+def downscale(size, factor_in_mip, roundingfn):
+  smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
+  return list(map(int, roundingfn(smaller)))
+
 class PrecomputedMetadata(object):
   """
   The PrecomputedMetadataService provides methods for fetching,
@@ -48,6 +52,85 @@ class PrecomputedMetadata(object):
         self.cache.check_provenance_validity()
     else:
       self.provenance = self._cast_provenance(provenance)
+
+  @classmethod
+  def create_info(cls, 
+    num_channels, layer_type, data_type, encoding, 
+    resolution, voxel_offset, volume_size, 
+    mesh=None, skeletons=None, chunk_size=(128,128,64),
+    compressed_segmentation_block_size=(8,8,8),
+    max_mip=0, factor=Vec(2,2,1) 
+  ):
+    """
+    Create a new neuroglancer Precomputed info file.
+
+    Required:
+      num_channels: (int) 1 for grayscale, 3 for RGB 
+      layer_type: (str) typically "image" or "segmentation"
+      data_type: (str) e.g. "uint8", "uint16", "uint32", "float32"
+      encoding: (str) "raw" for binaries like numpy arrays, "jpeg"
+      resolution: int (x,y,z), x,y,z voxel dimensions in nanometers
+      voxel_offset: int (x,y,z), beginning of dataset in positive cartesian space
+      volume_size: int (x,y,z), extent of dataset in cartesian space from voxel_offset
+    
+    Optional:
+      mesh: (str) name of mesh directory, typically "mesh"
+      skeletons: (str) name of skeletons directory, typically "skeletons"
+      chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
+      compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
+        (only used when encoding is 'compressed_segmentation')
+      max_mip: (int), the maximum mip level id.
+      factor: (Vec), the downsampling factor for each mip level
+
+    Returns: dict representing a single mip level that's JSON encodable
+    """
+    if not isinstance(factor, Vec):
+      factor = Vec(*factor)
+
+    if not isinstance(data_type, str):
+      data_type = np.dtype(data_type).name
+
+    info = {
+      "num_channels": int(num_channels),
+      "type": layer_type,
+      "data_type": data_type,
+      "scales": [{
+        "encoding": encoding,
+        "chunk_sizes": [chunk_size],
+        "key": "_".join(map(str, resolution)),
+        "resolution": list(map(int, resolution)),
+        "voxel_offset": list(map(int, voxel_offset)),
+        "size": list(map(int, volume_size)),
+      }],
+    }
+    
+    fullres = info['scales'][0]
+    factor_in_mip = factor.clone()
+ 
+    # add mip levels
+    for _ in range(max_mip):
+      new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
+      newscale = {
+        u"encoding": encoding,
+        u"chunk_sizes": [ list(map(int, chunk_size)) ],
+        u"key": "_".join(map(str, new_resolution)),
+        u"resolution": new_resolution,
+        u"voxel_offset": downscale(fullres['voxel_offset'], factor_in_mip, np.floor),
+        u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
+      }
+      info['scales'].append(newscale)
+      factor_in_mip *= factor
+
+    if encoding == 'compressed_segmentation':
+      info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
+
+    if mesh:
+      info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
+
+    if skeletons:
+      info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
+    
+    return info
 
   def refresh_info(self):
     """
