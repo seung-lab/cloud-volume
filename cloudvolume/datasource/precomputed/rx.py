@@ -207,7 +207,7 @@ def download_chunks_threaded(
     fill_missing, progress, compress_cache,
     green=False
   ):
-  locations = cache.compute_data_locations(cloudpaths, mip)
+  locations = cache.compute_data_locations(cloudpaths, meta.key(mip))
   cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
 
   def process(cloudpath, filename, enable_cache):

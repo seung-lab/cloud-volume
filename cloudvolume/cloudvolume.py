@@ -203,7 +203,7 @@ class CloudVolume(object):
     self.cache = CacheService(
       cloudpath=(cache if type(cache) == str else cloudpath),
       enabled=bool(cache), 
-      shared_config=self.config, 
+      config=self.config, 
       compress=compress_cache,
     )
 

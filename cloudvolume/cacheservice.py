@@ -2,7 +2,7 @@ import os
 import shutil
 
 from .provenance import DataLayerProvenance
-from .storage import SimpleStorage, Storage
+from .storage import SimpleStorage, Storage, GreenStorage
 
 from .lib import (
   Bbox, colorize, jsonify, mkdir, 
@@ -16,19 +16,19 @@ def warn(text):
 class CacheService(object):
   def __init__(
     self, cloudpath, 
-    enabled, shared_config, 
+    enabled, config, 
     meta=None, compress=None
   ):
     """
     enabled: bool or path string
-    shared_config: SharedConfiguration 
+    config: SharedConfiguration 
     meta: PrecomputedMetadata
     compress: None = linked to dataset setting, bool = Force
     """
     self._path = extract_path(cloudpath)
     self.path = self.default_path()
 
-    self.shared_config = shared_config
+    self.config = config
     self._enabled = enabled 
     self.compress = compress 
 
@@ -76,7 +76,7 @@ class CacheService(object):
         sizes[i] = size(i)
       return sizes
     else:
-      return size(self.shared_config.mip)
+      return size(self.config.mip)
 
   def num_bytes(self, all_mips=False):
     def mip_size(mip):
@@ -94,10 +94,10 @@ class CacheService(object):
         sizes[i] = mip_size(i)
       return sizes
     else:
-      return mip_size(self.shared_config.mip)
+      return mip_size(self.config.mip)
 
   def list(self, mip=None):
-    mip = self.shared_config.mip if mip is None else mip
+    mip = self.config.mip if mip is None else mip
     path = os.path.join(self.path, self.meta.key(mip))
 
     if not os.path.exists(path):
@@ -175,7 +175,7 @@ class CacheService(object):
     if not os.path.exists(self.path):
       return
   
-    cur_mip = self.shared_config.mip
+    cur_mip = self.config.mip
 
     region = Bbox.create(region, self.meta.bounds(cur_mip))
     mips = ( cur_mip, ) if mips == None else mips
@@ -278,14 +278,91 @@ class CacheService(object):
       with SimpleStorage('file://' + self.path) as storage:
         storage.put_file('provenance', self.meta.provenance.serialize(), 'application/json')
 
-  def compute_data_locations(self, cloudpaths, mip):
+  def upload(self, files, subdir, compress, cache_control):
+    StorageClass = GreenStorage if self.config.green else Storage
+    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
+      remote_fragments = stor.put_files(
+        files=files,
+        compress=compress,
+        cache_control=cache_control,
+      )
+
+    if self.enabled:
+      self.put(files, subdir, compress=compress)
+
+  def download(self, paths, subdir):
+    """
+    Download the provided paths, but grab them from cache first
+    if they are present and the cache is enabled. 
+
+    Returns: { filename: content, ... }
+    """
+    locs = self.compute_data_locations(paths, subdir)
+
+    locs['remote'] = [ os.path.join(subdir, os.path.basename(str(x))) for x in locs['remote'] ]
+
+    fragments = {}
+    if self.enabled:
+      fragments = self.get(locs['local'], subdir)
+
+    StorageClass = GreenStorage if self.config.green else Storage
+    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
+      remote_fragments = stor.get_files(locs['remote'])
+
+    for frag in remote_fragments:
+      if frag['error'] is not None:
+        raise frag['error']
+
+    remote_fragments = { res['filename']: res['content'] for res in remote_fragments }
+
+    if self.enabled:
+      self.put(
+        files=remote_fragments,
+        subdir=subdir,
+      )
+
+    fragments.update(remote_fragments)
+    return fragments
+
+  def get(self, cloudpaths, subdir, progress=None):
+    progress = self.config.progress if progress is None else progress
+    StorageClass = GreenStorage if self.config.green else Storage
+
+    with StorageClass('file://' + os.path.join(self.path, subdir), progress=progress) as stor:
+      results = stor.get_files(
+        [ os.path.basename(filepath) for filepath in cloudpaths ]
+      )
+
+    return { res['filename']: res['content'] for res in results }
+
+  def put(self, files, subdir, progress=None, compress=None):
+    """files is { filename: content }"""
+    if progress is None:
+      progress = self.config.progress
+
+    if compress is None:
+      compress = self.compress
+
+    if compress is None:
+      compress = self.config.compress
+    
+    StorageClass = GreenStorage if self.config.green else Storage
+
+    save_location = 'file://' + os.path.join(self.path, subdir)
+    with StorageClass(save_location, progress=progress) as stor:
+      stor.put_files(
+        [ (os.path.basename(name), content) for name, content in files.items() ],
+        compress=compress,
+      )
+
+  def compute_data_locations(self, cloudpaths, subdir):
     if not self.enabled:
       return { 'local': [], 'remote': cloudpaths }
 
     def noextensions(fnames):
       return [ os.path.splitext(fname)[0] for fname in fnames ]
 
-    list_dir = mkdir(os.path.join(self.path, self.meta.key(mip)))
+    list_dir = mkdir(os.path.join(self.path, subdir))
     filenames = noextensions(os.listdir(list_dir))
 
     basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }
@@ -297,7 +374,7 @@ class CacheService(object):
 
     download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]    
 
-    return { 'local': already_have, 'remote': download_paths }
+    return { 'local': list(already_have), 'remote': download_paths }
     
   def __repr__(self):
     return "CacheService(enabled={}, compress={}, path='{}')".format(

@@ -13,7 +13,7 @@ from tqdm import tqdm
 from ...lib import red, toiter
 from ...storage import Storage
 
-SEGIDRE = re.compile(r'/(\d+):0.*?$')
+SEGIDRE = re.compile(r'\b(\d+):0.*?$')
 
 def filename_to_segid(filename):
   matches = SEGIDRE.search(filename)
@@ -284,24 +284,22 @@ class PrecomputedMeshSource(object):
   def _get_manifests(self, segids):
     segids = toiter(segids)    
     paths = [ self.manifest_path(segid) for segid in segids ]
-
-    with Storage(self.meta.cloudpath, progress=self.config.progress) as stor:
-      fragments = stor.get_files(paths)
+    fragments = self.cache.download(paths, self.path)
 
     contents = {}
-    for frag in fragments:
-      content = frag['content'].decode('utf8')
+    for filename, content in fragments.items():
+      content = content.decode('utf8')
       content = json.loads(content)
-      segid = filename_to_segid(frag['filename'])
+      segid = filename_to_segid(filename)
       contents[segid] = content['fragments']
 
     return contents
 
   def _get_mesh_fragments(self, paths):
     paths = [ os.path.join(self.path, path) for path in paths ]
-    with Storage(self.meta.cloudpath, progress=self.config.progress) as stor:
-      fragments = stor.get_files(paths)
-
+    fragments = self.cache.download(paths, self.path)
+    fragments = [ (filename, content) for filename, content in fragments.items() ]
+    fragments = sorted(fragments, key=lambda frag: frag[0]) # make decoding deterministic
     return fragments
 
   def _check_missing_manifests(self, segids):
@@ -356,16 +354,15 @@ class PrecomputedMeshSource(object):
     fragments = fragments.values()
     fragments = list(itertools.chain.from_iterable(fragments)) # flatten
     fragments = self._get_mesh_fragments(fragments)
-    fragments = sorted(fragments, key=lambda frag: frag['filename']) # make decoding deterministic
 
     # decode all the fragments
     meshdata = defaultdict(list)
     for frag in tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer"):
-      segid = filename_to_segid(frag['filename'])
+      segid = filename_to_segid(frag[0])
       try:
-        mesh = PrecomputedMesh.from_precomputed(frag['content'])
+        mesh = PrecomputedMesh.from_precomputed(frag[1])
       except Exception:
-        print(frag['filename'], 'had a problem.')
+        print(frag[0], 'had a problem.')
         raise
       meshdata[segid].append(mesh)
 

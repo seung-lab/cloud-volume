@@ -219,16 +219,8 @@ class SimpleStorage(StorageBase):
     self._interface.release_connection()
 
   def __getitem__(self, key):
-    content = self.get_file(key)
-    if content is None:
-      return None
-    try:
-      return json.loads(content.decode('utf8'))
-    except LookupError:
-      return content
-    except json.decoder.JSONDecodeError:
-      return content
-
+    return self.get_file(key)
+  
   def __setitem__(self, key, value):
     if type(key) == tuple:
       key, kwargs = key

@@ -757,28 +757,18 @@ class PrecomputedSkeletonSource(object):
       list_return = False
       segids = [ int(segids) ]
 
-    paths = [ os.path.join(self.path, str(segid)) for segid in segids ]
-
-    StorageClass = Storage if len(segids) > 1 else SimpleStorage
-
-    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
-      results = stor.get_files(paths)
-
-    for res in results:
-      if res['error'] is not None:
-        raise res['error']
-
-    missing = [ res['filename'] for res in results if res['content'] is None ]
+    results = self.cache.download([ str(segid) for segid in segids ], self.path)
+    missing = [ filename for filename, content in results.items() if content is None ]
 
     if len(missing):
       raise SkeletonDecodeError("File(s) do not exist: {}".format(", ".join(missing)))
 
     skeletons = []
-    for res in results:
-      segid = int(os.path.basename(res['filename']))
+    for filename, content in results.items():
+      segid = int(os.path.basename(filename))
       try:
         skel = PrecomputedSkeleton.decode(
-          res['content'], segid=segid
+          content, segid=segid
         )
       except Exception as err:
         raise SkeletonDecodeError("segid " + str(segid) + ": " + err.message)
@@ -787,7 +777,10 @@ class PrecomputedSkeletonSource(object):
     if list_return:
       return skeletons
 
-    return skeletons[0]
+    if len(skeletons):
+      return skeletons[0]
+
+    return None
 
   def upload_raw(self, segid, vertices, edges, radii=None, vertex_types=None):
     skel = PrecomputedSkeleton(
@@ -800,15 +793,12 @@ class PrecomputedSkeletonSource(object):
     if type(skeletons) == PrecomputedSkeleton:
       skeletons = [ skeletons ]
 
-    StorageClass = Storage if len(skeletons) > 1 else SimpleStorage
+    files = ( (os.path.join(self.path, str(skel.id)), skel.encode()) for skel in skeletons )
 
-    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
-      for skel in skeletons:
-        path = os.path.join(self.path, str(skel.id))
-        stor.put_file(
-          file_path='{}/{}'.format(self.path, str(skel.id)),
-          content=skel.encode(),
-          compress='gzip',
-          cache_control=cdn_cache_control(self.config.cdn_cache),
-        )
+    self.cache.upload(
+      files=files, 
+      subdir=self.path,
+      compress='gzip', 
+      cache_control=cdn_cache_control(self.config.cdn_cache)
+    )
     
