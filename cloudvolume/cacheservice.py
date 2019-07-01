@@ -98,8 +98,31 @@ class CacheService(object):
 
   def list(self, mip=None):
     mip = self.config.mip if mip is None else mip
+
     path = os.path.join(self.path, self.meta.key(mip))
 
+    if not os.path.exists(path):
+      return []
+
+    return os.listdir(path)
+
+  def list_skeletons(self):
+    print(self.meta.skeletons)
+    if self.meta.skeletons is None:
+      return []
+
+    path = os.path.join(self.path, self.meta.skeletons)
+    print(path)
+    if not os.path.exists(path):
+      return []
+
+    return os.listdir(path)
+
+  def list_meshes(self):
+    if self.meta.mesh is None:
+      return []
+
+    path = os.path.join(self.path, self.meta.mesh)
     if not os.path.exists(path):
       return []
 
@@ -279,6 +302,8 @@ class CacheService(object):
         storage.put_file('provenance', self.meta.provenance.serialize(), 'application/json')
 
   def upload(self, files, subdir, compress, cache_control):
+    files = list(files)
+
     StorageClass = GreenStorage if self.config.green else Storage
     with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
       remote_fragments = stor.put_files(
@@ -313,13 +338,13 @@ class CacheService(object):
       if frag['error'] is not None:
         raise frag['error']
 
-    remote_fragments = { res['filename']: res['content'] for res in remote_fragments }
+    remote_fragments = { 
+      os.path.join(subdir, res['filename']): res['content'] \
+      for res in remote_fragments 
+    }
 
     if self.enabled:
-      self.put(
-        files=remote_fragments,
-        subdir=subdir,
-      )
+      self.put(remote_fragments)
 
     fragments.update(remote_fragments)
     return fragments
@@ -335,7 +360,7 @@ class CacheService(object):
 
     return { res['filename']: res['content'] for res in results }
 
-  def put(self, files, subdir, progress=None, compress=None):
+  def put(self, files, progress=None, compress=None):
     """files is { filename: content }"""
     if progress is None:
       progress = self.config.progress
@@ -348,10 +373,10 @@ class CacheService(object):
     
     StorageClass = GreenStorage if self.config.green else Storage
 
-    save_location = 'file://' + os.path.join(self.path, subdir)
+    save_location = 'file://' + self.path
     with StorageClass(save_location, progress=progress) as stor:
       stor.put_files(
-        [ (os.path.basename(name), content) for name, content in files.items() ],
+        [ (name, content) for name, content in files ],
         compress=compress,
       )
 

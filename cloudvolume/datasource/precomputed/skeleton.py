@@ -793,8 +793,7 @@ class PrecomputedSkeletonSource(object):
     if type(skeletons) == PrecomputedSkeleton:
       skeletons = [ skeletons ]
 
-    files = ( (os.path.join(self.path, str(skel.id)), skel.encode()) for skel in skeletons )
-
+    files = [ (os.path.join(self.path, str(skel.id)), skel.encode()) for skel in skeletons ]
     self.cache.upload(
       files=files, 
       subdir=self.path,

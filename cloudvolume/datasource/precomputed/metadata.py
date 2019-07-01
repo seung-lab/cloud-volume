@@ -356,6 +356,14 @@ class PrecomputedMetadata(object):
   def infopath(self):
     return os.path.join(self.cloudpath, 'info')
 
+  @property
+  def skeletons(self):
+    return self.info['skeletons'] if 'skeletons' in self.info else None
+
+  @property
+  def mesh(self):
+    return self.info['mesh'] if 'mesh' in self.info else None
+
   def shape(self, mip):
     """Returns Vec(x,y,z,channels) shape of the volume similar to numpy.""" 
     size = self.volume_size(mip)

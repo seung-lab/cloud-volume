@@ -468,3 +468,34 @@ def test_components():
 
   assert PrecomputedSkeleton.equivalent(components[0], skel1_gt)
   assert PrecomputedSkeleton.equivalent(components[1], skel2_gt)
+
+def test_caching():
+  skel = PrecomputedSkeleton(
+    [ 
+      (0,0,0), (1,0,0), (2,0,0),
+      (0,1,0), (0,2,0), (0,3,0),
+    ], 
+    edges=[ 
+      (0,1), (1,2), 
+      (3,4), (4,5), (3,5)
+    ],
+    segid=666,
+  )
+
+  vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', 
+    info=info, cache=True)
+  vol.skeleton.upload(skel)
+
+  assert vol.cache.list_skeletons() == [ '666.gz' ]
+  vol.cache.flush()
+
+
+
+
+
+
+
+
+
+
+
