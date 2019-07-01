@@ -705,10 +705,10 @@ class PrecomputedSkeleton(object):
     elif self.edges.shape[0] != other.edges.shape[0]:
       return False
 
-    return (np.all(self.vertices == other.vertices, axis=0) \
-      and np.any(self.edges == other.edges, axis=0) \
-      and np.any(self.radii == other.radii) \
-      and np.any(self.vertex_types == other.vertex_types))
+    return (np.all(self.vertices == other.vertices)
+      and np.all(self.edges == other.edges) \
+      and np.all(self.radii == other.radii) \
+      and np.all(self.vertex_types == other.vertex_types))
 
   def __str__(self):
     return "PrecomputedSkeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}))".format(

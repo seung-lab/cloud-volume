@@ -107,12 +107,10 @@ class CacheService(object):
     return os.listdir(path)
 
   def list_skeletons(self):
-    print(self.meta.skeletons)
     if self.meta.skeletons is None:
       return []
 
     path = os.path.join(self.path, self.meta.skeletons)
-    print(path)
     if not os.path.exists(path):
       return []
 
