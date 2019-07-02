@@ -73,8 +73,8 @@ def decode_mesh_buffer(fragment):
 def decode_draco_mesh_buffer(fragment):
     try:
         mesh_object = DracoPy.decode_buffer_to_mesh(fragment)
-        vertices = np.array(mesh_object.points)
-        faces = np.array(mesh_object.faces)
+        vertices = np.array(mesh_object.points).astype(np.float32)
+        faces = np.array(mesh_object.faces).astype(np.uint32)
     except ValueError:
         raise ValueError("Not a valid draco mesh")
 
@@ -87,6 +87,7 @@ def decode_draco_mesh_buffer(fragment):
         'num_vertices': num_vertices,
         'vertices': vertices.reshape(num_vertices, 3),
         'faces': faces,
+        'encoding_options': mesh_object.encoding_options,
         'encoding_type': 'draco'
     }
 
@@ -194,6 +195,8 @@ class GrapheneMeshService(object):
             try:
                 # Easier to ask forgiveness than permission
                 mesh = decode_draco_mesh_buffer(frag["content"])
+                # FIXME: Current cross chunk logic does not support Draco, so must check all vertices for duplicates
+                remove_duplicate_vertices = True
             except DracoPy.FileTypeException:
                 mesh = decode_mesh_buffer(frag["content"])
             meshdata.append(mesh)
