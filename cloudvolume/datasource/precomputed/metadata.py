@@ -12,6 +12,7 @@ from ... import exceptions
 from ...provenance import DatasetProvenance, DataLayerProvenance
 from ...storage import SimpleStorage
 
+from ... import lib
 from ...lib import ( 
   extract_path, colorize, red, mkdir, 
   Vec, Bbox, jsonify, 
@@ -513,7 +514,7 @@ class PrecomputedMetadata(object):
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
       u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
-      u"size": downscalef(ullres['size'], factor, np.ceil),
+      u"size": downscale(fullres['size'], factor, np.ceil),
     }
 
     if newscale['encoding'] == 'compressed_segmentation':
