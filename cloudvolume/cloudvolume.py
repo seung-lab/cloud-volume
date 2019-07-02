@@ -1066,10 +1066,7 @@ class CloudVolume(object):
   def viewer(self, port=1337):
     import cloudvolume.server
 
-    if self.path.protocol != "file":
-      raise NotImplementedError("Only the file protocol is currently supported.")
-
-    cloudvolume.server.view(self.base_cloudpath, port=port)
+    cloudvolume.server.view(self.cloudpath, port=port)
 
 
 
