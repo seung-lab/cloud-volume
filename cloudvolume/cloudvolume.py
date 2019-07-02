@@ -360,6 +360,10 @@ class CloudVolume(object):
   def info(self):
     return self.meta.info
 
+  @info.setter
+  def info(self, val):
+    self.meta.info = val
+  
   @property
   def provenance(self):
     return self.meta.provenance
