@@ -2,11 +2,13 @@ from __future__ import print_function
 
 import itertools
 import collections
+import gevent.socket
 import json
 import os
 import sys
 import uuid
 import weakref
+import socket
 import traceback
 
 from six.moves import range
@@ -152,7 +154,12 @@ class CloudVolume(object):
       can result in higher download performance for some compression types. Preemptive
       threads seem to reduce performance on multi-core machines that aren't densely
       loaded as the CPython threads are assigned to multiple cores and the thrashing
-      + GIL reduces performance.
+      + GIL reduces performance. You'll need to add the following code to the top
+      of your program to use green threads:
+
+          import gevent.monkey
+          gevent.monkey.patch_all(threads=False)
+
     info: (dict) In lieu of fetching a neuroglancer info file, use this one.
         This is useful when creating new datasets and for repeatedly initializing
         a new cloudvolume instance.
@@ -199,6 +206,7 @@ class CloudVolume(object):
       parallel=parallel, 
       progress=progress,
     )
+    self.green_threads = green_threads # trigger warning message
 
     self.cache = CacheService(
       cloudpath=(cache if type(cache) == str else cloudpath),
@@ -272,6 +280,25 @@ class CloudVolume(object):
   
   @green_threads.setter 
   def green_threads(self, val):
+    if val and socket.socket is not gevent.socket.socket:
+      warn("""
+      WARNING: green_threads is set but this process is 
+      not monkey patched. This will cause severely degraded
+      performance.
+      
+      CloudVolume uses gevent for cooperative (green) 
+      threading but it requires patching the Python standard 
+      library to perform asynchronous IO. Add this code to
+      the top of your program (before any other imports):
+
+        import gevent.monkey
+        gevent.monkey.patch_all(threads=False)
+
+      More Information:
+
+      http://www.gevent.org/intro.html#monkey-patching
+      """)
+
     self.config.green = bool(val)
 
   @property
