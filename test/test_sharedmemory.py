@@ -9,32 +9,47 @@ import cloudvolume.sharedmemory as shm
 
 def test_ndarray_fs():
 	location = 'cloudvolume-shm-test-ndarray'
-	array_like, array = shm.ndarray_fs(shape=(2,2,2), dtype=np.uint8, location=location, lock=None)
+	array_like, array = shm.ndarray_fs(
+		shape=(2,2,2), dtype=np.uint8, location=location, 
+		lock=None, emulate_shm=True
+	)
 	assert np.all(array == np.zeros(shape=(2,2,2), dtype=np.uint8))
 	array[:] = 100
 	array_like.close()
 
-	array_like, array = shm.ndarray_fs(shape=(2,2,2), dtype=np.uint8, location=location, lock=None)
+	array_like, array = shm.ndarray_fs(
+		shape=(2,2,2), dtype=np.uint8, location=location, 
+		lock=None, emulate_shm=True
+	)
 	assert np.all(array[:] == 100)
 	array_like.close()
 
-	filename = os.path.join(shm.EMULATED_SHM_DIRECTORY, location)
+	full_loc = os.path.join(shm.EMULATED_SHM_DIRECTORY, location)
 
-	assert os.path.exists(filename)
-	assert os.path.getsize(filename) == 8
+	assert os.path.exists(full_loc)
+	assert os.path.getsize(full_loc) == 8
 
 	assert shm.unlink_fs(location) == True
 	assert shm.unlink_fs(location) == False
 
 	try:
-		array_like, array = shm.ndarray_fs(shape=(2,2,2), dtype=np.uint8, location=location, lock=None, readonly=True)
+		array_like, array = shm.ndarray_fs(
+			shape=(2,2,2), dtype=np.uint8, location=location, 
+			lock=None, readonly=True, emulate_shm=True
+		)
 		assert False
 	except shm.SharedMemoryReadError:
 		pass
 
-	array_like, array = shm.ndarray_fs(shape=(2,2,2), dtype=np.uint8, location=location, lock=None)
+	array_like, array = shm.ndarray_fs(
+		shape=(2,2,2), dtype=np.uint8, location=location, 
+		lock=None, emulate_shm=True
+	)
 	try:
-		array_like, array = shm.ndarray_fs(shape=(200,200,200), dtype=np.uint8, location=location, lock=None, readonly=True)
+		array_like, array = shm.ndarray_fs(
+			shape=(200,200,200), dtype=np.uint8, location=location, 
+			lock=None, readonly=True, emulate_shm=True
+		)
 		assert False
 	except shm.SharedMemoryReadError:
 		pass
@@ -42,7 +57,7 @@ def test_ndarray_fs():
 	assert shm.unlink_fs(location) == True
 	assert shm.unlink_fs(location) == False
 
-	assert not os.path.exists(filename)
+	assert not os.path.exists(full_loc)
 
 def test_ndarray_sh():
 	# Don't bother testing on unsupported platforms.

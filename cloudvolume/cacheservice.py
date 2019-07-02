@@ -2,20 +2,39 @@ import os
 import shutil
 
 from .provenance import DataLayerProvenance
-from .storage import SimpleStorage, Storage
+from .storage import SimpleStorage, Storage, GreenStorage
 
-from .lib import Bbox, colorize, jsonify, mkdir, toabs, Vec, generate_slices
+from .lib import (
+  Bbox, colorize, jsonify, mkdir, 
+  toabs, Vec, extract_path
+)
 from .secrets import CLOUD_VOLUME_DIR
 
 def warn(text):
   print(colorize('yellow', text))
 
 class CacheService(object):
-  
-  def __init__(self, path_or_bool, vol):
-    self.vol = vol
-    self.enabled = path_or_bool # on/off or path (on)
-    self.compress = None # None = linked, bool = force
+  def __init__(
+    self, cloudpath, 
+    enabled, config, 
+    meta=None, compress=None
+  ):
+    """
+    enabled: bool or path string
+    config: SharedConfiguration 
+    meta: PrecomputedMetadata
+    compress: None = linked to dataset setting, bool = Force
+    """
+    self._path = extract_path(cloudpath)
+    self.path = self.default_path()
+
+    self.config = config
+    self._enabled = enabled 
+    self.compress = compress 
+
+    # b/c there's a semi-circular dependency
+    # meta is usually set afterwards
+    self.meta = meta 
 
     self.initialize()
 
@@ -24,40 +43,44 @@ class CacheService(object):
       return 
 
     if not os.path.exists(self.path):
-        mkdir(self.path)
+      mkdir(self.path)
 
     if not os.access(self.path, os.R_OK|os.W_OK):
       raise IOError('Cache directory needs read/write permission: ' + self.path)
 
   @property
-  def path(self):
-    if type(self.enabled) is not str:
-      path = self.vol.path
-      return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-        path.protocol, path.bucket.replace('/', ''), path.intermediate_path,
-        path.dataset, path.layer
-      ))
-    else:
-      return toabs(self.enabled)
+  def enabled(self):
+    return self._enabled
+
+  @enabled.setter
+  def enabled(self, val):
+    self._enabled = val 
+    self.initialize()
+
+  def default_path(self):
+    return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
+      self._path.protocol, self._path.bucket.replace('/', ''), self._path.intermediate_path,
+      self._path.dataset, self._path.layer
+    ))
   
   def num_files(self, all_mips=False):
     def size(mip):
-      path_at_mip = os.path.join(self.path, self.vol.mip_key(mip))
+      path_at_mip = os.path.join(self.path, self.meta.key(mip))
       if not os.path.exists(path_at_mip):
         return 0
       return len(os.listdir(path_at_mip))
 
     if all_mips:
-      sizes = [ 0 ] * (max(list(self.vol.available_mips)) + 1)
-      for i in self.vol.available_mips:
+      sizes = [ 0 ] * (max(list(self.meta.available_mips)) + 1)
+      for i in self.meta.available_mips:
         sizes[i] = size(i)
       return sizes
     else:
-      return size(self.vol.mip)
+      return size(self.config.mip)
 
   def num_bytes(self, all_mips=False):
     def mip_size(mip):
-      path_at_mip = os.path.join(self.path, self.vol.mip_key(mip))
+      path_at_mip = os.path.join(self.path, self.meta.key(mip))
       if not os.path.exists(path_at_mip):
         return 0
 
@@ -66,17 +89,38 @@ class CacheService(object):
       )
 
     if all_mips:
-      sizes = [ 0 ] * (max(list(self.vol.available_mips)) + 1)
-      for i in self.vol.available_mips:
+      sizes = [ 0 ] * (max(list(self.meta.available_mips)) + 1)
+      for i in self.meta.available_mips:
         sizes[i] = mip_size(i)
       return sizes
     else:
-      return mip_size(self.vol.mip)
+      return mip_size(self.config.mip)
 
   def list(self, mip=None):
-    mip = self.vol.mip if mip is None else mip
-    path = os.path.join(self.path, self.vol.mip_key(mip))
+    mip = self.config.mip if mip is None else mip
 
+    path = os.path.join(self.path, self.meta.key(mip))
+
+    if not os.path.exists(path):
+      return []
+
+    return os.listdir(path)
+
+  def list_skeletons(self):
+    if self.meta.skeletons is None:
+      return []
+
+    path = os.path.join(self.path, self.meta.skeletons)
+    if not os.path.exists(path):
+      return []
+
+    return os.listdir(path)
+
+  def list_meshes(self):
+    if self.meta.mesh is None:
+      return []
+
+    path = os.path.join(self.path, self.meta.mesh)
     if not os.path.exists(path):
       return []
 
@@ -115,11 +159,10 @@ class CacheService(object):
       shutil.rmtree(self.path)
       return
 
-    for mip in self.vol.available_mips:
-      preserve_mip = self.vol.slices_from_global_coords(preserve)
-      preserve_mip = Bbox.from_slices(preserve_mip)
+    for mip in self.meta.available_mips:
+      preserve_mip = self.meta.bbox_to_mip(preserve, 0, mip)
+      mip_path = os.path.join(self.path, self.meta.key(mip))
 
-      mip_path = os.path.join(self.path, self.vol.mip_key(mip))
       if not os.path.exists(mip_path):
         continue
 
@@ -152,23 +195,18 @@ class CacheService(object):
     """
     if not os.path.exists(self.path):
       return
-    
-    if type(region) in (list, tuple):
-      region = generate_slices(region, self.vol.bounds.minpt, self.vol.bounds.maxpt, bounded=False)
-      region = Bbox.from_slices(region)
+  
+    cur_mip = self.config.mip
 
-    mips = self.vol.mip if mips == None else mips
-    if type(mips) == int:
-      mips = (mips, )
+    region = Bbox.create(region, self.meta.bounds(cur_mip))
+    mips = ( cur_mip, ) if mips == None else mips
 
     for mip in mips:
-      mip_path = os.path.join(self.path, self.vol.mip_key(mip))
+      mip_path = os.path.join(self.path, self.meta.key(mip))
       if not os.path.exists(mip_path):
         continue
 
-      region_mip = self.vol.slices_from_global_coords(region)
-      region_mip = Bbox.from_slices(region_mip)
-
+      region_mip = self.meta.bbox_to_mip(region, mip=0, to_mip=mip)
       for filename in os.listdir(mip_path):
         bbox = Bbox.from_filename(filename)
         if not Bbox.intersects(region, bbox):
@@ -183,7 +221,7 @@ class CacheService(object):
     if not cache_info:
       return
 
-    fresh_info = self.vol._fetch_info()
+    fresh_info = self.meta.fetch_info()
 
     mismatch_error = ValueError("""
       Data layer info file differs from cache. Please check whether this
@@ -237,8 +275,8 @@ class CacheService(object):
     if not cached_prov:
       return
 
-    cached_prov = self.vol._cast_provenance(cached_prov)
-    fresh_prov = self.vol._fetch_provenance()
+    cached_prov = self.meta._cast_provenance(cached_prov)
+    fresh_prov = self.meta.fetch_provenance()
     if cached_prov != fresh_prov:
       warn("""
       WARNING: Cached provenance file does not match source.
@@ -254,12 +292,93 @@ class CacheService(object):
   def maybe_cache_info(self):
     if self.enabled:
       with SimpleStorage('file://' + self.path) as storage:
-        storage.put_file('info', jsonify(self.vol.info), 'application/json')
+        storage.put_file('info', jsonify(self.meta.info), 'application/json')
 
   def maybe_cache_provenance(self):
-    if self.enabled and self.vol.provenance:
+    if self.enabled and self.meta.provenance:
       with SimpleStorage('file://' + self.path) as storage:
-        storage.put_file('provenance', self.vol.provenance.serialize(), 'application/json')
+        storage.put_file('provenance', self.meta.provenance.serialize(), 'application/json')
+
+  def upload(self, files, subdir, compress, cache_control):
+    files = list(files)
+
+    StorageClass = GreenStorage if self.config.green else Storage
+    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
+      remote_fragments = stor.put_files(
+        files=files,
+        compress=compress,
+        cache_control=cache_control,
+      )
+
+    if self.enabled:
+      self.put(files, compress=compress)
+
+  def download(self, paths, compress=None):
+    """
+    Download the provided paths, but grab them from cache first
+    if they are present and the cache is enabled. 
+
+    Returns: { filename: content, ... }
+    """
+    locs = self.compute_data_locations(paths)
+    locs['remote'] = [ str(x) for x in locs['remote'] ]
+
+    fragments = {}
+    if self.enabled:
+      fragments = self.get(locs['local'])
+
+    StorageClass = GreenStorage if self.config.green else Storage
+    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
+      remote_fragments = stor.get_files(locs['remote'])
+
+    for frag in remote_fragments:
+      if frag['error'] is not None:
+        raise frag['error']
+
+    remote_fragments = { 
+      res['filename']: res['content'] \
+      for res in remote_fragments 
+    }
+
+    if self.enabled:
+      self.put(
+        [ (filename, content) for filename, content in remote_fragments.items() ],
+        compress=compress,
+      )
+
+    fragments.update(remote_fragments)
+    return fragments
+
+  def get(self, cloudpaths, progress=None):
+    progress = self.config.progress if progress is None else progress
+    StorageClass = GreenStorage if self.config.green else Storage
+
+    with StorageClass('file://' + self.path, progress=progress) as stor:
+      results = stor.get_files(
+        [ filepath for filepath in cloudpaths ]
+      )
+
+    return { res['filename']: res['content'] for res in results }
+
+  def put(self, files, progress=None, compress=None):
+    """files is { filename: content }"""
+    if progress is None:
+      progress = self.config.progress
+
+    if compress is None:
+      compress = self.compress
+
+    if compress is None:
+      compress = self.config.compress
+    
+    StorageClass = GreenStorage if self.config.green else Storage
+
+    save_location = 'file://' + self.path
+    with StorageClass(save_location, progress=progress) as stor:
+      stor.put_files(
+        [ (name, content) for name, content in files ],
+        compress=compress,
+      )
 
   def compute_data_locations(self, cloudpaths):
     if not self.enabled:
@@ -268,8 +387,12 @@ class CacheService(object):
     def noextensions(fnames):
       return [ os.path.splitext(fname)[0] for fname in fnames ]
 
-    list_dir = mkdir(os.path.join(self.vol.cache_path, self.vol.key))
-    filenames = noextensions(os.listdir(list_dir))
+    list_dirs = set([ os.path.dirname(pth) for pth in cloudpaths ])
+    filenames = []
+
+    for list_dir in list_dirs:
+      list_dir = os.path.join(self.path, list_dir)
+      filenames += noextensions(os.listdir(mkdir(list_dir)))
 
     basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }
 
@@ -279,6 +402,7 @@ class CacheService(object):
     to_download = requested.difference(already_have)
 
     download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]    
+    already_have = [ os.path.join(basepathmap[fname], fname) for fname in already_have ]
 
     return { 'local': already_have, 'remote': download_paths }
     

@@ -328,19 +328,8 @@ class Bbox(object):
       else:
         dtype = np.int32
 
-    self.minpt = Vec(
-      min(a[0], b[0]),
-      min(a[1], b[1]),
-      min(a[2], b[2]),
-      dtype=dtype
-    )
-
-    self.maxpt = Vec(
-      max(a[0], b[0]),
-      max(a[1], b[1]),
-      max(a[2], b[2]),
-      dtype=dtype
-    )
+    self.minpt = Vec(*[ min(ai,bi) for ai,bi in zip(a,b) ], dtype=dtype)
+    self.maxpt = Vec(*[ max(ai,bi) for ai,bi in zip(a,b) ], dtype=dtype)
 
     self._dtype = np.dtype(dtype)
 
@@ -352,62 +341,62 @@ class Bbox(object):
   def serialize(self):
     return json.dumps(self.to_dict())
 
+  @property
+  def ndim(self):
+    return len(self.minpt)
+
   @property 
   def dtype(self):
     return self._dtype
 
   @classmethod
   def intersection(cls, bbx1, bbx2):
-    if not Bbox.intersects(bbx1, bbx2):
-      return Bbox( (0,0,0), (0,0,0) )
+    result = Bbox( [ 0 ] * bbx1.ndim, [ 0 ] * bbx2.ndim )
 
-    result = Bbox( (0,0,0), (0,0,0) )
-    result.minpt.x = max(bbx1.minpt.x, bbx2.minpt.x)
-    result.minpt.y = max(bbx1.minpt.y, bbx2.minpt.y)
-    result.minpt.z = max(bbx1.minpt.z, bbx2.minpt.z)
-    result.maxpt.x = min(bbx1.maxpt.x, bbx2.maxpt.x)
-    result.maxpt.y = min(bbx1.maxpt.y, bbx2.maxpt.y)
-    result.maxpt.z = min(bbx1.maxpt.z, bbx2.maxpt.z)
+    if not Bbox.intersects(bbx1, bbx2):
+      return result
+    
+    for i in range(result.ndim):
+      result.minpt[i] = max(bbx1.minpt[i], bbx2.minpt[i])
+      result.maxpt[i] = min(bbx1.maxpt[i], bbx2.maxpt[i])
 
     return result
 
   @classmethod
   def intersects(cls, bbx1, bbx2):
-    return (
-          bbx1.minpt.x < bbx2.maxpt.x 
-      and bbx1.maxpt.x > bbx2.minpt.x 
-      and bbx1.minpt.y < bbx2.maxpt.y
-      and bbx1.maxpt.y > bbx2.minpt.y
-      and bbx1.minpt.z < bbx2.maxpt.z
-      and bbx1.maxpt.z > bbx2.minpt.z 
-    )
+    return np.all(bbx1.minpt < bbx2.maxpt) and np.all(bbx1.maxpt > bbx2.minpt)
 
   @classmethod
   def near_edge(cls, bbx1, bbx2, distance=0):
     return (
-         abs(bbx1.minpt.x - bbx2.minpt.x) <= distance
-      or abs(bbx1.minpt.y - bbx2.minpt.y) <= distance
-      or abs(bbx1.minpt.z - bbx2.minpt.z) <= distance
-      or abs(bbx1.maxpt.x - bbx2.maxpt.x) <= distance
-      or abs(bbx1.maxpt.y - bbx2.maxpt.y) <= distance
-      or abs(bbx1.maxpt.z - bbx2.maxpt.z) <= distance
+         np.any( np.abs(bbx1.minpt - bbx2.minpt) <= distance )
+      or np.any( np.abs(bbx1.maxpt - bbx2.maxpt) <= distance )
     )
 
   @classmethod
-  def create(cls, obj):
+  def create(cls, obj, context=None, bounded=False):
     typ = type(obj)
     if typ is Bbox:
-      return obj
-    elif typ is list:
-      return Bbox.from_slices(obj)
+      obj = obj
+    elif typ in (list, tuple):
+      obj = Bbox.from_slices(obj, context, bounded)
     elif typ is Vec:
-      return Bbox.from_vec(obj)
+      obj = Bbox.from_vec(obj)
     elif typ is str:
-      return Bbox.from_filename(obj)
+      obj = Bbox.from_filename(obj)
     elif typ is dict:
-      return Bbox.from_dict(obj)
+      obj = Bbox.from_dict(obj)
     else:
       raise NotImplementedError("{} is not a Bbox convertible type.".format(typ))
+
+    if context and bounded:
+      if not context.contains_bbox(obj):
+        raise OutOfBoundsError(
+          "{} did not fully contain the specified bounding box {}.".format(
+            context, obj
+        ))
+
+    return obj
 
   @classmethod
   def from_delta(cls, minpt, plus):
@@ -433,35 +422,34 @@ class Bbox(object):
     return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
 
   @classmethod
-  def from_slices(cls, slices3):
+  def from_slices(cls, slices, context=None, bounded=False):
+    if context:
+      slices = context.reify_slices(slices, bounded=bounded)
+
     return Bbox(
-      (slices3[0].start, slices3[1].start, slices3[2].start), 
-      (slices3[0].stop, slices3[1].stop, slices3[2].stop) 
+      [ slc.start for slc in slices ],
+      [ slc.stop for slc in slices ]
     )
 
   @classmethod
   def from_list(cls, lst):
-    '''
+    """
     from_list(cls, lst)
     the lst length should be 6
     the first three values are the start, and the last 3 values are the stop 
-    '''
+    """
     assert len(lst) == 6
     return Bbox( lst[:3], lst[3:6] )
 
   def to_filename(self):
-    return '{}-{}_{}-{}_{}-{}'.format(
-      self.minpt.x, self.maxpt.x,
-      self.minpt.y, self.maxpt.y,
-      self.minpt.z, self.maxpt.z,
+    return '_'.join(
+      ( str(self.minpt[i]) + '-' + str(self.maxpt[i]) for i in range(self.ndim) )
     )
 
   def to_slices(self):
-    return (
-      slice(int(self.minpt.x), int(self.maxpt.x)),
-      slice(int(self.minpt.y), int(self.maxpt.y)),
-      slice(int(self.minpt.z), int(self.maxpt.z))
-    )
+    return tuple([
+      slice(int(self.minpt[i]), int(self.maxpt[i])) for i in range(self.ndim)
+    ])
 
   def to_list(self):
     return list(self.minpt) + list(self.maxpt)
@@ -472,6 +460,77 @@ class Bbox(object):
       'maxpt': self.maxpt.tolist(),
       'dtype': np.dtype(self.dtype).name,
     }
+
+  def reify_slices(self, slices, bounded=True):
+    """
+    Convert free attributes of a slice object 
+    (e.g. None (arr[:]) or Ellipsis (arr[..., 0]))
+    into bound variables in the context of this
+    bounding box.
+
+    That is, for a ':' slice, slice.start will be set
+    to the value of the respective minpt index of 
+    this bounding box while slice.stop will be set 
+    to the value of the respective maxpt index.
+
+    Example:
+      bbx = Bbox( (-1,-2,-3), (1,2,3) )
+      bbx.reify_slices( (np._s[:],) )
+      
+      >>> [ slice(-1,1,1), slice(-2,2,1), slice(-3,3,1) ]
+
+    Returns: [ slice, ... ]
+    """
+    if isinstance(slices, integer_types) or isinstance(slices, floating_types):
+      slices = [ slice(int(slices), int(slices)+1, 1) ]
+    elif type(slices) == slice:
+      slices = [ slices ]
+    elif type(slices) == Bbox:
+      slices = slices.to_slices()
+    elif slices == Ellipsis:
+      slices = []
+
+    slices = list(slices)
+
+    for index, slc in enumerate(slices):
+      if slc == Ellipsis:
+        fill = self.ndim - len(slices) + 1
+        slices = slices[:index] +  (fill * [ slice(None, None, None) ]) + slices[index+1:]
+        break
+
+    while len(slices) < self.ndim:
+      slices.append( slice(None, None, None) )
+
+    # First three slices are x,y,z, last is channel. 
+    # Handle only x,y,z here, channel seperately
+    for index, slc in enumerate(slices):
+      if isinstance(slc, integer_types) or isinstance(slc, floating_types):
+        slices[index] = slice(int(slc), int(slc)+1, 1)
+      elif slc == Ellipsis:
+        raise ValueError("More than one Ellipsis operator used at once.")
+      else:
+        start = self.minpt[index] if slc.start is None else slc.start
+        end = self.maxpt[index] if slc.stop is None else slc.stop 
+        step = 1 if slc.step is None else slc.step
+
+        if step < 0:
+          raise ValueError('Negative step sizes are not supported. Got: {}'.format(step))
+
+        # note: when unbounded, negative indicies do not refer to
+        # the end of the volume as they can describe, e.g. a 1px
+        # border on the edge of the beginning of the dataset as in
+        # marching cubes.
+        if bounded:
+          # if start < 0: # this is support for negative indicies
+            # start = self.maxpt[index] + start         
+          check_bounds(start, self.minpt[index], self.maxpt[index])
+          # if end < 0: # this is support for negative indicies
+          #   end = self.maxpt[index] + end
+          check_bounds(end, self.minpt[index], self.maxpt[index])
+
+        slices[index] = slice(start, end, step)
+
+    return slices
 
   @classmethod
   def expand(cls, *args):
@@ -488,8 +547,11 @@ class Bbox(object):
     result.maxpt = Vec.clamp(bbx0.maxpt, bbx1.minpt, bbx1.maxpt)
     return result
 
-  def size3(self):
+  def size(self):
     return Vec(*(self.maxpt - self.minpt), dtype=self.dtype)
+
+  def size3(self):
+    return Vec(*(self.maxpt[:3] - self.minpt[:3]), dtype=self.dtype)
 
   def subvoxel(self):
     """
@@ -613,14 +675,7 @@ class Bbox(object):
 
     Returns: boolean
     """
-    return (
-          point[0] >= self.minpt[0] 
-      and point[1] >= self.minpt[1]
-      and point[2] >= self.minpt[2] 
-      and point[0] <= self.maxpt[0] 
-      and point[1] <= self.maxpt[1]
-      and point[2] <= self.maxpt[2]
-    )
+    return np.all(point >= self.minpt) and np.all(point <= self.maxpt)
 
   def contains_bbox(self, bbox):
     return self.contains(bbox.minpt) and self.contains(bbox.maxpt)
@@ -735,59 +790,6 @@ class Bbox(object):
 
   def __repr__(self):
     return "Bbox({},{}, dtype={})".format(list(self.minpt), list(self.maxpt), self.dtype)
-
-
-def generate_slices(slices, minsize, maxsize, bounded=True):
-  """Assisting function for __getitem__. e.g. vol[:,:,:,:]"""
-
-  if isinstance(slices, integer_types) or isinstance(slices, floating_types):
-    slices = [ slice(int(slices), int(slices)+1, 1) ]
-  elif type(slices) == slice:
-    slices = [ slices ]
-  elif slices == Ellipsis:
-    slices = []
-
-  slices = list(slices)
-
-  for index, slc in enumerate(slices):
-    if slc == Ellipsis:
-      fill = len(maxsize) - len(slices) + 1
-      slices = slices[:index] +  (fill * [ slice(None, None, None) ]) + slices[index+1:]
-      break
-
-  while len(slices) < len(maxsize):
-    slices.append( slice(None, None, None) )
-
-  # First three slices are x,y,z, last is channel. 
-  # Handle only x,y,z here, channel seperately
-  for index, slc in enumerate(slices):
-    if isinstance(slc, integer_types) or isinstance(slc, floating_types):
-      slices[index] = slice(int(slc), int(slc)+1, 1)
-    elif slc == Ellipsis:
-      raise ValueError("More than one Ellipsis operator used at once.")
-    else:
-      start = minsize[index] if slc.start is None else slc.start
-      end = maxsize[index] if slc.stop is None else slc.stop 
-      step = 1 if slc.step is None else slc.step
-
-      if step < 0:
-        raise ValueError('Negative step sizes are not supported. Got: {}'.format(step))
-
-      # note: when unbounded, negative indicies do not refer to
-      # the end of the volume as they can describe, e.g. a 1px
-      # border on the edge of the beginning of the dataset as in
-      # marching cubes.
-      if bounded:
-        # if start < 0: # this is support for negative indicies
-          # start = maxsize[index] + start         
-        check_bounds(start, minsize[index], maxsize[index])
-        # if end < 0: # this is support for negative indicies
-        #   end = maxsize[index] + end
-        check_bounds(end, minsize[index], maxsize[index])
-
-      slices[index] = slice(start, end, step)
-
-  return slices
 
 def save_images(image, directory=None, axis='z', channel=None, global_norm=True, image_format='PNG'):
   """

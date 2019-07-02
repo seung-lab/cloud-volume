@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 
+from cloudvolume import exceptions
 from cloudvolume.exceptions import AlignmentError
 from cloudvolume import CloudVolume, chunks
 from cloudvolume.lib import Bbox, Vec, yellow
@@ -16,7 +17,8 @@ from layer_harness import (
   TEST_NUMBER,  
   delete_layer, create_layer
 )
-from cloudvolume import txrx
+from cloudvolume.datasource.precomputed.common import cdn_cache_control
+from cloudvolume.datasource.precomputed.tx import generate_chunks
 
 def test_from_numpy():
   arr = np.random.random_integers(0, high=255, size=(128,128, 128))
@@ -63,28 +65,33 @@ def test_fill_missing():
   delete_layer('/tmp/cloudvolume/empty_volume')
 
 def test_aligned_read():
-  delete_layer()
-  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
-  # the last dimension is the number of channels
-  assert cv[0:50,0:50,0:50].shape == (50,50,50,1)
-  assert np.all(cv[0:50,0:50,0:50] == data)
-  
-  delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
-  # the last dimension is the number of channels
-  assert cv[0:64,0:64,0:64].shape == (64,64,64,1) 
-  assert np.all(cv[0:64,0:64,0:64] ==  data[:64,:64,:64,:])
+  for green in (False, True):
+    print("green", green)
+    delete_layer()
+    cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+    cv.green_threads = green
+    # the last dimension is the number of channels
+    assert cv[0:50,0:50,0:50].shape == (50,50,50,1)
+    assert np.all(cv[0:50,0:50,0:50] == data)
+    
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+    cv.green_threads = green
+    # the last dimension is the number of channels
+    assert cv[0:64,0:64,0:64].shape == (64,64,64,1) 
+    assert np.all(cv[0:64,0:64,0:64] ==  data[:64,:64,:64,:])
 
-  delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0))
-  cutout = cv[10:74,20:84,0:64]
-  # the last dimension is the number of channels
-  assert cutout.shape == (64,64,64,1) 
-  assert np.all(cutout == data[:64,:64,:64,:])
-  # get the second chunk
-  cutout2 = cv[74:138,20:84,0:64]
-  assert cutout2.shape == (64,64,64,1) 
-  assert np.all(cutout2 == data[64:128,:64,:64,:])
+    delete_layer()
+    cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0))
+    cv.green_threads = green
+    cutout = cv[10:74,20:84,0:64]
+    # the last dimension is the number of channels
+    assert cutout.shape == (64,64,64,1) 
+    assert np.all(cutout == data[:64,:64,:64,:])
+    # get the second chunk
+    cutout2 = cv[74:138,20:84,0:64]
+    assert cutout2.shape == (64,64,64,1) 
+    assert np.all(cutout2 == data[64:128,:64,:64,:])
 
 def test_bbox_read():
   delete_layer()
@@ -144,8 +151,21 @@ def test_parallel_read():
     vol2 = CloudVolume(cloudpath, parallel=2)
 
     data1 = vol1[:512,:512,:50]
+    img = vol2[:512,:512,:50]
     assert np.all(data1 == vol2[:512,:512,:50])
 
+
+def test_parallel_read_shm():
+  paths = [
+    'gs://seunglab-test/test_v0/image',
+    's3://seunglab-test/test_v0/image',
+  ]
+
+  for cloudpath in paths:
+    vol1 = CloudVolume(cloudpath, parallel=1)
+    vol2 = CloudVolume(cloudpath, parallel=2)
+
+    data1 = vol1[:512,:512,:50]
     data2 = vol2.download_to_shared_memory(np.s_[:512,:512,:50])
     assert np.all(data1 == data2)
     data2.close()
@@ -277,39 +297,45 @@ def test_autocropped_read():
   assert np.all(img == data[0:0, 0:0, 0:0])    
 
 def test_write():
-  delete_layer()
-  cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
+  for green in (False, True):
+    print("green:", green)
+    delete_layer()
+    cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
+    cv.green_threads = green
 
-  replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
-  cv[0:50,0:50,0:50] = replacement_data
-  assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+    replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
+    cv[0:50,0:50,0:50] = replacement_data
+    assert np.all(cv[0:50,0:50,0:50] == replacement_data)
 
-  replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
-  cv[0:50,0:50,0:50] = replacement_data
-  assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+    replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
+    cv[0:50,0:50,0:50] = replacement_data
+    assert np.all(cv[0:50,0:50,0:50] == replacement_data)
 
-  replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
-  bbx = Bbox((0,0,0), (50,50,50))
-  cv[bbx] = replacement_data
-  assert np.all(cv[bbx] == replacement_data)
+    replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
+    bbx = Bbox((0,0,0), (50,50,50))
+    cv[bbx] = replacement_data
+    assert np.all(cv[bbx] == replacement_data)
 
-  # out of bounds
-  delete_layer()
-  cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
-  with pytest.raises(ValueError):
-    cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
-  
-  # non-aligned writes
-  delete_layer()
-  cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
-  with pytest.raises(ValueError):
-    cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
+    # out of bounds
+    delete_layer()
+    cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
+    cv.green_threads = green
+    with pytest.raises(ValueError):
+      cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
+    
+    # non-aligned writes
+    delete_layer()
+    cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
+    cv.green_threads = green
+    with pytest.raises(ValueError):
+      cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
-  # test bounds check for short boundary chunk
-  delete_layer()
-  cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
-  cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
-  cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
+    # test bounds check for short boundary chunk
+    delete_layer()
+    cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
+    cv.green_threads = green
+    cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
+    cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
 def test_non_aligned_write():
   delete_layer()
@@ -367,6 +393,8 @@ def test_non_aligned_write():
   answer[ 362:662, 362:662, : ] = 1
   assert np.all(cv[:] == answer)    
 
+from cloudvolume import view
+
 def test_autocropped_write():
   delete_layer()
   cv, _ = create_layer(size=(100,100,100,1), offset=(0,0,0))
@@ -399,7 +427,7 @@ def test_writer_last_chunk_smaller():
   cv, data = create_layer(size=(100,64,64,1), offset=(0,0,0))
   cv.info['scales'][0]['chunk_sizes'] = [[ 64,64,64 ]]
   
-  chunks = [ chunk for chunk in txrx.generate_chunks(cv, data[:,:,:,:], (0,0,0)) ]
+  chunks = [ chunk for chunk in generate_chunks(cv.meta, data[:,:,:,:], (0,0,0), cv.mip) ]
 
   assert len(chunks) == 2
 
@@ -676,7 +704,8 @@ def test_caching():
 
   # Test Non-standard Cache Destination
   dirpath = '/tmp/cloudvolume/caching-cache-' + str(TEST_NUMBER)
-  vol.cache.enabled = dirpath
+  vol.cache.enabled = True
+  vol.cache.path = dirpath
   vol[:,:,:] = image
 
   assert len(os.listdir(os.path.join(dirpath, vol.key))) == 8
@@ -958,7 +987,8 @@ def test_delete():
 
   try:
     results = cv.exists( np.s_[1:129, :, :] )
-  except ValueError:
+    print(results)
+  except exceptions.OutOfBoundsError:
     pass
   else:
     assert False
@@ -1011,16 +1041,16 @@ def test_cdn_cache_control():
   delete_layer()
   create_layer(size=(128,10,10,1), offset=(0,0,0))
 
-  assert txrx.cdn_cache_control(None) == 'max-age=3600, s-max-age=3600'
-  assert txrx.cdn_cache_control(0) == 'no-cache'
-  assert txrx.cdn_cache_control(False) == 'no-cache'
-  assert txrx.cdn_cache_control(True) == 'max-age=3600, s-max-age=3600'
+  assert cdn_cache_control(None) == 'max-age=3600, s-max-age=3600'
+  assert cdn_cache_control(0) == 'no-cache'
+  assert cdn_cache_control(False) == 'no-cache'
+  assert cdn_cache_control(True) == 'max-age=3600, s-max-age=3600'
 
-  assert txrx.cdn_cache_control(1337) == 'max-age=1337, s-max-age=1337'
-  assert txrx.cdn_cache_control('private, must-revalidate') == 'private, must-revalidate'
+  assert cdn_cache_control(1337) == 'max-age=1337, s-max-age=1337'
+  assert cdn_cache_control('private, must-revalidate') == 'private, must-revalidate'
 
   try:
-    txrx.cdn_cache_control(-1)
+    cdn_cache_control(-1)
   except ValueError:
     pass
   else:
@@ -1156,19 +1186,19 @@ def test_mesh_fragment_download():
 def test_get_mesh():
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
   mesh = vol.mesh.get(18)
-  assert mesh['num_vertices'] == 6123
-  assert len(mesh['vertices']) == 6123
-  assert len(mesh['faces']) == 36726
-  assert isinstance(mesh['vertices'], np.ndarray)
-  assert mesh['vertices'].dtype == np.float32
-  assert mesh['faces'].dtype == np.uint32
+  assert len(mesh) == 6123
+  assert mesh.vertices.shape[0] == 6123
+  assert len(mesh.faces) == 12242
+  assert isinstance(mesh.vertices, np.ndarray)
+  assert mesh.vertices.dtype == np.float32
+  assert mesh.faces.dtype == np.uint32
 
   meshes = vol.mesh.get([148, 18], fuse=False)
   assert len(meshes) == 2
   mesh = meshes[18]
-  assert mesh['num_vertices'] == 6123
-  assert len(mesh['vertices']) == 6123
-  assert len(mesh['faces']) == 36726
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.faces) == 12242
   
   try:
     vol.mesh.get(666666666)
@@ -1176,40 +1206,71 @@ def test_get_mesh():
   except ValueError:
     pass
 
+def test_get_mesh_caching():
+  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation', cache=True)
+  vol.cache.flush()
+
+  mesh = vol.mesh.get(18)
+  
+  assert vol.cache.list_meshes() == [ '18:0:0-512_0-512_0-100.gz', '18:0' ]
+
+  assert len(mesh) == 6123
+  assert mesh.vertices.shape[0] == 6123
+  assert len(mesh.faces) == 12242
+  assert isinstance(mesh.vertices, np.ndarray)
+  assert mesh.vertices.dtype == np.float32
+  assert mesh.faces.dtype == np.uint32
+
+  meshes = vol.mesh.get([148, 18], fuse=False)
+  assert len(meshes) == 2
+  mesh = meshes[18]
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.faces) == 12242
+  
+  try:
+    vol.mesh.get(666666666)
+    assert False
+  except ValueError:
+    pass
+
+  vol.cache.flush()
+
+
 def test_get_mesh_order_stability():
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
   first_mesh = vol.mesh.get([148, 18], fuse=True)
   
   for _ in range(5):
     next_mesh = vol.mesh.get([148, 18], fuse=True)
-    assert first_mesh['num_vertices'] == next_mesh['num_vertices']
-    assert np.all(first_mesh['vertices'] == next_mesh['vertices'])
-    assert np.all(first_mesh['faces'] == next_mesh['faces'])
+    assert len(first_mesh.vertices) == len(next_mesh.vertices)
+    assert np.all(first_mesh.vertices == next_mesh.vertices)
+    assert np.all(first_mesh.faces == next_mesh.faces)
 
-def test_boss_download():
-  vol = CloudVolume('gs://seunglab-test/test_v0/image')
-  bossvol = CloudVolume('boss://automated_testing/test_v0/image')
+# def test_boss_download():
+#   vol = CloudVolume('gs://seunglab-test/test_v0/image')
+#   bossvol = CloudVolume('boss://automated_testing/test_v0/image')
 
-  vimg = vol[:,:,:5]
-  bimg = bossvol[:,:,:5]
+#   vimg = vol[:,:,:5]
+#   bimg = bossvol[:,:,:5]
 
-  assert np.all(bimg == vimg)
-  assert bimg.dtype == vimg.dtype
+#   assert np.all(bimg == vimg)
+#   assert bimg.dtype == vimg.dtype
 
-  vol.bounded = False
-  vol.fill_missing = True
-  bossvol.bounded = False
-  bossvol.fill_missing = True
+#   vol.bounded = False
+#   vol.fill_missing = True
+#   bossvol.bounded = False
+#   bossvol.fill_missing = True
 
-  assert np.all(vol[-100:100,-100:100,-10:10] == bossvol[-100:100,-100:100,-10:10])
+#   assert np.all(vol[-100:100,-100:100,-10:10] == bossvol[-100:100,-100:100,-10:10])
 
-  # BOSS using a different algorithm for creating downsamples
-  # so hard to compare 1:1 w/ pixels.
-  bossvol.bounded = True
-  bossvol.fill_missing = False
-  bossvol.mip = 1
-  bimg = bossvol[:,:,5:6]
-  assert np.any(bimg > 0)
+#   # BOSS using a different algorithm for creating downsamples
+#   # so hard to compare 1:1 w/ pixels.
+#   bossvol.bounded = True
+#   bossvol.fill_missing = False
+#   bossvol.mip = 1
+#   bimg = bossvol[:,:,5:6]
+#   assert np.any(bimg > 0)
 
 
   

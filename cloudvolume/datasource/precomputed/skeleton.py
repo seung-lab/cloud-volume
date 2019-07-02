@@ -12,14 +12,15 @@ except ImportError:
 import numpy as np
 import struct
 
-from . import lib
-from .exceptions import (
+from cloudvolume import lib
+from cloudvolume.exceptions import (
   SkeletonDecodeError, SkeletonEncodeError, 
   SkeletonUnassignedEdgeError
 )
-from .lib import red, Bbox
-from .txrx import cdn_cache_control
-from .storage import Storage, SimpleStorage
+from cloudvolume.lib import red, Bbox
+from cloudvolume.storage import Storage, SimpleStorage
+
+from .common import cdn_cache_control
 
 class PrecomputedSkeleton(object):
   def __init__(self, 
@@ -644,7 +645,7 @@ class PrecomputedSkeleton(object):
 
     return PrecomputedSkeleton(vertices, edges, radii, vertex_types)
 
-  def to_swc(self):
+  def to_swc(self, contributors=""):
     """
     Prototype SWC file generator. 
 
@@ -668,7 +669,7 @@ class PrecomputedSkeleton(object):
 
 """.format(
       __version__, 
-      ", ".join([ str(_) for _ in self.vol.provenance.owners ]),
+      contributors,
       datetime.datetime.utcnow().isoformat()
     )
 
@@ -704,10 +705,10 @@ class PrecomputedSkeleton(object):
     elif self.edges.shape[0] != other.edges.shape[0]:
       return False
 
-    return (np.all(self.vertices == other.vertices, axis=0) \
-      and np.any(self.edges == other.edges, axis=0) \
-      and np.any(self.radii == other.radii) \
-      and np.any(self.vertex_types == other.vertex_types))
+    return (np.all(self.vertices == other.vertices)
+      and np.all(self.edges == other.edges) \
+      and np.all(self.radii == other.radii) \
+      and np.all(self.vertex_types == other.vertex_types))
 
   def __str__(self):
     return "PrecomputedSkeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}))".format(
@@ -721,15 +722,17 @@ class PrecomputedSkeleton(object):
   def __repr__(self):
     return str(self)
 
-class PrecomputedSkeletonService(object):
-  def __init__(self, vol):
-    self.vol = vol
+class PrecomputedSkeletonSource(object):
+  def __init__(self, meta, cache, config):
+    self.meta = meta
+    self.cache = cache
+    self.config = config
 
   @property
   def path(self):
     path = 'skeletons'
-    if 'skeletons' in self.vol.info:
-      path = self.vol.info['skeletons']
+    if 'skeletons' in self.meta.info:
+      path = self.meta.info['skeletons']
     return path
 
   def get(self, segids):
@@ -754,28 +757,25 @@ class PrecomputedSkeletonService(object):
       list_return = False
       segids = [ int(segids) ]
 
-    paths = [ os.path.join(self.path, str(segid)) for segid in segids ]
+    compress = self.config.compress 
+    if compress is None:
+      compress = True
 
-    StorageClass = Storage if len(segids) > 1 else SimpleStorage
-
-    with StorageClass(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
-      results = stor.get_files(paths)
-
-    for res in results:
-      if res['error'] is not None:
-        raise res['error']
-
-    missing = [ res['filename'] for res in results if res['content'] is None ]
+    results = self.cache.download(
+      [ os.path.join(self.path, str(segid)) for segid in segids ],
+      compress=compress
+    )
+    missing = [ filename for filename, content in results.items() if content is None ]
 
     if len(missing):
       raise SkeletonDecodeError("File(s) do not exist: {}".format(", ".join(missing)))
 
     skeletons = []
-    for res in results:
-      segid = int(os.path.basename(res['filename']))
+    for filename, content in results.items():
+      segid = int(os.path.basename(filename))
       try:
         skel = PrecomputedSkeleton.decode(
-          res['content'], segid=segid
+          content, segid=segid
         )
       except Exception as err:
         raise SkeletonDecodeError("segid " + str(segid) + ": " + err.message)
@@ -784,7 +784,10 @@ class PrecomputedSkeletonService(object):
     if list_return:
       return skeletons
 
-    return skeletons[0]
+    if len(skeletons):
+      return skeletons[0]
+
+    return None
 
   def upload_raw(self, segid, vertices, edges, radii=None, vertex_types=None):
     skel = PrecomputedSkeleton(
@@ -797,15 +800,11 @@ class PrecomputedSkeletonService(object):
     if type(skeletons) == PrecomputedSkeleton:
       skeletons = [ skeletons ]
 
-    StorageClass = Storage if len(skeletons) > 1 else SimpleStorage
-
-    with StorageClass(self.vol.layer_cloudpath, progress=self.vol.progress) as stor:
-      for skel in skeletons:
-        path = os.path.join(self.path, str(skel.id))
-        stor.put_file(
-          file_path='{}/{}'.format(self.path, str(skel.id)),
-          content=skel.encode(),
-          compress='gzip',
-          cache_control=cdn_cache_control(self.vol.cdn_cache),
-        )
+    files = [ (os.path.join(self.path, str(skel.id)), skel.encode()) for skel in skeletons ]
+    self.cache.upload(
+      files=files, 
+      subdir=self.path,
+      compress='gzip', 
+      cache_control=cdn_cache_control(self.config.cdn_cache)
+    )
     

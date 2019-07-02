@@ -264,6 +264,13 @@ vol.cache.flush(preserve=Bbox(...)) # Same, but preserve cache in a region of sp
 vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)  
 vol.cache.flush_info()
 vol.cache.flush_provenance()
+
+# Using Green Threads
+import gevent.monkey
+gevent.monkey.patch_all(thread=False)
+
+cv = CloudVolume(..., green_threads=True)
+img = cv[...] # now green threads will be used
 ```
 
 ### CloudVolume Constructor
@@ -273,7 +280,7 @@ CloudVolume(cloudpath,
      mip=0, bounded=True, fill_missing=False, autocrop=False, 
      cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, 
      provenance=None, compress=None, non_aligned_writes=False, parallel=1,
-     delete_black_uploads=False)
+     delete_black_uploads=False, green_threads=False)
 ```
 
 * mip - Which mip level to access
@@ -292,6 +299,7 @@ CloudVolume(cloudpath,
 * parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
    that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
 * delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all zeros. This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
+* green_threads - True/False. If True, use the gevent cooperative threading library instead of preemptive threads. This requires monkey patching your program which may be undesirable. However, for certain workloads this can be a significant performance improvement on multi-core devices.
 
 ### CloudVolume Methods
 
@@ -432,3 +440,8 @@ Thanks to Jeremy Maitin-Shepard and Stephen Plaza for their C++ code defining th
 Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.  
 Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him).   
   
+## Mailing List 
+
+If you want infrequent letters in your inbox about significant improvements or even more infrequent breaking changes to CloudVolume, send an email to cloudvolume@protonmail.com asking to sign up. It's a 100% manual process and I'll only email you if there's something important to say or if I want to beta test my standup routine. Just kidding, it's 100% serious engineering talk for serious engineers that never smile. Seriously.   
+
+

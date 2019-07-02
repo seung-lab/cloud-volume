@@ -12,7 +12,7 @@ from cloudvolume import CloudVolume, chunks, Storage, PrecomputedSkeleton
 from cloudvolume.storage import SimpleStorage
 from cloudvolume.lib import mkdir, Bbox, Vec
 
-from cloudvolume.skeletonservice import SkeletonDecodeError
+from cloudvolume.exceptions import SkeletonDecodeError
 
 info = CloudVolume.create_new_info(
   num_channels=1, # Increase this number when we add more tests for RGB
@@ -468,3 +468,46 @@ def test_components():
 
   assert PrecomputedSkeleton.equivalent(components[0], skel1_gt)
   assert PrecomputedSkeleton.equivalent(components[1], skel2_gt)
+
+def test_caching():
+  vol = CloudVolume('file:///tmp/cloudvolume/test-skeletons', 
+    info=info, cache=True)
+
+  vol.cache.flush()
+
+  skel = PrecomputedSkeleton(
+    [ 
+      (0,0,0), (1,0,0), (2,0,0),
+      (0,1,0), (0,2,0), (0,3,0),
+    ], 
+    edges=[ 
+      (0,1), (1,2), 
+      (3,4), (4,5), (3,5)
+    ],
+    segid=666,
+  )
+
+  vol.skeleton.upload(skel)
+
+  assert vol.cache.list_skeletons() == [ '666.gz' ]
+
+  skel.id = 1
+  with open(os.path.join(vol.cache.path, 'skeletons/1'), 'wb') as f:
+    f.write(skel.encode())
+
+  cached_skel = vol.skeleton.get(1)
+
+  assert cached_skel == skel
+
+  vol.cache.flush()
+
+
+
+
+
+
+
+
+
+
+

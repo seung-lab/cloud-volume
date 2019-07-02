@@ -17,7 +17,7 @@ class VolumeCutout(np.ndarray):
 
   def __init__(self, buf, path, cloudpath, resolution, mip, layer_type, bounds, handle, *args, **kwargs):
     super(VolumeCutout, self).__init__()
-    
+
     self.dataset_name = path.dataset
     self.layer = path.layer
     self.path = path
@@ -46,6 +46,25 @@ class VolumeCutout(np.ndarray):
     except AttributeError:
       pass
 
+  # How to add a new attribute to an ndarray:
+  # https://docs.scipy.org/doc/numpy-1.13.0/uer/basics.subclassing.html#simple-example-adding-an-extra-attribute-to-ndarray
+
+  # Overriding __getitem__ and __setitem__ are 
+  # not easy to do. 
+  def __array_finalize__(self, obj):
+    if obj is None: 
+      return
+
+    self.dataset_name = getattr(obj, 'dataset', None)
+    self.layer = getattr(obj, 'layer', None)
+    self.path = getattr(obj, 'path', None)
+    self.resolution = getattr(obj, 'resolution', None)
+    self.cloudpath = getattr(obj, 'cloudpath', None)
+    self.mip = getattr(obj, 'mip', None)
+    self.layer_type = getattr(obj, 'layer_type', None)
+    self.bounds = getattr(obj, 'bounds', None)
+    self.handle = None #getattr(obj, 'handle', None)
+
   def __del__(self):
     sup = super(VolumeCutout, self)
     if hasattr(sup, '__del__'):
@@ -53,14 +72,14 @@ class VolumeCutout(np.ndarray):
     self.close()
 
   @classmethod
-  def from_volume(cls, volume, buf, bounds, handle=None):
+  def from_volume(cls, meta, mip, buf, bounds, handle=None):
     return VolumeCutout(
       buf=buf,
-      path=volume.path,
-      cloudpath=volume.cloudpath,
-      resolution=volume.resolution,
-      mip=volume.mip,
-      layer_type=volume.layer_type,
+      path=meta.path,
+      cloudpath=meta.cloudpath,
+      resolution=meta.resolution(mip),
+      mip=mip,
+      layer_type=meta.layer_type,
       bounds=bounds,
       handle=handle,
     )

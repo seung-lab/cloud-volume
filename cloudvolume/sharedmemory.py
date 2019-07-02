@@ -1,3 +1,4 @@
+from collections import defaultdict
 import errno
 import math
 import mmap
@@ -16,8 +17,6 @@ import time
 
 from .lib import Bbox, Vec, mkdir
 
-mmaps = []
-
 SHM_DIRECTORY = '/dev/shm/'
 EMULATED_SHM_DIRECTORY = '/tmp/cloudvolume-shm'
 
@@ -29,21 +28,6 @@ class SharedMemoryReadError(Exception):
 
 class SharedMemoryAllocationError(Exception):
   pass
-
-def reinit():
-  """For use after a process fork only. Trashes bad file descriptors and resets tracking."""
-  global mmaps
-  mmaps = []
-
-def bbox2array(vol, bbox, order='F', readonly=False, lock=None, location=None):
-  """Convenince method for creating a 
-  shared memory numpy array based on a CloudVolume
-  and Bbox. c.f. sharedmemory.ndarray for information
-  on the optional lock parameter."""
-  location = location or vol.shared_memory_id
-  shape = list(bbox.size3()) + [ vol.num_channels ]
-  return ndarray(shape=shape, dtype=vol.dtype, location=location, 
-    readonly=readonly, lock=lock, order=order)
 
 def ndarray(shape, dtype, location, order='F', readonly=False, lock=None, **kwargs):
   """
@@ -69,15 +53,26 @@ def ndarray(shape, dtype, location, order='F', readonly=False, lock=None, **kwar
   Returns: (mmap filehandle, shared ndarray)
   """
   if EMULATE_SHM:
-    return ndarray_fs(shape, dtype, location, lock, readonly, order, **kwargs)
+    return ndarray_fs(
+      shape, dtype, location, lock, 
+      readonly, order, emulate_shm=True, **kwargs
+    )
   return ndarray_shm(shape, dtype, location, readonly, order, **kwargs)
 
-def ndarray_fs(shape, dtype, location, lock, readonly=False, order='F', **kwargs):
+def ndarray_fs(
+    shape, dtype, location, lock, 
+    readonly=False, order='F', emulate_shm=False,
+    **kwargs
+  ):
   """Emulate shared memory using the filesystem."""
   dbytes = np.dtype(dtype).itemsize
   nbytes = Vec(*shape).rectVolume() * dbytes
-  directory = mkdir(EMULATED_SHM_DIRECTORY)
-  filename = os.path.join(directory, location)
+
+  if emulate_shm:
+    directory = mkdir(EMULATED_SHM_DIRECTORY)
+    filename = os.path.join(directory, location)
+  else:
+    filename = location
 
   if lock:
     lock.acquire()
@@ -180,18 +175,6 @@ def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
 
   renderbuffer.setflags(write=(not readonly))
   return array_like, renderbuffer
-
-def track_mmap(array_like):
-  global mmaps
-  mmaps.append(array_like)
-
-def cleanup():
-  global mmaps 
-
-  for array_like in mmaps:
-    if not array_like.closed:
-      array_like.close()
-  mmaps = []
 
 def unlink(location):
   if EMULATE_SHM:
