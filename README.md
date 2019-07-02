@@ -440,3 +440,8 @@ Thanks to Jeremy Maitin-Shepard and Stephen Plaza for their C++ code defining th
 Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.  
 Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him).   
   
+## Mailing List 
+
+If you want infrequent letters in your inbox about significant improvements or even more infrequent breaking changes to CloudVolume, send an email to cloudvolume@protonmail.com asking to sign up. It's a 100% manual process and I'll only email you if there's something important to say or if I want to beta test my standup routine. Just kidding, it's 100% serious engineering talk for serious engineers that never smile. Seriously.   
+
+
