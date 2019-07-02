@@ -368,6 +368,10 @@ class CloudVolume(object):
   def provenance(self):
     return self.meta.provenance
 
+  @provenance.setter
+  def provenance(self, val):
+    self.meta.provenance = val
+
   @classmethod
   def from_numpy(cls, 
       arr, 
