@@ -10,7 +10,7 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from ...lib import red, toiter
+from ...lib import yellow, red, toiter
 from ...storage import Storage
 
 SEGIDRE = re.compile(r'\b(\d+):0.*?$')
@@ -22,6 +22,22 @@ def filename_to_segid(filename):
 
   segid, = matches.groups()
   return int(segid)
+
+NOTICE = {
+  'vertices': 0,
+  'num_vertices': 0,
+  'faces': 0,
+}
+
+def deprecation_notice(key):
+  if NOTICE[key] < 1:
+    print(yellow("""
+  Deprecation Notice: Meshes, formerly dicts, are now PrecomputedMesh objects
+  as of CloudVolume 0.51.0. 
+
+  Please change mesh['{}'] to mesh.{}
+  """.format(key, key)))
+    NOTICE[key] += 1
 
 class PrecomputedMesh(object):
   """
@@ -69,6 +85,20 @@ class PrecomputedMesh(object):
     return "PrecomputedMesh(vertices<{}>, faces<{}>, normals<{}>)".format(
       self.vertices.shape[0], self.faces.shape[0], self.normals.shape[0]
     )
+
+  def __getitem__(self, key):
+    val = None 
+    if key == 'vertices':
+      val = self.vertices
+    elif key == 'num_vertices':
+      val = len(self)
+    elif key == 'faces':
+      val = self.faces
+    else:
+      raise KeyError("{} not found.".format(key))
+
+    deprecation_notice(key)
+    return val
 
   def empty(self):
     return self.vertices.size == 0 or self.faces.size == 0
