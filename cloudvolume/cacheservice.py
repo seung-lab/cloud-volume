@@ -311,22 +311,21 @@ class CacheService(object):
       )
 
     if self.enabled:
-      self.put(files, subdir, compress=compress)
+      self.put(files, compress=compress)
 
-  def download(self, paths, subdir):
+  def download(self, paths, compress=None):
     """
     Download the provided paths, but grab them from cache first
     if they are present and the cache is enabled. 
 
     Returns: { filename: content, ... }
     """
-    locs = self.compute_data_locations(paths, subdir)
-
-    locs['remote'] = [ os.path.join(subdir, os.path.basename(str(x))) for x in locs['remote'] ]
+    locs = self.compute_data_locations(paths)
+    locs['remote'] = [ str(x) for x in locs['remote'] ]
 
     fragments = {}
     if self.enabled:
-      fragments = self.get(locs['local'], subdir)
+      fragments = self.get(locs['local'])
 
     StorageClass = GreenStorage if self.config.green else Storage
     with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
@@ -337,23 +336,26 @@ class CacheService(object):
         raise frag['error']
 
     remote_fragments = { 
-      os.path.join(subdir, res['filename']): res['content'] \
+      res['filename']: res['content'] \
       for res in remote_fragments 
     }
 
     if self.enabled:
-      self.put(remote_fragments)
+      self.put(
+        [ (filename, content) for filename, content in remote_fragments.items() ],
+        compress=compress,
+      )
 
     fragments.update(remote_fragments)
     return fragments
 
-  def get(self, cloudpaths, subdir, progress=None):
+  def get(self, cloudpaths, progress=None):
     progress = self.config.progress if progress is None else progress
     StorageClass = GreenStorage if self.config.green else Storage
 
-    with StorageClass('file://' + os.path.join(self.path, subdir), progress=progress) as stor:
+    with StorageClass('file://' + self.path, progress=progress) as stor:
       results = stor.get_files(
-        [ os.path.basename(filepath) for filepath in cloudpaths ]
+        [ filepath for filepath in cloudpaths ]
       )
 
     return { res['filename']: res['content'] for res in results }
@@ -378,15 +380,19 @@ class CacheService(object):
         compress=compress,
       )
 
-  def compute_data_locations(self, cloudpaths, subdir):
+  def compute_data_locations(self, cloudpaths):
     if not self.enabled:
       return { 'local': [], 'remote': cloudpaths }
 
     def noextensions(fnames):
       return [ os.path.splitext(fname)[0] for fname in fnames ]
 
-    list_dir = mkdir(os.path.join(self.path, subdir))
-    filenames = noextensions(os.listdir(list_dir))
+    list_dirs = set([ os.path.dirname(pth) for pth in cloudpaths ])
+    filenames = []
+
+    for list_dir in list_dirs:
+      list_dir = os.path.join(self.path, list_dir)
+      filenames += noextensions(os.listdir(mkdir(list_dir)))
 
     basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }
 
@@ -396,8 +402,9 @@ class CacheService(object):
     to_download = requested.difference(already_have)
 
     download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]    
+    already_have = [ os.path.join(basepathmap[fname], fname) for fname in already_have ]
 
-    return { 'local': list(already_have), 'remote': download_paths }
+    return { 'local': already_have, 'remote': download_paths }
     
   def __repr__(self):
     return "CacheService(enabled={}, compress={}, path='{}')".format(

@@ -1206,6 +1206,37 @@ def test_get_mesh():
   except ValueError:
     pass
 
+def test_get_mesh_caching():
+  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation', cache=True)
+  vol.cache.flush()
+
+  mesh = vol.mesh.get(18)
+  
+  assert vol.cache.list_meshes() == [ '18:0:0-512_0-512_0-100.gz', '18:0' ]
+
+  assert len(mesh) == 6123
+  assert mesh.vertices.shape[0] == 6123
+  assert len(mesh.faces) == 12242
+  assert isinstance(mesh.vertices, np.ndarray)
+  assert mesh.vertices.dtype == np.float32
+  assert mesh.faces.dtype == np.uint32
+
+  meshes = vol.mesh.get([148, 18], fuse=False)
+  assert len(meshes) == 2
+  mesh = meshes[18]
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.vertices) == 6123
+  assert len(mesh.faces) == 12242
+  
+  try:
+    vol.mesh.get(666666666)
+    assert False
+  except ValueError:
+    pass
+
+  vol.cache.flush()
+
+
 def test_get_mesh_order_stability():
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
   first_mesh = vol.mesh.get([148, 18], fuse=True)

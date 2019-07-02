@@ -207,7 +207,7 @@ def download_chunks_threaded(
     fill_missing, progress, compress_cache,
     green=False
   ):
-  locations = cache.compute_data_locations(cloudpaths, meta.key(mip))
+  locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
 
   def process(cloudpath, filename, enable_cache):
@@ -219,7 +219,7 @@ def download_chunks_threaded(
     fn(img3d, bbox)
 
   local_downloads = ( 
-    partial(process, cachedir, filename, False) for filename in locations['local'] 
+    partial(process, cachedir, os.path.basename(filename), False) for filename in locations['local'] 
   )
   remote_downloads = ( 
     partial(process, meta.cloudpath, filename, cache.enabled) for filename in locations['remote'] 

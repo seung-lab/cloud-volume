@@ -284,7 +284,7 @@ class PrecomputedMeshSource(object):
   def _get_manifests(self, segids):
     segids = toiter(segids)    
     paths = [ self.manifest_path(segid) for segid in segids ]
-    fragments = self.cache.download(paths, self.path)
+    fragments = self.cache.download(paths)
 
     contents = {}
     for filename, content in fragments.items():
@@ -297,7 +297,12 @@ class PrecomputedMeshSource(object):
 
   def _get_mesh_fragments(self, paths):
     paths = [ os.path.join(self.path, path) for path in paths ]
-    fragments = self.cache.download(paths, self.path)
+
+    compress = self.config.compress
+    if compress is None:
+      compress = True
+
+    fragments = self.cache.download(paths, compress=compress)
     fragments = [ (filename, content) for filename, content in fragments.items() ]
     fragments = sorted(fragments, key=lambda frag: frag[0]) # make decoding deterministic
     return fragments

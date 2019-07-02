@@ -757,7 +757,14 @@ class PrecomputedSkeletonSource(object):
       list_return = False
       segids = [ int(segids) ]
 
-    results = self.cache.download([ str(segid) for segid in segids ], self.path)
+    compress = self.config.compress 
+    if compress is None:
+      compress = True
+
+    results = self.cache.download(
+      [ os.path.join(self.path, str(segid)) for segid in segids ],
+      compress=compress
+    )
     missing = [ filename for filename, content in results.items() if content is None ]
 
     if len(missing):
