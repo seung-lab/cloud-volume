@@ -152,7 +152,8 @@ def extract_path(cloudpath):
   return ExtractedPath(protocol, intermediate_path, bucket, dataset, layer)
 
 def toabs(path):
-  return os.path.expanduser(path)
+  path = os.path.expanduser(path)
+  return os.path.abspath(path)
 
 def mkdir(path):
   path = toabs(path)
