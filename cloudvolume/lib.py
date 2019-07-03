@@ -152,9 +152,7 @@ def extract_path(cloudpath):
   return ExtractedPath(protocol, intermediate_path, bucket, dataset, layer)
 
 def toabs(path):
-  home = os.path.join(os.environ['HOME'], '')
-  path = re.sub('^~%c?' % os.path.sep, home, path)
-  return os.path.abspath(path)
+  return os.path.expanduser(path)
 
 def mkdir(path):
   path = toabs(path)
