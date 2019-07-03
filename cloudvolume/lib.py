@@ -74,18 +74,28 @@ ExtractedPath = namedtuple('ExtractedPath',
   ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
 )
 
-def extract_bucket_path(cloudpath):
+def extract_bucket_path(cloudpath, windows=None, disable_toabs=False):
   protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
-  bucket_re = r'^(/?[~\d\w_\.\-]+)/'
+  windows_file_re = r'((?:\w:\\)[\d\w_\.\-]+(?:\\)?)' # for C:\what\a\great\path
+  bucket_re = r'^(/?[~\d\w_\.\-]+)/' # posix /what/a/great/path
+
+  if windows is None:
+    windows = sys.platform == 'win32'
+
+  if disable_toabs:
+    abspath = lambda x: x # can't prepend linux paths when force testing windows
+  else:
+    abspath = toabs    
 
   error = UnsupportedProtocolError("""
     Cloud path must conform to PROTOCOL://BUCKET/PATH
     Example: gs://test_bucket/em
 
     Supported protocols: gs, s3, file, matrix, boss, http, https
+    Windows Mode: {}
 
     Received: {}
-    """.format(cloudpath))
+    """.format(windows, cloudpath))
 
   match = re.match(protocol_re, cloudpath)
 
@@ -96,7 +106,9 @@ def extract_bucket_path(cloudpath):
   cloudpath = re.sub(protocol_re, '', cloudpath)
   
   if protocol == 'file':
-    cloudpath = toabs(cloudpath)
+    cloudpath = abspath(cloudpath)
+    if windows:
+      bucket_re = windows_file_re
 
   match = re.match(bucket_re, cloudpath)
   if not match:

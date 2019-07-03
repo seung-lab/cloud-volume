@@ -8,6 +8,8 @@ import numpy as np
 import cloudvolume.lib as lib
 from cloudvolume.lib import Bbox, Vec
 
+from cloudvolume.exceptions import UnsupportedProtocolError
+
 def test_divisors():
 
   divisors = (
@@ -38,6 +40,22 @@ def test_find_closest_divisor():
 
   size = lib.find_closest_divisor( (73,73,73), (64,64,64) )
   assert tuple(size) == (73,73,73)
+
+def test_bucket_path_extraction():
+  extract = lib.extract_bucket_path(r'file://C:\wow\this\is\a\cool\path', windows=True, disable_toabs=True)
+  print(extract)
+  assert extract.protocol == 'file'
+  assert extract.bucket == 'C:\\wow\\'
+
+  # on linux the toabs prepends the current path because it
+  # doesn't understand C:\... so we can't test that here.
+  # assert extract.path == 'this\\is\\a\\cool\\path' 
+
+  try:
+    extract = lib.extract_bucket_path(r'file://C:\wow\this\is\a\cool\path', windows=False, disable_toabs=True)
+    assert False 
+  except UnsupportedProtocolError:
+    pass
 
 def test_path_extraction():
   def shoulderror(url):
