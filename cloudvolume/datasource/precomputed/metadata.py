@@ -1,5 +1,6 @@
 import json
 import os
+import posixpath
 
 import json5
 import multiprocessing as mp
@@ -49,7 +50,7 @@ class PrecomputedMetadata(object):
     if provenance is None:
       self.provenance = None
       self.refresh_provenance()
-      if self.cache:
+      if self.cache.enabled:
         self.cache.check_provenance_validity()
     else:
       self.provenance = self._cast_provenance(provenance)
@@ -339,11 +340,13 @@ class PrecomputedMetadata(object):
 
   @property
   def basepath(self):
-    return os.path.join(self.path.bucket, self.path.intermediate_path, self.dataset)
-
+    path = os.path if self.path.protocol == 'file' else posixpath
+    return path.join(self.path.bucket, self.path.intermediate_path, self.dataset)
+    
   @property 
   def layerpath(self):
-    return os.path.join(self.basepath, self.layer)
+    path = os.path if self.path.protocol == 'file' else posixpath
+    return path.join(self.basepath, self.layer)
 
   @property
   def base_cloudpath(self):
@@ -351,11 +354,13 @@ class PrecomputedMetadata(object):
 
   @property 
   def cloudpath(self):
-    return os.path.join(self.base_cloudpath, self.layer)
+    path = os.path if self.path.protocol == 'file' else posixpath
+    return path.join(self.base_cloudpath, self.layer)
   
   @property
   def infopath(self):
-    return os.path.join(self.cloudpath, 'info')
+    path = os.path if self.path.protocol == 'file' else posixpath
+    return path.join(self.cloudpath, 'info')
 
   @property
   def skeletons(self):

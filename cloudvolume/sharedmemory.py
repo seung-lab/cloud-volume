@@ -4,16 +4,12 @@ import math
 import mmap
 import os
 import sys
+import time
 
 import multiprocessing as mp
 
 from six.moves import range
-import posix_ipc
-from posix_ipc import O_CREAT
 import numpy as np
-import psutil
-
-import time
 
 from .lib import Bbox, Vec, mkdir
 
@@ -121,6 +117,10 @@ def ndarray_fs(
 
 def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
   """Create a shared memory numpy array. Requires /dev/shm to exist."""
+  import posix_ipc
+  from posix_ipc import O_CREAT
+  import psutil
+
   nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
   available = psutil.virtual_memory().available
 
@@ -182,6 +182,7 @@ def unlink(location):
   return unlink_shm(location)
 
 def unlink_shm(location):
+  import posix_ipc
   try:
     posix_ipc.unlink_shared_memory(location)
   except posix_ipc.ExistentialError:

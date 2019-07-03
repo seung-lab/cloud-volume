@@ -2,8 +2,6 @@ import os
 import sys
 
 import numpy as np
-import posix_ipc
-import psutil
 
 import cloudvolume.sharedmemory as shm
 
@@ -63,6 +61,8 @@ def test_ndarray_sh():
 	# Don't bother testing on unsupported platforms.
 	if shm.EMULATE_SHM:
 		return
+
+	import psutil
 
 	location = 'cloudvolume-shm-test-ndarray'
 	array_like, array = shm.ndarray_shm(shape=(2,2,2), dtype=np.uint8, location=location)

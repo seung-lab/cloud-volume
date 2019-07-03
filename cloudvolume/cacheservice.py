@@ -1,4 +1,5 @@
 import os
+import posixpath
 import shutil
 
 from .provenance import DataLayerProvenance
@@ -384,24 +385,26 @@ class CacheService(object):
     if not self.enabled:
       return { 'local': [], 'remote': cloudpaths }
 
-    def noextensions(fnames):
-      return [ os.path.splitext(fname)[0] for fname in fnames ]
+    pathmodule = posixpath if self.meta.path.protocol != 'file' else os.path
 
-    list_dirs = set([ os.path.dirname(pth) for pth in cloudpaths ])
+    def noextensions(fnames):
+      return [ pathmodule.splitext(fname)[0] for fname in fnames ]
+
+    list_dirs = set([ pathmodule.dirname(pth) for pth in cloudpaths ])
     filenames = []
 
     for list_dir in list_dirs:
       list_dir = os.path.join(self.path, list_dir)
       filenames += noextensions(os.listdir(mkdir(list_dir)))
 
-    basepathmap = { os.path.basename(path): os.path.dirname(path) for path in cloudpaths }
+    basepathmap = { pathmodule.basename(path): pathmodule.dirname(path) for path in cloudpaths }
 
     # check which files are already cached, we only want to download ones not in cache
-    requested = set([ os.path.basename(path) for path in cloudpaths ])
+    requested = set([ pathmodule.basename(path) for path in cloudpaths ])
     already_have = requested.intersection(set(filenames))
     to_download = requested.difference(already_have)
 
-    download_paths = [ os.path.join(basepathmap[fname], fname) for fname in to_download ]    
+    download_paths = [ pathmodule.join(basepathmap[fname], fname) for fname in to_download ]    
     already_have = [ os.path.join(basepathmap[fname], fname) for fname in already_have ]
 
     return { 'local': already_have, 'remote': download_paths }

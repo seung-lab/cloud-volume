@@ -8,7 +8,8 @@ from google.oauth2 import service_account
 
 from .lib import mkdir, colorize
 
-CLOUD_VOLUME_DIR = mkdir(os.path.join(os.environ['HOME'], '.cloudvolume'))
+HOME = os.path.expanduser('~')
+CLOUD_VOLUME_DIR = mkdir(os.path.join(HOME, '.cloudvolume'))
 
 def secretpath(filepath):
   preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
@@ -17,7 +18,7 @@ def secretpath(filepath):
     return preferred
 
   backcompat = [
-    os.path.join(os.environ['HOME'], '.neuroglancer'), # older
+    os.path.join(HOME, '.neuroglancer'), # older
     '/' # original
   ]
 
