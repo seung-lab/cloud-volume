@@ -1,9 +1,10 @@
+import concurrent.futures
 from functools import partial
 import itertools
 import math
 import multiprocessing as mp
-import concurrent.futures
 import os
+import posixpath
 import signal
 
 import numpy as np
@@ -32,7 +33,9 @@ def parallel_execution(fn, items, parallel, cleanup_shm=None):
   signal.signal(signal.SIGINT, prevsigint)
   signal.signal(signal.SIGTERM, prevsigterm)
 
-def chunknames(bbox, volume_bbox, key, chunk_size):
+def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
+  path = posixpath if protocol != 'file' else os.path
+
   for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
     highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
     filename = "{}-{}_{}-{}_{}-{}".format(
@@ -40,7 +43,7 @@ def chunknames(bbox, volume_bbox, key, chunk_size):
       y, highpt.y, 
       z, highpt.z
     )
-    yield os.path.join(key, filename)
+    yield path.join(key, filename)
 
 def shade(dest_img, dest_bbox, src_img, src_bbox):
   """

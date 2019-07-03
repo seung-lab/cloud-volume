@@ -147,7 +147,9 @@ class PrecomputedImageSource(object):
     realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
 
     cloudpaths = list(chunknames(
-      realized_bbox, self.meta.bounds(mip), self.meta.key(mip), self.meta.chunk_size(mip)
+      realized_bbox, self.meta.bounds(mip), 
+      self.meta.key(mip), self.meta.chunk_size(mip),
+      protocol=self.meta.path.protocol
     ))
 
     with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
@@ -171,7 +173,9 @@ class PrecomputedImageSource(object):
       ))
 
     cloudpaths = list(chunknames(
-      realized_bbox, self.meta.bounds(mip), self.meta.key(mip), self.meta.chunk_size(mip)
+      realized_bbox, self.meta.bounds(mip), 
+      self.meta.key(mip), self.meta.chunk_size(mip),
+      protocol=self.meta.path.protocol
     ))
 
     with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
@@ -246,7 +250,11 @@ class PrecomputedImageSource(object):
     num_blocks = np.ceil(self.meta.bounds(mip).volume() / self.meta.chunk_size(mip).rectVolume()) / step
     num_blocks = int(np.ceil(num_blocks))
 
-    cloudpaths = chunknames(bbox, self.meta.bounds(mip), self.meta.key(mip), self.meta.chunk_size(mip))
+    cloudpaths = chunknames(
+      bbox, self.meta.bounds(mip), 
+      self.meta.key(mip), self.meta.chunk_size(mip),
+      protocol=self.meta.path.protocol
+    )
 
     pbar = tqdm(
       desc='Transferring Blocks of {} Chunks'.format(step), 

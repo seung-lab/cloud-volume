@@ -43,7 +43,9 @@ def download(
   )
   full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
   cloudpaths = list(chunknames(
-    full_bbox, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)
+    full_bbox, meta.bounds(mip), 
+    meta.key(mip), meta.chunk_size(mip), 
+    protocol=meta.path.protocol
   ))
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
