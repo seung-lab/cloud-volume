@@ -3,6 +3,7 @@ from six.moves import queue as Queue
 from collections import defaultdict
 import json
 import os.path
+import posixpath
 import re
 from functools import partial
 
@@ -48,7 +49,7 @@ class StorageBase(object):
     return self._interface_cls(self._path)
 
   def get_path_to_file(self, file_path):
-    return os.path.join(self._layer_path, file_path)
+    return posixpath.join(self._layer_path, file_path)
 
   def put_json(self, file_path, content, content_type='application/json', *args, **kwargs):
     if type(content) != str:
@@ -453,7 +454,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
     return self._layer_path
 
   def get_path_to_file(self, file_path):
-    return os.path.join(self._layer_path, file_path)
+    return posixpath.join(self._layer_path, file_path)
 
   def put_json(self, file_path, content, content_type='application/json', *args, **kwargs):
     if type(content) != str:

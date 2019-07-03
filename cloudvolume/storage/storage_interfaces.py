@@ -2,6 +2,7 @@ import six
 from collections import defaultdict
 import json
 import os.path
+import posixpath
 import re
 
 import boto3
@@ -170,7 +171,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     self._bucket = GC_POOL[path.bucket].get_connection()
 
   def get_path_to_file(self, file_path):
-    return os.path.join(self._path.path, file_path)
+    return posixpath.join(self._path.path, file_path)
 
   @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
@@ -251,7 +252,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     prefix.
     """
     layer_path = self.get_path_to_file("")        
-    path = os.path.join(layer_path, prefix)
+    path = posixpath.join(layer_path, prefix)
     for blob in self._bucket.list_blobs(prefix=path):
       filename = blob.name.replace(layer_path, '')
       if not flat and filename[-1] != '/':
@@ -269,7 +270,7 @@ class HttpInterface(StorageInterface):
     self._path = path
 
   def get_path_to_file(self, file_path):
-    path = os.path.join(
+    path = posixpath.join(
       self._path.bucket, self._path.path, file_path
     )
     return self._path.protocol + '://' + path
@@ -315,7 +316,7 @@ class S3Interface(StorageInterface):
     self._conn = S3_POOL[path.protocol][path.bucket].get_connection()
 
   def get_path_to_file(self, file_path):
-    return os.path.join(self._path.path, file_path)
+    return posixpath.join(self._path.path, file_path)
 
   @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
@@ -410,7 +411,7 @@ class S3Interface(StorageInterface):
     """
 
     layer_path = self.get_path_to_file("")        
-    path = os.path.join(layer_path, prefix)
+    path = posixpath.join(layer_path, prefix)
 
     @retry
     def s3lst(continuation_token=None):
