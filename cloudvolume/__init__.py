@@ -47,7 +47,6 @@ CloudVolume Example:
 """
 
 from .connectionpools import ConnectionPool
-from .cloudvolume import CloudVolume
 from .lib import Bbox, Vec
 from .provenance import DataLayerProvenance
 from .datasource.precomputed.skeleton import (
@@ -58,10 +57,12 @@ from .threaded_queue import ThreadedQueue
 from .exceptions import EmptyVolumeException, EmptyRequestException, AlignmentError
 from .volumecutout import VolumeCutout
 
+from .cloudvolume import CloudVolume
+
 from . import exceptions
 from . import secrets
 
 from . import microviewer
 from .microviewer import view, hyperview
 
-__version__ = '0.52.1'
+__version__ = '0.52.2'
