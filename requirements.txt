@@ -9,8 +9,6 @@ google-cloud-storage>=1.10.0
 intern>=0.9.11
 json5==0.5.1
 numpy>=1.13.3
-posix_ipc==1.0.4
-psutil==5.4.3
 pytest>=3.3.1 
 python-jsonschema-objects>=0.3.3
 Pillow>=4.2.1
