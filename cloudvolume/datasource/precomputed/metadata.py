@@ -50,7 +50,7 @@ class PrecomputedMetadata(object):
     if provenance is None:
       self.provenance = None
       self.refresh_provenance()
-      if self.cache:
+      if self.cache.enabled:
         self.cache.check_provenance_validity()
     else:
       self.provenance = self._cast_provenance(provenance)
