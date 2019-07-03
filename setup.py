@@ -24,7 +24,13 @@ setuptools.setup(
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",
-  packages=['cloudvolume'],
+  packages=[ 
+    'cloudvolume', 
+    'cloudvolume.datasource',
+    'cloudvolume.datasource.boss',
+    'cloudvolume.datasource.precomputed',
+    'cloudvolume.storage', 
+  ],
   package_data={
     'cloudvolume': [
       './microviewer/*',
