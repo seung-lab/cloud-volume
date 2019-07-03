@@ -651,7 +651,7 @@ class PrecomputedSkeleton(object):
 
     c.f. http://research.mssm.edu/cnic/swc.html
     """
-    from . import __version__
+    from ... import __version__
     swc = """# ORIGINAL_SOURCE CloudVolume {}
 # CREATURE 
 # REGION
@@ -677,7 +677,11 @@ class PrecomputedSkeleton(object):
 
     def parent(i):
       coords = np.where( skel.edges == i )
-      edge = skel.edges[ coords[0][0] ]
+      coords = coords[0]
+      if len(coords) == 0:
+        return -1
+
+      edge = skel.edges[ coords[0] ]
       if edge[0] == i:
         return edge[1] + 1
       return edge[0] + 1
