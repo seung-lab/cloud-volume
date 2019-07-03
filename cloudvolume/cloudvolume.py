@@ -812,7 +812,7 @@ class CloudVolume(object):
     size2 = size // 2
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
-    bbox = Bbox(pt - size2, pt + size2)
+    bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
     
     return self.image.download(bbox, mip)
 
