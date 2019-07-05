@@ -237,6 +237,11 @@ vol = CloudVolume(...)
 vol.upload_from_shared_memory('my-shared-memory-id', # do not prefix with /dev/shm
     bbox=Bbox( (0,0,0), (10000, 7500, 64) )) 
 
+# Download or Upload directly with Files 
+# The files must be in Precomputed raw format.
+vol.download_to_file('/path/to/file', bbox=Bbox(...), mip=0) # bbox is the download region
+vol.upload_from_file('/path/to/file', bbox=Bbox(...), mip=0) # bbox is the region it represents
+
 # Transfer w/o Excess Memory Allocation
 vol = CloudVolume(...)
 # single core, send all of vol to destination, no painting memory
@@ -250,12 +255,15 @@ vol[0:10,0:10,0:10] = image # Upload partial image and cache
 # Evaluating the Cache
 vol.cache.list() # list files in cache at this mip level  
 vol.cache.list(mip=1) # list files in cache at mip 1  
+vol.cache.list_meshes()
+vol.cache.list_skeletons()
 vol.cache.num_files() # number of files at this mip level  
 vol.cache.num_bytes(all_mips=True) # Return num files for each mip level in a list  
 vol.cache.num_bytes() # number of bytes taken up by files, size on disk can be bigger  
 vol.cache.num_bytes(all_mips=True) # Return num bytes for each mip level in a list  
 
-vol.cache.enabled = True/False/Path # Turn the cache on/off 
+vol.cache.enabled = True/False # Turn the cache on/off 
+vol.cache.path = Str # set the cache location
 vol.cache.compress = None/True/False # None: Link to cloud setting, Boolean: Force cache to compressed (True) or uncompressed (False)
 
 # Deleting Cache
