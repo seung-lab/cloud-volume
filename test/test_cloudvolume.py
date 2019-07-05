@@ -11,7 +11,7 @@ import sys
 from cloudvolume import exceptions
 from cloudvolume.exceptions import AlignmentError
 from cloudvolume import CloudVolume, chunks
-from cloudvolume.lib import Bbox, Vec, yellow
+from cloudvolume.lib import Bbox, Vec, yellow, mkdir
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
   TEST_NUMBER,  
@@ -295,6 +295,22 @@ def test_autocropped_read():
   img = cv[100:120, 100:120, 100:120]
   assert img.shape == (0,0,0,1)
   assert np.all(img == data[0:0, 0:0, 0:0])    
+
+def test_download_upload_file():
+  for green in (False, True):
+    print("green:", green)
+    delete_layer()
+    cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
+    cv.green_threads = green
+
+    mkdir('/tmp/file/')
+
+    cv.download_to_file('/tmp/file/test', cv.bounds)
+    cv2 = CloudVolume('file:///tmp/file/test2/', info=cv.info)
+    cv2.upload_from_file('/tmp/file/test', cv.bounds)
+
+    assert np.all(cv2[:] == cv[:])
+    shutil.rmtree('/tmp/file/')
 
 def test_write():
   for green in (False, True):
