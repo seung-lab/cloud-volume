@@ -869,7 +869,7 @@ class CloudVolume(object):
     )
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
-  def download_to_file(self, bbox, path, mip=None):
+  def download_to_file(self, path, bbox, mip=None):
     """
     Download images directly to a file.
 
@@ -886,7 +886,7 @@ class CloudVolume(object):
     if mip is None:
       mip = self.mip
 
-    slices = self.meta.bbox(mip).reify_slices(slices, bounded=self.bounded)
+    slices = self.meta.bbox(mip).reify_slices(bbox, bounded=self.bounded)
     steps = Vec(*[ slc.step for slc in slices ])
     channel_slice = slices.pop()
     requested_bbox = Bbox.from_slices(slices)
@@ -1031,8 +1031,8 @@ class CloudVolume(object):
 
     Returns: void
     """        
-    bbox = tobbox(bbox)
-    cutout_bbox = tobbox(cutout_bbox) if cutout_bbox else bbox.clone()
+    bbox = Bbox.create(bbox)
+    cutout_bbox = Bbox.create(cutout_bbox) if cutout_bbox else bbox.clone()
 
     if not bbox.contains_bbox(cutout_bbox):
       raise exceptions.AlignmentError("""
@@ -1049,9 +1049,9 @@ class CloudVolume(object):
 
     shape = list(bbox.size3()) + [ self.num_channels ]
     mmap_handle, shared_image = sharedmemory.ndarray_fs(
-      location=lib.toabs(path), shape=shape, 
+      location=lib.toabs(location), shape=shape, 
       dtype=self.dtype, order=order, 
-      readonly=True
+      readonly=True, lock=None
     )
 
     delta_box = cutout_bbox.clone() - bbox.minpt
@@ -1060,7 +1060,7 @@ class CloudVolume(object):
     self.image.upload(
       cutout_image, cutout_bbox.minpt, self.mip,
       parallel=self.parallel, 
-      location=lib.toabs(path), 
+      location=lib.toabs(location), 
       location_bbox=bbox,
       order=order,
       use_file=True,
