@@ -786,7 +786,7 @@ class CloudVolume(object):
       mip = self.mip
 
     if parallel is None:
-      parallel=self.parallel
+      parallel = self.parallel
 
     return self.image.download(bbx, mip, parallel=parallel)
 
@@ -813,8 +813,11 @@ class CloudVolume(object):
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
     bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
-    
-    return self.image.download(bbox, mip)
+
+    if parallel is None:
+      parallel = self.parallel
+
+    return self.image.download(bbox, mip, parallel=parallel)
 
   def unlink_shared_memory(self):
     """Unlink the current shared memory location from the filesystem."""
@@ -931,7 +934,7 @@ class CloudVolume(object):
     if bbox.subvoxel():
       return
 
-    self.image.upload(img, bbox.minpt, self.mip)
+    self.image.upload(img, bbox.minpt, self.mip, parallel=self.parallel)
 
   def upload_from_shared_memory(self, location, bbox, order='F', cutout_bbox=None):
     """
