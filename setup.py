@@ -17,6 +17,10 @@ setuptools.setup(
   install_requires=requirements(),
   extras_require={
     "boss": "intern>=0.9.11",
+    "graphene": [
+      "fastremap",
+      "DracoPy",
+    ],
     ':sys_platform!="win32"': [
       "posix_ipc==1.0.4",
       "psutil==5.4.3",
@@ -29,6 +33,8 @@ setuptools.setup(
     'cloudvolume.datasource',
     'cloudvolume.datasource.boss',
     'cloudvolume.datasource.precomputed',
+    'cloudvolume.frontends.precomputed',
+    'cloudvolume.frontends.graphene',
     'cloudvolume.storage', 
   ],
   package_data={
