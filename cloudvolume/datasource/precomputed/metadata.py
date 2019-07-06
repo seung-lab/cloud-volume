@@ -15,9 +15,10 @@ from ...storage import SimpleStorage
 
 from ... import lib
 from ...lib import ( 
-  extract_path, colorize, red, mkdir, 
+  colorize, red, mkdir, 
   Vec, Bbox, jsonify, 
 )
+from ...paths import strict_extract
 
 def downscale(size, factor_in_mip, roundingfn):
   smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
@@ -34,7 +35,7 @@ class PrecomputedMetadata(object):
   read and write Precomputed data types.
   """
   def __init__(self, cloudpath, cache=None, info=None, provenance=None):
-    self.path = extract_path(cloudpath)
+    self.path = strict_extract(cloudpath)
     self.cache = cache
     if self.cache:
       self.cache.meta = self

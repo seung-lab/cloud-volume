@@ -14,17 +14,8 @@ import numpy as np
 import multiprocessing as mp
 
 
-from .cacheservice import CacheService
-from .lib import (
-    toabs, colorize, red, yellow,
-    mkdir, clamp, xyzrange, Vec,
-    Bbox, min2, max2, check_bounds,
-    jsonify, generate_slices
-)
-from cloudvolume import CloudVolume
-from .meshservicegraphene import GrapheneMeshService
-from .skeletonservice import PrecomputedSkeletonService
-from .storage import SimpleStorage, Storage, reset_connection_pools
+from ..cacheservice import CacheService
+from ..storage import SimpleStorage, Storage, reset_connection_pools
 
 # Set the interpreter bool
 try:

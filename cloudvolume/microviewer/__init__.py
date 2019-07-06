@@ -12,7 +12,8 @@ from six.moves import range
 import numpy as np
 from tqdm import tqdm
 
-from cloudvolume.lib import Vec, Bbox, mkdir, save_images, ExtractedPath, yellow
+from cloudvolume.lib import Vec, Bbox, mkdir, save_images, yellow
+from cloudvolume.paths import ExtractedPath
 
 DEFAULT_PORT = 8080
 
@@ -48,7 +49,7 @@ def to_volumecutout(img, image_type, resolution=None, offset=None, hostname='loc
 
   return VolumeCutout(
     buf=img,
-    path=ExtractedPath('mem', hostname, '/', '', ''),
+    path=ExtractedPath('mem', hostname, '/', '', '', '', ''),
     cloudpath='IN MEMORY',
     resolution=resolution,
     mip=-1,
@@ -104,7 +105,7 @@ Javascript does not support native 64-bit integer arrays.
 
   cutout = VolumeCutout(
     buf=img,
-    path=ExtractedPath('mem', hostname, '/', '', ''),
+    path=ExtractedPath('mem', hostname, '/', '', '', '', ''),
     cloudpath='IN MEMORY',
     resolution=resolution,
     mip=-1,

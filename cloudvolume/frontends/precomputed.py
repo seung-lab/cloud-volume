@@ -18,25 +18,25 @@ from six import string_types
 import multiprocessing as mp
 from time import strftime
 
-from . import lib
-from .cacheservice import CacheService
-from . import exceptions 
-from .lib import ( 
+from .. import lib
+from ..cacheservice import CacheService
+from .. import exceptions 
+from ..lib import ( 
   colorize, red, mkdir, Vec, Bbox,  
   jsonify, generate_random_string
 )
 
-from .datasource import autocropfn
-from .datasource.boss.metadata import BossMetadata
-from .datasource.boss.image import BossImageSource 
-from .datasource.precomputed.image import PrecomputedImageSource
-from .datasource.precomputed.metadata import PrecomputedMetadata
-from .datasource.precomputed.mesh import PrecomputedMeshSource
-from .datasource.precomputed.skeleton import PrecomputedSkeletonSource
-from .provenance import DataLayerProvenance
-from .storage import SimpleStorage, Storage, reset_connection_pools
-from .volumecutout import VolumeCutout
-from . import sharedmemory
+from ..datasource import autocropfn
+from ..datasource.boss.metadata import BossMetadata
+from ..datasource.boss.image import BossImageSource 
+from ..datasource.precomputed.image import PrecomputedImageSource
+from ..datasource.precomputed.metadata import PrecomputedMetadata
+from ..datasource.precomputed.mesh import PrecomputedMeshSource
+from ..datasource.precomputed.skeleton import PrecomputedSkeletonSource
+from ..provenance import DataLayerProvenance
+from ..storage import SimpleStorage, Storage, reset_connection_pools
+from ..volumecutout import VolumeCutout
+from .. import sharedmemory
 
 # Set the interpreter bool
 try:
