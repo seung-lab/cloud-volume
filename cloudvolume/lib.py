@@ -67,17 +67,80 @@ def colorize(color, text):
   return COLORS[color] + text + COLORS['RESET']
 
 BucketPath = namedtuple('BucketPath', 
-  ('protocol', 'bucket', 'path')
+  ('format', 'protocol', 'bucket', 'path')
 )
 
 ExtractedPath = namedtuple('ExtractedPath', 
   ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
 )
 
+ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'http', 'https' ]
+ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss' ] 
+
+CLOUDPATH_ERROR = yellow("""
+Cloud Path must conform to FORMAT://PROTOCOL://BUCKET/PATH
+Examples: 
+  precomputed://gs://test_bucket/em
+  gs://test_bucket/em
+  graphene://https://example.com/image/em
+
+Supported Formats: None (precomputed), {}
+Supported Protocols: {}
+
+Cloud Path Recieved: {}
+""").format(
+  ", ".join(ALLOWED_FORMATS), ", ".join(ALLOWED_PROTOCOLS), '{}'
+)
+
+def pop_protocol(cloudpath):
+  protocol_re = re.compile(r'(\w+)://')
+
+  match = re.match(protocol_re, cloudpath)
+
+  if not match:
+    return (None, cloudpath)
+
+  (protocol,) = match.groups()
+  cloudpath = re.sub(protocol_re, '', cloudpath, count=1)
+
+  return (protocol, cloudpath)
+
+def extract_format_protocol(cloudpath):
+  error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
+  
+  (proto, cloudpath) = pop_protocol(cloudpath)
+  
+  if proto is None:
+    raise error # e.g. ://test_bucket, test_bucket, wow//test_bucket
+
+  fmt, protocol = None, None
+
+  if proto in ALLOWED_PROTOCOLS:
+    fmt = 'precomputed'
+    protocol = proto 
+  elif proto in ALLOWED_FORMATS:
+    fmt = proto
+
+  (proto, cloudpath) = pop_protocol(cloudpath)
+
+  if proto in ALLOWED_FORMATS:
+    raise error # e.g. gs://graphene://
+  elif proto in ALLOWED_PROTOCOLS:
+    if protocol is None:
+      protocol = proto
+    else:
+      raise error # e.g. gs://gs:// 
+
+  (proto, cloudpath) = pop_protocol(cloudpath)
+  if proto is not None:
+    raise error # e.g. gs://gs://gs://
+
+  return (fmt, protocol, cloudpath)
+
 def extract_bucket_path(cloudpath, windows=None, disable_toabs=False):
-  protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
-  windows_file_re = r'((?:\w:\\)[\d\w_\.\-]+(?:\\)?)' # for C:\what\a\great\path
-  bucket_re = r'^(/?[~\d\w_\.\-]+)/' # posix /what/a/great/path
+  windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+(?:\\)?)') # for C:\what\a\great\path
+  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+)/') # posix /what/a/great/path
+  error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
 
   if windows is None:
     windows = sys.platform == 'win32'
@@ -87,23 +150,7 @@ def extract_bucket_path(cloudpath, windows=None, disable_toabs=False):
   else:
     abspath = toabs    
 
-  error = UnsupportedProtocolError("""
-    Cloud path must conform to PROTOCOL://BUCKET/PATH
-    Example: gs://test_bucket/em
-
-    Supported protocols: gs, s3, file, matrix, boss, http, https
-    Windows Mode: {}
-
-    Received: {}
-    """.format(windows, cloudpath))
-
-  match = re.match(protocol_re, cloudpath)
-
-  if not match:
-    raise error
-
-  (protocol,) = match.groups()
-  cloudpath = re.sub(protocol_re, '', cloudpath)
+  fmt, protocol, cloudpath = extract_format_protocol(cloudpath)
   
   if protocol == 'file':
     cloudpath = abspath(cloudpath)
@@ -117,7 +164,7 @@ def extract_bucket_path(cloudpath, windows=None, disable_toabs=False):
   (bucket,) = match.groups()
   cloudpath = re.sub(bucket_re, '', cloudpath)
 
-  return BucketPath(protocol, bucket, cloudpath)
+  return BucketPath(fmt, protocol, bucket, cloudpath)
 
 def generate_random_string(size=6):
   return ''.join(random.SystemRandom().choice(string.ascii_lowercase + \
