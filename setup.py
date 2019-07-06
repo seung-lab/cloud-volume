@@ -17,13 +17,11 @@ setuptools.setup(
   install_requires=requirements(),
   extras_require={
     "boss": "intern>=0.9.11",
-    "graphene": [
-      "fastremap",
-      "DracoPy",
-    ],
     ':sys_platform!="win32"': [
       "posix_ipc==1.0.4",
       "psutil==5.4.3",
+      "fastremap",
+      "DracoPy",
     ],
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",

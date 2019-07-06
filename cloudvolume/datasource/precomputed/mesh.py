@@ -50,7 +50,10 @@ class PrecomputedMesh(object):
     ndarray[float32, ndim=2] self.normals:  [ [nx,ny,nz], ... ]
 
   """
-  def __init__(self, vertices, faces, normals=None, segid=None):
+  def __init__(
+    self, vertices, faces, normals=None, 
+    segid=None, encoding_type=None, encoding_options=None
+  ):
     self.vertices = np.array(vertices, dtype=np.float32)
     self.faces = np.array(faces, dtype=np.uint32)
 
@@ -60,6 +63,8 @@ class PrecomputedMesh(object):
       self.normals = np.array(normals, dtype=np.float32)
 
     self.segid = segid
+    self.encoding_type = encoding_type
+    self.encoding_options = encoding_options 
 
   def __len__(self):
     return self.vertices.shape[0]
@@ -170,7 +175,10 @@ class PrecomputedMesh(object):
     vertices = vertices.reshape(num_vertices, 3)
     faces = faces.reshape(faces.size // 3, 3)
 
-    return PrecomputedMesh(vertices, faces, normals=None)
+    return PrecomputedMesh(
+      vertices, faces, normals=None, 
+      encoding_type='precomputed'
+    )
 
   def to_precomputed(self):
     """
@@ -266,6 +274,35 @@ end_header
     )
 
     return plydata
+
+  @classmethod
+  def from_draco(cls, binary):
+    import DracoPy
+
+    try:
+      mesh_object = DracoPy.decode_buffer_to_mesh(binary)
+      vertices = np.array(mesh_object.points).astype(np.float32)
+      faces = np.array(mesh_object.faces).astype(np.uint32)
+    except ValueError:
+      raise ValueError("Not a valid draco mesh")
+
+    Nv = len(vertices)
+    Nf = len(faces)
+
+    if Nv % 3 != 0: 
+      raise ValueError("Mesh vertices not 3D. Cannot decode.")
+
+    if Nf % 3 != 0:
+      raise ValueError("Faces are not sets of triples. Cannot decode.")
+
+    vertices = vertices.reshape(Nv // 3, 3)
+    faces = faces.reshape(Nf // 3, 3)
+
+    return PrecomputedMesh(
+      vertices, faces, normals=None,
+      encoding_type='draco', encoding_options=mesh_object.encoding_options
+    )
+
 
 def remove_duplicate_vertices_cross_chunks(verts, faces, chunk_size):
     # find all vertices that are exactly on chunk_size boundaries
