@@ -17,16 +17,6 @@ def warn(text):
   print(colorize('yellow', text))
 
 class CloudVolumeGraphene(CloudVolumePrecomputed):
-  def __init__(
-    self, meta, cache, config,
-    image=None, mesh=None, skeletons=None,
-    mip=0, map_gs_to_https=False
-  ):
-    super(CloudVolumeGraphene, self).__init__(
-      meta, cache, config, image, mesh, skeletons, mip=mip
-    )
-    self.map_gs_to_https = map_gs_to_https
-  
   @property
   def cloud_url(self):
     return self.cloudpath
@@ -99,15 +89,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     """
     url = "%s/segment/%d/leaves" % (self.cloud_url, root_id)
     bbox = Bbox.create(bbox, context=self.bounds, bounded=self.bounded)
-    bounds_str = []
-    for sl in bbox.to_slices():
-      bounds_str.append(f"{sl.start}-{sl.stop}")
-    bounds_str = "_".join(bounds_str)
+
     query_d = {
-      'bounds': bounds_str
+      'bounds': bbox.to_filename(),
     }
 
     response = requests.post(url, json=[int(root_id)], params=query_d)
+    response.raise_for_status()
 
-    assert(response.status_code == 200)
     return np.frombuffer(response.content, dtype=np.uint64)

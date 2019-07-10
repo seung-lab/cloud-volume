@@ -56,7 +56,8 @@ class CloudVolume(object):
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None,
     compress=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, green_threads=False
+    delete_black_uploads=False, green_threads=False,
+    use_https=False
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -169,7 +170,13 @@ class CloudVolume(object):
           Defaults to True in interactive python, False in script execution mode.
       provenance: (string, dict) In lieu of fetching a provenance 
           file, use this one. 
+      use_https: (bool) maps gs:// and s3:// to their respective https paths. The 
+        https paths hit a cached, read-only version of the data and may be faster.
     """
+    if use_https:
+      cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", max=1)
+      cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", max=1)
+
     kwargs = locals()
     del kwargs['cls']
 
