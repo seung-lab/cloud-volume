@@ -541,7 +541,7 @@ class CloudVolumePrecomputed(object):
 
     return self.image.download(bbx, mip, parallel=parallel)
 
-  def download_point(self, pt, size=256, mip=None):
+  def download_point(self, pt, size=256, mip=None, **kwargs):
     """
     Download to the right of point given in mip 0 coords.
     Useful for quickly visualizing a neuroglancer coordinate
@@ -568,7 +568,7 @@ class CloudVolumePrecomputed(object):
     if parallel is None:
       parallel = self.parallel
 
-    return self.image.download(bbox, mip, parallel=parallel)
+    return self.image.download(bbox, mip, parallel=parallel, **kwargs)
 
   def unlink_shared_memory(self):
     """Unlink the current shared memory location from the filesystem."""

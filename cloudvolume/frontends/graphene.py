@@ -36,7 +36,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   def download(
     self, bbox, mip=None, 
     parallel=None, root_ids=None,
-    mask_base=False
+    mask_base=True
   ):
     """
     Graphene slicing is distinguished from Precomputed in two ways:
@@ -58,6 +58,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       mip = self.mip
 
     bbox = self.bbox_to_mip(bbox, mip=0, to_mip=mip)
+
+    if root_ids is None and mask_base:
+      return np.zeros( bbox.size(), dtype=self.dtype )
+
     img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel)
 
     if root_ids is None:
