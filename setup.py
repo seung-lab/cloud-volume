@@ -30,6 +30,7 @@ setuptools.setup(
     'cloudvolume', 
     'cloudvolume.datasource',
     'cloudvolume.datasource.boss',
+    'cloudvolume.datasource.graphene',
     'cloudvolume.datasource.precomputed',
     'cloudvolume.frontends',
     'cloudvolume.storage', 
@@ -61,6 +62,7 @@ setuptools.setup(
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX",
     "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
     "Topic :: Utilities",
   ],
 )
