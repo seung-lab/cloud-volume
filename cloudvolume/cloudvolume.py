@@ -191,7 +191,7 @@ class CloudVolume(object):
 
   @classmethod
   def create_new_info(cls, *args, **kwargs):
-    from cloudvolume.frontends import CloudVolumePrecomputed
+    from .frontends import CloudVolumePrecomputed
     # For backwards compatibility, but this only 
     # makes sense for Precomputed anyway
     return CloudVolumePrecomputed.create_new_info(*args, **kwargs)
