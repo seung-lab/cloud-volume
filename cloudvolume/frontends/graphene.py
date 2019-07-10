@@ -70,8 +70,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     remapping = {}
     for root_id in root_ids:
       leaves = self._get_leaves(root_id, bbox, mip)
-      remapping.update({ leaf: [ root_id ] for leaf in leaves })
-      
+      remapping.update({ leaf: root_id for leaf in leaves })
+    
     img = fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
     if mask_base:
       img = fastremap.mask_except(img, root_ids, in_place=True)
@@ -112,7 +112,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     bbox: cloudvolume.lib.Bbox 3d bounding box for segmentation
     """
     root_id = int(root_id)
-    url = posixpath.join(self.cloudpath, "segment", root_id, "leaves")
+    url = posixpath.join(self.meta.server_url, "segment", str(root_id), "leaves")
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
 
     response = requests.post(url, json=[ root_id ], params={
@@ -120,4 +120,4 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     })
     response.raise_for_status()
 
-    return np.frombuffer(response.content, dtype=np.uint64, order='C')
+    return np.frombuffer(response.content, dtype=np.uint64)

@@ -6,12 +6,15 @@ import requests
 from ..precomputed import PrecomputedMetadata
 
 class GrapheneMetadata(PrecomputedMetadata):
-  
+  def __init__(self, cloudpath, *args, **kwargs):
+    self.server_url = cloudpath.replace('graphene://', '')
+    super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
+
   def fetch_info(self):
     """
     Reads info from chunkedgraph endpoint and extracts relevant information
     """
-    r = requests.get(posixpath.join(self.cloudpath, "info"))
+    r = requests.get(posixpath.join(self.server_url, "info"))
     r.raise_for_status()
     return json.loads(r.content)
 
@@ -25,4 +28,4 @@ class GrapheneMetadata(PrecomputedMetadata):
   
   @property
   def manifest_endpoint(self):
-    return posixpath.join(self.base_cloudpath, 'meshing/manifest')
+    return posixpath.join(self.server_url, 'meshing/manifest')
