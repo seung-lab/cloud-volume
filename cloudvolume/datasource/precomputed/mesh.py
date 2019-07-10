@@ -24,36 +24,6 @@ def filename_to_segid(filename):
   segid, = matches.groups()
   return int(segid)
 
-def remove_duplicate_vertices_cross_chunks(verts, faces, chunk_size):
-    # find all vertices that are exactly on chunk_size boundaries
-    is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
-    # # uniq_vertices, uniq_faces, vert_face_counts = np.unique(vertices[faces],
-    #                                                         return_inverse=True,
-    #                                                         return_counts=True,
-    #                                                         axis=0)
-    # find all vertices that have exactly 2 duplicates
-    unique_vertices, unique_inverse, counts = np.unique(verts,
-                                                        return_inverse=True,
-                                                        return_counts=True,
-                                                        axis=0)
-    only_double = np.where(counts == 2)[0]
-    is_doubled = np.isin(unique_inverse, only_double)
-    # this stores whether each vertex should be merged or not
-    do_merge = np.array(is_doubled & is_chunk_aligned)
-
-    # setup an artificial 4th coordinate for vertex positions
-    # which will be unique in general, 
-    # but then repeated for those that are merged
-    new_vertices = np.hstack((verts, np.arange(verts.shape[0])[:, np.newaxis]))
-    new_vertices[do_merge, 3] = -1
-  
-    # use unique to make the artificial vertex list unique and reindex faces
-    vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
-    #faces = newfaces.reshape((n_faces, n_dim))
-    newfaces = newfaces.astype(np.uint32)
-
-    return vertices[:,0:3], newfaces
-
 class PrecomputedMeshSource(object):
   def __init__(self, meta, cache, config):
     self.meta = meta
@@ -173,10 +143,8 @@ class PrecomputedMeshSource(object):
     if not chunk_size:
       return mesh.consolidate()
 
-    vertices, faces = remove_duplicate_vertices_cross_chunks(
-      mesh.vertices, mesh.faces, chunk_size
-    )
-    return Mesh(vertices, faces, normals=None)
+    mesh = Mesh(vertices, faces, normals=None)
+    return mesh.deduplicate_chunk_boundaries(chunk_size)
 
   def save(self, segids, filepath=None, file_format='ply'):
     """

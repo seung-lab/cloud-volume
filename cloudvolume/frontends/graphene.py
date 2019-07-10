@@ -31,7 +31,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   @property
   def mesh_chunk_size(self):
     # TODO: add this as new parameter to the info as it can be different from the chunkedgraph chunksize
-    return self.meta.graph_chunk_size
+    return self.meta.mesh_chunk_size
   
   def download(
     self, bbox, mip=None, 

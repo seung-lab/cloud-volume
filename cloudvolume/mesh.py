@@ -1,3 +1,4 @@
+import copy
 import struct
 
 import numpy as np
@@ -69,8 +70,9 @@ class Mesh(object):
     return (equality and np.all(self.normals == other.normals))
 
   def __repr__(self):
-    return "Mesh(vertices<{}>, faces<{}>, normals<{}>)".format(
-      self.vertices.shape[0], self.faces.shape[0], self.normals.shape[0]
+    return "Mesh(vertices<{}>, faces<{}>, normals<{}>, segid={}, encoding_type=<{}>)".format(
+      self.vertices.shape[0], self.faces.shape[0], self.normals.shape[0],
+      self.segid, self.encoding_type
     )
 
   def __getitem__(self, key):
@@ -91,7 +93,12 @@ class Mesh(object):
     return self.vertices.size == 0 or self.faces.size == 0
 
   def clone(self):
-    return Mesh(np.copy(self.vertices), np.copy(self.faces), np.copy(self.normals))
+    return Mesh(
+      np.copy(self.vertices), np.copy(self.faces), np.copy(self.normals),
+      self.segid, 
+      encoding_type=copy.deepcopy(self.encoding_type),
+      encoding_options=copy.deepcopy(self.encoding_options),
+    )
 
   @classmethod
   def concatenate(cls, *meshes):
@@ -106,7 +113,11 @@ class Mesh(object):
 
     normals = np.concatenate([ mesh.normals for mesh in meshes ])
 
-    return Mesh(vertices, faces, normals)
+    encoding_type = list(set([ mesh.encoding_type for mesh in meshes ]))
+    if len(encoding_type) == 1:
+      encoding_type = encoding_type[0]
+
+    return Mesh(vertices, faces, normals, encoding_type=encoding_type)
 
   def consolidate(self):
     """Remove duplicate vertices and faces. Returns a new mesh object."""
@@ -284,4 +295,34 @@ end_header
       vertices, faces, normals=None,
       encoding_type='draco', 
       encoding_options=mesh_object.encoding_options
+    )
+
+  def deduplicate_chunk_boundaries(self, chunk_size):
+    # find all vertices that are exactly on chunk_size boundaries
+    is_chunk_aligned = np.any(np.mod(self.vertices, chunk_size) == 0, axis=1)
+
+    verts, faces = self.vertices, self.faces
+
+    # find all vertices that have exactly 2 duplicates
+    unique_vertices, unique_inverse, counts = np.unique(
+      verts, return_inverse=True, return_counts=True, axis=0
+    )
+    
+    only_double = np.where(counts == 2)[0]
+    is_doubled = np.isin(unique_inverse, only_double)
+    # this stores whether each vertex should be merged or not
+    do_merge = np.array(is_doubled & is_chunk_aligned)
+
+    # setup an artificial 4th coordinate for vertex positions
+    # which will be unique in general, 
+    # but then repeated for those that are merged
+    new_vertices = np.hstack((verts, np.arange(verts.shape[0])[:, np.newaxis]))
+    new_vertices[do_merge, 3] = -1
+  
+    # use unique to make the artificial vertex list unique and reindex faces
+    vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
+    newfaces = newfaces.astype(np.uint32)
+
+    return Mesh(vertices, newfaces, None, segid=self.segid, 
+      encoding_type=self.encoding_type, encoding_options=self.encoding_options
     )
