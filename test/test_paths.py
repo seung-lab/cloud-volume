@@ -65,7 +65,7 @@ def test_path_extraction():
 
   assert (paths.extract('file://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
-        'precomputed', 'file', '/usr', 
+        'precomputed', 'file', firstdir(curpath), 
         os.path.join(curintermediate, 'seunglab-test/intermediate/path/dataset/layer'),   
         os.path.join(curintermediate, 'seunglab-test', 'intermediate/path/'), 
        'dataset', 'layer'))
