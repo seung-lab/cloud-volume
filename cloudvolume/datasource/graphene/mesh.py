@@ -11,196 +11,116 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from .lib import red, toiter, Bbox
-from .storage import Storage
-from cloudvolume import meshservice
+from ...lib import red, toiter, Bbox
+from ...mesh import Mesh
+from ...storage import Storage
 
-import DracoPy
+from ..precomputed.mesh import PrecomputedMeshSource
 
-SEGIDRE = re.compile(r'/(\d+):0.*?$')
+class GrapheneMeshSource(PrecomputedMeshSource):
 
-def remove_duplicate_vertices_cross_chunks(verts, faces, chunk_size):
-    # find all vertices that are exactly on chunk_size boundaries
-    is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
-    # # uniq_vertices, uniq_faces, vert_face_counts = np.unique(vertices[faces],
-    #                                                         return_inverse=True,
-    #                                                         return_counts=True,
-    #                                                         axis=0)
-    # find all vertices that have exactly 2 duplicates
-    unique_vertices, unique_inverse, counts = np.unique(verts,
-                                                        return_inverse=True,
-                                                        return_counts=True,
-                                                        axis=0)
-    only_double = np.where(counts == 2)[0]
-    is_doubled = np.isin(unique_inverse, only_double)
-    # this stores whether each vertex should be merged or not
-    do_merge = np.array(is_doubled & is_chunk_aligned)
-
-    # setup an artificial 4th coordinate for vertex positions
-    # which will be unique in general, 
-    # but then repeated for those that are merged
-    new_vertices = np.hstack((verts, np.arange(verts.shape[0])[:, np.newaxis]))
-    new_vertices[do_merge, 3] = -1
-    fa = np.array(faces)
-    n_faces = fa.shape[0]
-    n_dim = fa.shape[1]
-
-    # use unique to make the artificial vertex list unique and reindex faces
-    vertices, newfaces = np.unique(new_vertices[faces.ravel(),:], return_inverse=True, axis=0)
-    faces = newfaces.reshape((n_faces, n_dim))
-    faces = faces.astype(np.uint32)
-
-    return vertices[:,0:3], faces
-
-def decode_mesh_buffer(fragment):
-  num_vertices = struct.unpack("=I", fragment[0:4])[0]
-  try:
-    # count=-1 means all data in buffer
-    vertices = np.frombuffer(fragment, dtype=np.float32, count=3*num_vertices, offset=4)
-    faces = np.frombuffer(fragment, dtype=np.uint32, count=-1, offset=(4 + 12 * num_vertices))
-  except ValueError:
-    raise ValueError("""Unable to process fragment. Violation: Input buffer too small.
-        Minimum size: Buffer Length: {}, Actual Size: {}
-      """.format(4 + 4*num_vertices, len(fragment)))
-
-  return {
-    'num_vertices': num_vertices,
-    'vertices': vertices.reshape( num_vertices, 3 ),
-    'faces': faces,
-    'encoding_type': 'precomputed'
-  }
-
-def decode_draco_mesh_buffer(fragment):
-    try:
-        mesh_object = DracoPy.decode_buffer_to_mesh(fragment)
-        vertices = np.array(mesh_object.points).astype(np.float32)
-        faces = np.array(mesh_object.faces).astype(np.uint32)
-    except ValueError:
-        raise ValueError("Not a valid draco mesh")
-
-    assert len(vertices) % 3 == 0, "Draco mesh vertices not 3-D"
-    num_vertices = len(vertices) // 3
-
-    # For now, just return this dict until we figure out
-    # how exactly to deal with Draco's lossiness/duplicate vertices
-    return {
-        'num_vertices': num_vertices,
-        'vertices': vertices.reshape(num_vertices, 3),
-        'faces': faces,
-        'encoding_options': mesh_object.encoding_options,
-        'encoding_type': 'draco'
+  def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
+    # TODO: add lod to endpoint
+    query_d = {
+      'verify': True,
     }
 
+    if bbox is not None:
+      bbox = Bbox.create(bbox)
+      query_d['bounds'] = bbox.to_filename()
 
-class GrapheneMeshService(object):
-    def __init__(self, vol):
-        self.vol = vol
+    url = "%s/%s:%s" % (self.meta.manifest_endpoint, seg_id, lod)
+    
+    if level is not None:
+      res = requests.get(
+        url,
+        data=json.dumps({ "start_layer": level }),
+        params=query_d
+      )
+    else:
+      res = requests.get(url, params=query_d)
 
-    def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
-        #TODO: add lod to endpoint
-        query_d = {
-            'verify': True
-        }
-        if bbox is not None:
-            bounds_str = []
-            for sl in bbox.to_slices():
-                bounds_str.append(f"{sl.start}-{sl.stop}")
-            bounds_str = "_".join(bounds_str)
-            query_d['bounds']=bounds_str
+    res.raise_for_status()
 
-        url = "%s/%s:%s" % (self.vol.manifest_endpoint, seg_id, lod)
-        
-          
-        if level is not None:
-            r = requests.get(url,
-                             data=json.dumps({"start_layer":level}),
-                             params=query_d)
-        else:
-            requests.get(url,
-                         params=query_d)
-        
-        if (r.status_code != 200):
-            raise Exception(f'manifest endpoint {url} not responding')
+    return json.loads(res.content)["fragments"]
 
-        filenames = json.loads(r.content)["fragments"]
+  def _get_mesh_fragments(self, filenames):
+    mesh_dir = self.meta.info['mesh']
+    paths = [ "%s/%s" % (mesh_dir, filename) for filename in filenames ]
+    with Storage(self.meta.cloudpath, progress=self.config.progress) as stor:
+      return stor.get_files(paths)
 
-        return filenames
+  def _produce_output(self, mdata, remove_duplicate_vertices_in_chunk):
+    vertexct = np.zeros(len(mdata) + 1, np.uint32)
+    vertexct[1:] = np.cumsum([x['num_vertices'] for x in mdata])
+    vertices = np.concatenate([x['vertices'] for x in mdata])
+    faces = np.concatenate([
+      mesh['faces'] + vertexct[i] for i, mesh in enumerate(mdata)
+    ])
+    if len(faces.shape) == 1:
+      faces = faces.reshape(-1, 3)
+      
+    if remove_duplicate_vertices_in_chunk:
+      vertices, faces = np.unique(vertices[faces.reshape(-1)],
+                    return_inverse=True, axis=0)
+      faces = faces.reshape(-1,3).astype(np.uint32)
+    else:
+      vertices, faces = remove_duplicate_vertices_cross_chunks(
+        vertices, faces, self.vol.mesh_chunk_size)
+      
+    return {
+      'num_vertices': len(vertices),
+      'vertices': vertices,
+      'faces': faces,
+    }
 
-    def _get_mesh_fragments(self, filenames):
-        mesh_dir = self.vol.info['mesh']
-        paths = ["%s/%s" % (mesh_dir, filename) for filename in filenames]
-        with Storage(self.vol.layer_cloudpath,
-                     progress=self.vol.progress) as stor:
-            fragments = stor.get_files(paths)
+  def get(self, seg_id, remove_duplicate_vertices=False, level=2, bounding_box=None):
+    """
+    Merge fragments derived from these segids into a single vertex and face list.
 
-        return fragments
+    Why merge multiple segids into one mesh? For example, if you have a set of
+    segids that belong to the same neuron.
 
-    def _produce_output(self, mdata, remove_duplicate_vertices_in_chunk):
-        vertexct = np.zeros(len(mdata) + 1, np.uint32)
-        vertexct[1:] = np.cumsum([x['num_vertices'] for x in mdata])
-        vertices = np.concatenate([x['vertices'] for x in mdata])
-        faces = np.concatenate([
-            mesh['faces'] + vertexct[i] for i, mesh in enumerate(mdata)
-        ])
-        if len(faces.shape) == 1:
-            faces = faces.reshape(-1, 3)
-            
-        if remove_duplicate_vertices_in_chunk:
-            vertices, faces = np.unique(vertices[faces.reshape(-1)],
-                                        return_inverse=True, axis=0)
-            faces = faces.reshape(-1,3).astype(np.uint32)
-        else:
-            vertices, faces = remove_duplicate_vertices_cross_chunks(
-                vertices, faces, self.vol.mesh_chunk_size)
-        return {
-            'num_vertices': len(vertices),
-            'vertices': vertices,
-            'faces': faces,
-        }
+    segid: (iterable or int) segids to render into a single mesh
 
-    def get(self, seg_id, remove_duplicate_vertices=False, level=2, bounding_box=None):
-        """
-        Merge fragments derived from these segids into a single vertex and face list.
+    Optional:
+      remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
+      level: int, level of mesh to return. None to return highest available (default 2) 
+      bounding_box: Bbox, bounding box to restrict mesh download to
+    Returns: {
+      num_vertices: int,
+      vertices: [ (x,y,z), ... ]  # floats
+      faces: [ int, int, int, ... ] # int = vertex_index, 3 to a face
+    }
 
-        Why merge multiple segids into one mesh? For example, if you have a set of
-        segids that belong to the same neuron.
+    """
+    if isinstance(seg_id, list) or isinstance(seg_id, np.ndarray):
+      if len(seg_id) != 1:
+        raise IndexError("GrapheneMeshSource.get accepts at most one segid. Got: " + str(seg_id))
+      seg_id = seg_id[0]
 
-        segid: (iterable or int) segids to render into a single mesh
+    segid = int(seg_id)
 
-        Optional:
-          remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
-          level: int, level of mesh to return. None to return highest available (default 2) 
-          bounding_box: Bbox, bounding box to restrict mesh download to
-        Returns: {
-          num_vertices: int,
-          vertices: [ (x,y,z), ... ]  # floats
-          faces: [ int, int, int, ... ] # int = vertex_index, 3 to a face
-        }
+    fragment_filenames = self._get_fragment_filenames(
+      seg_id, level=level, bbox=bounding_box
+    )
+    fragments = self._get_mesh_fragments(fragment_filenames)
+    # fragments = sorted(fragments, key=lambda frag: frag['filename'])  # make decoding deterministic
 
-        """
-        if isinstance(seg_id, list) or isinstance(seg_id, np.ndarray):
-            assert len(seg_id) == 1
-            seg_id = seg_id[0]
+    # decode all the fragments
+    meshdata = []
+    fragments = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
+    for frag in fragments:
+      try:
+        # Easier to ask forgiveness than permission
+        mesh = decode_draco_mesh_buffer(frag["content"])
+        # FIXME: Current cross chunk logic does not support Draco, so must check all vertices for duplicates
+        remove_duplicate_vertices = True
+      except DracoPy.FileTypeException:
+        mesh = decode_mesh_buffer(frag["content"])
+      meshdata.append(mesh)
+    
+    if len(meshdata) == 0:
+      raise IndexError('No mesh fragments found for segment {}'.format(seg_id))
 
-        fragment_filenames = self._get_fragment_filenames(seg_id,
-                                                          level=level,
-                                                          bbox=bounding_box)
-        fragments = self._get_mesh_fragments(fragment_filenames)
-        # fragments = sorted(fragments, key=lambda frag: frag['filename'])  # make decoding deterministic
-
-        # decode all the fragments
-        meshdata = []
-        for frag in tqdm(fragments, disable=(not self.vol.progress),
-                         desc="Decoding Mesh Buffer"):
-            try:
-                # Easier to ask forgiveness than permission
-                mesh = decode_draco_mesh_buffer(frag["content"])
-                # FIXME: Current cross chunk logic does not support Draco, so must check all vertices for duplicates
-                remove_duplicate_vertices = True
-            except DracoPy.FileTypeException:
-                mesh = decode_mesh_buffer(frag["content"])
-            meshdata.append(mesh)
-        if len(meshdata)==0:
-            raise Exception('no mesh fragments found')
-        return self._produce_output(meshdata,
-                                    remove_duplicate_vertices)
+    return self._produce_output(meshdata, remove_duplicate_vertices)

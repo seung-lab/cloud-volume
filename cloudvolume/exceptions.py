@@ -55,6 +55,10 @@ class CompressionError(EncodingError):
   """
   pass
 
+class MeshDecodeError(ValueError):
+  """Unable to decode a mesh object."""
+  pass
+
 class SkeletonUnassignedEdgeError(Exception):
   """This skeleton has an edge to a vertex that doesn't exist."""
   pass
@@ -65,6 +69,10 @@ class SkeletonDecodeError(Exception):
 
 class SkeletonEncodeError(Exception):
   """Unable to encode a PrecomputedSkeleton into a binary object."""
+  pass
+
+class UnsupportedFormatError(Exception):
+  """Unable to interpret the format of this URI. e.g. precomputed://"""
   pass
 
 class UnsupportedProtocolError(ValueError):

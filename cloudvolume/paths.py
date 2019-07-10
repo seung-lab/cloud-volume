@@ -72,7 +72,7 @@ def extract_format_protocol(cloudpath):
 
   return (fmt, protocol, cloudpath)
 
-def strict_extract(cloudpath):
+def strict_extract(cloudpath, windows=None, disable_toabs=False):
   """
   Same as cloudvolume.paths.extract, but raise an additional 
   cloudvolume.exceptions.UnsupportedProtocolError
@@ -80,7 +80,7 @@ def strict_extract(cloudpath):
 
   Returns: ExtractedPath
   """
-  path = extract_path(cloudpath)
+  path = extract(cloudpath, windows, disable_toabs)
 
   if path.dataset == '' or path.layer == '':
     raise UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
@@ -140,7 +140,7 @@ def extract(cloudpath, windows=None, disable_toabs=False):
 
   match = re.search(tail_re, cloudpath)
   if not match:
-    return ExtractedPath(fmt, protocol, bucket, cloudpath, '', '')
+    return ExtractedPath(fmt, protocol, bucket, cloudpath, '', '', '')
 
   dataset, layer = match.groups()
   intermediate_path = re.sub(tail_re, '', cloudpath)

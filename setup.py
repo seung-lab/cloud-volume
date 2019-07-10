@@ -31,8 +31,7 @@ setuptools.setup(
     'cloudvolume.datasource',
     'cloudvolume.datasource.boss',
     'cloudvolume.datasource.precomputed',
-    'cloudvolume.frontends.precomputed',
-    'cloudvolume.frontends.graphene',
+    'cloudvolume.frontends',
     'cloudvolume.storage', 
   ],
   package_data={

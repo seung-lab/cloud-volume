@@ -31,6 +31,18 @@ NON_ALIGNED_WRITE = yellow(
     Nearest Aligned: {check}
 """)
 
+class ImageSourceInterface(object):
+  def download(self, bbox, mip):
+    raise NotImplementedError()
+  def upload(self, image, offset, mip):
+    raise NotImplementedError()
+  def exists(self, bbox, mip):
+    raise NotImplementedError()
+  def delete(self, bbox, mip):
+    raise NotImplementedError()
+  def transfer_to(self, cloudpath, bbox, mip):
+    raise NotImplementedError()
+
 def check_grid_aligned(meta, img, bounds, mip, throw_error=False):
   """Raise a cloudvolume.exceptions.AlignmentError if the provided image is not grid aligned."""
   shape = Vec(*img.shape)[:3]

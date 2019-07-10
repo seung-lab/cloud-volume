@@ -18,11 +18,11 @@ from ...lib import Bbox, Vec
 from ... import sharedmemory
 from ...storage import Storage
 
-from .. import autocropfn
+from .. import autocropfn, ImageSourceInterface
 from .common import chunknames
 from . import tx, rx
 
-class PrecomputedImageSource(object):
+class PrecomputedImageSource(ImageSourceInterface):
   def __init__(
     self, config, meta, cache,
     autocrop=False, bounded=True,
