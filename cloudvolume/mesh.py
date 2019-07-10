@@ -319,10 +319,12 @@ end_header
     new_vertices = np.hstack((verts, np.arange(verts.shape[0])[:, np.newaxis]))
     new_vertices[do_merge, 3] = -1
   
+    faces = faces.flatten()
+
     # use unique to make the artificial vertex list unique and reindex faces
     vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
-    newfaces = newfaces.astype(np.uint32)
+    newfaces = newfaces.astype(np.uint32).reshape( (len(newfaces) // 3, 3) )
 
-    return Mesh(vertices, newfaces, None, segid=self.segid, 
+    return Mesh(vertices[:,0:3], newfaces, None, segid=self.segid, 
       encoding_type=self.encoding_type, encoding_options=self.encoding_options
     )
