@@ -237,6 +237,8 @@ def floating(lst):
   return any(( isinstance(x, float) for x in lst ))
 
 class Bbox(object):
+  __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
+
   """Represents a three dimensional cuboid in space."""
   def __init__(self, a, b, dtype=None):
     if dtype is None:
