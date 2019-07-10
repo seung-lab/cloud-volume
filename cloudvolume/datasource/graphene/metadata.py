@@ -3,7 +3,7 @@ from collections import namedtuple
 import json
 import re
 import requests
-import urllib.parse
+from six.moves import urllib
 
 from ... import exceptions
 from ... import paths
