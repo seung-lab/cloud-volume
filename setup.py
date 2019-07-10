@@ -20,7 +20,6 @@ setuptools.setup(
     ':sys_platform!="win32"': [
       "posix_ipc==1.0.4",
       "psutil==5.4.3",
-      "fastremap",
       "DracoPy",
     ],
   },
