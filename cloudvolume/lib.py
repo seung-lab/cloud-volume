@@ -1,7 +1,6 @@
 from __future__ import print_function
 from six.moves import range, reduce
 
-from collections import namedtuple
 import json
 import os
 import re 
@@ -17,15 +16,14 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from .exceptions import UnsupportedProtocolError, OutOfBoundsError
+from .exceptions import OutOfBoundsError
 
 if sys.version_info < (3,):
-    integer_types = (int, long, np.integer)
+  integer_types = (int, long, np.integer)
 else:
-    integer_types = (int, np.integer)
+  integer_types = (int, np.integer)
 
 floating_types = (float, np.floating)
-
 
 COLORS = {
   'RESET': "\033[m",
@@ -66,102 +64,10 @@ def colorize(color, text):
   color = color.upper()
   return COLORS[color] + text + COLORS['RESET']
 
-BucketPath = namedtuple('BucketPath', 
-  ('protocol', 'bucket', 'path')
-)
-
-ExtractedPath = namedtuple('ExtractedPath', 
-  ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
-)
-
-def extract_bucket_path(cloudpath, windows=None, disable_toabs=False):
-  protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
-  windows_file_re = r'((?:\w:\\)[\d\w_\.\-]+(?:\\)?)' # for C:\what\a\great\path
-  bucket_re = r'^(/?[~\d\w_\.\-]+)/' # posix /what/a/great/path
-
-  if windows is None:
-    windows = sys.platform == 'win32'
-
-  if disable_toabs:
-    abspath = lambda x: x # can't prepend linux paths when force testing windows
-  else:
-    abspath = toabs    
-
-  error = UnsupportedProtocolError("""
-    Cloud path must conform to PROTOCOL://BUCKET/PATH
-    Example: gs://test_bucket/em
-
-    Supported protocols: gs, s3, file, matrix, boss, http, https
-    Windows Mode: {}
-
-    Received: {}
-    """.format(windows, cloudpath))
-
-  match = re.match(protocol_re, cloudpath)
-
-  if not match:
-    raise error
-
-  (protocol,) = match.groups()
-  cloudpath = re.sub(protocol_re, '', cloudpath)
-  
-  if protocol == 'file':
-    cloudpath = abspath(cloudpath)
-    if windows:
-      bucket_re = windows_file_re
-
-  match = re.match(bucket_re, cloudpath)
-  if not match:
-    raise error
-
-  (bucket,) = match.groups()
-  cloudpath = re.sub(bucket_re, '', cloudpath)
-
-  return BucketPath(protocol, bucket, cloudpath)
-
 def generate_random_string(size=6):
-  return ''.join(random.SystemRandom().choice(string.ascii_lowercase + \
-                  string.digits) for _ in range(size))
-
-def extract_path(cloudpath):
-  """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
-  protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
-  bucket_re = r'^(/?[~\d\w_\.\-]+)/'
-  tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
-
-  error = UnsupportedProtocolError("""
-    Cloud path must conform to PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
-    Example: gs://test_bucket/mouse_dataset/em
-
-    Supported protocols: gs, s3, file, matrix, boss, http, https
-
-    Received: {}
-    """.format(cloudpath))
-
-  match = re.match(protocol_re, cloudpath)
-
-  if not match:
-    raise error
-
-  (protocol,) = match.groups()
-  cloudpath = re.sub(protocol_re, '', cloudpath)
-  if protocol == 'file':
-    cloudpath = toabs(cloudpath)
-
-  match = re.match(bucket_re, cloudpath)
-  if not match:
-    raise error
-
-  (bucket,) = match.groups()
-  cloudpath = re.sub(bucket_re, '', cloudpath)
-
-  match = re.search(tail_re, cloudpath)
-  if not match:
-    raise error
-  dataset, layer = match.groups()
-
-  intermediate_path = re.sub(tail_re, '', cloudpath)
-  return ExtractedPath(protocol, intermediate_path, bucket, dataset, layer)
+  return ''.join(random.SystemRandom().choice(
+    string.ascii_lowercase + string.digits) for _ in range(size)
+  )
 
 def toabs(path):
   path = os.path.expanduser(path)
@@ -331,6 +237,8 @@ def floating(lst):
   return any(( isinstance(x, float) for x in lst ))
 
 class Bbox(object):
+  __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
+
   """Represents a three dimensional cuboid in space."""
   def __init__(self, a, b, dtype=None):
     if dtype is None:

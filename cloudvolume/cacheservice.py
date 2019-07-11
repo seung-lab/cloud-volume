@@ -7,8 +7,9 @@ from .storage import SimpleStorage, Storage, GreenStorage
 
 from .lib import (
   Bbox, colorize, jsonify, mkdir, 
-  toabs, Vec, extract_path
+  toabs, Vec
 )
+from .paths import extract
 from .secrets import CLOUD_VOLUME_DIR
 
 def warn(text):
@@ -26,7 +27,7 @@ class CacheService(object):
     meta: PrecomputedMetadata
     compress: None = linked to dataset setting, bool = Force
     """
-    self._path = extract_path(cloudpath)
+    self._path = extract(cloudpath)
     self.path = self.default_path()
 
     self.config = config

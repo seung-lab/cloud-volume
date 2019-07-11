@@ -20,6 +20,7 @@ setuptools.setup(
     ':sys_platform!="win32"': [
       "posix_ipc==1.0.4",
       "psutil==5.4.3",
+      "DracoPy",
     ],
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
@@ -28,7 +29,9 @@ setuptools.setup(
     'cloudvolume', 
     'cloudvolume.datasource',
     'cloudvolume.datasource.boss',
+    'cloudvolume.datasource.graphene',
     'cloudvolume.datasource.precomputed',
+    'cloudvolume.frontends',
     'cloudvolume.storage', 
   ],
   package_data={
@@ -58,6 +61,7 @@ setuptools.setup(
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX",
     "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
     "Topic :: Utilities",
   ],
 )

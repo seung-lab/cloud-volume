@@ -46,18 +46,19 @@ CloudVolume Example:
   skel = vol.skeletons.get(label)
 """
 
+from .cloudvolume import CloudVolume, register_plugin
+
 from .connectionpools import ConnectionPool
 from .lib import Bbox, Vec
 from .provenance import DataLayerProvenance
-from .datasource.precomputed.skeleton import (
-  PrecomputedSkeleton, SkeletonEncodeError, SkeletonDecodeError
-)
 from .storage import Storage
 from .threaded_queue import ThreadedQueue
 from .exceptions import EmptyVolumeException, EmptyRequestException, AlignmentError
 from .volumecutout import VolumeCutout
 
-from .cloudvolume import CloudVolume
+from .datasource.precomputed.skeleton import (
+  PrecomputedSkeleton, SkeletonEncodeError, SkeletonDecodeError
+)
 
 from . import exceptions
 from . import secrets
@@ -66,3 +67,14 @@ from . import microviewer
 from .microviewer import view, hyperview
 
 __version__ = '0.52.3'
+
+# Register plugins
+from .datasource.precomputed import register as register_precomputed
+from .datasource.graphene import register as register_graphene
+from .datasource.boss  import register as register_boss
+
+register_precomputed()
+register_boss()
+register_graphene()
+
+

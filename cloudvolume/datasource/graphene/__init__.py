@@ -1,20 +1,23 @@
-from .image import PrecomputedImageSource
-from .metadata import PrecomputedMetadata
-from .mesh import PrecomputedMeshSource
-from .skeleton import PrecomputedSkeletonSource
+from .mesh import GrapheneMeshSource
+from .metadata import GrapheneMetadata
+from ..precomputed.image import PrecomputedImageSource
+from ..precomputed.skeleton import PrecomputedSkeletonSource
 
-from ...cloudvolume import register_plugin, SharedConfiguration
 from ...cacheservice import CacheService
-from ...frontends import CloudVolumePrecomputed
+from ...cloudvolume import SharedConfiguration, register_plugin
 from ...paths import strict_extract
 
-def create_precomputed(
+from ...frontends import CloudVolumeGraphene
+
+def create_graphene(
     cloudpath, mip=0, bounded=True, autocrop=False,
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=False, info=None, provenance=None,
-    compress=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, green_threads=False
+    compress=None, parallel=1,
+    delete_black_uploads=False, green_threads=False, 
+    **kwargs
   ):
+    
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
@@ -24,7 +27,6 @@ def create_precomputed(
       parallel=parallel,
       progress=progress,
     )
-
     cache = CacheService(
       cloudpath=(cache if type(cache) == str else cloudpath),
       enabled=bool(cache),
@@ -32,7 +34,7 @@ def create_precomputed(
       compress=compress_cache,
     )
 
-    meta = PrecomputedMetadata(
+    meta = GrapheneMetadata(
       cloudpath, cache=cache,
       info=info, provenance=provenance,
     )
@@ -41,19 +43,19 @@ def create_precomputed(
       config, meta, cache,
       autocrop=bool(autocrop),
       bounded=bool(bounded),
-      non_aligned_writes=bool(non_aligned_writes),
+      non_aligned_writes=False,
       fill_missing=bool(fill_missing),
       delete_black_uploads=bool(delete_black_uploads),
     )
 
-    mesh = PrecomputedMeshSource(meta, cache, config)
+    mesh = GrapheneMeshSource(meta, cache, config)
     skeleton = PrecomputedSkeletonSource(meta, cache, config)
 
-    return CloudVolumePrecomputed(
+    return CloudVolumeGraphene(
       meta, cache, config, 
       image, mesh, skeleton,
       mip
     )
 
 def register():
-  register_plugin('precomputed', create_precomputed)
+  register_plugin('graphene', create_graphene)

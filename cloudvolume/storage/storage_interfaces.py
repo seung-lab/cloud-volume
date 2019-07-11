@@ -14,7 +14,7 @@ import requests
 import tenacity
 
 from cloudvolume.connectionpools import S3ConnectionPool, GCloudBucketPool
-from cloudvolume.lib import mkdir, extract_bucket_path, scatter
+from cloudvolume.lib import mkdir
 
 # This is just to support pooling by bucket
 class keydefaultdict(defaultdict):

@@ -11,9 +11,11 @@ from tqdm import tqdm
 
 from cloudvolume import compression
 from cloudvolume.exceptions import UnsupportedProtocolError
-from cloudvolume.lib import mkdir, extract_bucket_path, scatter
+from cloudvolume.lib import mkdir, scatter
 from cloudvolume.threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from cloudvolume.scheduler import schedule_green_jobs
+
+import cloudvolume.paths
 
 from .storage_interfaces import (
   FileInterface, HttpInterface, 
@@ -38,7 +40,7 @@ class StorageBase(object):
     self.progress = progress
 
     self._layer_path = layer_path
-    self._path = extract_bucket_path(layer_path)
+    self._path = cloudvolume.paths.extract(layer_path)
     self._interface_cls = get_interface_class(self._path.protocol)
   
   @property
