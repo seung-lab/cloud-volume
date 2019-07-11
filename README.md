@@ -29,7 +29,8 @@ Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.4, 3.5, and 3.6 (w
 #### `pip` Binary Installation
 
 ```bash
-pip install cloud-volume
+pip install cloud-volume # standard installation
+pip install cloud-volume[boss] # with BOSS support
 ```
 
 CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/fpzip) and [`compressed_segmentation`](https://github.com/seung-lab/compressedseg), which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
