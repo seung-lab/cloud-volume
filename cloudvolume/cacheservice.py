@@ -273,7 +273,12 @@ class CacheService(object):
       ))
 
   def check_provenance_validity(self):
-    cached_prov = self.get_json('provenance')
+    try:
+      cached_prov = self.get_json('provenance')
+    except json.decoder.JSONDecodeError:
+      warn("Cached provenance file is not valid JSON.")
+      return
+
     if not cached_prov:
       return
 
