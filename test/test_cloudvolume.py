@@ -146,13 +146,14 @@ def test_parallel_read():
     's3://seunglab-test/test_v0/image',
   ]
 
-  for cloudpath in paths:
-    vol1 = CloudVolume(cloudpath, parallel=1)
-    vol2 = CloudVolume(cloudpath, parallel=2)
+  for parallel in (2, True):
+    for cloudpath in paths:
+      vol1 = CloudVolume(cloudpath, parallel=1)
+      vol2 = CloudVolume(cloudpath, parallel=parallel)
 
-    data1 = vol1[:512,:512,:50]
-    img = vol2[:512,:512,:50]
-    assert np.all(data1 == vol2[:512,:512,:50])
+      data1 = vol1[:512,:512,:50]
+      img = vol2[:512,:512,:50]
+      assert np.all(data1 == vol2[:512,:512,:50])
 
 
 def test_parallel_read_shm():
