@@ -541,7 +541,7 @@ class CloudVolumePrecomputed(object):
 
     return self.image.download(bbx, mip, parallel=parallel)
 
-  def download_point(self, pt, size=256, mip=None, **kwargs):
+  def download_point(self, pt, size=256, mip=None, parallel=None, **kwargs):
     """
     Download to the right of point given in mip 0 coords.
     Useful for quickly visualizing a neuroglancer coordinate
@@ -549,6 +549,8 @@ class CloudVolumePrecomputed(object):
 
     pt: (x,y,z)
     size: int or (sx,sy,sz)
+    mip: int representing resolution level
+    parallel: number of processes to launch (0 means all cores)
 
     Return: image
     """

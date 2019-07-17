@@ -75,10 +75,10 @@ class PrecomputedImageSource(ImageSourceInterface):
       order='F'
     ):
 
-    self.check_bounded(bbox, mip)
-
     if self.autocrop:
       bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
+
+    self.check_bounded(bbox, mip)
 
     if location is None:
       location = self.shared_memory_id
