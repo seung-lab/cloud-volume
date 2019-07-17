@@ -56,8 +56,9 @@ from .threaded_queue import ThreadedQueue
 from .exceptions import EmptyVolumeException, EmptyRequestException, AlignmentError
 from .volumecutout import VolumeCutout
 
+from .skeleton import Skeleton
 from .datasource.precomputed.skeleton import (
-  PrecomputedSkeleton, SkeletonEncodeError, SkeletonDecodeError
+  Skeleton, SkeletonEncodeError, SkeletonDecodeError
 )
 
 from . import exceptions
