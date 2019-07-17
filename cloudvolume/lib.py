@@ -153,7 +153,7 @@ def xyzrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
   def vectorize():
     pt = Vec(0,0,0)
     for z,y,x in product(*zyxranges):
-      pt.x, pt.y, pt.z = x, y, z
+      pt.x, pt.y, pt.z = min(x, end_vec[0]), min(y, end_vec[1]), min(z, end_vec[2])
       yield pt
 
   return vectorize()
