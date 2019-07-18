@@ -10,6 +10,7 @@ import signal
 import numpy as np
 
 from ...lib import xyzrange, min2, max2, Vec, Bbox
+from ... import sharedmemory as shm
 
 # Used in sharedmemory to emulate shared memory on 
 # OS X using a file, which has that facility but is 

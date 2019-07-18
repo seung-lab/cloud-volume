@@ -53,13 +53,13 @@ from .lib import Bbox, Vec
 from .provenance import DataLayerProvenance
 from .storage import Storage
 from .threaded_queue import ThreadedQueue
-from .exceptions import EmptyVolumeException, EmptyRequestException, AlignmentError
+from .exceptions import (
+  EmptyVolumeException, EmptyRequestException, AlignmentError,
+  SkeletonEncodeError, SkeletonDecodeError
+)
 from .volumecutout import VolumeCutout
 
 from .skeleton import Skeleton
-from .datasource.precomputed.skeleton import (
-  Skeleton, SkeletonEncodeError, SkeletonDecodeError
-)
 
 from . import exceptions
 from . import secrets
