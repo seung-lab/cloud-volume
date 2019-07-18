@@ -122,8 +122,6 @@ def cdn_cache_control(val):
   else:
     raise NotImplementedError(type(val) + ' is not a supported cache_control setting.')
 
-
-
 ShardLocation = namedtuple('ShardLocation', 
   ('shard_number', 'minishard_number', 'remainder')
 )

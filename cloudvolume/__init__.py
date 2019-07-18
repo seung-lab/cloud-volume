@@ -72,10 +72,18 @@ __version__ = '0.53.5'
 # Register plugins
 from .datasource.precomputed import register as register_precomputed
 from .datasource.graphene import register as register_graphene
-from .datasource.boss  import register as register_boss
 
 register_precomputed()
-register_boss()
 register_graphene()
+
+try:
+  from .datasource.boss  import register as register_boss
+  register_boss()
+except ImportError:
+  pass
+
+
+
+
 
 

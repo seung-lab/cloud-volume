@@ -19,8 +19,8 @@ install:
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip3 install numpy; fi
 - if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then pip install fpzip; fi
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip3 install fpzip; fi
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then pip install -e .; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip3 install -e .; fi
+- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then pip install -e .[boss]; fi
+- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip3 install -e .[boss]; fi
 - if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then python setup.py sdist; fi
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 setup.py sdist bdist_wheel --universal; fi
 script:
