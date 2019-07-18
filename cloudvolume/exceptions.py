@@ -78,3 +78,7 @@ class UnsupportedFormatError(Exception):
 class UnsupportedProtocolError(ValueError):
   """Unknown protocol extension."""
   pass
+
+class SpecViolation(Exception):
+  """The values held by this object violate its written specification."""
+  pass
