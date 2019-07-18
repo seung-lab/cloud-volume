@@ -121,15 +121,29 @@ CloudVolume supports reading and writing to Neuroglancer data layers on Amazon S
 
 Supported URLs are of the forms:
 
-`$PROTOCOL://$BUCKET/$DATASET/$LAYER`
+`$FORMAT://$PROTOCOL://$BUCKET/$DATASET/$LAYER`  
+
+The format or protocol fields may be omitted where required. In the case of the precomputed format, the format specifier is optional.  
+
+| Format      | Protocols                         | Default | Example                                |
+|-------------|-----------------------------------|---------|----------------------------------------|
+| precomputed | gs, s3, http, https, file, matrix | Yes     | gs://mybucket/dataset/layer            |
+| graphene    | gs, s3, http, https, file, matrix |         | graphene://gs://mybucket/dataset/layer |
+| boss        | N/A                               |         | boss://collection/experiment/channel   |
+
+### Supported Formats
+
+* precomputed: Neuroglancer's native format. ([specification](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed))
+* graphene: Precomputed based format used by the PyChunkGraph server.
+* boss: The BOSS (https://docs.theboss.io/docs)
 
 ### Supported Protocols 
 * gs:   Google Storage
 * s3:   Amazon S3
-* boss: The BOSS (https://docs.theboss.io/docs)
 * http(s): (read-only) Ordinary Web Servers 
 * file: Local File System (absolute path)
 * matrix: Princeton Internal System
+
 
 ### `info` Files - New Dataset
 
