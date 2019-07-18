@@ -31,6 +31,7 @@ setuptools.setup(
     'cloudvolume.datasource.boss',
     'cloudvolume.datasource.graphene',
     'cloudvolume.datasource.precomputed',
+    'cloudvolume.datasource.precomputed.skeleton',
     'cloudvolume.frontends',
     'cloudvolume.storage', 
   ],
