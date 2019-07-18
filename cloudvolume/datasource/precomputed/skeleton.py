@@ -1,6 +1,8 @@
 import datetime
 import os
 
+import posixpath
+
 import numpy as np
 
 from cloudvolume import lib
@@ -15,7 +17,12 @@ from .common import cdn_cache_control
 
 from ...skeleton import Skeleton
 
-class PrecomputedSkeletonSource(object):
+
+# class ShardedPrecomputedSkeletonSource(object):
+
+#   def get(self, segid):
+
+class UnshardedPrecomputedSkeletonSource(object):
   def __init__(self, meta, cache, config):
     self.meta = meta
     self.cache = cache
@@ -23,10 +30,7 @@ class PrecomputedSkeletonSource(object):
 
   @property
   def path(self):
-    path = 'skeletons'
-    if 'skeletons' in self.meta.info:
-      path = self.meta.info['skeletons']
-    return path
+    return self.meta.path 
 
   def get(self, segids):
     """
@@ -55,7 +59,7 @@ class PrecomputedSkeletonSource(object):
       compress = True
 
     results = self.cache.download(
-      [ os.path.join(self.path, str(segid)) for segid in segids ],
+      [ os.path.join(self.meta.path, str(segid)) for segid in segids ],
       compress=compress
     )
     missing = [ filename for filename, content in results.items() if content is None ]
@@ -67,9 +71,7 @@ class PrecomputedSkeletonSource(object):
     for filename, content in results.items():
       segid = int(os.path.basename(filename))
       try:
-        skel = Skeleton.from_precomputed(
-          content, segid=segid
-        )
+        skel = Skeleton.from_precomputed(content, segid=segid)
       except Exception as err:
         raise SkeletonDecodeError("segid " + str(segid) + ": " + err.message)
       skeletons.append(skel)
@@ -93,11 +95,93 @@ class PrecomputedSkeletonSource(object):
     if type(skeletons) == Skeleton:
       skeletons = [ skeletons ]
 
-    files = [ (os.path.join(self.path, str(skel.id)), skel.to_precomputed()) for skel in skeletons ]
+    files = [ (os.path.join(self.meta.path, str(skel.id)), skel.to_precomputed()) for skel in skeletons ]
     self.cache.upload(
       files=files, 
-      subdir=self.path,
+      subdir=self.meta.path,
       compress='gzip', 
       cache_control=cdn_cache_control(self.config.cdn_cache)
     )
-    
+
+class PrecomputedSkeletonMetadata(object):
+  def __init__(self, meta, cache=None, info=None):
+    self.meta = meta
+    self.cache = cache
+
+    if info:
+      self.info = info
+    else:
+      self.info = self.fetch_info()
+
+  @property
+  def path(self):
+    if 'skeletons' in self.meta.info:
+      return self.meta.info['skeletons']
+    return 'skeletons'
+
+  @property
+  def full_path(self):
+    return self.meta.join(self.meta.cloudpath, self.path)
+
+  def fetch_info(self):
+    info = self.cache.download_json(self.meta.join(self.path, 'info'))
+
+    if not info:
+      return self.default_info()
+    return info
+
+  def refresh_info(self):
+    self.info = self.fetch_info()
+    return self.info
+
+  def commit_info(self):
+    if self.info:
+      self.cache.upload_single(
+        self.meta.join(self.path, 'info'),
+        json.dumps(self.info), 
+        content_type='application/json',
+        compress=False,
+        cache_control='no-cache',
+      )
+
+  def default_info(self):
+    return {
+      '@type': 'neuroglancer_skeletons',
+      'transform': [  
+        1, 0, 0, 0, # identity
+        0, 1, 0, 0,
+        0, 0, 1, 0
+      ],
+      'vertex_attributes': [
+        {
+          "id": "radius",
+          "data_type": "float32",
+          "num_components": 1,
+        }, 
+        {
+          "id": "swc_type",
+          "data_type": "uint8",
+          "num_components": 1,
+        }
+      ],
+      'sharding': None,
+    }
+
+  def is_sharded(self):
+    if 'sharding' not in self.info:
+      return False
+    elif self.info['sharding'] is None:
+      return False
+    else:
+      return True
+
+class PrecomputedSkeletonSource(object):
+  def __new__(cls, meta, cache, config):
+    skel_meta = PrecomputedSkeletonMetadata(meta, cache)
+
+    if skel_meta.is_sharded():
+      raise NotImplementedError()
+
+    return UnshardedPrecomputedSkeletonSource(skel_meta, cache, config)
+
+

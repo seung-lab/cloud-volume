@@ -1,3 +1,4 @@
+import json
 import os
 import posixpath
 import shutil
@@ -17,8 +18,8 @@ def warn(text):
 
 class CacheService(object):
   def __init__(
-    self, cloudpath, 
-    enabled, config, 
+    self, cloudpath,
+    enabled, config,
     meta=None, compress=None
   ):
     """
@@ -306,7 +307,10 @@ class CacheService(object):
       with SimpleStorage('file://' + self.path) as storage:
         storage.put_file('provenance', self.meta.provenance.serialize(), 'application/json')
 
-  def upload(self, files, subdir, compress, cache_control):
+  def upload_single(self, filename, content, *args, **kwargs):
+    return self.upload( [(filename, content)], *args, **kwargs )
+
+  def upload(self, files, subdir, compress, cache_control, content_type=None):
     files = list(files)
 
     StorageClass = GreenStorage if self.config.green else Storage
@@ -315,10 +319,24 @@ class CacheService(object):
         files=files,
         compress=compress,
         cache_control=cache_control,
+        content_type=content_type,
       )
 
     if self.enabled:
       self.put(files, compress=compress)
+
+  def download_json(self, path, compress=None):
+    """
+    Download a single path, but grab from 
+    cache first if present and cache is enabled.
+
+    Returns: content or None
+    """
+    res = self.download( [ path ], compress=compress )
+    res = res[path]
+    if res is None:
+      return None    
+    return json.loads(res.decode('utf8'))
 
   def download(self, paths, compress=None):
     """
@@ -349,7 +367,10 @@ class CacheService(object):
 
     if self.enabled:
       self.put(
-        [ (filename, content) for filename, content in remote_fragments.items() ],
+        [ 
+          (filename, content) for filename, content in remote_fragments.items() \
+          if content is not None 
+        ],
         compress=compress,
       )
 

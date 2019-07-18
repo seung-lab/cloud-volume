@@ -339,15 +339,19 @@ class PrecomputedMetadata(object):
   def scale(self, mip):
     return self.info['scales'][mip]
 
+  def join(self, *paths):
+    if self.path.protocol == 'file':
+      return os.path.join(*paths)
+    else:
+      return posixpath.join(*paths)
+
   @property
   def basepath(self):
-    path = os.path if self.path.protocol == 'file' else posixpath
-    return path.join(self.path.bucket, self.path.intermediate_path, self.dataset)
+    return self.join(self.path.bucket, self.path.intermediate_path, self.dataset)
     
   @property 
   def layerpath(self):
-    path = os.path if self.path.protocol == 'file' else posixpath
-    return path.join(self.basepath, self.layer)
+    return self.join(self.basepath, self.layer)
 
   @property
   def base_cloudpath(self):
@@ -355,13 +359,11 @@ class PrecomputedMetadata(object):
 
   @property 
   def cloudpath(self):
-    path = os.path if self.path.protocol == 'file' else posixpath
-    return path.join(self.base_cloudpath, self.layer)
+    return self.join(self.base_cloudpath, self.layer)
   
   @property
   def infopath(self):
-    path = os.path if self.path.protocol == 'file' else posixpath
-    return path.join(self.cloudpath, 'info')
+    return self.join(self.cloudpath, 'info')
 
   @property
   def skeletons(self):
