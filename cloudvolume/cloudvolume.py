@@ -177,6 +177,7 @@ class CloudVolume(object):
     if use_https:
       cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
       cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
+      cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
 
     kwargs = locals()
     del kwargs['cls']
