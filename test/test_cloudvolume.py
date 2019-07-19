@@ -1188,9 +1188,9 @@ def test_slices_to_global_coords():
   result = Bbox.from_slices(slices)
   assert result == Bbox( (100, 100, 1), (500, 512, 2) )
 
-
-def test_mesh_fragment_download():
-  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
+@pytest.mark.parametrize(("use_https"),[True, False])
+def test_mesh_fragment_download(use_https):
+  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation', use_https=use_https)
   paths = vol.mesh._get_manifests(18)
   assert len(paths) == 1
   assert paths[18] == [ '18:0:0-512_0-512_0-100' ]
@@ -1198,6 +1198,7 @@ def test_mesh_fragment_download():
   paths = vol.mesh._get_manifests(147)
   assert len(paths) == 1
   assert paths[147] == [ '147:0:0-512_0-512_0-100' ]
+
 
 
 def test_get_mesh():
