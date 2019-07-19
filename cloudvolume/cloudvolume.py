@@ -175,8 +175,8 @@ class CloudVolume(object):
         https paths hit a cached, read-only version of the data and may be faster.
     """
     if use_https:
-      cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", max=1)
-      cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", max=1)
+      cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
+      cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
 
     kwargs = locals()
     del kwargs['cls']
