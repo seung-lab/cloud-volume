@@ -225,6 +225,28 @@ def test_consolidate():
   assert np.all(consolidated.radii == correct_skel.radii)
   assert np.all(consolidated.vertex_types == correct_skel.vertex_types)
 
+def test_remove_disconnected_vertices():
+  skel = PrecomputedSkeleton(
+    [ 
+      (0,0,0), (1,0,0), (2,0,0),
+      (0,1,0), (0,2,0), (0,3,0),
+      (-1, -1, -1)
+    ], 
+    edges=[ 
+      (0,1), (1,2), 
+      (3,4), (4,5), (3,5)
+    ],
+    segid=666,
+  )
+
+  res = skel.remove_disconnected_vertices()
+  assert res.vertices.shape[0] == 6
+  assert res.edges.shape[0] == 5 
+  assert res.radii.shape[0] == 6
+  assert res.vertex_types.shape[0] == 6
+  assert res.id == 666
+
+
 def test_equivalent():
   assert PrecomputedSkeleton.equivalent(PrecomputedSkeleton(), PrecomputedSkeleton())
 
@@ -500,7 +522,6 @@ def test_caching():
   assert cached_skel == skel
 
   vol.cache.flush()
-
 
 
 

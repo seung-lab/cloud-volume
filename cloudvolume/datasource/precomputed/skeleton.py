@@ -295,23 +295,27 @@ class PrecomputedSkeleton(object):
     skeleton.edges = skeleton.edges[edges_valid_idx,:]
     return skeleton.consolidate()
 
-  def consolidate(self):
+  def consolidate(self, remove_disconnected_vertices=True):
     """
     Remove duplicate vertices and edges from this skeleton without
     side effects.
 
+    Optional:
+      remove_disconnected_vertices: delete vertices that have no edges
+        associated with them. This does not preserve index order.
+
     Returns: new consolidated PrecomputedSkeleton 
     """
-    nodes = self.vertices
+    vertices = self.vertices
     edges = self.edges 
     radii = self.radii
     vertex_types = self.vertex_types
 
     if self.empty():
-      return PrecomputedSkeleton()
+      return PrecomputedSkeleton(segid=self.id)
     
-    eff_nodes, uniq_idx, idx_representative = np.unique(
-      nodes, axis=0, return_index=True, return_inverse=True
+    eff_vertices, uniq_idx, idx_representative = np.unique(
+      vertices, axis=0, return_index=True, return_inverse=True
     )
 
     edge_vector_map = np.vectorize(lambda x: idx_representative[x])
@@ -325,9 +329,57 @@ class PrecomputedSkeleton(object):
     eff_radii = radii_vector_map(uniq_idx)
 
     vertex_type_map = np.vectorize(lambda idx: vertex_types[idx])
-    eff_vtype = vertex_type_map(uniq_idx)  
-      
-    return PrecomputedSkeleton(eff_nodes, eff_edges, eff_radii, eff_vtype, segid=self.id)
+    eff_vtype = vertex_type_map(uniq_idx)
+
+    skel = PrecomputedSkeleton(eff_vertices, eff_edges, eff_radii, eff_vtype, segid=self.id)
+
+    if remove_disconnected_vertices:
+      return skel.remove_disconnected_vertices()
+
+    return skel
+
+  def remove_disconnected_vertices(self):
+    """
+    Delete vertices that have no edges associated with them. 
+    This does not preserve index order.
+
+    Returns: new PrecomputedSkeleton
+    """
+    if self.empty():
+      return PrecomputedSkeleton(segid=self.id)
+
+    idx_map = {}
+    for i, vert in enumerate(self.vertices):
+      idx_map[tuple(vert)] = i
+
+    connected_verts = np.unique(self.vertices[ self.edges.flatten() ], axis=0)
+    Nv = connected_verts.shape[0]
+
+    radii = np.zeros( (Nv,), dtype=np.float32 )
+    vertex_types = np.zeros( (Nv,), dtype=np.uint8 )
+
+    for i, vert in enumerate(connected_verts):
+      reverse_idx = idx_map[tuple(vert)]
+      radii[i] = self.radii[reverse_idx]
+      vertex_types[i] = self.vertex_types[reverse_idx]
+
+    idx_reverse_map = {}
+    for i, vert in enumerate(connected_verts):
+      idx_reverse_map[idx_map[tuple(vert)]] = i
+
+    edges = []
+    for e1, e2 in self.edges:
+      e1 = idx_reverse_map[e1]
+      e2 = idx_reverse_map[e2]
+
+      if e1 < e2:
+        edges += [ (e1, e2) ]
+      else:
+        edges += [ (e2, e1) ]
+
+    edges = np.array(edges, dtype=np.uint32)
+
+    return PrecomputedSkeleton(connected_verts, edges, radii, vertex_types, segid=self.id)
 
   def clone(self):
     vertices = np.copy(self.vertices)
