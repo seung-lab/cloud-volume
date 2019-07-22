@@ -29,7 +29,6 @@ class SharedConfiguration(object):
   data sources rather than work hard to actively
   synchronize them.
   """
-
   def __init__(
     self, cdn_cache, compress, green,
     mip, parallel, progress,
