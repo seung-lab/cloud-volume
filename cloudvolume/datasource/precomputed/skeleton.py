@@ -753,6 +753,45 @@ class PrecomputedSkeleton(object):
 
     return swc
 
+  def viewer(self, units='nm'):
+    """
+    View the skeleton with a radius heatmap. 
+
+    Requires the matplotlib library which is 
+    not installed by default.
+    """
+    try:
+      import matplotlib
+      import matplotlib.pyplot as plt
+      from mpl_toolkits.mplot3d import Axes3D 
+      from matplotlib import cm
+      import multiprocessing as mp
+      import os
+    except ImportError:
+      print("PrecomputedSkeleton.viewer requires matplotlib. Try: pip install matplotlib --upgrade")
+      return
+
+    fig = plt.figure(figsize=(10,10))
+    ax = Axes3D(fig)
+
+    xs = self.vertices[:,0]
+    ys = self.vertices[:,1]
+    zs = self.vertices[:,2]
+
+    colmap = cm.ScalarMappable(cmap=cm.hsv)
+    colmap.set_array(self.radii)
+
+    normed_radii = self.radii / np.max(self.radii)
+    yg = ax.scatter(xs, ys, zs, c=cm.hsv(normed_radii), marker='o')
+    cbar = fig.colorbar(colmap)
+    cbar.set_label('radius (' + units + ')', rotation=270)
+
+    ax.set_xlabel(units)
+    ax.set_ylabel(units)
+    ax.set_zlabel(units)
+
+    plt.show()
+
   def __eq__(self, other):
     if self.id != other.id:
       return False
