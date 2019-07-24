@@ -120,8 +120,6 @@ class SimpleStorage(StorageBase):
       Accepts s3:// gs:// and file://. File paths are absolute.
 
   Optional:
-    n_threads (int:20): number of threads to use downloading and uplaoding.
-      If 0, execution will be on the main python thread.
     progress (bool:false): Show a tqdm progress bar for multiple 
       uploads and downloads.
   """
