@@ -391,7 +391,12 @@ end_header
     ren.AddActor(cylinderActor)
     ren.SetBackground(colors.GetColor3d("BkgColor"))
     renWin.SetSize(800, 800)
-    renWin.SetWindowName('Cylinder')
+
+    text = "Point Cloud Rendering of Mesh Object"
+    if self.segid is not None:
+      renWin.SetWindowName(text + " (Label {})".format(self.segid))
+    else:
+      renWin.SetWindowName(text)
 
     # This allows the interactor to initalize itself. It has to be
     # called before an event loop.
@@ -405,4 +410,3 @@ end_header
 
     # Start the event loop.
     iren.Start()    
-    
