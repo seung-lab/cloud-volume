@@ -778,11 +778,11 @@ class PrecomputedSkeleton(object):
     ys = self.vertices[:,1]
     zs = self.vertices[:,2]
 
-    colmap = cm.ScalarMappable(cmap=cm.hsv)
+    colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
     colmap.set_array(self.radii)
 
     normed_radii = self.radii / np.max(self.radii)
-    yg = ax.scatter(xs, ys, zs, c=cm.hsv(normed_radii), marker='o')
+    yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
     cbar = fig.colorbar(colmap)
     cbar.set_label('radius (' + units + ')', rotation=270)
 
