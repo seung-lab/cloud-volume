@@ -32,10 +32,24 @@ Note that Python 2.7 does not currently support the DracoPy library, and therefo
 
 ```bash
 pip install cloud-volume # standard installation
-pip install cloud-volume[boss] # with BOSS support
 ```
 
 CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/fpzip) and [`compressed_segmentation`](https://github.com/seung-lab/compressedseg), which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
+
+### Optional Dependencies 
+
+| Tag             | Description                        | Dependencies    |
+|-----------------|------------------------------------|-----------------|
+| boss            | `boss://` format support           | intern          |
+| mesh_viewer     | `mesh.viewer()` GUI                | vtk             |
+| skeleton_viewer | `skeleton.viewer()` GUI            | matplotlib      |
+| all_viewers     | All viewers now and in the future. | vtk, matplotlib |
+
+Example:
+
+```bash
+pip install cloud-volume[boss,all_viewers]
+```
 
 #### `pip` Source Installation
 
@@ -70,7 +84,8 @@ source venv/bin/activate
 
 sudo apt-get install g++ python3-dev # python-dev if you're on python2
 pip install numpy # additional step needed for accelerated compressed_segmentation and fpzip
-pip install -e .
+pip install -e . # without optional dependencies
+pip install -e .[all_viewers] # with e.g. the all_viewers optional dependency
 ```
 
 ### Credentials
