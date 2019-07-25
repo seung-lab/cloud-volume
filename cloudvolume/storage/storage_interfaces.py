@@ -84,7 +84,7 @@ class FileInterface(StorageInterface):
       with open(path, 'wb') as f:
         f.write(content)
 
-  def get_file(self, file_path):
+  def get_file(self, file_path, start=None, end=None):
     path = self.get_path_to_file(file_path)
 
     compressed = os.path.exists(path + '.gz')
@@ -96,7 +96,14 @@ class FileInterface(StorageInterface):
     
     try:
       with open(path, 'rb') as f:
-        data = f.read()
+        if start is not None:
+          f.seek(start)
+        if end is not None:
+          start = start if start is not None else 0
+          num_bytes = end - start + 1
+          data = f.read(num_bytes)
+        else:
+          data = f.read()
       return data, encoding
     except IOError:
       return None, encoding
@@ -184,13 +191,13 @@ class GoogleCloudStorageInterface(StorageInterface):
     blob.upload_from_string(content, content_type)
 
   @retry
-  def get_file(self, file_path):
+  def get_file(self, file_path, start=None, end=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
     try:
       # blob handles the decompression so the encoding is None
-      return blob.download_as_string(), None # content, encoding
+      return blob.download_as_string(start=start, end=end), None # content, encoding
     except google.cloud.exceptions.NotFound as err:
       return None, None
 
@@ -287,9 +294,16 @@ class HttpInterface(StorageInterface):
     raise NotImplementedError()
 
   @retry
-  def get_file(self, file_path):
+  def get_file(self, file_path, start=None, end=None):
     key = self.get_path_to_file(file_path)
-    resp = requests.get(key)
+
+    if start is not None or end is not None:
+      start = start if start is not None else ''
+      end = end if end is not None else ''
+      headers = { "Range": "bytes={}-{}".format(start, end) }
+      resp = requests.get(key, headers=headers)
+    else:
+      resp = requests.get(key)
     if resp.status_code == 404:
       return None, None
     resp.raise_for_status()
@@ -337,17 +351,24 @@ class S3Interface(StorageInterface):
     self._conn.put_object(**attrs)
 
   @retry
-  def get_file(self, file_path):
+  def get_file(self, file_path, start=None, end=None):
     """
     There are many types of execptions which can get raised
     from this method. We want to make sure we only return
     None when the file doesn't exist.
     """
 
+    kwargs = {}
+    if start is not None or end is not None:
+      start = start if start is not None else ''
+      end = end if end is not None else ''
+      kwargs['Range'] = "bytes={}-{}".format(start, end)
+
     try:
       resp = self._conn.get_object(
         Bucket=self._path.bucket,
         Key=self.get_path_to_file(file_path),
+        **kwargs
       )
 
       encoding = ''
