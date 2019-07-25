@@ -3,7 +3,9 @@ import json
 
 import mmh3
 
+from ... import compression
 from ...exceptions import SpecViolation
+from ...storage import SimpleStorage
 
 ShardLocation = namedtuple('ShardLocation', 
   ('shard_number', 'minishard_number', 'remainder')
@@ -83,7 +85,7 @@ class ShardingSpecification(object):
     del vals['@type']
     return cls(**vals)
 
-  def decode(self, key):
+  def compute_shard_location(self, key):
     chunkid = self.hashfn(int(key) >> int(self.preshift_bits))
     minishard_number = int(chunkid & self.minishard_mask)
     shard_number = int((chunkid & self.shard_mask) >> self.minishard_bits)
@@ -127,3 +129,66 @@ class ShardReader(object):
   def __init__(self, meta, spec):
     self.meta = meta
     self.spec = spec
+
+  def get_index(self, label):
+    shard_loc = self.spec.compute_shard_location(label)
+    with SimpleStorage(self.meta.full_path()) as stor:
+      filename = str(shard_loc.shard_number) + ".index"
+      binary = stor.get_file(filename)
+
+    index_length = (2 ** self.spec.minishard_bits) * 16
+
+    if len(binary) != index_length:
+      return SpecViolation(
+        filename + " was an incorrect length ({}) for this specification ({}).".format(
+          len(binary), index_length
+        ))
+
+    return np.frombuffer(binary, dtype=np.uint64).reshape( (index_length // 2, 2), order='C' )
+
+  def get_data(self, label):
+    shard_loc = self.spec.compute_shard_location(label)
+    index = self.get_index(label)
+
+    bytes_start, bytes_end = index[shard_loc.minishard_number]
+    request_length = (bytes_end - bytes_start + 1)
+
+    filename = shard_loc.shard_number + ".data"
+
+    with SimpleStorage(self.meta.full_path()) as stor:
+      minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
+
+    if self.spec.minishard_index_encoding == 'gzip':
+      minishard_index = compression.decompress(minishard_index, encoding='gzip', filename=filename)
+
+    minishard_index = np.frombuffer(minishard_index, dtype=np.uint64)
+    minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' )
+    minishard_index = np.add.accumulate(minishard_index.T) # elements are delta encoded
+
+    offset = 0
+    size = 0
+
+    for chunk_id, off, sz in minishard_index:
+      if chunk_id == label:
+        offset = off
+        size = sz
+        break
+    else:
+      raise IndexError(label + " was not found in the minishard_index of " + filename)
+
+    with SimpleStorage(self.meta.full_path()) as stor:
+      binary = stor.get_file(filename, start=offset, end=(offset + size - 1))
+
+    if self.spec.data_encoding == 'gzip':
+      return compression.decompress(binary, encoding='gzip', filename=filename)
+    else:
+      return binary
+
+
+
+
+
+
+
+
+
