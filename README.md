@@ -26,14 +26,30 @@ CloudVolume can be used in single or multi-process capacity and can be optimized
 
 Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.4, 3.5, and 3.6 (we've noticed it's faster on Python 3). Some people have used it with Python 3.7. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).  
 
+Note that Python 2.7 does not currently support the DracoPy library, and therefore does not support the `graphene://` format.  
+
 #### `pip` Binary Installation
 
 ```bash
 pip install cloud-volume # standard installation
-pip install cloud-volume[boss] # with BOSS support
 ```
 
 CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/fpzip) and [`compressed_segmentation`](https://github.com/seung-lab/compressedseg), which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
+
+### Optional Dependencies 
+
+| Tag             | Description                        | Dependencies    |
+|-----------------|------------------------------------|-----------------|
+| boss            | `boss://` format support           | intern          |
+| mesh_viewer     | `mesh.viewer()` GUI                | vtk             |
+| skeleton_viewer | `skeleton.viewer()` GUI            | matplotlib      |
+| all_viewers     | All viewers now and in the future. | vtk, matplotlib |
+
+Example:
+
+```bash
+pip install cloud-volume[boss,all_viewers]
+```
 
 #### `pip` Source Installation
 
@@ -68,7 +84,8 @@ source venv/bin/activate
 
 sudo apt-get install g++ python3-dev # python-dev if you're on python2
 pip install numpy # additional step needed for accelerated compressed_segmentation and fpzip
-pip install -e .
+pip install -e . # without optional dependencies
+pip install -e .[all_viewers] # with e.g. the all_viewers optional dependency
 ```
 
 ### Credentials
@@ -211,6 +228,8 @@ vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing t
 vol.mesh.get([ 12345, 12346 ]) # return these two segids fused into a single mesh 
 vol.mesh.get([ 12345, 12346 ], fuse=False) # return { 12345: mesh, 12346: mesh }
 
+mesh.viewer() # Opens GUI. Requires vtk.
+
 # Skeletons
 skel = vol.skeleton.get(12345)
 vol.skeleton.upload_raw(segid, skel.vertices, skel.edges, skel.radii, skel.vertex_types) 
@@ -227,6 +246,7 @@ skel3 = skel.merge(skel2) # merge two skeletons into one
 skel = skel.clone() # create copy
 skel = Skeleton.from_swc(swcstr) # decode an SWC file
 skel_str = skel.to_swc() # convert to SWC file in string representation
+skel.viewer() # Opens GUI. Requires matplotlib
 
 skel.cable_length() # sum of all edge lengths
 skel = skel.downsample(2) # reduce size of skeleton by factor of 2 
@@ -441,6 +461,12 @@ view(seg, segmentation=True)
 hyperview(img, seg) # img and seg shape must match
 
 >>> Viewer server listening to http://localhost:8080
+```
+
+There are also seperate viewers for skeleton and mesh objects that can be invoked by calling `.viewer()` on either object. However, skeletons depend on `matplotlib` and meshes depend on `vtk` and OpenGL to function.
+
+```bash
+pip install vtk matplotlib
 ```
 
 ## Python 2.7 End of Life

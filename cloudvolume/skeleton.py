@@ -1,14 +1,24 @@
+from collections import defaultdict
+import copy
+import datetime
+import re
+import os
+
 try:
   from StringIO import cStringIO as BytesIO
 except ImportError:
   from io import BytesIO
 
-from collections import defaultdict
-import copy
-import re
+import numpy as np
 import struct
 
-import numpy as np
+from cloudvolume import lib
+from cloudvolume.exceptions import (
+  SkeletonDecodeError, SkeletonEncodeError, 
+  SkeletonUnassignedEdgeError
+)
+from cloudvolume.lib import red, Bbox
+from cloudvolume.storage import Storage, SimpleStorage
 
 class Skeleton(object):
   def __init__(self, 
@@ -130,7 +140,7 @@ class Skeleton(object):
   @classmethod
   def from_precomputed(kls, skelbuf, segid=None):
     """
-    Convert a Precomputed skeleton buffer into a Skeleton object.
+    Convert a buffer into a Skeleton object.
 
     Format:
     num vertices (Nv) (uint32)
@@ -283,10 +293,14 @@ class Skeleton(object):
     skeleton.edges = skeleton.edges[edges_valid_idx,:]
     return skeleton.consolidate()
 
-  def consolidate(self):
+  def consolidate(self, remove_disconnected_vertices=True):
     """
     Remove duplicate vertices and edges from this skeleton without
     side effects.
+
+    Optional:
+      remove_disconnected_vertices: delete vertices that have no edges
+        associated with them. This does not preserve index order.
 
     Returns: new consolidated Skeleton 
     """
@@ -298,7 +312,7 @@ class Skeleton(object):
     if self.empty():
       return Skeleton()
     
-    eff_nodes, uniq_idx, idx_representative = np.unique(
+    eff_vertices, uniq_idx, idx_representative = np.unique(
       nodes, axis=0, return_index=True, return_inverse=True
     )
 
@@ -313,9 +327,57 @@ class Skeleton(object):
     eff_radii = radii_vector_map(uniq_idx)
 
     vertex_type_map = np.vectorize(lambda idx: vertex_types[idx])
-    eff_vtype = vertex_type_map(uniq_idx)  
-      
-    return Skeleton(eff_nodes, eff_edges, eff_radii, eff_vtype, segid=self.id)
+    eff_vtype = vertex_type_map(uniq_idx)
+
+    skel = Skeleton(eff_vertices, eff_edges, eff_radii, eff_vtype, segid=self.id)
+
+    if remove_disconnected_vertices:
+      return skel.remove_disconnected_vertices()
+
+    return skel
+
+  def remove_disconnected_vertices(self):
+    """
+    Delete vertices that have no edges associated with them. 
+    This does not preserve index order.
+
+    Returns: new Skeleton
+    """
+    if self.empty():
+      return Skeleton(segid=self.id)
+
+    idx_map = {}
+    for i, vert in enumerate(self.vertices):
+      idx_map[tuple(vert)] = i
+
+    connected_verts = np.unique(self.vertices[ self.edges.flatten() ], axis=0)
+    Nv = connected_verts.shape[0]
+
+    radii = np.zeros( (Nv,), dtype=np.float32 )
+    vertex_types = np.zeros( (Nv,), dtype=np.uint8 )
+
+    for i, vert in enumerate(connected_verts):
+      reverse_idx = idx_map[tuple(vert)]
+      radii[i] = self.radii[reverse_idx]
+      vertex_types[i] = self.vertex_types[reverse_idx]
+
+    idx_reverse_map = {}
+    for i, vert in enumerate(connected_verts):
+      idx_reverse_map[idx_map[tuple(vert)]] = i
+
+    edges = []
+    for e1, e2 in self.edges:
+      e1 = idx_reverse_map[e1]
+      e2 = idx_reverse_map[e2]
+
+      if e1 < e2:
+        edges += [ (e1, e2) ]
+      else:
+        edges += [ (e2, e1) ]
+
+    edges = np.array(edges, dtype=np.uint32)
+
+    return Skeleton(connected_verts, edges, radii, vertex_types, segid=self.id)
 
   def clone(self):
     vertices = np.copy(self.vertices)
@@ -689,6 +751,45 @@ class Skeleton(object):
 
     return swc
 
+  def viewer(self, units='nm'):
+    """
+    View the skeleton with a radius heatmap. 
+
+    Requires the matplotlib library which is 
+    not installed by default.
+    """
+    try:
+      import matplotlib
+      import matplotlib.pyplot as plt
+      from mpl_toolkits.mplot3d import Axes3D 
+      from matplotlib import cm
+      import multiprocessing as mp
+      import os
+    except ImportError:
+      print("Skeleton.viewer requires matplotlib. Try: pip install matplotlib --upgrade")
+      return
+
+    fig = plt.figure(figsize=(10,10))
+    ax = Axes3D(fig)
+
+    xs = self.vertices[:,0]
+    ys = self.vertices[:,1]
+    zs = self.vertices[:,2]
+
+    colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
+    colmap.set_array(self.radii)
+
+    normed_radii = self.radii / np.max(self.radii)
+    yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
+    cbar = fig.colorbar(colmap)
+    cbar.set_label('radius (' + units + ')', rotation=270)
+
+    ax.set_xlabel(units)
+    ax.set_ylabel(units)
+    ax.set_zlabel(units)
+
+    plt.show()
+
   def __eq__(self, other):
     if self.id != other.id:
       return False
@@ -713,3 +814,6 @@ class Skeleton(object):
 
   def __repr__(self):
     return str(self)
+
+
+PrecomputedSkeleton = Skeleton # backwards compatibility

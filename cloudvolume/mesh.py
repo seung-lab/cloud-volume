@@ -100,6 +100,16 @@ class Mesh(object):
       encoding_options=copy.deepcopy(self.encoding_options),
     )
 
+  def triangles(self):
+    Nf = self.faces.shape[0]
+    tris = np.zeros( (Nf, 3, 3), dtype=np.float32, order='C' ) # triangle, vertices, (x,y,z)
+
+    for i in range(Nf):
+      for j in range(3):
+        tris[i,j,:] = self.vertices[ self.faces[i,j] ]
+
+    return tris
+
   @classmethod
   def concatenate(cls, *meshes):
     vertex_ct = np.zeros(len(meshes) + 1, np.uint32)
@@ -328,3 +338,75 @@ end_header
     return Mesh(vertices[:,0:3], newfaces, None, segid=self.segid, 
       encoding_type=self.encoding_type, encoding_options=self.encoding_options
     )
+
+  def viewer(self):
+    try:
+      import vtk
+    except ImportError:
+      print("The mesh viewer requires the OpenGL based vtk. Try: pip install vtk --upgrade")
+      return
+
+    colors = vtk.vtkNamedColors()
+    # Set the background color.
+    bkg = map(lambda x: x / 255.0, [40, 40, 40, 255])
+    colors.SetColor("BkgColor", *bkg)
+
+    # This creates a point cloud model
+    points = vtk.vtkPoints()
+    verts = vtk.vtkCellArray()
+    polydata = vtk.vtkPolyData()
+    polydata.SetPoints(points)
+    polydata.SetVerts(verts)
+    for vertex in self.vertices:
+      pid = points.InsertNextPoint(vertex)
+      verts.InsertNextCell(1)
+      verts.InsertCellPoint(pid)
+
+    # The mapper is responsible for pushing the geometry into the graphics
+    # library. It may also do color mapping, if scalars or other
+    # attributes are defined.
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputData(polydata)
+
+    # The actor is a grouping mechanism: besides the geometry (mapper), it
+    # also has a property, transformation matrix, and/or texture map.
+    # Here we set its color and rotate it -22.5 degrees.
+    cylinderActor = vtk.vtkActor()
+    cylinderActor.SetMapper(mapper)
+    cylinderActor.GetProperty().SetColor(colors.GetColor3d("Mint"))
+    cylinderActor.RotateX(30.0)
+    cylinderActor.RotateY(-45.0)
+
+    # Create the graphics structure. The renderer renders into the render
+    # window. The render window interactor captures mouse events and will
+    # perform appropriate camera or actor manipulation depending on the
+    # nature of the events.
+    ren = vtk.vtkRenderer()
+    renWin = vtk.vtkRenderWindow()
+    renWin.AddRenderer(ren)
+    iren = vtk.vtkRenderWindowInteractor()
+    iren.SetRenderWindow(renWin)
+
+    # Add the actors to the renderer, set the background and size
+    ren.AddActor(cylinderActor)
+    ren.SetBackground(colors.GetColor3d("BkgColor"))
+    renWin.SetSize(800, 800)
+
+    text = "Point Cloud Rendering of Mesh Object"
+    if self.segid is not None:
+      renWin.SetWindowName(text + " (Label {})".format(self.segid))
+    else:
+      renWin.SetWindowName(text)
+
+    # This allows the interactor to initalize itself. It has to be
+    # called before an event loop.
+    iren.Initialize()
+
+    # We'll zoom in a little by accessing the camera and invoking a "Zoom"
+    # method on it.
+    ren.ResetCamera()
+    ren.GetActiveCamera().Zoom(1.5)
+    renWin.Render()
+
+    # Start the event loop.
+    iren.Start()    

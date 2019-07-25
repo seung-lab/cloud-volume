@@ -12,29 +12,30 @@ def requirements():
 
 setuptools.setup(
   name="cloud-volume",
-  version="0.53.5",
-  setup_requires=['numpy'],
+  version="0.56.1",
+  setup_requires=[
+    'numpy<1.17; python_version<"3.5"',
+    'numpy; python_version>="3.5"',
+  ],
   install_requires=requirements(),
+  # Environment Marker Examples: 
+  # https://www.python.org/dev/peps/pep-0496/
   extras_require={
     "boss": "intern>=0.9.11",
     ':sys_platform!="win32"': [
       "posix_ipc==1.0.4",
       "psutil==5.4.3",
+    ],
+    ':sys_platform!="win32" and python_version>="3.0"': [
       "DracoPy",
     ],
+    "mesh_viewer": [ 'vtk' ],
+    "skeleton_viewer": [ 'matplotlib' ],
+    "all_viewers": [ 'vtk', 'matplotlib' ],
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",
-  packages=[ 
-    'cloudvolume', 
-    'cloudvolume.datasource',
-    'cloudvolume.datasource.boss',
-    'cloudvolume.datasource.graphene',
-    'cloudvolume.datasource.precomputed',
-    'cloudvolume.datasource.precomputed.skeleton',
-    'cloudvolume.frontends',
-    'cloudvolume.storage', 
-  ],
+  packages=setuptools.find_packages(),
   package_data={
     'cloudvolume': [
       './microviewer/*',

@@ -59,7 +59,7 @@ from .exceptions import (
 )
 from .volumecutout import VolumeCutout
 
-from .skeleton import Skeleton
+from .skeleton import Skeleton, PrecomputedSkeleton
 
 from . import exceptions
 from . import secrets
@@ -67,7 +67,7 @@ from . import secrets
 from . import microviewer
 from .microviewer import view, hyperview
 
-__version__ = '0.53.5'
+__version__ = '0.56.1'
 
 # Register plugins
 from .datasource.precomputed import register as register_precomputed
