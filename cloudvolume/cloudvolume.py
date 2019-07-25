@@ -180,7 +180,6 @@ class CloudVolume(object):
 
     kwargs = locals()
     del kwargs['cls']
-    del kwargs['use_https']
 
     path = strict_extract(cloudpath)
     if path.format in REGISTERED_PLUGINS:
