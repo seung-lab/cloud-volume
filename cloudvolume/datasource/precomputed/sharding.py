@@ -14,6 +14,8 @@ ShardLocation = namedtuple('ShardLocation',
   ('shard_number', 'minishard_number', 'remainder')
 )
 
+uint64 = np.uint64
+
 class ShardingSpecification(object):
   def __init__(
     self, type, preshift_bits, 
@@ -23,10 +25,10 @@ class ShardingSpecification(object):
   ):
 
     self.type = type 
-    self.preshift_bits = int(preshift_bits)
+    self.preshift_bits = uint64(preshift_bits)
     self.hash = hash 
-    self.minishard_bits = int(minishard_bits)
-    self.shard_bits = int(shard_bits)
+    self.minishard_bits = uint64(minishard_bits)
+    self.shard_bits = uint64(shard_bits)
     self.minishard_index_encoding = minishard_index_encoding
     self.data_encoding = data_encoding
 
@@ -41,14 +43,12 @@ class ShardingSpecification(object):
 
   @hash.setter
   def hash(self, val):
-    val = val.lower()
-
     def apply_mmh3(x):
       x_hashed = mmh3.hash128(str(x)) # 128-bit uint
-      return x_hashed & 0x0000000000000000ffffffffffffffff
+      return uint64(x_hashed & 0x0000000000000000ffffffffffffffff)
 
     if val == 'identity':
-      self.hashfn = lambda x: np.uint64(x)
+      self.hashfn = lambda x: uint64(x)
     elif val == 'murmurhash3_x86_128':
       self.hashfn = apply_mmh3
     else:
@@ -62,22 +62,23 @@ class ShardingSpecification(object):
   
   @minishard_bits.setter
   def minishard_bits(self, val):
+    val = uint64(val)
     self.minishard_mask = self.compute_minishard_mask(val)
-    self._minishard_bits = int(val)
+    self._minishard_bits = uint64(val)
 
   def compute_minishard_mask(self, val):
     if val <= 0:
       raise ValueError(str(val) + " must be greater than zero.")
 
-    minishard_mask = 1
-    for i in range(val - 1):
-      minishard_mask <<= 1
-      minishard_mask |= 1
-    return minishard_mask
+    minishard_mask = uint64(1)
+    for i in range(val - uint64(1)):
+      minishard_mask <<= uint64(1)
+      minishard_mask |= uint64(1)
+    return uint64(minishard_mask)
 
   def compute_shard_mask(self, shard_bits, minishard_bits):
-    ones64 = 0xffffffffffffffff
-    movement = minishard_bits + shard_bits
+    ones64 = uint64(0xffffffffffffffff)
+    movement = uint64(minishard_bits + shard_bits)
     shard_mask = ~((ones64 >> movement) << movement)
     minishard_mask = self.compute_minishard_mask(minishard_bits)
     return shard_mask & (~minishard_mask)
@@ -95,11 +96,11 @@ class ShardingSpecification(object):
     return cls(**vals)
 
   def compute_shard_location(self, key):
-    chunkid = self.hashfn(int(key) >> int(self.preshift_bits))
-    minishard_number = int(chunkid & self.minishard_mask)
-    shard_number = int((chunkid & self.shard_mask) >> self.minishard_bits)
-    shard_number = str(shard_number).zfill(int(np.ceil(self.shard_bits / 4.0)))
-    remainder = chunkid >> (self.minishard_bits + self.shard_bits)
+    chunkid = self.hashfn(uint64(key) >> uint64(self.preshift_bits))
+    minishard_number = uint64(chunkid & self.minishard_mask)
+    shard_number = uint64((chunkid & self.shard_mask) >> uint64(self.minishard_bits))
+    shard_number = format(shard_number, 'x').zfill(int(np.ceil(self.shard_bits / 4.0)))
+    remainder = chunkid >> uint64(self.minishard_bits + self.shard_bits)
     
     return ShardLocation(shard_number, minishard_number, remainder)
 
@@ -153,7 +154,7 @@ class ShardReader(object):
           len(binary), index_length
         ))
     
-    index = np.frombuffer(binary, dtype=np.uint64)
+    index = np.frombuffer(binary, dtype=uint64)
     return index.reshape( (index.size // 2, 2), order='C' )
 
   def get_data(self, label):
