@@ -1,7 +1,10 @@
 from collections import namedtuple
+import copy
 import json
 
 import mmh3
+import numpy as np
+import struct
 
 from ... import compression
 from ...exceptions import SpecViolation
@@ -38,12 +41,18 @@ class ShardingSpecification(object):
 
   @hash.setter
   def hash(self, val):
+    val = val.lower()
+
+    def apply_mmh3(x):
+      x_hashed = mmh3.hash128(str(x)) # 128-bit uint
+      return x_hashed & 0x0000000000000000ffffffffffffffff
+
     if val == 'identity':
       self.hashfn = lambda x: np.uint64(x)
     elif val == 'murmurhash3_x86_128':
-      self.hashfn = lambda x: np.uint64(int(mmh3.hash128(x)[8:16], base=16))
+      self.hashfn = apply_mmh3
     else:
-      raise SpecViolation("hash must be either 'identity' or 'murmurhash3_x86_128'")
+      raise SpecViolation("hash {} must be either 'identity' or 'murmurhash3_x86_128'".format(val))
 
     self._hash = val
 
@@ -117,7 +126,7 @@ class ShardingSpecification(object):
       ))
 
     if self.hash not in ('identity', 'murmurhash3_x86_128'):
-      raise SpecViolation("hash must be either 'identity' or 'murmurhash3_x86_128'")
+      raise SpecViolation("hash {} must be either 'identity' or 'murmurhash3_x86_128'".format(self.hash))
 
     if self.minishard_index_encoding not in ('raw', 'gzip'):
       raise SpecViolation("minishard_index_encoding only supports values 'raw' or 'gzip'.")
@@ -132,7 +141,7 @@ class ShardReader(object):
 
   def get_index(self, label):
     shard_loc = self.spec.compute_shard_location(label)
-    with SimpleStorage(self.meta.full_path()) as stor:
+    with SimpleStorage(self.meta.full_path) as stor:
       filename = str(shard_loc.shard_number) + ".index"
       binary = stor.get_file(filename)
 
@@ -143,8 +152,9 @@ class ShardReader(object):
         filename + " was an incorrect length ({}) for this specification ({}).".format(
           len(binary), index_length
         ))
-
-    return np.frombuffer(binary, dtype=np.uint64).reshape( (index_length // 2, 2), order='C' )
+    
+    index = np.frombuffer(binary, dtype=np.uint64)
+    return index.reshape( (index.size // 2, 2), order='C' )
 
   def get_data(self, label):
     shard_loc = self.spec.compute_shard_location(label)
@@ -155,7 +165,7 @@ class ShardReader(object):
 
     filename = shard_loc.shard_number + ".data"
 
-    with SimpleStorage(self.meta.full_path()) as stor:
+    with SimpleStorage(self.meta.full_path) as stor:
       minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
 
     if self.spec.minishard_index_encoding == 'gzip':
@@ -176,7 +186,7 @@ class ShardReader(object):
     else:
       raise IndexError(label + " was not found in the minishard_index of " + filename)
 
-    with SimpleStorage(self.meta.full_path()) as stor:
+    with SimpleStorage(self.meta.full_path) as stor:
       binary = stor.get_file(filename, start=offset, end=(offset + size - 1))
 
     if self.spec.data_encoding == 'gzip':

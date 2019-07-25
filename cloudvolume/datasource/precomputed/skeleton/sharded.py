@@ -8,7 +8,7 @@ class ShardedPrecomputedSkeletonSource(object):
     self.cache = cache
     self.config = config
 
-    spec = ShardingSpecification.from_dict(self.meta.info)
+    spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
     self.reader = ShardReader(meta, spec)
 
   @property

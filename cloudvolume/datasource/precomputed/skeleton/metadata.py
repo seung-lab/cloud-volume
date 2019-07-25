@@ -22,7 +22,6 @@ class PrecomputedSkeletonMetadata(object):
 
   def fetch_info(self):
     info = self.cache.download_json(self.meta.join(self.path, 'info'))
-
     if not info:
       return self.default_info()
     return info
