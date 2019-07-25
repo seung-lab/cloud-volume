@@ -114,15 +114,15 @@ class ShardingSpecification(object):
     if not (64 > self.preshift_bits >= 0):
       raise SpecViolation("preshift_bits must be a whole number less than 64: {}".format(self.preshift_bits))
 
-    if not (64 > self.minishard_bits > 0):
-      raise SpecViolation("minishard_bits must be a whole number less than 64: {}".format(self.minishard_bits))
+    if not (64 >= self.minishard_bits >= 0):
+      raise SpecViolation("minishard_bits must be between 0 and 64 inclusive: {}".format(self.minishard_bits))
 
-    if not (64 > self.shard_bits > 0):
-      raise SpecViolation("shard_bits must be a whole number less than 64: {}".format(self.shard_bits))
+    if not (64 >= self.shard_bits >= 0):
+      raise SpecViolation("shard_bits must be between 0 and 64 inclusive: {}".format(self.shard_bits))
 
-    if self.minishard_bits + self.shard_bits > 63:
+    if self.minishard_bits + self.shard_bits > 64:
       raise SpecViolation(
-        "minishard_bits and shard_bits must leave room for a key: minishard_bits<{}> + shard_bits<{}> = {}".format(
+        "minishard_bits and shard_bits must sum to less than or equal to 64: minishard_bits<{}> + shard_bits<{}> = {}".format(
         self.minishard_bits, self.shard_bits, self.minishard_bits + self.shard_bits
       ))
 
