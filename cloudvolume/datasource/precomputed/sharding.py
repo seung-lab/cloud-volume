@@ -2,10 +2,10 @@ from collections import namedtuple
 import copy
 import json
 
-import mmh3
 import numpy as np
 import struct
 
+from . import custom_mmh3 as mmh3
 from ... import compression
 from ...exceptions import SpecViolation
 from ...storage import SimpleStorage
@@ -43,14 +43,10 @@ class ShardingSpecification(object):
 
   @hash.setter
   def hash(self, val):
-    def apply_mmh3(x):
-      x_hashed = mmh3.hash128(str(x)) # 128-bit uint
-      return uint64(x_hashed & 0x0000000000000000ffffffffffffffff)
-
     if val == 'identity':
       self.hashfn = lambda x: uint64(x)
     elif val == 'murmurhash3_x86_128':
-      self.hashfn = apply_mmh3
+      self.hashfn = lambda x: mmh3.murmurHash3_x86_128Hash64Bits(x, 0)
     else:
       raise SpecViolation("hash {} must be either 'identity' or 'murmurhash3_x86_128'".format(val))
 
@@ -162,12 +158,10 @@ class ShardReader(object):
     index = self.get_index(label)
 
     bytes_start, bytes_end = index[shard_loc.minishard_number]
-    request_length = (bytes_end - bytes_start + 1)
-
     filename = shard_loc.shard_number + ".data"
 
     with SimpleStorage(self.meta.full_path) as stor:
-      minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
+      minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end - 1)
 
     if self.spec.minishard_index_encoding == 'gzip':
       minishard_index = compression.decompress(minishard_index, encoding='gzip', filename=filename)
