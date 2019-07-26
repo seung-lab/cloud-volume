@@ -53,9 +53,7 @@ def murmurHash3_x86_128Hash64Bits(x, seed):
   h3 ^= length
   h4 ^= length
 
-  h1 += h2
-  h1 += h3
-  h1 += h4
+  h1 += h2 + h3 + h4
   h2 += h1
   h3 += h1
   h4 += h1
@@ -65,9 +63,7 @@ def murmurHash3_x86_128Hash64Bits(x, seed):
   h3 = murmurHash3_x86_128Mix(h3)
   h4 = murmurHash3_x86_128Mix(h4)
 
-  h1 += h2
-  h1 += h3
-  h1 += h4
+  h1 += h2 + h3 + h4
   h2 += h1
 
   # h3 += h1
