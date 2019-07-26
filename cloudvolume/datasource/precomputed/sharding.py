@@ -154,7 +154,7 @@ class ShardReader(object):
           len(binary), index_length
         ))
     
-    index = np.frombuffer(binary, dtype=uint64)
+    index = np.frombuffer(binary, dtype=np.uint64)
     return index.reshape( (index.size // 2, 2), order='C' )
 
   def get_data(self, label):
