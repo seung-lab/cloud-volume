@@ -26,7 +26,7 @@ def rotl32(x, r):
 #
 def murmurHash3_x86_128Hash64Bits(x, seed):
   low, high, seed = uint64(x), uint64(0), uint64(seed)
-  h1 = h2 = h3 = h4 = uint64(seed)
+  h1, h2, h3, h4 = uint64(seed), uint64(seed), uint64(seed), uint64(seed) 
   c1 = uint64(0x239b961b)
   c2 = uint64(0xab0e9789)
   c3 = uint64(0x38b34ae5)
