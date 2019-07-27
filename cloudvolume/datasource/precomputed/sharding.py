@@ -162,7 +162,7 @@ class ShardReader(object):
     filename = shard_loc.shard_number + ".data"
 
     with SimpleStorage(self.meta.full_path) as stor:
-      minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end - 1)
+      minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
 
     if self.spec.minishard_index_encoding == 'gzip':
       minishard_index = compression.decompress(minishard_index, encoding='gzip', filename=filename)
@@ -170,20 +170,12 @@ class ShardReader(object):
     minishard_index = np.frombuffer(minishard_index, dtype=np.uint64)
     minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' )
     minishard_index = np.add.accumulate(minishard_index.T) # elements are delta encoded
-
-    offset = 0
-    size = 0
-
-    for chunk_id, off, sz in minishard_index:
-      if chunk_id == label:
-        offset = off
-        size = sz
-        break
-    else:
-      raise IndexError(label + " was not found in the minishard_index of " + filename)
-
+    
+    idx = np.where(minishard_index == label)[0][0]
+    _, offset, size = minishard_index[idx,:]
+    
     with SimpleStorage(self.meta.full_path) as stor:
-      binary = stor.get_file(filename, start=offset, end=(offset + size - 1))
+      binary = stor.get_file(filename, start=offset, end=(offset + size))
 
     if self.spec.data_encoding == 'gzip':
       return compression.decompress(binary, encoding='gzip', filename=filename)
