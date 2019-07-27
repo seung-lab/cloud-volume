@@ -5,7 +5,7 @@ import json
 import numpy as np
 import struct
 
-from . import custom_mmh3 as mmh3
+import mmh3
 from ... import compression
 from ...exceptions import SpecViolation
 from ...storage import SimpleStorage
@@ -46,7 +46,7 @@ class ShardingSpecification(object):
     if val == 'identity':
       self.hashfn = lambda x: uint64(x)
     elif val == 'murmurhash3_x86_128':
-      self.hashfn = lambda x: mmh3.murmurHash3_x86_128Hash64Bits(x, 0)
+      self.hashfn = lambda x: uint64(mmh3.hash64(uint64(x), signed=False, x64arch=False)[0]) 
     else:
       raise SpecViolation("hash {} must be either 'identity' or 'murmurhash3_x86_128'".format(val))
 
@@ -92,12 +92,13 @@ class ShardingSpecification(object):
     return cls(**vals)
 
   def compute_shard_location(self, key):
-    chunkid = self.hashfn(uint64(key) >> uint64(self.preshift_bits))
+    chunkid = uint64(key) >> uint64(self.preshift_bits)
+    chunkid = self.hashfn(chunkid)
     minishard_number = uint64(chunkid & self.minishard_mask)
     shard_number = uint64((chunkid & self.shard_mask) >> uint64(self.minishard_bits))
     shard_number = format(shard_number, 'x').zfill(int(np.ceil(self.shard_bits / 4.0)))
     remainder = chunkid >> uint64(self.minishard_bits + self.shard_bits)
-    
+
     return ShardLocation(shard_number, minishard_number, remainder)
 
   def validate(self):
