@@ -100,7 +100,7 @@ class FileInterface(StorageInterface):
           f.seek(start)
         if end is not None:
           start = start if start is not None else 0
-          num_bytes = end - start + 1
+          num_bytes = end - start
           data = f.read(num_bytes)
         else:
           data = f.read()
@@ -197,7 +197,7 @@ class GoogleCloudStorageInterface(StorageInterface):
 
     try:
       # blob handles the decompression so the encoding is None
-      return blob.download_as_string(start=start, end=end), None # content, encoding
+      return blob.download_as_string(start=int(start), end=int(end - 1)), None # content, encoding
     except google.cloud.exceptions.NotFound as err:
       return None, None
 
@@ -300,7 +300,7 @@ class HttpInterface(StorageInterface):
     if start is not None or end is not None:
       start = start if start is not None else ''
       end = end if end is not None else ''
-      headers = { "Range": "bytes={}-{}".format(start, end) }
+      headers = { "Range": "bytes={}-{}".format(int(start), int(end - 1)) }
       resp = requests.get(key, headers=headers)
     else:
       resp = requests.get(key)
@@ -362,7 +362,7 @@ class S3Interface(StorageInterface):
     if start is not None or end is not None:
       start = start if start is not None else ''
       end = end if end is not None else ''
-      kwargs['Range'] = "bytes={}-{}".format(start, end)
+      kwargs['Range'] = "bytes={}-{}".format(int(start), int(end - 1))
 
     try:
       resp = self._conn.get_object(
