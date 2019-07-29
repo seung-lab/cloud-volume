@@ -751,42 +751,54 @@ class Skeleton(object):
 
     return swc
 
-  def viewer(self, units='nm'):
+  def viewer(self, units='nm', draw_edges=True, draw_vertices=True):
     """
     View the skeleton with a radius heatmap. 
 
     Requires the matplotlib library which is 
     not installed by default.
+
+    units: label axes with these units
+    draw_edges: draw lines between vertices (more useful when skeleton is sparse)
+    draw_vertices: draw each vertex colored by its radius.
     """
     try:
-      import matplotlib
       import matplotlib.pyplot as plt
       from mpl_toolkits.mplot3d import Axes3D 
       from matplotlib import cm
-      import multiprocessing as mp
-      import os
     except ImportError:
       print("Skeleton.viewer requires matplotlib. Try: pip install matplotlib --upgrade")
       return
 
     fig = plt.figure(figsize=(10,10))
     ax = Axes3D(fig)
-
-    xs = self.vertices[:,0]
-    ys = self.vertices[:,1]
-    zs = self.vertices[:,2]
-
-    colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
-    colmap.set_array(self.radii)
-
-    normed_radii = self.radii / np.max(self.radii)
-    yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
-    cbar = fig.colorbar(colmap)
-    cbar.set_label('radius (' + units + ')', rotation=270)
-
     ax.set_xlabel(units)
     ax.set_ylabel(units)
     ax.set_zlabel(units)
+
+    if draw_vertices:
+      xs = self.vertices[:,0]
+      ys = self.vertices[:,1]
+      zs = self.vertices[:,2]
+
+      colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
+      colmap.set_array(self.radii)
+
+      normed_radii = self.radii / np.max(self.radii)
+      yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
+      cbar = fig.colorbar(colmap)
+      cbar.set_label('radius (' + units + ')', rotation=270)
+
+    if draw_edges:
+      for e1, e2 in self.edges:
+        pt1, pt2 = self.vertices[e1], self.vertices[e2]
+        ax.plot(  
+          [ pt1[0], pt2[0] ],
+          [ pt1[1], pt2[1] ],
+          zs=[ pt1[2], pt2[2] ],
+          color='gray',
+          linewidth=1,
+        )
 
     plt.show()
 
