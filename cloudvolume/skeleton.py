@@ -796,7 +796,7 @@ class Skeleton(object):
           [ pt1[0], pt2[0] ],
           [ pt1[1], pt2[1] ],
           zs=[ pt1[2], pt2[2] ],
-          color='gray',
+          color=('mediumseagreen' if not draw_vertices else 'silver'),
           linewidth=1,
         )
 
