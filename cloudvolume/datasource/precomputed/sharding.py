@@ -133,8 +133,9 @@ class ShardingSpecification(object):
       raise SpecViolation("data_encoding only supports values 'raw' or 'gzip'.")
     
 class ShardReader(object):
-  def __init__(self, meta, spec):
+  def __init__(self, meta, cache, spec):
     self.meta = meta
+    self.cache = cache
     self.spec = spec
 
   def get_index(self, label):
@@ -167,9 +168,12 @@ class ShardReader(object):
     if self.spec.minishard_index_encoding == 'gzip':
       minishard_index = compression.decompress(minishard_index, encoding='gzip', filename=filename)
 
-    minishard_index = np.frombuffer(minishard_index, dtype=np.uint64)
-    minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' )
-    minishard_index = np.add.accumulate(minishard_index.T) # elements are delta encoded
+    minishard_index = np.copy(np.frombuffer(minishard_index, dtype=np.uint64))
+    minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' ).T
+    
+    for i in range(1, minishard_index.shape[0]):
+      minishard_index[i, 0] += minishard_index[i-1, 0]
+      minishard_index[i, 1] += minishard_index[i-1, 1] + minishard_index[i-1, 2]
     
     idx = np.where(minishard_index == label)[0][0]
     _, offset, size = minishard_index[idx,:]
@@ -178,9 +182,9 @@ class ShardReader(object):
       binary = stor.get_file(filename, start=offset, end=(offset + size))
 
     if self.spec.data_encoding == 'gzip':
-      return compression.decompress(binary, encoding='gzip', filename=filename)
-    else:
-      return binary
+      binary = compression.decompress(binary, encoding='gzip', filename=filename)
+      
+    return binary
 
 
 

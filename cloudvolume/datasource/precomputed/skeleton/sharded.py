@@ -9,7 +9,7 @@ class ShardedPrecomputedSkeletonSource(object):
     self.config = config
 
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
-    self.reader = ShardReader(meta, spec)
+    self.reader = ShardReader(meta, cache, spec)
 
   @property
   def path(self):
@@ -28,7 +28,8 @@ class ShardedPrecomputedSkeletonSource(object):
     results = []
     for segid in segids:
       binary = self.reader.get_data(segid)
-      results.append( Skeleton.from_precomputed(binary) )
+      skeleton = Skeleton.from_precomputed(binary, segid=segid)
+      results.append(skeleton)
 
     if list_return:
       return results
@@ -36,4 +37,7 @@ class ShardedPrecomputedSkeletonSource(object):
       return results[0]
 
   def upload(self):
-    pass
+    raise NotImplementedError()
+
+  def raw_upload(self):
+    raise NotImplementedError()
