@@ -5,7 +5,7 @@ import json
 import numpy as np
 import struct
 
-import mmh3
+from . import mmh3
 from ... import compression
 from ...exceptions import SpecViolation
 from ...storage import SimpleStorage
@@ -46,7 +46,7 @@ class ShardingSpecification(object):
     if val == 'identity':
       self.hashfn = lambda x: uint64(x)
     elif val == 'murmurhash3_x86_128':
-      self.hashfn = lambda x: uint64(mmh3.hash64(uint64(x), signed=False, x64arch=False)[0]) 
+      self.hashfn = lambda x: uint64(mmh3.hash64(uint64(x).tobytes(), x64arch=False)[0]) 
     else:
       raise SpecViolation("hash {} must be either 'identity' or 'murmurhash3_x86_128'".format(val))
 
