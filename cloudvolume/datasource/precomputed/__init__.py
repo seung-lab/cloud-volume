@@ -13,7 +13,8 @@ def create_precomputed(
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=False, info=None, provenance=None,
     compress=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, green_threads=False
+    delete_black_uploads=False, green_threads=False,
+    use_https=False
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
