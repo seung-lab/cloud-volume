@@ -7,7 +7,7 @@ import pytest
 tempdir = tempfile.mkdtemp()
 TEST_PATH = "file:/{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
-PCG_LOCATION = "http://localhost:8080/segmentation/1.0/"
+PCG_LOCATION = "http://localhost/segmentation/1.0/"
 
 @pytest.fixture(scope='session')
 def cv_supervoxels(N=64, blockN=16):
@@ -15,7 +15,7 @@ def cv_supervoxels(N=64, blockN=16):
     block_per_row = int(N / blockN)
 
     chunk_size = [32, 32, 32]
-    info = cloudvolume.create_new_info(
+    info = cloudvolume.CloudVolume.create_new_info(
         num_channels=1,
         layer_type='segmentation',
         data_type='uint64',
@@ -27,7 +27,8 @@ def cv_supervoxels(N=64, blockN=16):
         chunk_size=chunk_size,  # units are voxels
         volume_size=[N, N, N],
     )
-    vol = cloudvolume.PrecomputedCloudVolume(TEST_PATH, info=info)
+
+    vol = cloudvolume.CloudVolume(TEST_PATH, info=info)
     vol.commit_info()
     xx, yy, zz = np.meshgrid(*[np.arange(0, N) for cs in chunk_size])
     id_ind = (np.uint64(xx / blockN),
@@ -43,7 +44,7 @@ def cv_supervoxels(N=64, blockN=16):
     shutil.rmtree(tempdir)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
 
     chunk_size = [32, 32, 32]
@@ -79,8 +80,7 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
         return np.array([1,2,3], dtype=np.uint64)
 
     gcv = cloudvolume.CloudVolume(
-        "graphene://{}{}".format(PCG_LOCATION, TEST_DATASET_NAME),
-        info=info
+        "graphene://{}{}".format(PCG_LOCATION, TEST_DATASET_NAME)
     )
     gcv._get_leaves = mock_get_leaves
     yield gcv
