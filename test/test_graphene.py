@@ -15,7 +15,7 @@ def cv_supervoxels(N=64, blockN=16):
     block_per_row = int(N / blockN)
 
     chunk_size = [32, 32, 32]
-    info = cloudvolume.CloudVolumePrecomputed.create_new_info(
+    info = cloudvolume.create_new_info(
         num_channels=1,
         layer_type='segmentation',
         data_type='uint64',
