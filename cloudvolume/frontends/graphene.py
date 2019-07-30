@@ -92,8 +92,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       watershed coloring.
     """
     try:
-      iter(slices[-1])
-      root_ids = list(slices.pop())
+      root_ids = iter(slices[-1])
+      slices=slices[0:3]
       return self.download(
         slices, mip=self.mip, 
         parallel=self.parallel, root_ids=root_ids
