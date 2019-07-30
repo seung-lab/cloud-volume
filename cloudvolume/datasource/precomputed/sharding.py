@@ -140,9 +140,10 @@ class ShardReader(object):
 
   def get_index(self, label):
     shard_loc = self.spec.compute_shard_location(label)
-    with SimpleStorage(self.meta.full_path) as stor:
-      filename = str(shard_loc.shard_number) + ".index"
-      binary = stor.get_file(filename)
+
+    filename = str(shard_loc.shard_number) + ".index"
+    index_path = self.meta.join(self.meta.path, filename)
+    binary = self.cache.download_single(index_path)
 
     index_length = (2 ** self.spec.minishard_bits) * 16
 

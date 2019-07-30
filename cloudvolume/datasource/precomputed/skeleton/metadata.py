@@ -16,6 +16,9 @@ class PrecomputedSkeletonMetadata(object):
       return self.meta.info['skeletons']
     return 'skeletons'
 
+  def join(self, *paths):
+    return self.meta.join(*paths)
+
   @property
   def full_path(self):
     return self.meta.join(self.meta.cloudpath, self.path)

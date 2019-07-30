@@ -313,7 +313,7 @@ class CacheService(object):
   def upload(self, files, subdir, compress, cache_control, content_type=None):
     files = list(files)
 
-    StorageClass = GreenStorage if self.config.green else Storage
+    StorageClass = self.pick_storage_class(files)
     with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
       remote_fragments = stor.put_files(
         files=files,
@@ -338,6 +338,10 @@ class CacheService(object):
       return None    
     return json.loads(res.decode('utf8'))
 
+  def download_single(self, path, compress=None):
+    files = self.download([ path ], compress=compress)
+    return files[path]
+
   def download(self, paths, compress=None):
     """
     Download the provided paths, but grab them from cache first
@@ -345,6 +349,9 @@ class CacheService(object):
 
     Returns: { filename: content, ... }
     """
+    if len(paths) == 0:
+      return {}
+
     locs = self.compute_data_locations(paths)
     locs['remote'] = [ str(x) for x in locs['remote'] ]
 
@@ -352,7 +359,7 @@ class CacheService(object):
     if self.enabled:
       fragments = self.get(locs['local'])
 
-    StorageClass = GreenStorage if self.config.green else Storage
+    StorageClass = self.pick_storage_class(locs['remote'])
     with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
       remote_fragments = stor.get_files(locs['remote'])
 
@@ -379,14 +386,17 @@ class CacheService(object):
 
   def get(self, cloudpaths, progress=None):
     progress = self.config.progress if progress is None else progress
-    StorageClass = GreenStorage if self.config.green else Storage
-
+    
+    StorageClass = self.pick_storage_class(cloudpaths)
     with StorageClass('file://' + self.path, progress=progress) as stor:
       results = stor.get_files(
         [ filepath for filepath in cloudpaths ]
       )
 
     return { res['filename']: res['content'] for res in results }
+
+  def put_single(self, path, content, *args, **kwargs):
+    return self.put({ path: content }, *args, **kwargs)
 
   def put(self, files, progress=None, compress=None):
     """files is { filename: content }"""
@@ -399,7 +409,7 @@ class CacheService(object):
     if compress is None:
       compress = self.config.compress
     
-    StorageClass = GreenStorage if self.config.green else Storage
+    StorageClass = self.pick_storage_class(files)
 
     save_location = 'file://' + self.path
     with StorageClass(save_location, progress=progress) as stor:
@@ -435,10 +445,16 @@ class CacheService(object):
     already_have = [ os.path.join(basepathmap[fname], fname) for fname in already_have ]
 
     return { 'local': already_have, 'remote': download_paths }
+
+  def pick_storage_class(self, cloudpaths):
+    if len(cloudpaths) <= 1:
+      return SimpleStorage
+    elif self.config.green:
+      return GreenStorage
+    else:
+      return Storage
     
   def __repr__(self):
     return "CacheService(enabled={}, compress={}, path='{}')".format(
       self.enabled, self.compress, self.path
     )
-
-
