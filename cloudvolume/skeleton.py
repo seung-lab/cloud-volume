@@ -12,13 +12,13 @@ except ImportError:
 import numpy as np
 import struct
 
-from cloudvolume import lib
-from cloudvolume.exceptions import (
+from . import lib
+from .exceptions import (
   SkeletonDecodeError, SkeletonEncodeError, 
   SkeletonUnassignedEdgeError
 )
-from cloudvolume.lib import red, Bbox
-from cloudvolume.storage import Storage, SimpleStorage
+from .lib import red, Bbox
+from .storage import Storage, SimpleStorage
 
 class Skeleton(object):
   def __init__(self, 
