@@ -195,9 +195,14 @@ class GoogleCloudStorageInterface(StorageInterface):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
+    if start is not None:
+      start = int(start)
+    if end is not None:
+      end = int(end - 1)      
+
     try:
       # blob handles the decompression so the encoding is None
-      return blob.download_as_string(start=int(start), end=int(end - 1)), None # content, encoding
+      return blob.download_as_string(start=start, end=end), None # content, encoding
     except google.cloud.exceptions.NotFound as err:
       return None, None
 
@@ -298,9 +303,9 @@ class HttpInterface(StorageInterface):
     key = self.get_path_to_file(file_path)
 
     if start is not None or end is not None:
-      start = start if start is not None else ''
-      end = end if end is not None else ''
-      headers = { "Range": "bytes={}-{}".format(int(start), int(end - 1)) }
+      start = int(start) if start is not None else ''
+      end = int(end - 1) if end is not None else ''
+      headers = { "Range": "bytes={}-{}".format(start, end) }
       resp = requests.get(key, headers=headers)
     else:
       resp = requests.get(key)
@@ -360,9 +365,9 @@ class S3Interface(StorageInterface):
 
     kwargs = {}
     if start is not None or end is not None:
-      start = start if start is not None else ''
-      end = end if end is not None else ''
-      kwargs['Range'] = "bytes={}-{}".format(int(start), int(end - 1))
+      start = int(start) if start is not None else ''
+      end = int(end - 1) if end is not None else ''
+      kwargs['Range'] = "bytes={}-{}".format(start, end)
 
     try:
       resp = self._conn.get_object(
