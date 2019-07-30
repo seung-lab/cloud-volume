@@ -6,7 +6,7 @@ import numpy as np
 
 from .exceptions import UnsupportedFormatError
 from .lib import generate_random_string
-from .paths import strict_extract
+from .paths import strict_extract, to_https_protocol
 
 # NOTE: Plugins are registered in __init__.py
 
@@ -174,9 +174,7 @@ class CloudVolume(object):
         https paths hit a cached, read-only version of the data and may be faster.
     """
     if use_https:
-      cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
-      cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
-      cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
+      cloudpath = to_https_protocol(cloudpath)
 
     kwargs = locals()
     del kwargs['cls']

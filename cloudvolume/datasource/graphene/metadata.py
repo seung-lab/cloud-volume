@@ -28,9 +28,7 @@ class GrapheneMetadata(PrecomputedMetadata):
   def cloudpath(self):
     data_dir = self.info['data_dir']
     if self.use_https:
-      data_dir = data_dir.replace("gs://", "https://storage.googleapis.com/", 1)
-      data_dir = data_dir.replace("s3://", "https://s3.amazonaws.com/", 1)
-      data_dir = data_dir.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
+      data_dir = paths.use_https_protocol(data_dir)
     return data_dir
 
   @property
