@@ -488,7 +488,8 @@ Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/H
 Thanks to Jeremy Maitin-Shepard and Stephen Plaza for their C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg).  
 Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.  
 Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him).   
-Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.
+Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.  
+Thanks to Fredrik Kihlander for his [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) for developing murmurhash3.  
   
 ## Mailing List 
 
