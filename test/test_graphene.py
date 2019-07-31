@@ -77,7 +77,7 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
     requests_mock.get(PCG_LOCATION+TEST_DATASET_NAME+"/info/")
     
     def mock_get_leaves(self, root_id, bbox, mip):
-        return np.array([1,2,3], dtype=np.uint64)
+        return np.array([0,1,2,3], dtype=np.uint64)
 
     gcv = cloudvolume.CloudVolume(
         "graphene://{}{}".format(PCG_LOCATION, TEST_DATASET_NAME)
@@ -87,3 +87,5 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
 
 def test_gcv(graphene_vol):
     cutout = graphene_vol[0:5,0:5,0:5,[999]]
+    assert(np.all(cutout==999))
+    
