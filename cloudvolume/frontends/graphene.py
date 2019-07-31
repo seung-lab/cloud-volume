@@ -36,7 +36,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   def download(
     self, bbox, mip=None, 
     parallel=None, root_ids=None,
-    mask_base=True
+    mask_base=False
   ):
     """
     Graphene slicing is distinguished from Precomputed in two ways:
@@ -91,20 +91,23 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       a list of root ids that describe how to remap the base
       watershed coloring.
     """
-    try:
-      root_ids = iter(slices[-1])
-      slices=slices[0:3]
-      return self.download(
-        slices, mip=self.mip, 
-        parallel=self.parallel, root_ids=root_ids
-      )
-    except TypeError: 
-      # The end of the array was not iterable, 
-      # and thus not the root ids.
-      return self.download(
-        slices, mip=self.mip, 
-        parallel=self.parallel, root_ids=None
-      )
+    # try:
+    print(type(slices[-1]))
+    root_ids = iter(slices[-1])
+    slices=slices[0:3]
+    return self.download(
+      slices, mip=self.mip, 
+      parallel=self.parallel, root_ids=root_ids
+    )
+    # except TypeError: 
+    #   # The end of the array was not iterable, 
+    #   # and thus not the root ids.
+    #   print('warning no root ids selected, downloading supervoxels')
+    #   return self.download(
+    #     slices, mip=self.mip,
+    #     mask_base=False,
+    #     parallel=self.parallel, root_ids=None
+    #   )
 
   def _get_leaves(self, root_id, bbox, mip):
     """
