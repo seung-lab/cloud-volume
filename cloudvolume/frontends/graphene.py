@@ -58,7 +58,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       mip = self.mip
 
     bbox = self.bbox_to_mip(bbox, mip=0, to_mip=mip)
-
+    print('bound box', bbox)
     if root_ids is None and mask_base:
       return np.zeros( bbox.size(), dtype=self.dtype )
 
