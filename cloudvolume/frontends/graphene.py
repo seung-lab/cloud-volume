@@ -57,12 +57,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if mip is None:
       mip = self.mip
 
-    bbox = self.bbox_to_mip(bbox, mip=0, to_mip=mip)
-    print('bound box', bbox)
+    bbox_mip = self.bbox_to_mip(bbox, mip=0, to_mip=mip)
+ 
     if root_ids is None and mask_base:
       return np.zeros( bbox.size(), dtype=self.dtype )
 
-    img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel)
+    img = super(CloudVolumeGraphene, self).download(bbox_mip, mip=mip, parallel=parallel)
 
     if root_ids is None:
       if mask_base:
@@ -73,7 +73,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     remapping = {}
     for root_id in root_ids:
-      leaves = self._get_leaves(root_id, bbox, mip)
+      leaves = self._get_leaves(root_id, bbox, 0)
       remapping.update({ leaf: root_id for leaf in leaves })
     
     img = fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
@@ -120,7 +120,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     root_id = int(root_id)
     url = posixpath.join(self.meta.server_url, "segment", str(root_id), "leaves")
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
-
+    print('get_leaves', bbox.to_filename())
     response = requests.post(url, json=[ root_id ], params={
       'bounds': bbox.to_filename(),
     })
