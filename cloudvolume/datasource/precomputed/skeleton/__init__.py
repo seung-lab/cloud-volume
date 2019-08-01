@@ -1,3 +1,5 @@
+import os
+
 from .metadata import PrecomputedSkeletonMetadata
 from .sharded import ShardedPrecomputedSkeletonSource
 from .unsharded import UnshardedPrecomputedSkeletonSource
@@ -5,6 +7,7 @@ from .unsharded import UnshardedPrecomputedSkeletonSource
 from ..metadata import PrecomputedMetadata
 from ....cacheservice import CacheService
 from ....paths import strict_extract
+from ....cloudvolume import SharedConfiguration
 
 class PrecomputedSkeletonSource(object):
   def __new__(cls, meta, cache, config):
