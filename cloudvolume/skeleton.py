@@ -24,7 +24,7 @@ class Skeleton(object):
   def __init__(self, 
     vertices=None, edges=None, 
     radii=None, vertex_types=None, 
-    segid=None
+    segid=None, transform=None
   ):
 
     self.id = segid
@@ -57,6 +57,15 @@ class Skeleton(object):
       self.vertex_types = np.array(vertex_types, dtype=np.uint8)
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
+
+    if transform is None:
+      self.transform = np.array([
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+      ], dtype=np.float32)
+    else:
+      self.transform = transform
 
   @classmethod
   def from_path(kls, vertices):
