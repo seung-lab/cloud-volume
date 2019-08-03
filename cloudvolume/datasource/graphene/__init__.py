@@ -14,7 +14,7 @@ def create_graphene(
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=False, info=None, provenance=None,
     compress=None, parallel=1,
-    delete_black_uploads=False, green_threads=False, 
+    delete_black_uploads=False, green_threads=False, use_https=False,
     **kwargs
   ):
     
@@ -36,7 +36,7 @@ def create_graphene(
 
     meta = GrapheneMetadata(
       cloudpath, cache=cache,
-      info=info, provenance=provenance,
+      info=info, provenance=provenance, use_https=use_https
     )
 
     image = PrecomputedImageSource(

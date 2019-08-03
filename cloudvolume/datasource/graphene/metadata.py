@@ -10,9 +10,10 @@ from ... import paths
 from ..precomputed import PrecomputedMetadata
 
 class GrapheneMetadata(PrecomputedMetadata):
-  def __init__(self, cloudpath, *args, **kwargs):
+  def __init__(self, cloudpath, use_https=False, *args, **kwargs):
     self.server_url = cloudpath.replace('graphene://', '')
     self.server_path = extract_graphene_path(self.server_url)
+    self.use_https = use_https
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
   def fetch_info(self):
@@ -25,7 +26,10 @@ class GrapheneMetadata(PrecomputedMetadata):
 
   @property
   def cloudpath(self):
-    return self.info['data_dir']
+    data_dir = self.info['data_dir']
+    if self.use_https:
+      data_dir = paths.use_https_protocol(data_dir)
+    return data_dir
 
   @property
   def graph_chunk_size(self):
