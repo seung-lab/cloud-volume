@@ -384,6 +384,10 @@ class CacheService(object):
     fragments.update(remote_fragments)
     return fragments
 
+  def get_single(self, cloudpath, progress=None):
+    res = self.get([ cloudpath ], progress=None)
+    return res[cloudpath]
+
   def get(self, cloudpaths, progress=None):
     progress = self.config.progress if progress is None else progress
     
@@ -396,10 +400,9 @@ class CacheService(object):
     return { res['filename']: res['content'] for res in results }
 
   def put_single(self, path, content, *args, **kwargs):
-    return self.put({ path: content }, *args, **kwargs)
+    return self.put([ (path, content) ], *args, **kwargs)
 
   def put(self, files, progress=None, compress=None):
-    """files is { filename: content }"""
     if progress is None:
       progress = self.config.progress
 
