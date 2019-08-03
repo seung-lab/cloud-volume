@@ -57,12 +57,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if mip is None:
       mip = self.mip
 
-    bbox_mip = self.bbox_to_mip(bbox, mip=0, to_mip=mip)
- 
+    mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
     if root_ids is None and mask_base:
       return np.zeros( bbox.size(), dtype=self.dtype )
 
-    img = super(CloudVolumeGraphene, self).download(bbox_mip, mip=mip, parallel=parallel)
+    img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel)
 
     if root_ids is None:
       if mask_base:
@@ -73,7 +72,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     remapping = {}
     for root_id in root_ids:
-      leaves = self._get_leaves(root_id, bbox, 0)
+      leaves = self._get_leaves(root_id, mip0_bbox, 0)
       remapping.update({ leaf: root_id for leaf in leaves })
     
     img = fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
@@ -91,22 +90,22 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       a list of root ids that describe how to remap the base
       watershed coloring.
     """
-    # try:
-    root_ids = iter(slices[-1])
-    slices=slices[0:-1]
-    return self.download(
-      slices, mip=self.mip, 
-      parallel=self.parallel, root_ids=root_ids
-    )
-    # except TypeError: 
-    #   # The end of the array was not iterable, 
-    #   # and thus not the root ids.
-    #   print('warning no root ids selected, downloading supervoxels')
-    #   return self.download(
-    #     slices, mip=self.mip,
-    #     mask_base=False,
-    #     parallel=self.parallel, root_ids=None
-    #   )
+    try:
+      root_ids = iter(slices[-1])
+      slices=slices[0:-1]
+      return self.download(
+        slices, mip=self.mip, 
+        parallel=self.parallel, root_ids=root_ids
+      )
+    except TypeError: 
+      # The end of the array was not iterable, 
+      # and thus not the root ids.
+      print('warning no root ids selected, downloading supervoxels')
+      return self.download(
+        slices, mip=self.mip,
+        mask_base=False,
+        parallel=self.parallel, root_ids=None
+      )
 
   def _get_leaves(self, root_id, bbox, mip):
     """
@@ -120,7 +119,6 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     root_id = int(root_id)
     url = posixpath.join(self.meta.server_url, "segment", str(root_id), "leaves")
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
-    print('get_leaves', bbox.to_filename())
     response = requests.post(url, json=[ root_id ], params={
       'bounds': bbox.to_filename(),
     })
