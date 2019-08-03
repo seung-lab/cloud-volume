@@ -32,6 +32,7 @@ setuptools.setup(
     "mesh_viewer": [ 'vtk' ],
     "skeleton_viewer": [ 'matplotlib' ],
     "all_viewers": [ 'vtk', 'matplotlib' ],
+    "test": [ "pytest" ],
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",
