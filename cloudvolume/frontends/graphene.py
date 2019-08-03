@@ -50,7 +50,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     """
     bbox = Bbox.create(bbox, context=self.meta.bounds(0), bounded=self.bounded)
-
+    
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
 
@@ -69,7 +69,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         img[:] = 0
       return img
 
-    root_ids = toiter(root_ids)
+    root_ids = list(toiter(root_ids))
 
     remapping = {}
     for root_id in root_ids:
@@ -91,20 +91,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       a list of root ids that describe how to remap the base
       watershed coloring.
     """
-    try:
-      iter(slices[-1])
-      root_ids = list(slices.pop())
-      return self.download(
-        slices, mip=self.mip, 
-        parallel=self.parallel, root_ids=root_ids
-      )
-    except TypeError: 
-      # The end of the array was not iterable, 
-      # and thus not the root ids.
-      return self.download(
-        slices, mip=self.mip, 
-        parallel=self.parallel, root_ids=None
-      )
+    slices = list(slices)
+    root_ids = list(toiter(slices.pop()))
+    return self.download(
+      slices, mip=self.mip, 
+      parallel=self.parallel, root_ids=root_ids
+    )
 
   def _get_leaves(self, root_id, bbox, mip):
     """
