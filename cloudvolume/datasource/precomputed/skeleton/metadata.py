@@ -1,5 +1,7 @@
 import json
 
+import numpy as np
+
 class PrecomputedSkeletonMetadata(object):
   def __init__(self, meta, cache=None, info=None):
     self.meta = meta
@@ -20,6 +22,14 @@ class PrecomputedSkeletonMetadata(object):
     return self.meta.join(*paths)
 
   @property
+  def transform(self):
+    return np.array(self.info['transform'], dtype=np.float32).reshape( (3,4) )
+
+  @transform.setter
+  def transform(self, val):
+    self.info['transform'] = val
+
+  @property
   def full_path(self):
     return self.meta.join(self.meta.cloudpath, self.path)
 
@@ -36,7 +46,7 @@ class PrecomputedSkeletonMetadata(object):
   def commit_info(self):
     if self.info:
       self.cache.upload_single(
-        self.meta.join(self.path, 'info'),
+      self.meta.join(self.path, 'info'),
         json.dumps(self.info), 
         content_type='application/json',
         compress=False,

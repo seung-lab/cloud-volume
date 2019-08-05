@@ -67,7 +67,36 @@ class Skeleton(object):
         [0, 0, 1, 0],
       ], dtype=np.float32)
     else:
-      self.transform = transform
+      self.transform = np.array(transform).reshape( (3, 4) )
+
+  def apply_transform(self, transform=None):
+    if transform is None:
+      transform = self.transform
+
+    verts = np.append(
+      self.vertices,
+      np.ones( (self.vertices.shape[0], 1), dtype=self.vertices.dtype), 
+      axis=1
+    )
+    verts = transform.dot(verts.T).T
+    self.vertices = verts[:,0:3]
+
+  def apply_inverse_transform(self, transform=None):
+    if transform is None:
+      transform = self.transform
+
+    verts = np.append(
+      self.vertices, 
+      np.ones( (self.vertices.shape[0], 1), dtype=self.vertices.dtype), 
+      axis=1
+    )
+    
+    transform = np.zeros( (3,4), dtype=np.float32 )
+    transform[:3,:3] = np.linalg.inverse(self.transform[:3,:3])
+    transform[:,3] = -self.transform[:,3]
+
+    verts = transform.dot(verts.T).T
+    self.vertices = verts[:,0:3]    
 
   @property 
   def radii(self):
