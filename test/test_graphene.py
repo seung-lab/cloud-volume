@@ -1,3 +1,5 @@
+from functools import partial
+
 import tempfile
 import cloudvolume
 import numpy as np
@@ -31,9 +33,11 @@ def cv_supervoxels(N=64, blockN=16):
     vol = cloudvolume.CloudVolume(TEST_PATH, info=info)
     vol.commit_info()
     xx, yy, zz = np.meshgrid(*[np.arange(0, N) for cs in chunk_size])
-    id_ind = (np.uint64(xx / blockN),
-              np.uint64(yy / blockN),
-              np.uint64(zz / blockN))
+    id_ind = (
+        np.uint64(xx / blockN),
+        np.uint64(yy / blockN),
+        np.uint64(zz / blockN)
+    )
     id_shape = (block_per_row, block_per_row, block_per_row)
 
     seg = np.ravel_multi_index(id_ind, id_shape)
@@ -82,7 +86,7 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
     gcv = cloudvolume.CloudVolume(
         "graphene://{}{}".format(PCG_LOCATION, TEST_DATASET_NAME)
     )
-    gcv._get_leaves = mock_get_leaves
+    gcv._get_leaves = partial(mock_get_leaves, gcv)
     yield gcv
 
 def test_gcv(graphene_vol):

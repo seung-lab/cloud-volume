@@ -50,7 +50,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     """
     bbox = Bbox.create(bbox, context=self.meta.bounds(0), bounded=self.bounded)
-
+    
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
 
@@ -68,7 +68,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         img[:] = 0
       return img
 
-    root_ids = toiter(root_ids)
+    root_ids = list(toiter(root_ids))
 
     remapping = {}
     for root_id in root_ids:
@@ -91,8 +91,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       watershed coloring.
     """
     try:
-      root_ids = iter(slices[-1])
-      slices=slices[0:-1]
+      slices = list(slices)
+      root_ids = list(toiter(slices.pop()))
       return self.download(
         slices, mip=self.mip, 
         parallel=self.parallel, root_ids=root_ids

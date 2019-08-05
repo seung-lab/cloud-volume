@@ -10,8 +10,6 @@ google-cloud-storage>=1.10.0
 intern>=0.9.11
 json5==0.5.1
 numpy>=1.13.3
-pytest>=3.3.1
-requests-mock
 python-jsonschema-objects>=0.3.3
 Pillow>=4.2.1
 protobuf>=3.3.0
