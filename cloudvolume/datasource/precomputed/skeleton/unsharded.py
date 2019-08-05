@@ -68,7 +68,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       try:
         skel = Skeleton.from_precomputed(content, segid=segid)
       except Exception as err:
-        raise SkeletonDecodeError("segid " + str(segid) + ": " + err.message)
+        raise SkeletonDecodeError("segid " + str(segid) + ": " + str(err))
       skeletons.append(skel)
 
     if list_return:

@@ -44,11 +44,11 @@ class Skeleton(object):
       self.edges = edges.astype(np.uint32)
 
     if radii is None:
-      self.radii = -1 * np.ones(shape=self.vertices.shape[0], dtype=np.float32)
+      self.radius = -1 * np.ones(shape=self.vertices.shape[0], dtype=np.float32)
     elif type(radii) is list:
-      self.radii = np.array(radii, dtype=np.float32)
+      self.radius = np.array(radii, dtype=np.float32)
     else:
-      self.radii = radii
+      self.radius = radii
 
     if vertex_types is None:
       # 0 = undefined in SWC (http://research.mssm.edu/cnic/swc.html)
@@ -58,6 +58,8 @@ class Skeleton(object):
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
 
+    self.extra_attributes = []
+
     if transform is None:
       self.transform = np.array([
         [1, 0, 0, 0],
@@ -66,6 +68,14 @@ class Skeleton(object):
       ], dtype=np.float32)
     else:
       self.transform = transform
+
+  @property 
+  def radii(self):
+    return self.radius
+
+  @radii.setter 
+  def radii(self, val):
+    self.radius = val
 
   @classmethod
   def from_path(kls, vertices):
@@ -147,7 +157,7 @@ class Skeleton(object):
     return result.getvalue()
 
   @classmethod
-  def from_precomputed(kls, skelbuf, segid=None):
+  def from_precomputed(kls, skelbuf, segid=None, vertex_attributes=None):
     """
     Convert a buffer into a Skeleton object.
 
@@ -156,8 +166,21 @@ class Skeleton(object):
     num edges (Ne) (uint32)
     XYZ x Nv (float32)
     edge x Ne (2x uint32)
-    radii x Nv (optional, float32)
-    vertex_type x Nv (optional, req radii, uint8) (SWC definition)
+
+    Default Vertex Attributes:
+
+      radii x Nv (optional, float32)
+      vertex_type x Nv (optional, req radii, uint8) (SWC definition)
+
+    Specify your own:
+
+    vertex_attributes = [
+      {
+        'id': name of attribute,
+        'num_components': int,
+        'data_type': dtype,
+      },
+    ]
 
     More documentation: 
     https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Skeletons-and-Point-Clouds
@@ -185,37 +208,42 @@ class Skeleton(object):
     vertices = np.frombuffer(vertbuf, dtype='<f4').reshape( (num_vertices, 3) )
     edges = np.frombuffer(edgebuf, dtype='<u4').reshape( (num_edges, 2) )
 
+    skeleton = Skeleton(vertices, edges, segid=segid)
+
     if len(skelbuf) == min_format_length:
-      return Skeleton(vertices, edges, segid=segid)
+      return skeleton
 
-    radii_format_length = min_format_length + num_vertices * 4
+    if vertex_attributes is None:
+      vertex_attributes = [
+        {
+          "id": "radius",
+          "data_type": "float32",
+          "num_components": 1,
+        }, 
+        {
+          "id": "vertex_types",
+          "data_type": "uint8",
+          "num_components": 1,
+        }
+      ]
 
-    if len(skelbuf) < radii_format_length:
-      raise SkeletonDecodeError("Input buffer did not have enough float32 radii to correspond to each vertex. # vertices: {}, # radii: {}".format(
-        num_vertices, (radii_format_length - min_format_length) / 4
-      ))
+    start = eend
+    end = -1
+    for attr in vertex_attributes:
+      num_components = int(attr['num_components'])
+      data_type = np.dtype(attr['data_type'])
+      end = start + num_vertices * num_components * data_type.itemsize
+      attrbuf = np.frombuffer(skelbuf[start : end], dtype=data_type)
 
-    rstart = eend
-    rend = rstart + num_vertices * 4 # 4 bytes np.float32
-    radiibuf = skelbuf[ rstart : rend ]
-    radii = np.frombuffer(radiibuf, dtype=np.float32)
+      if num_components > 1:
+        attrbuf = attrbuf.reshape( (num_vertices, num_components) )
 
-    if len(skelbuf) == radii_format_length:
-      return Skeleton(vertices, edges, radii, segid=segid)
+      setattr(skeleton, attr['id'], attrbuf)
+      start = end
 
-    type_format_length = radii_format_length + num_vertices * 1 
+    skeleton.extra_attributes = vertex_attributes
 
-    if len(skelbuf) < type_format_length:
-      raise SkeletonDecodeError("Input buffer did not have enough uint8 SWC vertex types to correspond to each vertex. # vertices: {}, # types: {}".format(
-        num_vertices, (type_format_length - radii_format_length)
-      ))
-
-    tstart = rend
-    tend = tstart + num_vertices
-    typebuf = skelbuf[ tstart:tend ]
-    vertex_types = np.frombuffer(typebuf, dtype=np.uint8)
-
-    return Skeleton(vertices, edges, radii, vertex_types, segid=segid)
+    return skeleton
 
   @classmethod
   def equivalent(kls, first, second):
