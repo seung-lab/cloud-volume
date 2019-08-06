@@ -163,7 +163,7 @@ class Skeleton(object):
     )
     
     transform = np.zeros( (3,4), dtype=np.float32 )
-    transform[:3,:3] = np.linalg.inverse(self.transform[:3,:3])
+    transform[:3,:3] = np.linalg.inv(self.transform[:3,:3])
     transform[:,3] = -self.transform[:,3]
 
     verts = transform.dot(verts.T).T

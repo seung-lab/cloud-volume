@@ -301,6 +301,26 @@ def test_cable_length():
   )
   assert abs(skel.cable_length() - (math.sqrt(3) + 1)) < 1e-6
 
+def test_transform():
+  skelv = Skeleton([ 
+      (0,0,0), (1,0,0), (1,1,0), (1,1,3), (2,1,3), (2,2,3)
+    ], 
+    edges=[ (1,0), (1,2), (2,3), (3,4), (5,4) ],
+    radii=[ 1, 2, 3, 4, 5, 6 ],
+    vertex_types=[1, 2, 3, 4, 5, 6],
+    segid=1337,
+    transform=np.array([
+      [2, 0, 0, 0],
+      [0, 2, 0, 0],
+      [0, 0, 2, 0],
+    ])
+  )
+
+  skelp = skelv.physical_space()
+  assert np.all(skelp.vertices == skelv.vertices * 2)
+  assert np.all(skelv.vertices == skelp.voxel_space().vertices)
+
+
 def test_downsample():
   skel = Skeleton([ 
       (0,0,0), (1,0,0), (1,1,0), (1,1,3), (2,1,3), (2,2,3)
