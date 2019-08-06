@@ -70,8 +70,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       except Exception as err:
         raise SkeletonDecodeError("segid " + str(segid) + ": " + str(err))
       skel.transform = self.meta.transform
-      skel.apply_transform()
-      skeletons.append(skel)
+      skeletons.append(skel.physical_space())
 
     if list_return:
       return skeletons

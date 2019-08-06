@@ -30,9 +30,7 @@ class ShardedPrecomputedSkeletonSource(object):
       binary = self.reader.get_data(segid)
       skeleton = Skeleton.from_precomputed(binary, segid=segid)
       skeleton.transform = self.meta.transform
-      skeleton.apply_transform()
-
-      results.append(skeleton)
+      results.append(skeleton.physical_space())
 
     if list_return:
       return results

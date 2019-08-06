@@ -20,14 +20,21 @@ from .exceptions import (
 from .lib import red, Bbox
 from .storage import Storage, SimpleStorage
 
+IDENTITY = np.array([
+  [1, 0, 0, 0],
+  [0, 1, 0, 0],
+  [0, 0, 1, 0],
+], dtype=np.float32)
+
 class Skeleton(object):
   def __init__(self, 
     vertices=None, edges=None, 
     radii=None, vertex_types=None, 
-    segid=None, transform=None
+    segid=None, transform=None,
+    space='voxel', extra_attributes=[]
   ):
-
     self.id = segid
+    self.space = space
 
     if vertices is None:
       self.vertices = np.array([[]], dtype=np.float32)
@@ -58,28 +65,74 @@ class Skeleton(object):
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
 
-    self.extra_attributes = []
+    self.extra_attributes = extra_attributes
 
     if transform is None:
-      self.transform = np.array([
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-      ], dtype=np.float32)
+      self.transform = np.copy(IDENTITY)
     else:
       self.transform = np.array(transform).reshape( (3, 4) )
 
-  def apply_transform(self, transform=None):
-    if transform is None:
-      transform = self.transform
+  def physical_space(self, copy=True):
+    """
+    Convert skeleton vertices into a physical space 
+    representation if it's not already there.
 
+    copy: if False, don't copy if already in the correct
+      coordinate frame.
+
+    Returns: skeleton in physical coordinates
+    """
+    if self.space == 'physical':
+      if copy:
+        return self.clone()
+      else:
+        return self
+
+    skel = self.clone()
+    skel.apply_transform()
+    skel.space = 'physical'
+    return skel
+
+  def voxel_space(self, copy=True):
+    """
+    Convert skeleton vertices into a voxel space 
+    representation if it's not already there.
+
+    copy: if False, don't copy if already in the correct
+      coordinate frame.
+
+    Returns: skeleton in voxel coordinates
+    """
+    if self.space == 'voxel':
+      if copy:
+        return self.clone()
+      else:
+        return self
+
+    skel = self.clone()
+    skel.apply_inverse_transform()
+    skel.space = 'voxel'
+    return skel
+
+  @property
+  def transform(self):
+    return self._transform
+
+  @transform.setter 
+  def transform(self, val):
+    self._transform = np.array(val, dtype=np.float32).reshape( (3,4) )
+
+  def transform_vertices(self, vertices, transform):
     verts = np.append(
-      self.vertices,
-      np.ones( (self.vertices.shape[0], 1), dtype=self.vertices.dtype), 
+      vertices,
+      np.ones( (vertices.shape[0], 1), dtype=vertices.dtype), 
       axis=1
     )
     verts = transform.dot(verts.T).T
-    self.vertices = verts[:,0:3]
+    return verts[:,0:3]    
+
+  def apply_transform(self):
+    self.vertices = self.transform_vertices(self.vertices, self.transform)
 
   def apply_inverse_transform(self, transform=None):
     if transform is None:
@@ -451,15 +504,27 @@ class Skeleton(object):
     radii = np.copy(self.radii)
     vertex_types = np.copy(self.vertex_types)
 
-    return Skeleton(vertices, edges, radii, vertex_types, segid=self.id)
+    skel = Skeleton(
+      vertices, edges, radii, vertex_types, 
+      segid=self.id, 
+      space=self.space, 
+      extra_attributes=self.extra_attributes,
+      transform=np.copy(self.transform)
+    )
+    for attr in skel.extra_attributes:
+      setattr(skel, attr['id'], np.copy(getattr(self, attr['id'])))
+
+    return skel
 
   def cable_length(self):
     """
     Returns cable length of connected skeleton vertices in the same
     metric that this volume uses (typically nanometers).
     """
-    v1 = self.vertices[self.edges[:,0]]
-    v2 = self.vertices[self.edges[:,1]]
+    skel = self.physical_space(copy=False)
+
+    v1 = skel.vertices[skel.edges[:,0]]
+    v2 = skel.vertices[skel.edges[:,1]]
 
     delta = (v2 - v1)
     delta *= delta
