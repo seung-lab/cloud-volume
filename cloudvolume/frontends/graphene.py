@@ -90,14 +90,14 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       a list of root ids that describe how to remap the base
       watershed coloring.
     """
-    try:
+    if len(slices)==4:
       slices = list(slices)
       root_ids = list(toiter(slices.pop()))
       return self.download(
         slices, mip=self.mip, 
         parallel=self.parallel, root_ids=root_ids
       )
-    except TypeError: 
+    else:
       # The end of the array was not iterable, 
       # and thus not the root ids.
       print('warning no root ids selected, downloading supervoxels')
