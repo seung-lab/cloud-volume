@@ -26,6 +26,9 @@ IDENTITY = np.array([
   [0, 0, 1, 0],
 ], dtype=np.float32)
 
+class SkeletonTransformError(Exception):
+  pass
+
 class Skeleton(object):
   def __init__(self, 
     vertices=None, edges=None, 
@@ -72,6 +75,17 @@ class Skeleton(object):
     else:
       self.transform = np.array(transform).reshape( (3, 4) )
 
+  def _check_space(self):
+    if self.space not in ('physical', 'voxel'):
+      raise SkeletonTransformError(
+        """
+        Loss of coordinate frame information. If the space is not 'physical' or 'voxel',
+        the meaning of applying this transform matrix is unknown.
+
+        space: {}
+        """.format(self.space)
+      )
+
   def physical_space(self, copy=True):
     """
     Convert skeleton vertices into a physical space 
@@ -82,6 +96,8 @@ class Skeleton(object):
 
     Returns: skeleton in physical coordinates
     """
+    self._check_space()
+
     if self.space == 'physical':
       if copy:
         return self.clone()
@@ -103,6 +119,8 @@ class Skeleton(object):
 
     Returns: skeleton in voxel coordinates
     """
+    self._check_space()
+
     if self.space == 'voxel':
       if copy:
         return self.clone()
