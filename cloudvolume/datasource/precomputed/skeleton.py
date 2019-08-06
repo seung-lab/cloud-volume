@@ -441,7 +441,7 @@ class PrecomputedSkeleton(object):
 
     return ds_skel
 
-  def _single_tree_paths(self, tree):
+  def _single_tree_paths(self, tree, return_indices):
     """Get all traversal paths from a single tree."""
     skel = tree.consolidate()
 
@@ -484,10 +484,13 @@ class PrecomputedSkeleton(object):
     root = paths[root][-1]
   
     paths = dfs([ root ], defaultdict(bool))
-    
-    return [ np.flip(skel.vertices[path], axis=0) for path in paths ]    
 
-  def paths(self):
+    if return_indices:
+      return [ np.flip(path) for path in paths ]
+
+    return [ np.flip(skel.vertices[path], axis=0) for path in paths ]
+
+  def paths(self, return_indices=False):
     """
     Assuming the skeleton is structured as a single tree, return a 
     list of all traversal paths across all components. For each component, 
@@ -499,10 +502,10 @@ class PrecomputedSkeleton(object):
     """
     paths = []
     for tree in self.components():
-      paths += self._single_tree_paths(tree)
+      paths += self._single_tree_paths(tree, return_indices=return_indices)
     return paths
 
-  def _single_tree_interjoint_paths(self, skeleton):
+  def _single_tree_interjoint_paths(self, skeleton, return_indices):
     vertices = skeleton.vertices
     edges = skeleton.edges
 
@@ -554,9 +557,12 @@ class PrecomputedSkeleton(object):
           criticals.append(root)
           path_stack.append(list(path))
 
+    if return_indices:
+      return paths
+
     return [ vertices[path] for path in paths ]
 
-  def interjoint_paths(self):
+  def interjoint_paths(self, return_indices=False):
     """
     Returns paths between the adjacent critical points
     in the skeleton, where a critical point is the set of
@@ -564,7 +570,9 @@ class PrecomputedSkeleton(object):
     """
     paths = []
     for tree in self.components():
-      subpaths = self._single_tree_interjoint_paths(tree)
+      subpaths = self._single_tree_interjoint_paths(
+        tree, return_indices=return_indices
+      )
       paths.extend(subpaths)
 
     return paths
