@@ -320,6 +320,20 @@ def test_transform():
   assert np.all(skelp.vertices == skelv.vertices * 2)
   assert np.all(skelv.vertices == skelp.voxel_space().vertices)
 
+  skelv.transform = [
+    [1, 0, 0, 1],
+    [0, 1, 0, 2],
+    [0, 0, 1, 3],
+  ]
+
+  skelp = skelv.physical_space()
+  tmpskel = skelv.clone() 
+  tmpskel.vertices[:,0] += 1
+  tmpskel.vertices[:,1] += 2
+  tmpskel.vertices[:,2] += 3
+  assert np.all(skelp.vertices == tmpskel.vertices)
+  assert np.all(skelp.voxel_space().vertices == skelv.vertices)
+
 
 def test_downsample():
   skel = Skeleton([ 
