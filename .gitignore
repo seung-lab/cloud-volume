@@ -111,3 +111,4 @@ saved_images
 
 # Prophylactic for accidently uploading secrets
 *secret.json
+.vscode
