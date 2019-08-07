@@ -30,6 +30,45 @@ class SkeletonTransformError(Exception):
   pass
 
 class Skeleton(object):
+  """
+  A stick figure representation of a 3D object. 
+
+  vertices: [[x,y,z], ...] float32
+  edges: [[v1,v2], ...] uint32
+  radii: [r1,r2,...] float32 distance from vertex to nearest boudary
+  vertex_types: [t1,t2,...] uint8 SWC vertex types
+  segid: numerical ID
+  transform: 3x4 scaling and translation matrix (ie homogenous coordinates) 
+    that represents the transformaton from voxel to physical coordinates.
+    
+    Example Identity Matrix:
+    [
+      [1, 0, 0, 0],
+      [0, 1, 0, 0],
+      [0, 0, 1, 0]
+    ]
+
+  space: 'voxel', 'physical', or user choice (but other choices 
+    make .physical_space() and .voxel_space() stop working as they
+    become meaningless.)
+  
+  extra_attributes: You can specify additional per vertex
+    data attributes (the most common are radii and vertex_type) 
+    that are present in reading Precomputed binary skeletons using
+    the following format:
+    [
+        {
+          "id": "radius",
+          "data_type": "uint8",
+          "num_components": 1,
+        }
+    ]
+
+    These attributes will become object properties. i.e. skel.radius
+
+    Note that for backwards compatibility, skel.radius is treated 
+    specially and is synonymous with skel.radii.
+  """
   def __init__(self, 
     vertices=None, edges=None, 
     radii=None, vertex_types=None, 
