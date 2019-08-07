@@ -73,7 +73,7 @@ class Skeleton(object):
     vertices=None, edges=None, 
     radii=None, vertex_types=None, 
     segid=None, transform=None,
-    space='voxel', extra_attributes=[]
+    space='voxel', extra_attributes=None
   ):
     self.id = segid
     self.space = space
@@ -107,12 +107,30 @@ class Skeleton(object):
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
 
-    self.extra_attributes = extra_attributes
+    if extra_attributes is None:
+      self.extra_attributes = self._default_attributes()
+    else:
+      self.extra_attributes = extra_attributes
 
     if transform is None:
       self.transform = np.copy(IDENTITY)
     else:
       self.transform = np.array(transform).reshape( (3, 4) )
+
+  @classmethod
+  def _default_attributes(self):
+    return [
+      {
+        "id": "radius",
+        "data_type": "float32",
+        "num_components": 1,
+      }, 
+      {
+        "id": "vertex_types",
+        "data_type": "uint8",
+        "num_components": 1,
+      }
+    ]
 
   def _check_space(self):
     if self.space not in ('physical', 'voxel'):
@@ -290,8 +308,9 @@ class Skeleton(object):
       
       result.write(attr.tobytes('C'))
 
-    writeattr(self.radii, np.float32, 'Radii')
-    writeattr(self.vertex_types, np.uint8, 'SWC Vertex Types')
+    for attr in self.extra_attributes:
+      arr = getattr(self, attr['id'])
+      writeattr(arr, np.dtype(attr['data_type']), attr['id'])
 
     return result.getvalue()
 
@@ -353,18 +372,7 @@ class Skeleton(object):
       return skeleton
 
     if vertex_attributes is None:
-      vertex_attributes = [
-        {
-          "id": "radius",
-          "data_type": "float32",
-          "num_components": 1,
-        }, 
-        {
-          "id": "vertex_types",
-          "data_type": "uint8",
-          "num_components": 1,
-        }
-      ]
+      vertex_attributes = kls._default_attributes()
 
     start = eend
     end = -1
