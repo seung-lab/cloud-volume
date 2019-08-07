@@ -58,6 +58,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       mip = self.mip
 
     mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
+    mip0_bbox = bbox.intersection(self.bounds*[2**self.mip, 2**self.mip, 1], mip0_bbox)
+
     if root_ids is None and mask_base:
       return np.zeros( bbox.size(), dtype=self.dtype )
 
