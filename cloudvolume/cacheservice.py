@@ -61,9 +61,12 @@ class CacheService(object):
     self.initialize()
 
   def default_path(self):
+    basepath = self._path.basepath
+    if basepath[0] == os.path.sep:
+      basepath = basepath[1:]
+
     return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-      self._path.protocol, self._path.bucket.replace('/', ''), self._path.intermediate_path,
-      self._path.dataset, self._path.layer
+      self._path.protocol, basepath, self._path.layer
     ))
   
   def num_files(self, all_mips=False):

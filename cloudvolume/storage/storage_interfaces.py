@@ -56,7 +56,7 @@ class FileInterface(StorageInterface):
 
   def get_path_to_file(self, file_path):
     return os.path.join(
-      self._path.bucket, self._path.path, file_path
+      self._path.basepath, self._path.layer, file_path
     )
 
   def put_file(
@@ -178,7 +178,7 @@ class GoogleCloudStorageInterface(StorageInterface):
     self._bucket = GC_POOL[path.bucket].get_connection()
 
   def get_path_to_file(self, file_path):
-    return posixpath.join(self._path.path, file_path)
+    return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
 
   @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
@@ -283,7 +283,7 @@ class HttpInterface(StorageInterface):
 
   def get_path_to_file(self, file_path):
     path = posixpath.join(
-      self._path.bucket, self._path.path, file_path
+      self._path.basepath, self._path.layer, file_path
     )
     return self._path.protocol + '://' + path
 
@@ -335,7 +335,7 @@ class S3Interface(StorageInterface):
     self._conn = S3_POOL[path.protocol][path.bucket].get_connection()
 
   def get_path_to_file(self, file_path):
-    return posixpath.join(self._path.path, file_path)
+    return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
 
   @retry
   def put_file(self, file_path, content, content_type, compress, cache_control=None):

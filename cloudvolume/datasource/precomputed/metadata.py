@@ -347,7 +347,7 @@ class PrecomputedMetadata(object):
 
   @property
   def basepath(self):
-    return self.join(self.path.bucket, self.path.intermediate_path, self.dataset)
+    return self.path.basepath
     
   @property 
   def layerpath(self):
