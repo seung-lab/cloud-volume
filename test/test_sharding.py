@@ -1,3 +1,5 @@
+from cloudvolume import CloudVolume, Skeleton
+from cloudvolume.storage import SimpleStorage
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SpecViolation
 
@@ -156,3 +158,21 @@ def test_sharding_spec_validation():
     assert False
   except SpecViolation:
     pass
+
+def test_skeleton_fidelity():
+  segid = 1822975381
+  cv = CloudVolume('gs://seunglab-test/sharded')
+  sharded_skel = cv.skeleton.get(segid)
+
+  with SimpleStorage('gs://seunglab-test/sharded') as stor:
+    binary = stor.get_file('skeletons/' + str(segid))
+
+  unsharded_skel = Skeleton.from_precomputed(binary, 
+    segid=1822975381, vertex_attributes=cv.skeleton.meta.info['vertex_attributes']
+  )
+
+  assert sharded_skel == unsharded_skel
+
+
+
+
