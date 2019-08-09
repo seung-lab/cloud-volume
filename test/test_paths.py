@@ -48,7 +48,7 @@ def test_path_extraction():
   assert (strict_extract('graphene://http://localhost:8080/segmentation/1.0/testvol')
     == ExtractedPath(
       'graphene', 'http', 'localhost:8080', 
-      'segmentation/1.0/testvol', 'segmentation/', '1.0', 'testvol'))
+      'localhost:8080/segmentation/1.0', 'segmentation/1.0', '1.0', 'testvol'))
 
   firstdir = lambda x: '/' + x.split('/')[1]
 
