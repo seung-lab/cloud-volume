@@ -63,8 +63,10 @@ class ShardingSpecification(object):
     self._minishard_bits = uint64(val)
 
   def compute_minishard_mask(self, val):
-    if val <= 0:
-      raise ValueError(str(val) + " must be greater than zero.")
+    if val < 0:
+      raise ValueError(str(val) + " must be greater or equal to than zero.")
+    elif val == 0:
+      return uint64(0)
 
     minishard_mask = uint64(1)
     for i in range(val - uint64(1)):
