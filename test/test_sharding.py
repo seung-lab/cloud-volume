@@ -1,6 +1,8 @@
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SpecViolation
 
+import numpy as np
+
 def test_actual_example_hash():
   spec = ShardingSpecification.from_dict({
     "@type" : "neuroglancer_uint64_sharded_v1",
@@ -17,6 +19,26 @@ def test_actual_example_hash():
   shard_loc = spec.compute_shard_location(1822975381)
   assert shard_loc.shard_number == '42'
   assert shard_loc.minishard_number == 18
+
+  spec = ShardingSpecification.from_dict({
+    "@type" : "neuroglancer_uint64_sharded_v1",
+    "data_encoding" : "gzip",
+    "hash" : "murmurhash3_x86_128",
+    "minishard_index_encoding" : "gzip",
+    "preshift_bits" : 2,
+    "minishard_bits" : 3,
+    "shard_bits" : 3
+  })
+
+  spec.hash = 'identity'
+  label = 0b10101010
+  shard_loc = spec.compute_shard_location(label)
+  minishard_no = 0b010
+  shard_no = 0b101
+
+  assert shard_loc.minishard_number == minishard_no
+  assert shard_loc.shard_number == str(shard_no)
+
 
 def test_sharding_spec_validation():
   spec = ShardingSpecification(
