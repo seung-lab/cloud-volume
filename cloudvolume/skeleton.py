@@ -1020,12 +1020,13 @@ class Skeleton(object):
       and np.all(self.vertex_types == other.vertex_types))
 
   def __str__(self):
-    return "Skeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}))".format(
+    return "Skeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}), space='{}' transform={})".format(
       self.id,
       self.vertices.shape[0], self.vertices.dtype,
       self.edges.shape[0], self.edges.dtype,
       self.radii.shape[0], self.radii.dtype,
-      self.vertex_types.shape[0], self.vertex_types.dtype
+      self.vertex_types.shape[0], self.vertex_types.dtype,
+      self.space, self.transform.tolist()
     )
 
   def __repr__(self):
