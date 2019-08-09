@@ -510,13 +510,15 @@ class Skeleton(object):
     eff_edges = np.unique(eff_edges, axis=0)
     eff_edges = eff_edges[ eff_edges[:,0] != eff_edges[:,1] ] # remove trivial loops
 
-    radii_vector_map = np.vectorize(lambda idx: radii[idx])
-    eff_radii = radii_vector_map(uniq_idx)
+    skel = Skeleton(eff_vertices, eff_edges, segid=self.id)
 
-    vertex_type_map = np.vectorize(lambda idx: vertex_types[idx])
-    eff_vtype = vertex_type_map(uniq_idx)
-
-    skel = Skeleton(eff_vertices, eff_edges, eff_radii, eff_vtype, segid=self.id)
+    for attr in self.extra_attributes:
+      name = attr['id']
+      print(name)
+      buf = getattr(self, name)
+      name_vector_map = np.vectorize(lambda idx: buf[idx])
+      eff_name = name_vector_map(uniq_idx)
+      setattr(skel, name, eff_name)
 
     if remove_disconnected_vertices:
       return skel.remove_disconnected_vertices()
