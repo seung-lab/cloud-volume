@@ -435,14 +435,17 @@ class Skeleton(object):
     for i, vert in enumerate(second.vertices):
       second_verts[tuple(vert)] = i
     
-    for i in range(len(first.radii)):
-      i2 = second_verts[tuple(first.vertices[i])]
-
-      if first.radii[i] != second.radii[i2]:
+    attrs = [ attr['id'] for attr in first.extra_attributes ]
+    for attr in attrs:
+      buf1 = getattr(first, attr)
+      buf2 = getattr(second, attr)
+      if len(buf1) != len(buf2):
         return False
 
-      if first.vertex_types[i] != second.vertex_types[i2]:
-        return False
+      for i in range(len(buf1)):
+        i2 = second_verts[tuple(first.vertices[i])]
+        if buf1[i] != buf2[i2]:
+          return False
 
     return True
 
