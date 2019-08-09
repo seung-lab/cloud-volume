@@ -50,6 +50,11 @@ def test_path_extraction():
       'graphene', 'http', 'localhost:8080', 
       'localhost:8080/segmentation/1.0', 'segmentation/1.0', '1.0', 'testvol'))
 
+  assert (strict_extract('precomputed://gs://fafb-ffn1-1234567/segmentation')
+    == ExtractedPath(
+      'precomputed', 'gs', 'fafb-ffn1-1234567', 
+      'fafb-ffn1-1234567', '', 'fafb-ffn1-1234567', 'segmentation'))
+
   firstdir = lambda x: '/' + x.split('/')[1]
 
   homepath = lib.toabs('~')
