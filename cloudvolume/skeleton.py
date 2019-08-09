@@ -539,14 +539,6 @@ class Skeleton(object):
     connected_verts = np.unique(self.vertices[ self.edges.flatten() ], axis=0)
     Nv = connected_verts.shape[0]
 
-    radii = np.zeros( (Nv,), dtype=np.float32 )
-    vertex_types = np.zeros( (Nv,), dtype=np.uint8 )
-
-    for i, vert in enumerate(connected_verts):
-      reverse_idx = idx_map[tuple(vert)]
-      radii[i] = self.radii[reverse_idx]
-      vertex_types[i] = self.vertex_types[reverse_idx]
-
     idx_reverse_map = {}
     for i, vert in enumerate(connected_verts):
       idx_reverse_map[idx_map[tuple(vert)]] = i
@@ -563,7 +555,17 @@ class Skeleton(object):
 
     edges = np.array(edges, dtype=np.uint32)
 
-    return Skeleton(connected_verts, edges, radii, vertex_types, segid=self.id)
+    skel = Skeleton(connected_verts, edges, segid=self.id)
+
+    for attr in self.extra_attributes:
+      buf = np.zeros( (Nv,), dtype=attr['data_type'] )
+      name = attr['id']
+      for i, vert in enumerate(connected_verts):
+        reverse_idx = idx_map[tuple(vert)]
+        buf[i] = getattr(self, name)[reverse_idx]
+      setattr(skel, name, buf)
+        
+    return skel
 
   def clone(self):
     vertices = np.copy(self.vertices)
