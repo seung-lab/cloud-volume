@@ -493,8 +493,6 @@ class Skeleton(object):
     """
     nodes = self.vertices
     edges = self.edges 
-    radii = self.radii
-    vertex_types = self.vertex_types
 
     if self.empty():
       return Skeleton()
