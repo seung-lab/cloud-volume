@@ -1013,6 +1013,15 @@ class Skeleton(object):
       return False
     elif self.edges.shape[0] != other.edges.shape[0]:
       return False
+    elif self.extra_attributes != other.extra_attributes:
+      return False
+
+    attrs = [ attr['id'] for attr in self.extra_attributes ]
+    for attr in attrs:
+      buf1 = getattr(self, attr)
+      buf2 = getattr(other, attr)
+      if np.all(buf1 != buf2):
+        return False
 
     return (np.all(self.vertices == other.vertices)
       and np.all(self.edges == other.edges) \
