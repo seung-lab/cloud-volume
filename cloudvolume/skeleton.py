@@ -514,7 +514,6 @@ class Skeleton(object):
 
     for attr in self.extra_attributes:
       name = attr['id']
-      print(name)
       buf = getattr(self, name)
       name_vector_map = np.vectorize(lambda idx: buf[idx])
       eff_name = name_vector_map(uniq_idx)
