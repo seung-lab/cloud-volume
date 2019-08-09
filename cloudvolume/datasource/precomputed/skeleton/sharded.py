@@ -28,7 +28,10 @@ class ShardedPrecomputedSkeletonSource(object):
     results = []
     for segid in segids:
       binary = self.reader.get_data(segid)
-      skeleton = Skeleton.from_precomputed(binary, segid=segid)
+      skeleton = Skeleton.from_precomputed(
+        binary, segid=segid, 
+        vertex_attributes=self.meta.info['vertex_attributes']
+      )
       skeleton.transform = self.meta.transform
       results.append(skeleton.physical_space())
 
