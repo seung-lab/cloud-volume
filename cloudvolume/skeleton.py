@@ -558,12 +558,13 @@ class Skeleton(object):
     skel = Skeleton(connected_verts, edges, segid=self.id)
 
     for attr in self.extra_attributes:
-      buf = np.zeros( (Nv,), dtype=attr['data_type'] )
       name = attr['id']
+      skel_buf = np.zeros( (Nv,), dtype=attr['data_type'] )
+      self_buf = getattr(self, name)
       for i, vert in enumerate(connected_verts):
         reverse_idx = idx_map[tuple(vert)]
-        buf[i] = getattr(self, name)[reverse_idx]
-      setattr(skel, name, buf)
+        skel_buf[i] = self_buf[reverse_idx]
+      setattr(skel, name, skel_buf)
         
     return skel
 
