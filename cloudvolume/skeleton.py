@@ -1020,12 +1020,20 @@ class Skeleton(object):
       and np.all(self.vertex_types == other.vertex_types))
 
   def __str__(self):
-    return "Skeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}), space='{}' transform={})".format(
+    template = "{}=({}, {})"
+    attr_strings = []
+    for attr in self.extra_attributes:
+      attr = attr['id']
+      buf = getattr(self, attr)
+      attr_strings.append(
+        template.format(attr, buf.shape[0], buf.dtype)
+      )
+
+    return "Skeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), {}, space='{}' transform={})".format(
       self.id,
       self.vertices.shape[0], self.vertices.dtype,
       self.edges.shape[0], self.edges.dtype,
-      self.radii.shape[0], self.radii.dtype,
-      self.vertex_types.shape[0], self.vertex_types.dtype,
+      ', '.join(attr_strings),
       self.space, self.transform.tolist()
     )
 
