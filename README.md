@@ -492,8 +492,4 @@ Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on
 Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.  
 Thanks to Fredrik Kihlander for his [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) for developing murmurhash3.  
   
-## Mailing List 
-
-If you want infrequent letters in your inbox about significant improvements or even more infrequent breaking changes to CloudVolume, send an email to cloudvolume@protonmail.com asking to sign up. It's a 100% manual process and I'll only email you if there's something important to say or if I want to beta test my standup routine. Just kidding, it's 100% serious engineering talk for serious engineers that never smile. Seriously.   
-
 
