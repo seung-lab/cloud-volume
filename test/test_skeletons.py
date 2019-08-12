@@ -12,7 +12,7 @@ from cloudvolume import CloudVolume, chunks, Storage, Skeleton
 from cloudvolume.storage import SimpleStorage
 from cloudvolume.lib import mkdir, Bbox, Vec
 
-from cloudvolume.exceptions import SkeletonDecodeError
+from cloudvolume.exceptions import SkeletonDecodeError, SkeletonAttributeMixingError
 
 info = CloudVolume.create_new_info(
   num_channels=1, # Increase this number when we add more tests for RGB
@@ -558,10 +558,68 @@ def test_caching():
   vol.cache.flush()
 
 
+def test_simple_merge():
+  skel1 = Skeleton(
+    [ (0,0,0), (1,0,0), (2,0,0),  ], 
+    edges=[ (0,1), (1,2), ],
+    segid=1,
+  )
 
+  skel2 = Skeleton(
+    [ (0,0,1), (1,0,2), (2,0,3),  ], 
+    edges=[ (0,1), (1,2), ],
+    segid=1,
+  )
 
+  result = Skeleton.simple_merge([ skel1, skel2 ])
 
+  expected = Skeleton(
+    [ (0,0,0), (1,0,0), (2,0,0), (0,0,1), (1,0,2), (2,0,3), ], 
+    edges=[ (0,1), (1,2), (3,4), (4,5) ],
+    segid=1,
+  )
 
+  assert result == expected
+
+  skel1.extra_attributes = [{
+    "id": "wow",
+    "data_type": "uint8",
+    "components": 1,
+  }]
+  skel1.wow = np.array([1,2,3], dtype=np.uint8)
+
+  skel2.extra_attributes = [{
+    "id": "wow",
+    "data_type": "uint8",
+    "components": 1,
+  }]
+  skel2.wow = np.array([4,5,6], dtype=np.uint8)
+
+  result = Skeleton.simple_merge([ skel1, skel2 ])
+  expected.wow = np.array([1,2,3,4,5,6], dtype=np.uint8)
+
+  assert result == expected
+
+  skel2.extra_attributes[0]['data_type'] = np.uint8
+
+  try:
+    Skeleton.simple_merge([ skel1, skel2 ])
+    assert False
+  except SkeletonAttributeMixingError:
+    pass
+
+  skel2.extra_attributes[0]['data_type'] = 'uint8'
+  skel2.extra_attributes.append({
+    "id": "amaze",
+    "data_type": "float32",
+    "components": 2,
+  })
+
+  try:
+    Skeleton.simple_merge([ skel1, skel2 ])
+    assert False
+  except SkeletonAttributeMixingError:
+    pass
 
 
 

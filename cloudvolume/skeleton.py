@@ -15,7 +15,8 @@ import struct
 from . import lib
 from .exceptions import (
   SkeletonDecodeError, SkeletonEncodeError, 
-  SkeletonUnassignedEdgeError, SkeletonTransformError
+  SkeletonUnassignedEdgeError, SkeletonTransformError,
+  SkeletonAttributeMixingError
 )
 from .lib import red, Bbox
 from .storage import Storage, SimpleStorage
@@ -266,13 +267,36 @@ class Skeleton(object):
       edges.append(edge)
       ct += skel.vertices.shape[0]
 
-    return Skeleton(
+    skel = Skeleton(
       vertices=np.concatenate([ skel.vertices for skel in skeletons ], axis=0),
       edges=np.concatenate(edges, axis=0),
-      radii=np.concatenate([ skel.radii for skel in skeletons ], axis=0),
-      vertex_types=np.concatenate([ skel.vertex_types for skel in skeletons ], axis=0),
       segid=skeletons[0].id,
     )
+
+    if len(skeletons) == 0:
+      return skel
+
+    first_extra_attr = skeletons[0].extra_attributes
+    for skl in skeletons[1:]:
+      if first_extra_attr != skl.extra_attributes:
+        raise SkeletonAttributeMixingError("""
+          The skeletons were unable to be merged because
+          the extended vertex attributes were not uniformly
+          defined.
+
+          Template being matched against:
+          {}
+
+          Non-matching skeleton:
+          {}
+        """.format(first_extra_attr, skl.extra_attributes))
+
+    for attr in skeletons[0].extra_attributes:
+      setattr(skel, attr['id'], np.concatenate([
+        getattr(skl, attr['id']) for skl in skeletons
+      ], axis=0))
+
+    return skel
 
   def merge(self, skel):
     """Combine with an additional skeleton and consolidate."""

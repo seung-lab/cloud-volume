@@ -75,6 +75,13 @@ class SkeletonTransformError(Exception):
   """Unable to apply a spatial transfrom to the current coordinate system."""
   pass
 
+class SkeletonAttributeMixingError(Exception):
+  """
+  These skeletons have different vertex attributes 
+  and cannot be recombined without manual intervention.
+  """
+  pass
+
 class UnsupportedFormatError(Exception):
   """Unable to interpret the format of this URI. e.g. precomputed://"""
   pass
