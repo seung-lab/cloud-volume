@@ -15,7 +15,7 @@ import struct
 from . import lib
 from .exceptions import (
   SkeletonDecodeError, SkeletonEncodeError, 
-  SkeletonUnassignedEdgeError
+  SkeletonUnassignedEdgeError, SkeletonTransformError
 )
 from .lib import red, Bbox
 from .storage import Storage, SimpleStorage
@@ -25,9 +25,6 @@ IDENTITY = np.array([
   [0, 1, 0, 0],
   [0, 0, 1, 0],
 ], dtype=np.float32)
-
-class SkeletonTransformError(Exception):
-  pass
 
 class Skeleton(object):
   """

@@ -71,6 +71,10 @@ class SkeletonEncodeError(Exception):
   """Unable to encode a PrecomputedSkeleton into a binary object."""
   pass
 
+class SkeletonTransformError(Exception):
+  """Unable to apply a spatial transfrom to the current coordinate system."""
+  pass
+
 class UnsupportedFormatError(Exception):
   """Unable to interpret the format of this URI. e.g. precomputed://"""
   pass
