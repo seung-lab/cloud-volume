@@ -154,8 +154,12 @@ class SimpleStorage(StorageBase):
     """
     return self._interface.files_exist(file_paths)
 
-  def get_file(self, file_path):
-    content, encoding = self._interface.get_file(file_path)
+  def get_file(self, file_path, start=None, end=None):
+    """
+    Get the binary contents of a file. Optionally, specify
+    the inclusive byte range to request.
+    """
+    content, encoding = self._interface.get_file(file_path, start=start, end=end)
     content = compression.decompress(content, encoding, filename=file_path)
     return content
 
@@ -268,9 +272,13 @@ class GreenStorage(StorageBase):
 
     return results
 
-  def get_file(self, file_path):
+  def get_file(self, file_path, start=None, end=None):
+    """
+    Get the binary contents of a file. Optionally, specify
+    the inclusive byte range to request.
+    """
     with self.get_connection() as conn:
-      content, encoding = conn.get_file(file_path)
+      content, encoding = conn.get_file(file_path, start=start, end=end)
     return compression.decompress(content, encoding, filename=file_path)
 
   def get_files(self, file_paths):
@@ -528,8 +536,12 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
 
     return results
 
-  def get_file(self, file_path):
-    content, encoding = self._interface.get_file(file_path)
+  def get_file(self, file_path, start=None, end=None):
+    """
+    Get the binary contents of a file. Optionally, specify
+    the inclusive byte range to request.
+    """
+    content, encoding = self._interface.get_file(file_path, start=start, end=end)
     content = compression.decompress(content, encoding, filename=file_path)
     return content
 

@@ -31,10 +31,11 @@ def test_path_extraction():
         pass
 
   def okgoogle(url):
-    path = paths.strict_extract(url)
+    path = paths.extract(url)
     assert path.protocol == 'gs', url
     assert path.bucket == 'bucket', url
-    assert path.intermediate_path == '', url
+    assert path.basepath == 'bucket/dataset', url
+    assert path.no_bucket_basepath == 'dataset', url
     assert path.dataset == 'dataset', url
     assert path.layer == 'layer', url
 
@@ -47,7 +48,12 @@ def test_path_extraction():
   assert (strict_extract('graphene://http://localhost:8080/segmentation/1.0/testvol')
     == ExtractedPath(
       'graphene', 'http', 'localhost:8080', 
-      'segmentation/1.0/testvol', 'segmentation/', '1.0', 'testvol'))
+      'localhost:8080/segmentation/1.0', 'segmentation/1.0', '1.0', 'testvol'))
+
+  assert (strict_extract('precomputed://gs://fafb-ffn1-1234567/segmentation')
+    == ExtractedPath(
+      'precomputed', 'gs', 'fafb-ffn1-1234567', 
+      'fafb-ffn1-1234567', '', 'fafb-ffn1-1234567', 'segmentation'))
 
   firstdir = lambda x: '/' + x.split('/')[1]
 
@@ -56,39 +62,43 @@ def test_path_extraction():
 
   curpath = lib.toabs('.')
   curintermediate = curpath.replace(firstdir(curpath), '')[1:]
-
-  print(curintermediate)
+  
+  match = re.match(r'((?:(?:\w:\\\\)|/).+?)\b', lib.toabs('.'))
+  bucket, = match.groups()
+  
+  print(bucket, curintermediate)
 
   assert (paths.extract('s3://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 's3', 'seunglab-test', 
-        'intermediate/path/dataset/layer', 'intermediate/path/', 
+        'seunglab-test/intermediate/path/dataset', 'intermediate/path/dataset', 
         'dataset', 'layer'
       ))
 
   assert (paths.extract('file:///tmp/dataset/layer') 
-      == ExtractedPath('precomputed', 'file', "/tmp", 'dataset/layer', '', 'dataset', 'layer'))
+      == ExtractedPath(
+        'precomputed', 'file', "/tmp", '/tmp/dataset', 'dataset', 'dataset', 'layer'
+      ))
 
   assert (paths.extract('file://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
         'precomputed', 'file', firstdir(curpath), 
-        os.path.join(curintermediate, 'seunglab-test/intermediate/path/dataset/layer'),   
-        os.path.join(curintermediate, 'seunglab-test', 'intermediate/path/'), 
+        os.path.join(bucket, curintermediate, 'seunglab-test/intermediate/path/dataset'),   
+        os.path.join(curintermediate, 'seunglab-test', 'intermediate/path/dataset'), 
        'dataset', 'layer'))
 
   assert (paths.extract('gs://seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
-        'precomputed', 'gs', 
-        'seunglab-test', 'intermediate/path/dataset/layer', 
-        'intermediate/path/', 'dataset', 'layer'
+        'precomputed', 'gs', 'seunglab-test',
+        'seunglab-test/intermediate/path/dataset', 'intermediate/path/dataset', 
+        'dataset', 'layer'
       ))
 
   assert (paths.extract('file://~/seunglab-test/intermediate/path/dataset/layer') 
       == ExtractedPath(
-        'precomputed', 'file', 
-        firstdir(homepath), 
-        os.path.join(homerintermediate, 'seunglab-test', 'intermediate/path/dataset/layer'),
-        os.path.join(homerintermediate, 'seunglab-test', 'intermediate/path/'),  
+        'precomputed', 'file', firstdir(homepath), 
+        os.path.join(bucket, homerintermediate, 'seunglab-test', 'intermediate/path/dataset'),
+        os.path.join(homerintermediate, 'seunglab-test', 'intermediate/path/dataset'),  
         'dataset', 
         'layer'
       )
@@ -96,12 +106,10 @@ def test_path_extraction():
 
   assert (paths.extract('file:///User/me/.cloudvolume/cache/gs/bucket/dataset/layer') 
       == ExtractedPath(
-        'precomputed', 'file', 
-        '/User', 'me/.cloudvolume/cache/gs/bucket/dataset/layer', 
-        'me/.cloudvolume/cache/gs/bucket/', 'dataset', 'layer'
+        'precomputed', 'file', '/User', 
+        '/User/me/.cloudvolume/cache/gs/bucket/dataset', 
+        'me/.cloudvolume/cache/gs/bucket/dataset', 'dataset', 'layer'
       ))
-
-  shoulderror('s3://dataset/layer/')
 
   shoulderror('ou3bouqjsa fkj aojsf oaojf ojsaf')
 
