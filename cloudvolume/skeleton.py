@@ -305,6 +305,18 @@ class Skeleton(object):
   def empty(self):
     return self.vertices.size == 0 or self.edges.size == 0
 
+  def encode(self):
+    print(lib.yellow(
+      "WARNING: Skeleton.encode() is deprecated in favor of Skeleton.to_precomputed() and will be removed in a future release."
+    ))
+    return self.to_precomputed()
+
+  def decode(self, binary):
+    print(lib.yellow(
+      "WARNING: Skeleton.decode(bytes) is deprecated in favor of Skeleton.from_precomputed(bytes) and will be removed in a future release."
+    ))
+    return self.from_precomputed(binary)
+
   def to_precomputed(self):
     edges = self.edges.astype(np.uint32)
     vertices = self.vertices.astype(np.float32)
