@@ -654,11 +654,14 @@ class Skeleton(object):
       vert = tuple(vert)
       index[vert] = i
 
-    for i, vert in enumerate(ds_skel.vertices):
-      vert = tuple(vert)
-      ds_skel.radii[i] = self.radii[index[vert]]
-      ds_skel.vertex_types[i] = self.vertex_types[index[vert]]
+    bufs = [ getattr(ds_skel, attr['id']) for attr in ds_skel.extra_attributes ]
+    orig_bufs = [ getattr(self, attr['id']) for attr in ds_skel.extra_attributes ]
 
+    for i, vert in enumerate(ds_skel.vertices):
+      reverse_i = index[tuple(vert)]
+      for buf, buf_rev in zip(bufs, orig_bufs):
+        buf[i] = buf_rev[reverse_i]
+    
     return ds_skel
 
   def _single_tree_paths(self, tree, return_indices):
