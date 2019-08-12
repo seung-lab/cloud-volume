@@ -38,17 +38,18 @@ CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/
 
 ### Optional Dependencies 
 
-| Tag             | Description                        | Dependencies    |
-|-----------------|------------------------------------|-----------------|
-| boss            | `boss://` format support           | intern          |
-| mesh_viewer     | `mesh.viewer()` GUI                | vtk             |
-| skeleton_viewer | `skeleton.viewer()` GUI            | matplotlib      |
-| all_viewers     | All viewers now and in the future. | vtk, matplotlib |
+| Tag             | Description                        | Dependencies          |
+|-----------------|------------------------------------|-----------------------|
+| boss            | `boss://` format support           | intern                |
+| test            | Supports testing                   | pytest                |
+| mesh_viewer     | `mesh.viewer()` GUI                | vtk                   |
+| skeleton_viewer | `skeleton.viewer()` GUI            | matplotlib            |
+| all_viewers     | All viewers now and in the future. | vtk, matplotlib       |
 
 Example:
 
 ```bash
-pip install cloud-volume[boss,all_viewers]
+pip install cloud-volume[boss,test,all_viewers]
 ```
 
 #### `pip` Source Installation
