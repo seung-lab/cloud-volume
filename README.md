@@ -155,6 +155,8 @@ The format or protocol fields may be omitted where required. In the case of the 
 * graphene: Precomputed based format used by the PyChunkGraph server.
 * boss: The BOSS (https://docs.theboss.io/docs)
 
+We currently support reading the sharded skeleton format within Precomputed that is used in some newer datasets. Other data types are forthcoming.  
+
 ### Supported Protocols 
 * gs:   Google Storage
 * s3:   Amazon S3
