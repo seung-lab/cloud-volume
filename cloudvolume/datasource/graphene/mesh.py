@@ -81,13 +81,16 @@ class GrapheneMeshSource(PrecomputedMeshSource):
     # decode all the fragments
     fragiter = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
     for i, (filename, frag) in enumerate(fragiter):
-      try:
-        # Easier to ask forgiveness than permission
-        mesh = Mesh.from_draco(frag)
-      except DracoPy.FileTypeException:
-        mesh = Mesh.from_precomputed(frag)
+      if frag is not None:
+          try:
+            # Easier to ask forgiveness than permission
+            mesh = Mesh.from_draco(frag)
+          except DracoPy.FileTypeException:
+            mesh = Mesh.from_precomputed(frag)
+      else:
+          mesh = None
       fragments[i] = mesh
-    
+    fragments = [f for f in fragments if f is not None]
     if len(fragments) == 0:
       raise IndexError('No mesh fragments found for segment {}'.format(seg_id))
 
