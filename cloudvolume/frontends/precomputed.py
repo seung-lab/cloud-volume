@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import itertools
-import collections
 import gevent.socket
 import json
 import os
@@ -255,26 +254,7 @@ class CloudVolumePrecomputed(object):
 
   @mip.setter
   def mip(self, mip):
-    mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
-    try:
-      if isinstance(mip, list):  # mip specified by voxel resolution
-        self.config.mip = next((i for (i,s) in enumerate(self.scales)
-                          if s["resolution"] == mip))
-      else:  # mip specified by index into downsampling hierarchy
-        self.config.mip = self.available_mips[mip]
-    except Exception:
-      if isinstance(mip, list):
-        opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
-      else:
-        opening_text = "MIP {}".format(str(mip))
-  
-      scales = [ ",".join(map(str, scale)) for scale in self.available_resolutions ]
-      scales = [ "<{}>".format(scale) for scale in scales ]
-      scales = ", ".join(scales)
-      msg = "{} not found. {} available: {}".format(
-        opening_text, len(self.available_mips), scales
-      )
-      raise exceptions.ScaleUnavailableError(msg)
+    self.config.mip = self.meta.to_mip(mip)
 
   @property
   def scales(self):
