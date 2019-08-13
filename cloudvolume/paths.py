@@ -1,4 +1,5 @@
 from collections import namedtuple
+import os
 import re
 import sys
 
@@ -6,7 +7,7 @@ from .exceptions import UnsupportedProtocolError
 from .lib import yellow, toabs
 
 ExtractedPath = namedtuple('ExtractedPath', 
-  ('format', 'protocol', 'bucket', 'path', 'intermediate_path', 'dataset', 'layer')
+  ('format', 'protocol', 'bucket', 'basepath', 'no_bucket_basepath', 'dataset', 'layer')
 )
 
 ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'http', 'https' ]
@@ -106,13 +107,12 @@ def extract(cloudpath, windows=None, disable_toabs=False):
 
   Returns: ExtractedPath
   """
+  if len(cloudpath) == 0:
+    return ExtractedPath('','','','','','','')
 
   windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+(?:\\)?)') # for C:\what\a\great\path
-  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+)/') # posix /what/a/great/path
+  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)/') # posix /what/a/great/path
   
-  tail_re = re.compile(r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$')
-  windows_file_tail_re = re.compile(r'([\d\w_\.\-]+)\\([\d\w_\.\-]+)\\?$')
-
   error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
 
   if windows is None:
@@ -125,29 +125,42 @@ def extract(cloudpath, windows=None, disable_toabs=False):
 
   fmt, protocol, cloudpath = extract_format_protocol(cloudpath)
   
+  split_char = '/'
   if protocol == 'file':
     cloudpath = abspath(cloudpath)
     if windows:
       bucket_re = windows_file_re
-      tail_re = windows_file_tail_re
+    split_char = os.path.sep
 
   match = re.match(bucket_re, cloudpath)
   if not match:
     raise error
 
   (bucket,) = match.groups()
-  cloudpath = re.sub(bucket_re, '', cloudpath, count=1)
 
-  match = re.search(tail_re, cloudpath)
-  if not match:
-    return ExtractedPath(fmt, protocol, bucket, cloudpath, '', '', '')
+  splitcloudpath = cloudpath 
+  if splitcloudpath[0] == split_char:
+    splitcloudpath = splitcloudpath[1:]
+  if splitcloudpath[-1] == split_char:
+    splitcloudpath = splitcloudpath[:-1]
 
-  dataset, layer = match.groups()
-  intermediate_path = re.sub(tail_re, '', cloudpath)
+  splitties = splitcloudpath.split(split_char)
+  if len(splitties) == 0:
+    return ExtractedPath(fmt, protocol, bucket, cloudpath, '', bucket, '')
+  elif len(splitties) == 1:
+    dataset = bucket
+    layer = splitties[0]
+    basepath = split_char.join(splitties[:-1])
+    no_bucket_basepath = split_char.join(splitties[1:-1])
+  elif len(splitties) >= 2:
+    dataset, layer = splitties[-2:]
+    no_bucket_basepath = split_char.join(splitties[1:-1])
+    basepath = split_char.join([bucket] + splitties[1:-1])
 
   return ExtractedPath(
     fmt, protocol, bucket, 
-    cloudpath, intermediate_path, dataset, layer
+    basepath, no_bucket_basepath, 
+    dataset, layer
   )
 
 def to_https_protocol(cloudpath):
