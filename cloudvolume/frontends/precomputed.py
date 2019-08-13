@@ -542,11 +542,16 @@ class CloudVolumePrecomputed(object):
     if mip is None:
       mip = self.mip
 
+    mip = self.meta.to_mip(mip)
     size2 = size // 2
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
     bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
 
+    if self.autocrop:
+      bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
+
+    bbox = bbox.astype(np.int32)
     if parallel is None:
       parallel = self.parallel
 
