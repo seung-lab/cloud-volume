@@ -49,7 +49,7 @@ def create_graphene(
     )
 
     mesh = GrapheneMeshSource(meta, cache, config)
-    skeleton = PrecomputedSkeletonSource(meta, cache, config)
+    # skeleton = PrecomputedSkeletonSource(meta, cache, config)
 
     return CloudVolumeGraphene(
       meta, cache, config, 
