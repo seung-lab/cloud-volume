@@ -946,7 +946,7 @@ class Skeleton(object):
 
     c.f. http://research.mssm.edu/cnic/swc.html
     """
-    from ... import __version__
+    from . import __version__
     swc = """# ORIGINAL_SOURCE CloudVolume {}
 # CREATURE 
 # REGION
