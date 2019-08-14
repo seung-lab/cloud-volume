@@ -12,24 +12,69 @@ except ImportError:
 import numpy as np
 import struct
 
-from cloudvolume import lib
-from cloudvolume.exceptions import (
+from . import lib
+from .exceptions import (
   SkeletonDecodeError, SkeletonEncodeError, 
-  SkeletonUnassignedEdgeError
+  SkeletonUnassignedEdgeError, SkeletonTransformError,
+  SkeletonAttributeMixingError
 )
-from cloudvolume.lib import red, Bbox
-from cloudvolume.storage import Storage, SimpleStorage
+from .lib import red, Bbox
+from .storage import Storage, SimpleStorage
 
-from .common import cdn_cache_control
+IDENTITY = np.array([
+  [1, 0, 0, 0],
+  [0, 1, 0, 0],
+  [0, 0, 1, 0],
+], dtype=np.float32)
 
-class PrecomputedSkeleton(object):
+class Skeleton(object):
+  """
+  A stick figure representation of a 3D object. 
+
+  vertices: [[x,y,z], ...] float32
+  edges: [[v1,v2], ...] uint32
+  radii: [r1,r2,...] float32 distance from vertex to nearest boudary
+  vertex_types: [t1,t2,...] uint8 SWC vertex types
+  segid: numerical ID
+  transform: 3x4 scaling and translation matrix (ie homogenous coordinates) 
+    that represents the transformaton from voxel to physical coordinates.
+    
+    Example Identity Matrix:
+    [
+      [1, 0, 0, 0],
+      [0, 1, 0, 0],
+      [0, 0, 1, 0]
+    ]
+
+  space: 'voxel', 'physical', or user choice (but other choices 
+    make .physical_space() and .voxel_space() stop working as they
+    become meaningless.)
+  
+  extra_attributes: You can specify additional per vertex
+    data attributes (the most common are radii and vertex_type) 
+    that are present in reading Precomputed binary skeletons using
+    the following format:
+    [
+        {
+          "id": "radius",
+          "data_type": "uint8",
+          "num_components": 1,
+        }
+    ]
+
+    These attributes will become object properties. i.e. skel.radius
+
+    Note that for backwards compatibility, skel.radius is treated 
+    specially and is synonymous with skel.radii.
+  """
   def __init__(self, 
     vertices=None, edges=None, 
     radii=None, vertex_types=None, 
-    segid=None
+    segid=None, transform=None,
+    space='voxel', extra_attributes=None
   ):
-
     self.id = segid
+    self.space = space
 
     if vertices is None:
       self.vertices = np.array([[]], dtype=np.float32)
@@ -46,11 +91,11 @@ class PrecomputedSkeleton(object):
       self.edges = edges.astype(np.uint32)
 
     if radii is None:
-      self.radii = -1 * np.ones(shape=self.vertices.shape[0], dtype=np.float32)
+      self.radius = -1 * np.ones(shape=self.vertices.shape[0], dtype=np.float32)
     elif type(radii) is list:
-      self.radii = np.array(radii, dtype=np.float32)
+      self.radius = np.array(radii, dtype=np.float32)
     else:
-      self.radii = radii
+      self.radius = radii
 
     if vertex_types is None:
       # 0 = undefined in SWC (http://research.mssm.edu/cnic/swc.html)
@@ -60,6 +105,133 @@ class PrecomputedSkeleton(object):
     else:
       self.vertex_types = vertex_types.astype(np.uint8)
 
+    if extra_attributes is None:
+      self.extra_attributes = self._default_attributes()
+    else:
+      self.extra_attributes = extra_attributes
+
+    if transform is None:
+      self.transform = np.copy(IDENTITY)
+    else:
+      self.transform = np.array(transform).reshape( (3, 4) )
+
+  @classmethod
+  def _default_attributes(self):
+    return [
+      {
+        "id": "radius",
+        "data_type": "float32",
+        "num_components": 1,
+      }, 
+      {
+        "id": "vertex_types",
+        "data_type": "uint8",
+        "num_components": 1,
+      }
+    ]
+
+  def _check_space(self):
+    if self.space not in ('physical', 'voxel'):
+      raise SkeletonTransformError(
+        """
+        Loss of coordinate frame information. If the space is not 'physical' or 'voxel',
+        the meaning of applying this transform matrix is unknown.
+
+        space: {}
+        """.format(self.space)
+      )
+
+  def physical_space(self, copy=True):
+    """
+    Convert skeleton vertices into a physical space 
+    representation if it's not already there.
+
+    copy: if False, don't copy if already in the correct
+      coordinate frame.
+
+    Returns: skeleton in physical coordinates
+    """
+    self._check_space()
+
+    if self.space == 'physical':
+      if copy:
+        return self.clone()
+      else:
+        return self
+
+    skel = self.clone()
+    skel.apply_transform()
+    skel.space = 'physical'
+    return skel
+
+  def voxel_space(self, copy=True):
+    """
+    Convert skeleton vertices into a voxel space 
+    representation if it's not already there.
+
+    copy: if False, don't copy if already in the correct
+      coordinate frame.
+
+    Returns: skeleton in voxel coordinates
+    """
+    self._check_space()
+
+    if self.space == 'voxel':
+      if copy:
+        return self.clone()
+      else:
+        return self
+
+    skel = self.clone()
+    skel.apply_inverse_transform()
+    skel.space = 'voxel'
+    return skel
+
+  @property
+  def transform(self):
+    return self._transform
+
+  @transform.setter 
+  def transform(self, val):
+    self._transform = np.array(val, dtype=np.float32).reshape( (3,4) )
+
+  def transform_vertices(self, vertices, transform):
+    verts = np.append(
+      vertices,
+      np.ones( (vertices.shape[0], 1), dtype=vertices.dtype), 
+      axis=1
+    )
+    verts = transform.dot(verts.T).T
+    return verts[:,0:3]    
+
+  def apply_transform(self):
+    self.vertices = self.transform_vertices(self.vertices, self.transform)
+
+  def apply_inverse_transform(self, transform=None):
+    if transform is None:
+      transform = self.transform
+
+    verts = np.append(
+      self.vertices, 
+      np.ones( (self.vertices.shape[0], 1), dtype=self.vertices.dtype), 
+      axis=1
+    )
+    
+    transform = np.zeros( (3,4), dtype=np.float32 )
+    transform[:3,:3] = np.linalg.inv(self.transform[:3,:3])
+    transform[:,3] = -self.transform[:,3]
+
+    verts = transform.dot(verts.T).T
+    self.vertices = verts[:,0:3]    
+
+  @property 
+  def radii(self):
+    return self.radius
+
+  @radii.setter 
+  def radii(self, val):
+    self.radius = val
+
   @classmethod
   def from_path(kls, vertices):
     """
@@ -67,9 +239,9 @@ class PrecomputedSkeleton(object):
     generate a skeleton with appropriate edges.
     """
     if vertices.shape[0] == 0:
-      return PrecomputedSkeleton()
+      return Skeleton()
 
-    skel = PrecomputedSkeleton(vertices)
+    skel = Skeleton(vertices)
     edges = np.zeros(shape=(skel.vertices.shape[0] - 1, 2), dtype=np.uint32)
     edges[:,0] = np.arange(skel.vertices.shape[0] - 1)
     edges[:,1] = np.arange(1, skel.vertices.shape[0])
@@ -83,7 +255,7 @@ class PrecomputedSkeleton(object):
     without adding edges between them.
     """
     if len(skeletons) == 0:
-      return PrecomputedSkeleton()
+      return Skeleton()
 
     if type(skeletons[0]) is np.ndarray:
       skeletons = [ skeletons ]
@@ -95,22 +267,57 @@ class PrecomputedSkeleton(object):
       edges.append(edge)
       ct += skel.vertices.shape[0]
 
-    return PrecomputedSkeleton(
+    skel = Skeleton(
       vertices=np.concatenate([ skel.vertices for skel in skeletons ], axis=0),
       edges=np.concatenate(edges, axis=0),
-      radii=np.concatenate([ skel.radii for skel in skeletons ], axis=0),
-      vertex_types=np.concatenate([ skel.vertex_types for skel in skeletons ], axis=0),
       segid=skeletons[0].id,
     )
 
+    if len(skeletons) == 0:
+      return skel
+
+    first_extra_attr = skeletons[0].extra_attributes
+    for skl in skeletons[1:]:
+      if first_extra_attr != skl.extra_attributes:
+        raise SkeletonAttributeMixingError("""
+          The skeletons were unable to be merged because
+          the extended vertex attributes were not uniformly
+          defined.
+
+          Template being matched against:
+          {}
+
+          Non-matching skeleton:
+          {}
+        """.format(first_extra_attr, skl.extra_attributes))
+
+    for attr in skeletons[0].extra_attributes:
+      setattr(skel, attr['id'], np.concatenate([
+        getattr(skl, attr['id']) for skl in skeletons
+      ], axis=0))
+
+    return skel
+
   def merge(self, skel):
     """Combine with an additional skeleton and consolidate."""
-    return PrecomputedSkeleton.simple_merge((self, skel)).consolidate()
+    return Skeleton.simple_merge((self, skel)).consolidate()
 
   def empty(self):
     return self.vertices.size == 0 or self.edges.size == 0
 
   def encode(self):
+    print(lib.yellow(
+      "WARNING: Skeleton.encode() is deprecated in favor of Skeleton.to_precomputed() and will be removed in a future release."
+    ))
+    return self.to_precomputed()
+
+  def decode(self, binary):
+    print(lib.yellow(
+      "WARNING: Skeleton.decode(bytes) is deprecated in favor of Skeleton.from_precomputed(bytes) and will be removed in a future release."
+    ))
+    return self.from_precomputed(binary)
+
+  def to_precomputed(self):
     edges = self.edges.astype(np.uint32)
     vertices = self.vertices.astype(np.float32)
     
@@ -134,23 +341,37 @@ class PrecomputedSkeleton(object):
       
       result.write(attr.tobytes('C'))
 
-    writeattr(self.radii, np.float32, 'Radii')
-    writeattr(self.vertex_types, np.uint8, 'SWC Vertex Types')
+    for attr in self.extra_attributes:
+      arr = getattr(self, attr['id'])
+      writeattr(arr, np.dtype(attr['data_type']), attr['id'])
 
     return result.getvalue()
 
   @classmethod
-  def decode(kls, skelbuf, segid=None):
+  def from_precomputed(kls, skelbuf, segid=None, vertex_attributes=None):
     """
-    Convert a buffer into a PrecomputedSkeleton object.
+    Convert a buffer into a Skeleton object.
 
     Format:
     num vertices (Nv) (uint32)
     num edges (Ne) (uint32)
     XYZ x Nv (float32)
     edge x Ne (2x uint32)
-    radii x Nv (optional, float32)
-    vertex_type x Nv (optional, req radii, uint8) (SWC definition)
+
+    Default Vertex Attributes:
+
+      radii x Nv (optional, float32)
+      vertex_type x Nv (optional, req radii, uint8) (SWC definition)
+
+    Specify your own:
+
+    vertex_attributes = [
+      {
+        'id': name of attribute,
+        'num_components': int,
+        'data_type': dtype,
+      },
+    ]
 
     More documentation: 
     https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Skeletons-and-Point-Clouds
@@ -178,37 +399,31 @@ class PrecomputedSkeleton(object):
     vertices = np.frombuffer(vertbuf, dtype='<f4').reshape( (num_vertices, 3) )
     edges = np.frombuffer(edgebuf, dtype='<u4').reshape( (num_edges, 2) )
 
+    skeleton = Skeleton(vertices, edges, segid=segid)
+
     if len(skelbuf) == min_format_length:
-      return PrecomputedSkeleton(vertices, edges, segid=segid)
+      return skeleton
 
-    radii_format_length = min_format_length + num_vertices * 4
+    if vertex_attributes is None:
+      vertex_attributes = kls._default_attributes()
 
-    if len(skelbuf) < radii_format_length:
-      raise SkeletonDecodeError("Input buffer did not have enough float32 radii to correspond to each vertex. # vertices: {}, # radii: {}".format(
-        num_vertices, (radii_format_length - min_format_length) / 4
-      ))
+    start = eend
+    end = -1
+    for attr in vertex_attributes:
+      num_components = int(attr['num_components'])
+      data_type = np.dtype(attr['data_type'])
+      end = start + num_vertices * num_components * data_type.itemsize
+      attrbuf = np.frombuffer(skelbuf[start : end], dtype=data_type)
 
-    rstart = eend
-    rend = rstart + num_vertices * 4 # 4 bytes np.float32
-    radiibuf = skelbuf[ rstart : rend ]
-    radii = np.frombuffer(radiibuf, dtype=np.float32)
+      if num_components > 1:
+        attrbuf = attrbuf.reshape( (num_vertices, num_components) )
 
-    if len(skelbuf) == radii_format_length:
-      return PrecomputedSkeleton(vertices, edges, radii, segid=segid)
+      setattr(skeleton, attr['id'], attrbuf)
+      start = end
 
-    type_format_length = radii_format_length + num_vertices * 1 
+    skeleton.extra_attributes = vertex_attributes
 
-    if len(skelbuf) < type_format_length:
-      raise SkeletonDecodeError("Input buffer did not have enough uint8 SWC vertex types to correspond to each vertex. # vertices: {}, # types: {}".format(
-        num_vertices, (type_format_length - radii_format_length)
-      ))
-
-    tstart = rend
-    tend = tstart + num_vertices
-    typebuf = skelbuf[ tstart:tend ]
-    vertex_types = np.frombuffer(typebuf, dtype=np.uint8)
-
-    return PrecomputedSkeleton(vertices, edges, radii, vertex_types, segid=segid)
+    return skeleton
 
   @classmethod
   def equivalent(kls, first, second):
@@ -253,14 +468,17 @@ class PrecomputedSkeleton(object):
     for i, vert in enumerate(second.vertices):
       second_verts[tuple(vert)] = i
     
-    for i in range(len(first.radii)):
-      i2 = second_verts[tuple(first.vertices[i])]
-
-      if first.radii[i] != second.radii[i2]:
+    attrs = [ attr['id'] for attr in first.extra_attributes ]
+    for attr in attrs:
+      buf1 = getattr(first, attr)
+      buf2 = getattr(second, attr)
+      if len(buf1) != len(buf2):
         return False
 
-      if first.vertex_types[i] != second.vertex_types[i2]:
-        return False
+      for i in range(len(buf1)):
+        i2 = second_verts[tuple(first.vertices[i])]
+        if buf1[i] != buf2[i2]:
+          return False
 
     return True
 
@@ -269,7 +487,7 @@ class PrecomputedSkeleton(object):
     Crop away all vertices and edges that lie outside of the given bbox.
     The edge counts as inside.
 
-    Returns: new PrecomputedSkeleton
+    Returns: new Skeleton
     """
     skeleton = self.clone()
     bbox = Bbox.create(bbox)
@@ -285,7 +503,7 @@ class PrecomputedSkeleton(object):
     # Set invalid vertices to be duplicates
     # so they'll be removed during consolidation
     if nodes_valid_idx.shape[0] == 0:
-      return PrecomputedSkeleton()
+      return Skeleton()
 
     first_node = nodes_valid_idx[0]
     skeleton.vertices[~nodes_valid_mask] = skeleton.vertices[first_node]
@@ -304,18 +522,16 @@ class PrecomputedSkeleton(object):
       remove_disconnected_vertices: delete vertices that have no edges
         associated with them. This does not preserve index order.
 
-    Returns: new consolidated PrecomputedSkeleton 
+    Returns: new consolidated Skeleton 
     """
-    vertices = self.vertices
+    nodes = self.vertices
     edges = self.edges 
-    radii = self.radii
-    vertex_types = self.vertex_types
 
     if self.empty():
-      return PrecomputedSkeleton(segid=self.id)
+      return Skeleton()
     
     eff_vertices, uniq_idx, idx_representative = np.unique(
-      vertices, axis=0, return_index=True, return_inverse=True
+      nodes, axis=0, return_index=True, return_inverse=True
     )
 
     edge_vector_map = np.vectorize(lambda x: idx_representative[x])
@@ -325,13 +541,14 @@ class PrecomputedSkeleton(object):
     eff_edges = np.unique(eff_edges, axis=0)
     eff_edges = eff_edges[ eff_edges[:,0] != eff_edges[:,1] ] # remove trivial loops
 
-    radii_vector_map = np.vectorize(lambda idx: radii[idx])
-    eff_radii = radii_vector_map(uniq_idx)
+    skel = Skeleton(eff_vertices, eff_edges, segid=self.id)
 
-    vertex_type_map = np.vectorize(lambda idx: vertex_types[idx])
-    eff_vtype = vertex_type_map(uniq_idx)
-
-    skel = PrecomputedSkeleton(eff_vertices, eff_edges, eff_radii, eff_vtype, segid=self.id)
+    for attr in self.extra_attributes:
+      name = attr['id']
+      buf = getattr(self, name)
+      name_vector_map = np.vectorize(lambda idx: buf[idx])
+      eff_name = name_vector_map(uniq_idx)
+      setattr(skel, name, eff_name)
 
     if remove_disconnected_vertices:
       return skel.remove_disconnected_vertices()
@@ -343,10 +560,10 @@ class PrecomputedSkeleton(object):
     Delete vertices that have no edges associated with them. 
     This does not preserve index order.
 
-    Returns: new PrecomputedSkeleton
+    Returns: new Skeleton
     """
     if self.empty():
-      return PrecomputedSkeleton(segid=self.id)
+      return Skeleton(segid=self.id)
 
     idx_map = {}
     for i, vert in enumerate(self.vertices):
@@ -354,14 +571,6 @@ class PrecomputedSkeleton(object):
 
     connected_verts = np.unique(self.vertices[ self.edges.flatten() ], axis=0)
     Nv = connected_verts.shape[0]
-
-    radii = np.zeros( (Nv,), dtype=np.float32 )
-    vertex_types = np.zeros( (Nv,), dtype=np.uint8 )
-
-    for i, vert in enumerate(connected_verts):
-      reverse_idx = idx_map[tuple(vert)]
-      radii[i] = self.radii[reverse_idx]
-      vertex_types[i] = self.vertex_types[reverse_idx]
 
     idx_reverse_map = {}
     for i, vert in enumerate(connected_verts):
@@ -379,7 +588,18 @@ class PrecomputedSkeleton(object):
 
     edges = np.array(edges, dtype=np.uint32)
 
-    return PrecomputedSkeleton(connected_verts, edges, radii, vertex_types, segid=self.id)
+    skel = Skeleton(connected_verts, edges, segid=self.id)
+
+    for attr in self.extra_attributes:
+      name = attr['id']
+      skel_buf = np.zeros( (Nv,), dtype=attr['data_type'] )
+      self_buf = getattr(self, name)
+      for i, vert in enumerate(connected_verts):
+        reverse_idx = idx_map[tuple(vert)]
+        skel_buf[i] = self_buf[reverse_idx]
+      setattr(skel, name, skel_buf)
+        
+    return skel
 
   def clone(self):
     vertices = np.copy(self.vertices)
@@ -387,15 +607,27 @@ class PrecomputedSkeleton(object):
     radii = np.copy(self.radii)
     vertex_types = np.copy(self.vertex_types)
 
-    return PrecomputedSkeleton(vertices, edges, radii, vertex_types, segid=self.id)
+    skel = Skeleton(
+      vertices, edges, radii, vertex_types, 
+      segid=self.id, 
+      space=self.space, 
+      extra_attributes=self.extra_attributes,
+      transform=np.copy(self.transform)
+    )
+    for attr in skel.extra_attributes:
+      setattr(skel, attr['id'], np.copy(getattr(self, attr['id'])))
+
+    return skel
 
   def cable_length(self):
     """
     Returns cable length of connected skeleton vertices in the same
     metric that this volume uses (typically nanometers).
     """
-    v1 = self.vertices[self.edges[:,0]]
-    v2 = self.vertices[self.edges[:,1]]
+    skel = self.physical_space(copy=False)
+
+    v1 = skel.vertices[skel.edges[:,0]]
+    v2 = skel.vertices[skel.edges[:,1]]
 
     delta = (v2 - v1)
     delta *= delta
@@ -411,7 +643,7 @@ class PrecomputedSkeleton(object):
 
     factor: stride length for downsampling the saved skeleton paths.
 
-    Returns: downsampled PrecomputedSkeleton
+    Returns: downsampled Skeleton
     """
     if int(factor) != factor or factor < 1:
       raise ValueError("Argument `factor` must be a positive integer greater than or equal to 1. Got: <{}>({})", type(factor), factor)
@@ -423,8 +655,8 @@ class PrecomputedSkeleton(object):
         (path[0::factor, :], path[-1:, :]) # preserve endpoints
       )
 
-    ds_skel = PrecomputedSkeleton.simple_merge(
-      [ PrecomputedSkeleton.from_path(path) for path in paths ]
+    ds_skel = Skeleton.simple_merge(
+      [ Skeleton.from_path(path) for path in paths ]
     ).consolidate()
     ds_skel.id = self.id
 
@@ -434,14 +666,17 @@ class PrecomputedSkeleton(object):
       vert = tuple(vert)
       index[vert] = i
 
-    for i, vert in enumerate(ds_skel.vertices):
-      vert = tuple(vert)
-      ds_skel.radii[i] = self.radii[index[vert]]
-      ds_skel.vertex_types[i] = self.vertex_types[index[vert]]
+    bufs = [ getattr(ds_skel, attr['id']) for attr in ds_skel.extra_attributes ]
+    orig_bufs = [ getattr(self, attr['id']) for attr in ds_skel.extra_attributes ]
 
+    for i, vert in enumerate(ds_skel.vertices):
+      reverse_i = index[tuple(vert)]
+      for buf, buf_rev in zip(bufs, orig_bufs):
+        buf[i] = buf_rev[reverse_i]
+    
     return ds_skel
 
-  def _single_tree_paths(self, tree):
+  def _single_tree_paths(self, tree, return_indices):
     """Get all traversal paths from a single tree."""
     skel = tree.consolidate()
 
@@ -484,10 +719,13 @@ class PrecomputedSkeleton(object):
     root = paths[root][-1]
   
     paths = dfs([ root ], defaultdict(bool))
-    
-    return [ np.flip(skel.vertices[path], axis=0) for path in paths ]    
 
-  def paths(self):
+    if return_indices:
+      return [ np.flip(path) for path in paths ]
+
+    return [ np.flip(skel.vertices[path], axis=0) for path in paths ]
+
+  def paths(self, return_indices=False):
     """
     Assuming the skeleton is structured as a single tree, return a 
     list of all traversal paths across all components. For each component, 
@@ -499,10 +737,10 @@ class PrecomputedSkeleton(object):
     """
     paths = []
     for tree in self.components():
-      paths += self._single_tree_paths(tree)
+      paths += self._single_tree_paths(tree, return_indices=return_indices)
     return paths
 
-  def _single_tree_interjoint_paths(self, skeleton):
+  def _single_tree_interjoint_paths(self, skeleton, return_indices):
     vertices = skeleton.vertices
     edges = skeleton.edges
 
@@ -554,9 +792,12 @@ class PrecomputedSkeleton(object):
           criticals.append(root)
           path_stack.append(list(path))
 
+    if return_indices:
+      return paths
+
     return [ vertices[path] for path in paths ]
 
-  def interjoint_paths(self):
+  def interjoint_paths(self, return_indices=False):
     """
     Returns paths between the adjacent critical points
     in the skeleton, where a critical point is the set of
@@ -564,7 +805,9 @@ class PrecomputedSkeleton(object):
     """
     paths = []
     for tree in self.components():
-      subpaths = self._single_tree_interjoint_paths(tree)
+      subpaths = self._single_tree_interjoint_paths(
+        tree, return_indices=return_indices
+      )
       paths.extend(subpaths)
 
     return paths
@@ -621,7 +864,7 @@ class PrecomputedSkeleton(object):
     Extract connected components from graph. 
     Useful for ensuring that you're working with a single tree.
 
-    Returns: [ PrecomputedSkeleton, PrecomputedSkeleton, ... ]
+    Returns: [ Skeleton, Skeleton, ... ]
     """
     skel, forest = self._compute_components()
 
@@ -647,7 +890,7 @@ class PrecomputedSkeleton(object):
       edge_list = edge_vector_map(edge_list)
 
       skeletons.append(
-        PrecomputedSkeleton(vert_list, edge_list, radii, vtypes, skel.id)
+        Skeleton(vert_list, edge_list, radii, vtypes, skel.id)
       )
 
     return skeletons
@@ -695,7 +938,7 @@ class PrecomputedSkeleton(object):
 
       edges.append( (i, vertex_index[label_index[parent_id]]) )
 
-    return PrecomputedSkeleton(vertices, edges, radii, vertex_types)
+    return Skeleton(vertices, edges, radii, vertex_types)
 
   def to_swc(self, contributors=""):
     """
@@ -753,42 +996,54 @@ class PrecomputedSkeleton(object):
 
     return swc
 
-  def viewer(self, units='nm'):
+  def viewer(self, units='nm', draw_edges=True, draw_vertices=True):
     """
     View the skeleton with a radius heatmap. 
 
     Requires the matplotlib library which is 
     not installed by default.
+
+    units: label axes with these units
+    draw_edges: draw lines between vertices (more useful when skeleton is sparse)
+    draw_vertices: draw each vertex colored by its radius.
     """
     try:
-      import matplotlib
       import matplotlib.pyplot as plt
       from mpl_toolkits.mplot3d import Axes3D 
       from matplotlib import cm
-      import multiprocessing as mp
-      import os
     except ImportError:
-      print("PrecomputedSkeleton.viewer requires matplotlib. Try: pip install matplotlib --upgrade")
+      print("Skeleton.viewer requires matplotlib. Try: pip install matplotlib --upgrade")
       return
 
     fig = plt.figure(figsize=(10,10))
     ax = Axes3D(fig)
-
-    xs = self.vertices[:,0]
-    ys = self.vertices[:,1]
-    zs = self.vertices[:,2]
-
-    colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
-    colmap.set_array(self.radii)
-
-    normed_radii = self.radii / np.max(self.radii)
-    yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
-    cbar = fig.colorbar(colmap)
-    cbar.set_label('radius (' + units + ')', rotation=270)
-
     ax.set_xlabel(units)
     ax.set_ylabel(units)
     ax.set_zlabel(units)
+
+    if draw_vertices:
+      xs = self.vertices[:,0]
+      ys = self.vertices[:,1]
+      zs = self.vertices[:,2]
+
+      colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
+      colmap.set_array(self.radii)
+
+      normed_radii = self.radii / np.max(self.radii)
+      yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
+      cbar = fig.colorbar(colmap)
+      cbar.set_label('radius (' + units + ')', rotation=270)
+
+    if draw_edges:
+      for e1, e2 in self.edges:
+        pt1, pt2 = self.vertices[e1], self.vertices[e2]
+        ax.plot(  
+          [ pt1[0], pt2[0] ],
+          [ pt1[1], pt2[1] ],
+          zs=[ pt1[2], pt2[2] ],
+          color=('mediumseagreen' if not draw_vertices else 'silver'),
+          linewidth=1,
+        )
 
     plt.show()
 
@@ -799,6 +1054,15 @@ class PrecomputedSkeleton(object):
       return False
     elif self.edges.shape[0] != other.edges.shape[0]:
       return False
+    elif self.extra_attributes != other.extra_attributes:
+      return False
+
+    attrs = [ attr['id'] for attr in self.extra_attributes ]
+    for attr in attrs:
+      buf1 = getattr(self, attr)
+      buf2 = getattr(other, attr)
+      if np.all(buf1 != buf2):
+        return False
 
     return (np.all(self.vertices == other.vertices)
       and np.all(self.edges == other.edges) \
@@ -806,100 +1070,25 @@ class PrecomputedSkeleton(object):
       and np.all(self.vertex_types == other.vertex_types))
 
   def __str__(self):
-    return "PrecomputedSkeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), radii=(shape={}, {}), vertex_types=(shape={}, {}))".format(
+    template = "{}=({}, {})"
+    attr_strings = []
+    for attr in self.extra_attributes:
+      attr = attr['id']
+      buf = getattr(self, attr)
+      attr_strings.append(
+        template.format(attr, buf.shape[0], buf.dtype)
+      )
+
+    return "Skeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), {}, space='{}' transform={})".format(
       self.id,
       self.vertices.shape[0], self.vertices.dtype,
       self.edges.shape[0], self.edges.dtype,
-      self.radii.shape[0], self.radii.dtype,
-      self.vertex_types.shape[0], self.vertex_types.dtype
+      ', '.join(attr_strings),
+      self.space, self.transform.tolist()
     )
 
   def __repr__(self):
     return str(self)
 
-class PrecomputedSkeletonSource(object):
-  def __init__(self, meta, cache, config):
-    self.meta = meta
-    self.cache = cache
-    self.config = config
 
-  @property
-  def path(self):
-    path = 'skeletons'
-    if 'skeletons' in self.meta.info:
-      path = self.meta.info['skeletons']
-    return path
-
-  def get(self, segids):
-    """
-    Retrieve one or more skeletons from the data layer.
-
-    Example: 
-      skel = vol.skeleton.get(5)
-      skels = vol.skeleton.get([1, 2, 3])
-
-    Raises SkeletonDecodeError on missing files or decoding errors.
-
-    Required:
-      segids: list of integers or integer
-
-    Returns: 
-      if segids is a list, returns list of PrecomputedSkeletons
-      else returns a single PrecomputedSkeleton
-    """
-    list_return = True
-    if type(segids) in (int, float):
-      list_return = False
-      segids = [ int(segids) ]
-
-    compress = self.config.compress 
-    if compress is None:
-      compress = True
-
-    results = self.cache.download(
-      [ os.path.join(self.path, str(segid)) for segid in segids ],
-      compress=compress
-    )
-    missing = [ filename for filename, content in results.items() if content is None ]
-
-    if len(missing):
-      raise SkeletonDecodeError("File(s) do not exist: {}".format(", ".join(missing)))
-
-    skeletons = []
-    for filename, content in results.items():
-      segid = int(os.path.basename(filename))
-      try:
-        skel = PrecomputedSkeleton.decode(
-          content, segid=segid
-        )
-      except Exception as err:
-        raise SkeletonDecodeError("segid " + str(segid) + ": " + err.message)
-      skeletons.append(skel)
-
-    if list_return:
-      return skeletons
-
-    if len(skeletons):
-      return skeletons[0]
-
-    return None
-
-  def upload_raw(self, segid, vertices, edges, radii=None, vertex_types=None):
-    skel = PrecomputedSkeleton(
-      vertices, edges, radii, 
-      vertex_types, segid=segid
-    )
-    return self.upload(skel)
-    
-  def upload(self, skeletons):
-    if type(skeletons) == PrecomputedSkeleton:
-      skeletons = [ skeletons ]
-
-    files = [ (os.path.join(self.path, str(skel.id)), skel.encode()) for skel in skeletons ]
-    self.cache.upload(
-      files=files, 
-      subdir=self.path,
-      compress='gzip', 
-      cache_control=cdn_cache_control(self.config.cdn_cache)
-    )
-    
+PrecomputedSkeleton = Skeleton # backwards compatibility

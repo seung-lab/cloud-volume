@@ -12,7 +12,7 @@ def requirements():
 
 setuptools.setup(
   name="cloud-volume",
-  version="0.56.2",
+  version="0.57.1",
   setup_requires=[
     'numpy<1.17; python_version<"3.5"',
     'numpy; python_version>="3.5"',
@@ -32,6 +32,7 @@ setuptools.setup(
     "mesh_viewer": [ 'vtk' ],
     "skeleton_viewer": [ 'matplotlib' ],
     "all_viewers": [ 'vtk', 'matplotlib' ],
+    "test": [ "pytest" ],
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",

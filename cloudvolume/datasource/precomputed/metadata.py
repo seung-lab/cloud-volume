@@ -1,3 +1,4 @@
+import collections
 import json
 import os
 import posixpath
@@ -339,15 +340,19 @@ class PrecomputedMetadata(object):
   def scale(self, mip):
     return self.info['scales'][mip]
 
+  def join(self, *paths):
+    if self.path.protocol == 'file':
+      return os.path.join(*paths)
+    else:
+      return posixpath.join(*paths)
+
   @property
   def basepath(self):
-    path = os.path if self.path.protocol == 'file' else posixpath
-    return path.join(self.path.bucket, self.path.intermediate_path, self.dataset)
+    return self.path.basepath
     
   @property 
   def layerpath(self):
-    path = os.path if self.path.protocol == 'file' else posixpath
-    return path.join(self.basepath, self.layer)
+    return self.join(self.basepath, self.layer)
 
   @property
   def base_cloudpath(self):
@@ -355,13 +360,11 @@ class PrecomputedMetadata(object):
 
   @property 
   def cloudpath(self):
-    path = os.path if self.path.protocol == 'file' else posixpath
-    return path.join(self.base_cloudpath, self.layer)
+    return self.join(self.base_cloudpath, self.layer)
   
   @property
   def infopath(self):
-    path = os.path if self.path.protocol == 'file' else posixpath
-    return path.join(self.cloudpath, 'info')
+    return self.join(self.cloudpath, 'info')
 
   @property
   def skeletons(self):
@@ -425,6 +428,29 @@ class PrecomputedMetadata(object):
   def resolution(self, mip):
     """Vec(x,y,z) dimensions of each voxel in nanometers"""
     return Vec(*self.info['scales'][mip]['resolution'])
+
+  def to_mip(self, mip):
+    mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
+    try:
+      if isinstance(mip, list):  # mip specified by voxel resolution
+        return next(
+          (i for (i,s) in enumerate(self.scales) if s["resolution"] == mip)
+        )
+      else:  # mip specified by index into downsampling hierarchy
+        return self.available_mips[mip]
+    except Exception:
+      if isinstance(mip, list):
+        opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
+      else:
+        opening_text = "MIP {}".format(str(mip))
+  
+      scales = [ ",".join(map(str, scale)) for scale in self.available_resolutions ]
+      scales = [ "<{}>".format(scale) for scale in scales ]
+      scales = ", ".join(scales)
+      msg = "{} not found. {} available: {}".format(
+        opening_text, len(self.available_mips), scales
+      )
+      raise exceptions.ScaleUnavailableError(msg)
 
   def downsample_ratio(self, mip):
     """Describes how downsampled the current mip level is as an (x,y,z) factor triple."""

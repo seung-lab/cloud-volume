@@ -53,12 +53,13 @@ from .lib import Bbox, Vec
 from .provenance import DataLayerProvenance
 from .storage import Storage
 from .threaded_queue import ThreadedQueue
-from .exceptions import EmptyVolumeException, EmptyRequestException, AlignmentError
+from .exceptions import (
+  EmptyVolumeException, EmptyRequestException, AlignmentError,
+  SkeletonEncodeError, SkeletonDecodeError
+)
 from .volumecutout import VolumeCutout
 
-from .datasource.precomputed.skeleton import (
-  PrecomputedSkeleton, SkeletonEncodeError, SkeletonDecodeError
-)
+from .skeleton import Skeleton, PrecomputedSkeleton
 
 from . import exceptions
 from . import secrets
@@ -66,15 +67,23 @@ from . import secrets
 from . import microviewer
 from .microviewer import view, hyperview
 
-__version__ = '0.56.2'
+__version__ = '0.57.1'
 
 # Register plugins
 from .datasource.precomputed import register as register_precomputed
 from .datasource.graphene import register as register_graphene
-from .datasource.boss  import register as register_boss
 
 register_precomputed()
-register_boss()
 register_graphene()
+
+try:
+  from .datasource.boss  import register as register_boss
+  register_boss()
+except ImportError:
+  pass
+
+
+
+
 
 

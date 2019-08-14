@@ -38,17 +38,18 @@ CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/
 
 ### Optional Dependencies 
 
-| Tag             | Description                        | Dependencies    |
-|-----------------|------------------------------------|-----------------|
-| boss            | `boss://` format support           | intern          |
-| mesh_viewer     | `mesh.viewer()` GUI                | vtk             |
-| skeleton_viewer | `skeleton.viewer()` GUI            | matplotlib      |
-| all_viewers     | All viewers now and in the future. | vtk, matplotlib |
+| Tag             | Description                        | Dependencies          |
+|-----------------|------------------------------------|-----------------------|
+| boss            | `boss://` format support           | intern                |
+| test            | Supports testing                   | pytest                |
+| mesh_viewer     | `mesh.viewer()` GUI                | vtk                   |
+| skeleton_viewer | `skeleton.viewer()` GUI            | matplotlib            |
+| all_viewers     | All viewers now and in the future. | vtk, matplotlib       |
 
 Example:
 
 ```bash
-pip install cloud-volume[boss,all_viewers]
+pip install cloud-volume[boss,test,all_viewers]
 ```
 
 #### `pip` Source Installation
@@ -138,15 +139,31 @@ CloudVolume supports reading and writing to Neuroglancer data layers on Amazon S
 
 Supported URLs are of the forms:
 
-`$PROTOCOL://$BUCKET/$DATASET/$LAYER`
+`$FORMAT://$PROTOCOL://$BUCKET/$DATASET/$LAYER`  
+
+The format or protocol fields may be omitted where required. In the case of the precomputed format, the format specifier is optional.  
+
+| Format      | Protocols                         | Default | Example                                |
+|-------------|-----------------------------------|---------|----------------------------------------|
+| precomputed | gs, s3, http, https, file, matrix | Yes     | gs://mybucket/dataset/layer            |
+| graphene    | gs, s3, http, https, file, matrix |         | graphene://gs://mybucket/dataset/layer |
+| boss        | N/A                               |         | boss://collection/experiment/channel   |
+
+### Supported Formats
+
+* precomputed: Neuroglancer's native format. ([specification](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed))
+* graphene: Precomputed based format used by the PyChunkGraph server.
+* boss: The BOSS (https://docs.theboss.io/docs)
+
+We currently support reading the sharded skeleton format within Precomputed that is used in some newer datasets. Other data types are forthcoming.  
 
 ### Supported Protocols 
 * gs:   Google Storage
 * s3:   Amazon S3
-* boss: The BOSS (https://docs.theboss.io/docs)
 * http(s): (read-only) Ordinary Web Servers 
 * file: Local File System (absolute path)
 * matrix: Princeton Internal System
+
 
 ### `info` Files - New Dataset
 
@@ -224,13 +241,13 @@ vol.skeleton.upload(skel)
 skel.empty() # boolean
 
 bytes = skel.encode() # encode to Precomputed format (bytes)
-skel = PrecomputedSkeleton.decode(bytes) # decode from PrecomputedFormat
+skel = Skeleton.decode(bytes) # decode from PrecomputedFormat
 
 skel = skel.crop(slices or bbox) # eliminate vertices and edges outside bbox
 skel = skel.consolidate() # eliminate duplicate vertices and edges
 skel3 = skel.merge(skel2) # merge two skeletons into one
 skel = skel.clone() # create copy
-skel = PrecomputedSkeleton.from_swc(swcstr) # decode an SWC file
+skel = Skeleton.from_swc(swcstr) # decode an SWC file
 skel_str = skel.to_swc() # convert to SWC file in string representation
 skel.viewer() # Opens GUI. Requires matplotlib
 
@@ -238,7 +255,7 @@ skel.cable_length() # sum of all edge lengths
 skel = skel.downsample(2) # reduce size of skeleton by factor of 2 
 
 skel1 == skel2 # check if contents of internal arrays match
-PrecomputedSkeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
+Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
 
 # Parallel Operation
 vol = CloudVolume('gs://mybucket/retina/image', parallel=True) # Use all cores
@@ -474,10 +491,7 @@ Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/H
 Thanks to Jeremy Maitin-Shepard and Stephen Plaza for their C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg).  
 Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.  
 Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him).   
-Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.
+Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.  
+Thanks to Fredrik Kihlander for his [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) for developing murmurhash3.  
   
-## Mailing List 
-
-If you want infrequent letters in your inbox about significant improvements or even more infrequent breaking changes to CloudVolume, send an email to cloudvolume@protonmail.com asking to sign up. It's a 100% manual process and I'll only email you if there's something important to say or if I want to beta test my standup routine. Just kidding, it's 100% serious engineering talk for serious engineers that never smile. Seriously.   
-
 
