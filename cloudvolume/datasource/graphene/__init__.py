@@ -8,6 +8,7 @@ from ...cloudvolume import SharedConfiguration, register_plugin
 from ...paths import strict_extract
 
 from ...frontends import CloudVolumeGraphene
+from requests import HTTPError
 
 def create_graphene(
     cloudpath, mip=0, bounded=True, autocrop=False,
@@ -49,7 +50,10 @@ def create_graphene(
     )
 
     mesh = GrapheneMeshSource(meta, cache, config)
-    # skeleton = PrecomputedSkeletonSource(meta, cache, config)
+    try:
+      skeleton = PrecomputedSkeletonSource(meta, cache, config)
+    except HTTPError:
+      skeleton = None
 
     return CloudVolumeGraphene(
       meta, cache, config, 
