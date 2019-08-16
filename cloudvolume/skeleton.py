@@ -932,7 +932,7 @@ class Skeleton(object):
     parents = {}
     N = 0
 
-    for i, line in enumerate(lines):
+    for line in lines:
       if line.replace(r"\s", '') == '':
         continue
       (vid, vtype, x, y, z, radius, parent_id) = line.split(" ")
@@ -941,9 +941,9 @@ class Skeleton(object):
       vid = int(vid)
       parent_id = int(parent_id)
 
-      vertex_index[coord] = i 
+      vertex_index[coord] = N
       label_index[vid] = coord
-      parents[i] = parent_id
+      parents[N] = parent_id
 
       vertices.append(coord)
       vertex_types.append(int(vtype))
@@ -957,11 +957,10 @@ class Skeleton(object):
 
       N += 1
 
-    for i in range(N):
-      parent_id = parents[i]
+    for i, parent_id in parents.items():
       if parent_id < 0:
         continue
-
+      
       edges.append( (i, vertex_index[label_index[parent_id]]) )
 
     return Skeleton(vertices, edges, radii, vertex_types)
