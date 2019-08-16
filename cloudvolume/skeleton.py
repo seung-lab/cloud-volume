@@ -906,7 +906,7 @@ class Skeleton(object):
     R.C Cannona, D.A Turner, G.K Pyapali, H.V Wheal. 
     "An on-line archive of reconstructed hippocampal neurons".
     Journal of Neuroscience Methods
-    Volume 84, Issues 1–2, 1 October 1998, Pages 49-54
+    Volume 84, Issues 1-2, 1 October 1998, Pages 49-54
     doi: 10.1016/S0165-0270(98)00091-0
 
     This website is also helpful for understanding the format:
@@ -972,7 +972,7 @@ class Skeleton(object):
     R.C Cannona, D.A Turner, G.K Pyapali, H.V Wheal. 
     "An on-line archive of reconstructed hippocampal neurons".
     Journal of Neuroscience Methods
-    Volume 84, Issues 1–2, 1 October 1998, Pages 49-54
+    Volume 84, Issues 1-2, 1 October 1998, Pages 49-54
     doi: 10.1016/S0165-0270(98)00091-0
 
     This website is also helpful for understanding the format:
