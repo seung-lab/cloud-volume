@@ -956,7 +956,7 @@ class Skeleton(object):
     c.f. http://research.mssm.edu/cnic/swc.html
     """
     from . import __version__
-    swc = """# ORIGINAL_SOURCE CloudVolume {}
+    swc_header = """# ORIGINAL_SOURCE CloudVolume {}
 # CREATURE 
 # REGION
 # FIELD/LAYER
@@ -977,33 +977,52 @@ class Skeleton(object):
       datetime.datetime.utcnow().isoformat()
     )
 
-    skel = self.clone()
+    def generate_swc(skel):
+      if skel.edges.size == 0:
+        return swc_header
 
-    def parent(i):
-      coords = np.where( skel.edges == i )
-      coords = coords[0]
-      if len(coords) == 0:
-        return -1
+      index = defaultdict(set)
+      visited = defaultdict(bool)
+      for e1, e2 in skel.edges:
+        index[e1].add(e2)
+        index[e2].add(e1)
 
-      edge = skel.edges[ coords[0] ]
-      if edge[0] == i:
-        return edge[1] + 1
-      return edge[0] + 1
+      stack = [ skel.edges[0,0] ]
+      parents = [ -1 ]
 
-    for i in range(skel.vertices.shape[0]):
-      line = "{n} {T} {x:0.6f} {y:0.6f} {z:0.6f} {R:0.6f} {P}".format(
-          n=i+1,
-          T=skel.vertex_types[i],
-          x=skel.vertices[i][0],
-          y=skel.vertices[i][1],
-          z=skel.vertices[i][2],
-          R=skel.radii[i],
-          P=-1 if i == 0 else parent(i),
+      swc = swc_header
+
+      while stack:
+        node = stack.pop()
+        parent = parents.pop()
+
+        if visited[node]:
+          continue
+
+        swc += "{n} {T} {x:0.6f} {y:0.6f} {z:0.6f} {R:0.6f} {P}\n".format(
+          n=node+1,
+          T=skel.vertex_types[node],
+          x=skel.vertices[node][0],
+          y=skel.vertices[node][1],
+          z=skel.vertices[node][2],
+          R=skel.radii[node],
+          P=parent if parent == -1 else parent + 1,
         )
 
-      swc += line + '\n'
+        visited[node] = True
+        
+        for child in index[node]:
+          stack.append(child)
+          parents.append(node)
 
-    return swc
+      return swc
+
+    skels = self.remove_disconnected_vertices().components()
+
+    if len(skels) == 1:
+      return generate_swc(skels[0])
+    else:
+      return [ generate_swc(skl) for skl in skels ]
 
   def viewer(self, units='nm', draw_edges=True, draw_vertices=True):
     """
