@@ -898,7 +898,7 @@ class Skeleton(object):
   @classmethod
   def from_swc(self, swcstr):
     lines = swcstr.split("\n")
-    while re.match(r'[#\s]', lines[0][0]):
+    while lines[0] == '' or re.match(r'[#\s]', lines[0][0]):
       lines.pop(0)
 
     vertices = []
@@ -982,7 +982,7 @@ class Skeleton(object):
       return edge[0] + 1
 
     for i in range(skel.vertices.shape[0]):
-      line = "{n} {T} {x} {y} {z} {R} {P}".format(
+      line = "{n} {T} {x:0.6f} {y:0.6f} {z:0.6f} {R:0.6f} {P}".format(
           n=i+1,
           T=skel.vertex_types[i],
           x=skel.vertices[i][0],

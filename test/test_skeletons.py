@@ -499,6 +499,14 @@ def test_read_swc():
 
   assert Skeleton.equivalent(skel, skel_gt)
 
+  skel = Skeleton.from_swc(skel.to_swc())
+  assert np.all(np.abs(skel.vertices - skel_gt.vertices) < 0.00001)
+  # sorts edges
+  skel = skel.consolidate()
+  skel_gt = skel_gt.consolidate()
+  assert np.all(skel.edges == skel_gt.edges)
+  assert np.all(np.abs(skel.radii - skel_gt.radii) < 0.00001)
+
 def test_components():
   skel = Skeleton(
     [ 
