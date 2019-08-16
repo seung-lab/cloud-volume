@@ -916,8 +916,11 @@ class Skeleton(object):
     Returns: Skeleton
     """
     lines = swcstr.split("\n")
-    while lines[0] == '' or re.match(r'[#\s]', lines[0][0]):
-      lines.pop(0)
+    while len(lines) and (lines[0] == '' or re.match(r'[#\s]', lines[0][0])):
+      l = lines.pop(0)
+
+    if len(lines) == 0:
+      return Skeleton()
 
     vertices = []
     edges = []
@@ -1003,7 +1006,7 @@ class Skeleton(object):
       datetime.datetime.utcnow().isoformat()
     )
 
-    def generate_swc(skel):
+    def generate_swc(skel, offset):
       if skel.edges.size == 0:
         return swc_header
 
@@ -1016,7 +1019,7 @@ class Skeleton(object):
       stack = [ skel.edges[0,0] ]
       parents = [ -1 ]
 
-      swc = swc_header
+      swc = ""
 
       while stack:
         node = stack.pop()
@@ -1026,13 +1029,13 @@ class Skeleton(object):
           continue
 
         swc += "{n} {T} {x:0.6f} {y:0.6f} {z:0.6f} {R:0.6f} {P}\n".format(
-          n=node+1,
+          n=(node + 1 + offset),
           T=skel.vertex_types[node],
           x=skel.vertices[node][0],
           y=skel.vertices[node][1],
           z=skel.vertices[node][2],
           R=skel.radii[node],
-          P=parent if parent == -1 else parent + 1,
+          P=parent if parent == -1 else (parent + 1 + offset),
         )
 
         visited[node] = True
@@ -1045,7 +1048,13 @@ class Skeleton(object):
 
     skels = self.remove_disconnected_vertices().components()
 
-    return [ generate_swc(skl) for skl in skels ]
+    swc = swc_header + "\n"
+    offset = 0
+    for skel in skels:
+      swc += generate_swc(skel, offset) + "\n"
+      offset += skel.vertices.shape[0]
+
+    return swc
 
   def viewer(self, units='nm', draw_edges=True, draw_vertices=True):
     """
