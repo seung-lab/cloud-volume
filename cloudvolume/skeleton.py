@@ -927,7 +927,13 @@ class Skeleton(object):
 
       vertices.append(coord)
       vertex_types.append(int(vtype))
-      radii.append(float(radius))
+
+      try:
+        radius = float(radius)
+      except ValueError:
+        radius = -1 # e.g. radius = NA or N/A
+
+      radii.append(radius)
 
       N += 1
 
