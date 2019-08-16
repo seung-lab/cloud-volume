@@ -1045,10 +1045,7 @@ class Skeleton(object):
 
     skels = self.remove_disconnected_vertices().components()
 
-    if len(skels) == 1:
-      return generate_swc(skels[0])
-    else:
-      return [ generate_swc(skl) for skl in skels ]
+    return [ generate_swc(skl) for skl in skels ]
 
   def viewer(self, units='nm', draw_edges=True, draw_vertices=True):
     """
