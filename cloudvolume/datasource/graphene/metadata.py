@@ -15,9 +15,10 @@ class GrapheneMetadata(PrecomputedMetadata):
     self.server_url = cloudpath.replace('graphene://', '')
     self.server_path = extract_graphene_path(self.server_url)
     self.use_https = use_https
+    self.auth_header = None
     if chunkedgraph_credentials:
       self.auth_header = {
-        "Authorization": f"Bearer {chunkedgraph_credentials["token"]}"
+        "Authorization": "Bearer %s" % chunkedgraph_credentials["token"]
       }
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
