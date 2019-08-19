@@ -648,6 +648,9 @@ class Skeleton(object):
     if int(factor) != factor or factor < 1:
       raise ValueError("Argument `factor` must be a positive integer greater than or equal to 1. Got: <{}>({})", type(factor), factor)
 
+    if factor == 1:
+      return self.clone()
+
     paths = self.interjoint_paths()
 
     for i, path in enumerate(paths):
@@ -947,7 +950,7 @@ class Skeleton(object):
     c.f. http://research.mssm.edu/cnic/swc.html
     """
     from . import __version__
-    swc = """# ORIGINAL_SOURCE CloudVolume {}
+    swc_header = """# ORIGINAL_SOURCE CloudVolume {}
 # CREATURE 
 # REGION
 # FIELD/LAYER

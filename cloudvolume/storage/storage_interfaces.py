@@ -309,7 +309,7 @@ class HttpInterface(StorageInterface):
       resp = requests.get(key, headers=headers)
     else:
       resp = requests.get(key)
-    if resp.status_code == 404:
+    if resp.status_code in (404, 403):
       return None, None
     resp.raise_for_status()
     return resp.content, resp.encoding

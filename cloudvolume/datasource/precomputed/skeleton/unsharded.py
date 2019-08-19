@@ -27,7 +27,7 @@ class UnshardedPrecomputedSkeletonSource(object):
   def path(self):
     return self.meta.path 
 
-  def get(self, segids):
+  def get(self, segids, allow_missing=False):
     """
     Retrieve one or more skeletons from the data layer.
 
@@ -39,6 +39,9 @@ class UnshardedPrecomputedSkeletonSource(object):
 
     Required:
       segids: list of integers or integer
+    Optional:
+      allow_missing: skip over non-existent files otherwise
+        raise cloudvolume.exceptions.SkeletonDecodeError
 
     Returns: 
       if segids is a list, returns list of Skeletons
@@ -58,8 +61,9 @@ class UnshardedPrecomputedSkeletonSource(object):
       compress=compress
     )
     missing = [ filename for filename, content in results.items() if content is None ]
+    results = { filename: content for filename, content in results.items() if content is not None }
 
-    if len(missing):
+    if not allow_missing and len(missing):
       raise SkeletonDecodeError("File(s) do not exist: {}".format(", ".join(missing)))
 
     skeletons = []
