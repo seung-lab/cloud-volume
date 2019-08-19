@@ -10,8 +10,9 @@ import numpy as np
 
 from .. import exceptions
 from ..cacheservice import CacheService
-from ..lib import Bbox, toiter
+from ..lib import Bbox, Vec, toiter
 from ..storage import SimpleStorage, Storage, reset_connection_pools
+from ..volumecutout import VolumeCutout
 
 from .precomputed import CloudVolumePrecomputed
 
@@ -33,6 +34,40 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     # TODO: add this as new parameter to the info as it can be different from the chunkedgraph chunksize
     return self.meta.mesh_chunk_size
   
+  def download_point(self, pt, size=256, mip=None, parallel=None, **kwargs):
+    """
+    Download to the right of point given in mip 0 coords.
+    Useful for quickly visualizing a neuroglancer coordinate
+    at an arbitary mip level.
+
+    pt: (x,y,z)
+    size: int or (sx,sy,sz)
+    mip: int representing resolution level
+    parallel: number of processes to launch (0 means all cores)
+
+    Also accepts the arguments for download such as root_ids and mask_base.
+
+    Return: image
+    """
+    if isinstance(size, int) or isinstance(size, float):
+      size = Vec(size, size, size)
+    else:
+      size = Vec(*size)
+
+    if mip is None:
+      mip = self.mip
+
+    mip = self.meta.to_mip(mip)
+    size2 = size // 2
+
+    pt = self.point_to_mip(pt, mip=0, to_mip=mip)
+    bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
+
+    if parallel is None:
+      parallel = self.parallel
+
+    return self.download(bbox, mip, parallel=parallel, **kwargs)
+
   def download(
     self, bbox, mip=None, 
     parallel=None, root_ids=None,
@@ -41,15 +76,28 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     """
     Graphene slicing is distinguished from Precomputed in two ways:
 
-    1) All input bounding boxes are in mip 0 coordinates.
-    2) The final position of the input slices may optionally be
+    Expects inputs of the form:
+
+    img = cv[ slice, slice, slice, [ root_ids ] ]
+
+    e.g. 
+
+    img = cv[:,:,:]
+    img = cv[:,:,:, [ 720575940615625227 ]]
+
+    The final position of the input slices may optionally be
       a list of root ids that describe how to remap the base
       watershed coloring.
 
-    If mask_base is set, segids that are not remapped
+    If mask_base is set, segids that are not remapped are blacked out.
 
+    Returns: img
     """
-    bbox = Bbox.create(bbox, context=self.meta.bounds(0), bounded=self.bounded)
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=self.bounded, 
+      autocrop=self.autocrop
+    )
     
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
@@ -58,7 +106,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       mip = self.mip
 
     mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
-    mip0_bbox = bbox.intersection(self.bounds*[2**self.mip, 2**self.mip, 1], mip0_bbox)
+    # Only ever necessary to make requests within the bounding box
+    # to the server. We can fill black in other situations.
+    mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
 
     if root_ids is None and mask_base:
       return np.zeros( bbox.size(), dtype=self.dtype )
@@ -81,33 +131,40 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if mask_base:
       img = fastremap.mask_except(img, root_ids, in_place=True)
 
-    return img
+    return VolumeCutout.from_volume(
+      self.meta, mip, img, bbox 
+    )
 
   def __getitem__(self, slices):
     """
     Graphene slicing is distinguished from Precomputed in two ways:
 
-    1) All input bounding boxes are in mip 0 coordinates.
-    2) The final position of the input slices may optionally be
+    Expects inputs of the form:
+
+    img = cv[ slice, slice, slice, [ root_ids ] ]
+
+    e.g. 
+
+    img = cv[:,:,:]
+    img = cv[:,:,:, [ 720575940615625227 ]]
+
+    The final position of the input slices may optionally be
       a list of root ids that describe how to remap the base
       watershed coloring.
+
+    Returns: img
     """
-    if len(slices)==4:
+    root_ids = None
+    if len(slices) == 4:
       slices = list(slices)
       root_ids = list(toiter(slices.pop()))
-      return self.download(
-        slices, mip=self.mip, 
-        parallel=self.parallel, root_ids=root_ids
-      )
-    else:
-      # The end of the array was not iterable, 
-      # and thus not the root ids.
-      print('warning no root ids selected, downloading supervoxels')
-      return self.download(
-        slices, mip=self.mip,
-        mask_base=False,
-        parallel=self.parallel, root_ids=None
-      )
+
+    return self.download(
+      slices, mip=self.mip,
+      mask_base=False,
+      parallel=self.parallel, 
+      root_ids=root_ids,
+    )
 
   def _get_leaves(self, root_id, bbox, mip):
     """
