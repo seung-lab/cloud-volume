@@ -136,34 +136,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     )
 
   def __getitem__(self, slices):
-    """
-    Graphene slicing is distinguished from Precomputed in two ways:
-
-    Expects inputs of the form:
-
-    img = cv[ slice, slice, slice, [ root_ids ] ]
-
-    e.g. 
-
-    img = cv[:,:,:]
-    img = cv[:,:,:, [ 720575940615625227 ]]
-
-    The final position of the input slices may optionally be
-      a list of root ids that describe how to remap the base
-      watershed coloring.
-
-    Returns: img
-    """
-    root_ids = None
-    if len(slices) == 4:
-      slices = list(slices)
-      root_ids = list(toiter(slices.pop()))
-
     return self.download(
       slices, mip=self.mip,
       mask_base=False,
       parallel=self.parallel, 
-      root_ids=root_ids,
     )
 
   def _get_leaves(self, root_id, bbox, mip):
