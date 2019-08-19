@@ -900,9 +900,27 @@ class Skeleton(object):
 
   @classmethod
   def from_swc(self, swcstr):
+    """
+    The SWC format was first defined in 
+    
+    R.C Cannona, D.A Turner, G.K Pyapali, H.V Wheal. 
+    "An on-line archive of reconstructed hippocampal neurons".
+    Journal of Neuroscience Methods
+    Volume 84, Issues 1-2, 1 October 1998, Pages 49-54
+    doi: 10.1016/S0165-0270(98)00091-0
+
+    This website is also helpful for understanding the format:
+
+    https://web.archive.org/web/20180423163403/http://research.mssm.edu/cnic/swc.html
+
+    Returns: Skeleton
+    """
     lines = swcstr.split("\n")
-    while re.match(r'[#\s]', lines[0][0]):
-      lines.pop(0)
+    while len(lines) and (lines[0] == '' or re.match(r'[#\s]', lines[0][0])):
+      l = lines.pop(0)
+
+    if len(lines) == 0:
+      return Skeleton()
 
     vertices = []
     edges = []
@@ -914,31 +932,35 @@ class Skeleton(object):
     parents = {}
     N = 0
 
-    for i, line in enumerate(lines):
+    for line in lines:
       if line.replace(r"\s", '') == '':
         continue
-
       (vid, vtype, x, y, z, radius, parent_id) = line.split(" ")
       
       coord = tuple([ float(_) for _ in (x,y,z) ])
       vid = int(vid)
       parent_id = int(parent_id)
 
-      vertex_index[coord] = i 
+      vertex_index[coord] = N
       label_index[vid] = coord
-      parents[i] = parent_id
+      parents[N] = parent_id
 
       vertices.append(coord)
       vertex_types.append(int(vtype))
-      radii.append(float(radius))
+
+      try:
+        radius = float(radius)
+      except ValueError:
+        radius = -1 # e.g. radius = NA or N/A
+
+      radii.append(radius)
 
       N += 1
 
-    for i in range(N):
-      parent_id = parents[i]
+    for i, parent_id in parents.items():
       if parent_id < 0:
         continue
-
+      
       edges.append( (i, vertex_index[label_index[parent_id]]) )
 
     return Skeleton(vertices, edges, radii, vertex_types)
@@ -947,7 +969,19 @@ class Skeleton(object):
     """
     Prototype SWC file generator. 
 
-    c.f. http://research.mssm.edu/cnic/swc.html
+    The SWC format was first defined in 
+    
+    R.C Cannona, D.A Turner, G.K Pyapali, H.V Wheal. 
+    "An on-line archive of reconstructed hippocampal neurons".
+    Journal of Neuroscience Methods
+    Volume 84, Issues 1-2, 1 October 1998, Pages 49-54
+    doi: 10.1016/S0165-0270(98)00091-0
+
+    This website is also helpful for understanding the format:
+
+    https://web.archive.org/web/20180423163403/http://research.mssm.edu/cnic/swc.html
+
+    Returns: swc as a string
     """
     from . import __version__
     swc_header = """# ORIGINAL_SOURCE CloudVolume {}
@@ -971,31 +1005,53 @@ class Skeleton(object):
       datetime.datetime.utcnow().isoformat()
     )
 
-    skel = self.clone()
+    def generate_swc(skel, offset):
+      if skel.edges.size == 0:
+        return swc_header
 
-    def parent(i):
-      coords = np.where( skel.edges == i )
-      coords = coords[0]
-      if len(coords) == 0:
-        return -1
+      index = defaultdict(set)
+      visited = defaultdict(bool)
+      for e1, e2 in skel.edges:
+        index[e1].add(e2)
+        index[e2].add(e1)
 
-      edge = skel.edges[ coords[0] ]
-      if edge[0] == i:
-        return edge[1] + 1
-      return edge[0] + 1
+      stack = [ skel.edges[0,0] ]
+      parents = [ -1 ]
 
-    for i in range(skel.vertices.shape[0]):
-      line = "{n} {T} {x} {y} {z} {R} {P}".format(
-          n=i+1,
-          T=skel.vertex_types[i],
-          x=skel.vertices[i][0],
-          y=skel.vertices[i][1],
-          z=skel.vertices[i][2],
-          R=skel.radii[i],
-          P=-1 if i == 0 else parent(i),
+      swc = ""
+
+      while stack:
+        node = stack.pop()
+        parent = parents.pop()
+
+        if visited[node]:
+          continue
+
+        swc += "{n} {T} {x:0.6f} {y:0.6f} {z:0.6f} {R:0.6f} {P}\n".format(
+          n=(node + 1 + offset),
+          T=skel.vertex_types[node],
+          x=skel.vertices[node][0],
+          y=skel.vertices[node][1],
+          z=skel.vertices[node][2],
+          R=skel.radii[node],
+          P=parent if parent == -1 else (parent + 1 + offset),
         )
 
-      swc += line + '\n'
+        visited[node] = True
+        
+        for child in index[node]:
+          stack.append(child)
+          parents.append(node)
+
+      return swc
+
+    skels = self.remove_disconnected_vertices().components()
+
+    swc = swc_header + "\n"
+    offset = 0
+    for skel in skels:
+      swc += generate_swc(skel, offset) + "\n"
+      offset += skel.vertices.shape[0]
 
     return swc
 
