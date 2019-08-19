@@ -50,10 +50,7 @@ def create_graphene(
     )
 
     mesh = GrapheneMeshSource(meta, cache, config)
-    try:
-      skeleton = PrecomputedSkeletonSource(meta, cache, config)
-    except HTTPError:
-      skeleton = None
+    skeleton = PrecomputedSkeletonSource(meta, cache, config)
 
     return CloudVolumeGraphene(
       meta, cache, config, 
