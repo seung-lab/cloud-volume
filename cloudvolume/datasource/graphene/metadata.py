@@ -7,6 +7,7 @@ from six.moves import urllib
 
 from ... import exceptions
 from ... import paths
+from ...secrets import chunkedgraph_credentials
 from ..precomputed import PrecomputedMetadata
 
 class GrapheneMetadata(PrecomputedMetadata):
@@ -14,13 +15,17 @@ class GrapheneMetadata(PrecomputedMetadata):
     self.server_url = cloudpath.replace('graphene://', '')
     self.server_path = extract_graphene_path(self.server_url)
     self.use_https = use_https
+    if chunkedgraph_credentials:
+      self.auth_header = {
+        "Authorization": f"Bearer {chunkedgraph_credentials["token"]}"
+      }
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
   def fetch_info(self):
     """
     Reads info from chunkedgraph endpoint and extracts relevant information
     """
-    r = requests.get(posixpath.join(self.server_url, "info"))
+    r = requests.get(posixpath.join(self.server_url, "info"), headers=self.auth_header)
     r.raise_for_status()
     return json.loads(r.content)
 
