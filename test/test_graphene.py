@@ -86,7 +86,7 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
     gcv = cloudvolume.CloudVolume(
         "graphene://{}{}".format(PCG_LOCATION, TEST_DATASET_NAME)
     )
-    gcv._get_leaves = partial(mock_get_leaves, gcv)
+    gcv.get_leaves = partial(mock_get_leaves, gcv)
     yield gcv
 
 def test_gcv(graphene_vol):

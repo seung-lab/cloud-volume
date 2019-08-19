@@ -124,7 +124,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     remapping = {}
     for root_id in root_ids:
-      leaves = self._get_leaves(root_id, mip0_bbox, 0)
+      leaves = self.get_leaves(root_id, mip0_bbox, 0)
       remapping.update({ leaf: root_id for leaf in leaves })
     
     img = fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
@@ -142,7 +142,16 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       parallel=self.parallel, 
     )
 
-  def _get_leaves(self, root_id, bbox, mip):
+  def get_root(self, segid):
+    """
+    Get the root id of this label.
+    """
+    url = posixpath.join(self.meta.server_url, "graph/root")
+    response = requests.post(url, json=[ int(segid) ])
+    response.raise_for_status()
+    return np.frombuffer(response.content, dtype=np.uint64)[0]
+
+  def get_leaves(self, root_id, bbox, mip):
     """
     get the supervoxels for this root_id
 
