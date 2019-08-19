@@ -36,10 +36,10 @@ class GrapheneMeshSource(PrecomputedMeshSource):
         url,
         data=json.dumps({ "start_layer": level }),
         params=query_d,
-        headers=self.meta.auth_headers
+        headers=self.meta.auth_header
       )
     else:
-      res = requests.get(url, params=query_d, headers=self.meta.auth_headers)
+      res = requests.get(url, params=query_d, headers=self.meta.auth_header)
 
     res.raise_for_status()
 
