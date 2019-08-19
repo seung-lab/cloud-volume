@@ -80,11 +80,13 @@ class GrapheneMeshSource(PrecomputedMeshSource):
 
     # decode all the fragments
     fragiter = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
+    is_draco = False
     for i, (filename, frag) in enumerate(fragiter):
       if frag is not None:
           try:
             # Easier to ask forgiveness than permission
             mesh = Mesh.from_draco(frag)
+            is_draco=True
           except DracoPy.FileTypeException:
             mesh = Mesh.from_precomputed(frag)
       else:
@@ -96,5 +98,5 @@ class GrapheneMeshSource(PrecomputedMeshSource):
 
     mesh = Mesh.concatenate(*fragments)
     mesh.segid = seg_id
-
-    return mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size)
+    resolution = self.meta.resolution(self.config.mip)
+    return mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution, is_draco=is_draco)
