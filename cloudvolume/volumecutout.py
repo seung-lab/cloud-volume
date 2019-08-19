@@ -97,4 +97,5 @@ class VolumeCutout(np.ndarray):
 
   def viewer(self, port=8080):
     """Start a local web app on the given port that lets you explore this cutout."""
-    microviewer.run([ self ], port=port)
+    img = microviewer.emulate_eight_uint64(self)
+    microviewer.run([ img ], port=port)
