@@ -1093,6 +1093,22 @@ class Skeleton(object):
     ax.set_ylabel(units)
     ax.set_zlabel(units)
 
+    # Set plot axes equal. Matplotlib doesn't have an easier way to
+    # do this for 3d plots.
+    X = self.vertices[:,0]
+    Y = self.vertices[:,1]
+    Z = self.vertices[:,2]
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() / 2.0
+
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ### END EQUALIZATION CODE ###
+
     component_colors = ['k', 'deeppink', 'dodgerblue', 'mediumaquamarine', 'gold' ]
 
     def draw_component(i, skel):
