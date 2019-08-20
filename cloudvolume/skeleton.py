@@ -1055,7 +1055,11 @@ class Skeleton(object):
 
     return swc
 
-  def viewer(self, units='nm', draw_edges=True, draw_vertices=True):
+  def viewer(
+    self, units='nm', 
+    draw_edges=True, draw_vertices=True,
+    color_by='radius'
+  ):
     """
     View the skeleton with a radius heatmap. 
 
@@ -1065,6 +1069,12 @@ class Skeleton(object):
     units: label axes with these units
     draw_edges: draw lines between vertices (more useful when skeleton is sparse)
     draw_vertices: draw each vertex colored by its radius.
+    color_by: 
+      'radius': color each vertex according to its radius attribute
+        aliases: 'r', 'radius', 'radii'
+      'component': color connected components seperately
+        aliases: 'c', 'component', 'components'
+      anything else: draw everything black
     """
     try:
       import matplotlib.pyplot as plt
@@ -1074,35 +1084,54 @@ class Skeleton(object):
       print("Skeleton.viewer requires matplotlib. Try: pip install matplotlib --upgrade")
       return
 
+    RADII_KEYWORDS = ('radius', 'radii', 'r')
+    COMPONENT_KEYWORDS = ('component', 'components', 'c')
+
     fig = plt.figure(figsize=(10,10))
     ax = Axes3D(fig)
     ax.set_xlabel(units)
     ax.set_ylabel(units)
     ax.set_zlabel(units)
 
-    if draw_vertices:
-      xs = self.vertices[:,0]
-      ys = self.vertices[:,1]
-      zs = self.vertices[:,2]
+    component_colors = ['k', 'deeppink', 'dodgerblue', 'mediumaquamarine', 'gold' ]
 
-      colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
-      colmap.set_array(self.radii)
+    def draw_component(i, skel):
+      component_color = component_colors[ i % len(component_colors) ]
 
-      normed_radii = self.radii / np.max(self.radii)
-      yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
-      cbar = fig.colorbar(colmap)
-      cbar.set_label('radius (' + units + ')', rotation=270)
+      if draw_vertices:
+        xs = skel.vertices[:,0]
+        ys = skel.vertices[:,1]
+        zs = skel.vertices[:,2]
 
-    if draw_edges:
-      for e1, e2 in self.edges:
-        pt1, pt2 = self.vertices[e1], self.vertices[e2]
-        ax.plot(  
-          [ pt1[0], pt2[0] ],
-          [ pt1[1], pt2[1] ],
-          zs=[ pt1[2], pt2[2] ],
-          color=('mediumseagreen' if not draw_vertices else 'silver'),
-          linewidth=1,
-        )
+        if color_by in RADII_KEYWORDS:
+          colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
+          colmap.set_array(skel.radii)
+
+          normed_radii = skel.radii / np.max(skel.radii)
+          yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
+          cbar = fig.colorbar(colmap)
+          cbar.set_label('radius (' + units + ')', rotation=270)
+        elif color_by in COMPONENT_KEYWORDS:
+          yg = ax.scatter(xs, ys, zs, color=component_color, marker='.')
+        else:
+          yg = ax.scatter(xs, ys, zs, color='k', marker='.')
+
+      if draw_edges:
+        for e1, e2 in skel.edges:
+          pt1, pt2 = skel.vertices[e1], skel.vertices[e2]
+          ax.plot(  
+            [ pt1[0], pt2[0] ],
+            [ pt1[1], pt2[1] ],
+            zs=[ pt1[2], pt2[2] ],
+            color=(component_color if not draw_vertices else 'silver'),
+            linewidth=1,
+          )
+
+    if color_by in COMPONENT_KEYWORDS:
+      for i, skel in enumerate(self.components()):
+        draw_component(i, skel)
+    else:
+      draw_component(0, self)
 
     plt.show()
 
