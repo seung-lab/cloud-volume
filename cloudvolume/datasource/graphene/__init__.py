@@ -8,6 +8,7 @@ from ...cloudvolume import SharedConfiguration, register_plugin
 from ...paths import strict_extract
 
 from ...frontends import CloudVolumeGraphene
+from requests import HTTPError
 
 def create_graphene(
     cloudpath, mip=0, bounded=True, autocrop=False,
@@ -53,8 +54,8 @@ def create_graphene(
 
     return CloudVolumeGraphene(
       meta, cache, config, 
-      image, mesh, skeleton,
-      mip
+      image, mesh, 
+      mip=mip
     )
 
 def register():

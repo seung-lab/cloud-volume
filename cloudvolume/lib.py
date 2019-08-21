@@ -293,12 +293,12 @@ class Bbox(object):
     )
 
   @classmethod
-  def create(cls, obj, context=None, bounded=False):
+  def create(cls, obj, context=None, bounded=False, autocrop=False):
     typ = type(obj)
     if typ is Bbox:
       obj = obj
     elif typ in (list, tuple):
-      obj = Bbox.from_slices(obj, context, bounded)
+      obj = Bbox.from_slices(obj, context, bounded, autocrop)
     elif typ is Vec:
       obj = Bbox.from_vec(obj)
     elif typ is str:
@@ -307,6 +307,9 @@ class Bbox(object):
       obj = Bbox.from_dict(obj)
     else:
       raise NotImplementedError("{} is not a Bbox convertible type.".format(typ))
+
+    if context and autocrop:
+      obj = Bbox.intersection(obj, context)
 
     if context and bounded:
       if not context.contains_bbox(obj):
@@ -341,9 +344,11 @@ class Bbox(object):
     return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
 
   @classmethod
-  def from_slices(cls, slices, context=None, bounded=False):
+  def from_slices(cls, slices, context=None, bounded=False, autocrop=False):
     if context:
-      slices = context.reify_slices(slices, bounded=bounded)
+      slices = context.reify_slices(
+        slices, bounded=bounded, autocrop=autocrop
+      )
 
     return Bbox(
       [ slc.start for slc in slices ],
@@ -380,7 +385,7 @@ class Bbox(object):
       'dtype': np.dtype(self.dtype).name,
     }
 
-  def reify_slices(self, slices, bounded=True):
+  def reify_slices(self, slices, bounded=True, autocrop=False):
     """
     Convert free attributes of a slice object 
     (e.g. None (arr[:]) or Ellipsis (arr[..., 0]))
@@ -435,11 +440,14 @@ class Bbox(object):
         if step < 0:
           raise ValueError('Negative step sizes are not supported. Got: {}'.format(step))
 
+        if autocrop:
+          start = clamp(start, self.minpt[index], self.maxpt[index])
+          end = clamp(end, self.minpt[index], self.maxpt[index])
         # note: when unbounded, negative indicies do not refer to
         # the end of the volume as they can describe, e.g. a 1px
         # border on the edge of the beginning of the dataset as in
         # marching cubes.
-        if bounded:
+        elif bounded:
           # if start < 0: # this is support for negative indicies
             # start = self.maxpt[index] + start         
           check_bounds(start, self.minpt[index], self.maxpt[index])

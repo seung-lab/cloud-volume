@@ -22,7 +22,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     """
     r = requests.get(posixpath.join(self.server_url, "info"))
     r.raise_for_status()
-    return json.loads(r.content)
+    return r.json()
 
   @property
   def cloudpath(self):

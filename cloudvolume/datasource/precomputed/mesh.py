@@ -119,10 +119,12 @@ class PrecomputedMeshSource(object):
 
     # decode all the fragments
     meshdata = defaultdict(list)
+    is_draco = False
     for frag in tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer"):
       segid = filename_to_segid(frag[0])
       try:
         mesh = Mesh.from_precomputed(frag[1])
+        is_draco=True
       except Exception:
         print(frag[0], 'had a problem.')
         raise
@@ -143,8 +145,8 @@ class PrecomputedMeshSource(object):
     if not chunk_size:
       return mesh.consolidate()
 
-    mesh = Mesh(vertices, faces, normals=None)
-    return mesh.deduplicate_chunk_boundaries(chunk_size)
+    resolution = self.meta.resolution(self.config.mip)
+    return mesh.deduplicate_chunk_boundaries(chunk_size*resolution, is_draco=is_draco)
 
   def save(self, segids, filepath=None, file_format='ply'):
     """
