@@ -165,7 +165,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
     response = requests.post(url, json=[ root_id ], params={
       'bounds': bbox.to_filename(),
-    })
+    }, headers=self.meta.auth_header)
     response.raise_for_status()
 
     return np.frombuffer(response.content, dtype=np.uint64)

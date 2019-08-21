@@ -136,3 +136,11 @@ if os.path.exists(boss_credentials_path):
     boss_credentials = json.loads(f.read())
 else:
   boss_credentials = ''
+
+
+chunkedgraph_credentials_path = secretpath('secrets/chunkedgraph-secret.json')
+if os.path.exists(chunkedgraph_credentials_path):
+  with open(chunkedgraph_credentials_path, 'r') as f:
+    chunkedgraph_credentials = json.loads(f.read())
+else:
+  chunkedgraph_credentials = None
