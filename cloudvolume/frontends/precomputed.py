@@ -8,6 +8,7 @@ import sys
 import uuid
 import socket
 
+import fastremap
 from six.moves import range
 import numpy as np
 from tqdm import tqdm
@@ -509,9 +510,32 @@ class CloudVolumePrecomputed(object):
     img = self.download(requested_bbox, self.mip)
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
-  def download(self, bbx, mip=None, parallel=None):
-    if self.autocrop:
-      bbx = Bbox.intersection(bbx, self.bounds)
+  def download(
+      self, bbox, mip=None, parallel=None,
+      segids=None, preserve_zeros=False
+    ):
+    """
+    Downloads segmentation from the indicated cutout
+    region.
+
+    bbox: specifies cutout to fetch
+    mip: which resolution level to get (default self.mip)
+    parallel: what parallel level to use (default self.parallel)
+
+    segids: agglomerate the leaves of these segids from the graph 
+      server and label them with the given segid.
+    preserve_zeros: If segids is not None:
+      False: mask other segids with zero
+      True: mask other segids with the largest integer value
+        contained by the image data type and leave zero as is.
+
+    Returns: img
+    """  
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=self.bounded, 
+      autocrop=self.autocrop
+    )
 
     if mip is None:
       mip = self.mip
@@ -519,7 +543,24 @@ class CloudVolumePrecomputed(object):
     if parallel is None:
       parallel = self.parallel
 
-    return self.image.download(bbx, mip, parallel=parallel)
+    img = self.image.download(bbox, mip, parallel=parallel)
+
+    if segids is None:
+      return img
+
+    mask_value = 0
+    if preserve_zeros:
+      mask_value = np.inf
+      if np.issubdtype(self.dtype, np.integer):
+        mask_value = np.iinfo(self.dtype).max - 1
+
+      segids.append(0)
+
+    img = fastremap.mask_except(img, segids, in_place=True, value=mask_value)
+
+    return VolumeCutout.from_volume(
+      self.meta, mip, img, bbox
+    )
 
   def download_point(self, pt, size=256, mip=None, parallel=None, **kwargs):
     """
