@@ -70,26 +70,23 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   def download(
     self, bbox, mip=None, 
-    parallel=None, root_ids=None,
-    mask_base=False
+    parallel=None, segids=None,
+    preserve_zeros=False
   ):
     """
-    Graphene slicing is distinguished from Precomputed in two ways:
+    Downloads base segmentation and optionally agglomerates
+    labels based on information in the graph server.
 
-    Expects inputs of the form:
+    bbox: specifies cutout to fetch
+    mip: which resolution level to get (default self.mip)
+    parallel: what parallel level to use (default self.parallel)
 
-    img = cv[ slice, slice, slice, [ root_ids ] ]
-
-    e.g. 
-
-    img = cv[:,:,:]
-    img = cv[:,:,:, [ 720575940615625227 ]]
-
-    The final position of the input slices may optionally be
-      a list of root ids that describe how to remap the base
-      watershed coloring.
-
-    If mask_base is set, segids that are not remapped are blacked out.
+    segids: agglomerate the leaves of these segids from the graph 
+      server and label them with the given segid.
+    preserve_zeros: If segids is not None:
+      False: mask other segids with zero
+      True: mask other segids with the largest integer value
+        contained by the image data type and leave zero as is.
 
     Returns: img
     """
@@ -110,26 +107,30 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     # to the server. We can fill black in other situations.
     mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
 
-    if root_ids is None and mask_base:
-      return np.zeros( bbox.size(), dtype=self.dtype )
-
     img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel)
 
-    if root_ids is None:
-      if mask_base:
-        img[:] = 0
+    if segids is None:
       return img
 
-    root_ids = list(toiter(root_ids))
+    segids = list(toiter(segids))
 
     remapping = {}
-    for root_id in root_ids:
-      leaves = self.get_leaves(root_id, mip0_bbox, 0)
-      remapping.update({ leaf: root_id for leaf in leaves })
+    for segid in segids:
+      leaves = self.get_leaves(segid, mip0_bbox, 0)
+      remapping.update({ leaf: segid for leaf in leaves })
     
     img = fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
-    if mask_base:
-      img = fastremap.mask_except(img, root_ids, in_place=True)
+
+    mask_value = 0
+    if preserve_zeros:
+      mask_value = np.inf
+      if np.issubdtype(self.dtype, np.integer):
+        mask_value = np.iinfo(self.dtype).max - 1
+
+      segids.append(0)
+
+    print(mask_value)
+    img = fastremap.mask_except(img, segids, in_place=True, value=mask_value)
 
     return VolumeCutout.from_volume(
       self.meta, mip, img, bbox 
