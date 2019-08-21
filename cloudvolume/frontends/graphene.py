@@ -129,7 +129,6 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
       segids.append(0)
 
-    print(mask_value)
     img = fastremap.mask_except(img, segids, in_place=True, value=mask_value)
 
     return VolumeCutout.from_volume(
