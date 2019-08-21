@@ -552,7 +552,7 @@ class CloudVolumePrecomputed(object):
     if preserve_zeros:
       mask_value = np.inf
       if np.issubdtype(self.dtype, np.integer):
-        mask_value = np.iinfo(self.dtype).max - 1
+        mask_value = np.iinfo(self.dtype).max
 
       segids.append(0)
 
