@@ -11,14 +11,19 @@ from ...secrets import chunkedgraph_credentials
 from ..precomputed import PrecomputedMetadata
 
 class GrapheneMetadata(PrecomputedMetadata):
-  def __init__(self, cloudpath, use_https=False, *args, **kwargs):
+  def __init__(self, cloudpath, use_https=False, use_auth=True, auth_token=None, *args, **kwargs):
     self.server_url = cloudpath.replace('graphene://', '')
     self.server_path = extract_graphene_path(self.server_url)
     self.use_https = use_https
     self.auth_header = None
-    if chunkedgraph_credentials:
+    if use_auth:
+      token = None
+      if chunkedgraph_credentials:
+        token = chunkedgraph_credentials["token"]
+      if auth_token:
+        token = auth_token
       self.auth_header = {
-        "Authorization": "Bearer %s" % chunkedgraph_credentials["token"]
+        "Authorization": "Bearer %s" % token
       }
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
