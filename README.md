@@ -133,6 +133,17 @@ You can create the `google-secret.json` file [here](https://console.cloud.google
 }
 ```
 
+#### `chunkedgraph-secret.json`
+
+If you have a token from Graphene/Chunkedgraph server, create the `chunkedgraph-secret.json` file as shown in the example below.
+You may also pass the token to `GrapheneMetadata` class `auth_token="<your_token>"`, this will override the token from `json` file.
+
+```json
+{
+  "token": "<your_token>"
+}
+```
+
 ## Usage
 
 CloudVolume supports reading and writing to Neuroglancer data layers on Amazon S3, Google Storage, The BOSS, and the local file system.
