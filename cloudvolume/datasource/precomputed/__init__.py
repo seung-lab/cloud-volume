@@ -7,7 +7,7 @@ from ...cloudvolume import register_plugin, SharedConfiguration
 from ...cacheservice import CacheService
 from ...frontends import CloudVolumePrecomputed
 from ...paths import strict_extract
-from requests import HTTPError
+
 def create_precomputed(
     cloudpath, mip=0, bounded=True, autocrop=False,
     fill_missing=False, cache=False, compress_cache=None,
@@ -48,10 +48,7 @@ def create_precomputed(
     )
 
     mesh = PrecomputedMeshSource(meta, cache, config)
-    try:
-      skeleton = PrecomputedSkeletonSource(meta, cache, config)
-    except HTTPError:
-      skeleton = None
+    skeleton = PrecomputedSkeletonSource(meta, cache, config)
 
     return CloudVolumePrecomputed(
       meta, cache, config, 
