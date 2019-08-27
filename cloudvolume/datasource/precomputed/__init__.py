@@ -13,8 +13,8 @@ def create_precomputed(
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=False, info=None, provenance=None,
     compress=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, green_threads=False,
-    use_https=False
+    delete_black_uploads=False, background_color=0, 
+    green_threads=False, use_https=False
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
@@ -45,6 +45,7 @@ def create_precomputed(
       non_aligned_writes=bool(non_aligned_writes),
       fill_missing=bool(fill_missing),
       delete_black_uploads=bool(delete_black_uploads),
+      background_color=background_color,
     )
 
     mesh = PrecomputedMeshSource(meta, cache, config)
