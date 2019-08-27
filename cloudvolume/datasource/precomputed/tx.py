@@ -93,7 +93,7 @@ def upload(
     upload_aligned(
       meta, cache, 
       core_img, retracted.minpt, mip,
-      **options,
+      **options
     )
 
   # Download the shell, paint, and upload
