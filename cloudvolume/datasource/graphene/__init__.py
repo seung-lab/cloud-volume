@@ -15,7 +15,8 @@ def create_graphene(
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=False, info=None, provenance=None,
     compress=None, parallel=1,
-    delete_black_uploads=False, green_threads=False, use_https=False,
+    delete_black_uploads=False, background_color=0,
+    green_threads=False, use_https=False,
     **kwargs
   ):
     
@@ -47,6 +48,7 @@ def create_graphene(
       non_aligned_writes=False,
       fill_missing=bool(fill_missing),
       delete_black_uploads=bool(delete_black_uploads),
+      background_color=background_color,
     )
 
     mesh = GrapheneMeshSource(meta, cache, config)

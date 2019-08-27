@@ -34,10 +34,11 @@ def upload(
     parallel=1,
     progress=False,
     delete_black_uploads=False, 
+    background_color=0,
     non_aligned_writes=False,
     location=None, location_bbox=None, location_order='F',
     use_shared_memory=False, use_file=False,
-    green=False
+    green=False, 
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
 
@@ -59,21 +60,26 @@ def upload(
     throw_error=(non_aligned_writes == False)
   )
 
+  options = {
+    "compress": compress,
+    "cdn_cache": cdn_cache,
+    "parallel": parallel, 
+    "progress": progress,
+    "location": location, 
+    "location_bbox": location_bbox,
+    "location_order": location_order,
+    "use_shared_memory": use_shared_memory,
+    "use_file": use_file,
+    "delete_black_uploads": delete_black_uploads,
+    "background_color": background_color,
+    "green": green,  
+  }
+
   if is_aligned:
     upload_aligned(
       meta, cache, 
       image, offset, mip,
-      compress=compress,
-      cdn_cache=cdn_cache,
-      parallel=parallel, 
-      progress=progress,
-      location=location, 
-      location_bbox=location_bbox,
-      location_order=location_order,
-      use_shared_memory=use_shared_memory,
-      use_file=use_file,
-      delete_black_uploads=delete_black_uploads,
-      green=green,
+      **options
     )
     return
 
@@ -87,17 +93,7 @@ def upload(
     upload_aligned(
       meta, cache, 
       core_img, retracted.minpt, mip,
-      compress=compress,
-      cdn_cache=cdn_cache,
-      parallel=parallel, 
-      progress=progress,
-      location=location, 
-      location_bbox=location_bbox,
-      location_order=location_order,
-      use_shared_memory=use_shared_memory,
-      use_file=use_file,
-      delete_black_uploads=delete_black_uploads,
-      green=green,
+      **options,
     )
 
   # Download the shell, paint, and upload
@@ -142,6 +138,7 @@ def upload_aligned(
     use_shared_memory=False,
     use_file=False,
     delete_black_uploads=False,
+    background_color=0,
     green=False,
   ):
   global fs_lock
@@ -155,6 +152,7 @@ def upload_aligned(
       progress=progress,
       compress=compress, cdn_cache=cdn_cache,
       delete_black_uploads=delete_black_uploads,
+      background_color=background_color,
       green=green,
     )
     return
@@ -182,7 +180,8 @@ def upload_aligned(
     img.shape, offset, mip,
     compress, cdn_cache, progress,
     location, location_bbox, location_order, 
-    delete_black_uploads, green,
+    delete_black_uploads, background_color, 
+    green,
   )
 
   parallel_execution(cup, chunk_ranges_by_process, parallel, cleanup_shm=location)
@@ -198,8 +197,8 @@ def child_upload_process(
     img_shape, offset, mip,
     compress, cdn_cache, progress,
     location, location_bbox, location_order, 
-    delete_black_uploads, green,
-    chunk_ranges
+    delete_black_uploads, background_color,
+    green, chunk_ranges
   ):
   global fs_lock
   reset_connection_pools()
@@ -226,7 +225,9 @@ def child_upload_process(
     meta, cache, 
     renderbuffer, mip, chunk_ranges, 
     compress=compress, cdn_cache=cdn_cache, progress=progress,
-    delete_black_uploads=delete_black_uploads, green=green,
+    delete_black_uploads=delete_black_uploads, 
+    background_color=background_color,
+    green=green,
   )
   array_like.close()
 
@@ -236,6 +237,7 @@ def threaded_upload_chunks(
     compress, cdn_cache, progress,
     n_threads=DEFAULT_THREADS,
     delete_black_uploads=False,
+    background_color=0,
     green=False,
   ):
   
@@ -297,7 +299,7 @@ def threaded_upload_chunks(
     cloudpath = os.path.join(meta.key(mip), filename)
 
     if delete_black_uploads:
-      if np.any(imgchunk):
+      if np.any(imgchunk != background_color):
         do_upload(imgchunk, cloudpath)
       else:
         do_delete(cloudpath)

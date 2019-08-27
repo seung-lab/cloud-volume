@@ -28,7 +28,8 @@ class PrecomputedImageSource(ImageSourceInterface):
     autocrop=False, bounded=True,
     non_aligned_writes=False,
     fill_missing=False, 
-    delete_black_uploads=False
+    delete_black_uploads=False,
+    background_color=0,
   ):
     self.config = config
     self.meta = meta 
@@ -38,7 +39,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     self.bounded = bool(bounded)
     self.fill_missing = bool(fill_missing)
     self.non_aligned_writes = bool(non_aligned_writes)
+    
     self.delete_black_uploads = bool(delete_black_uploads)
+    self.background_color = background_color
 
     self.shared_memory_id = self.generate_shared_memory_location()
 
@@ -132,6 +135,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       use_shared_memory=use_shared_memory,
       use_file=use_file,
       delete_black_uploads=self.delete_black_uploads,
+      background_color=self.background_color,
       non_aligned_writes=self.non_aligned_writes,
       green=self.config.green,
     )
@@ -154,7 +158,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
       existence_report = storage.files_exist(cloudpaths)
-    return existence_report    
+    return existence_report
 
   def delete(self, bbox, mip=None):
     if mip is None:
@@ -173,7 +177,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       ))
 
     cloudpaths = list(chunknames(
-      realized_bbox, self.meta.bounds(mip), 
+      realized_bbox, self.meta.bounds(mip),
       self.meta.key(mip), self.meta.chunk_size(mip),
       protocol=self.meta.path.protocol
     ))
