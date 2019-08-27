@@ -56,8 +56,8 @@ class CloudVolume(object):
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None,
     compress=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, green_threads=False,
-    use_https=False
+    delete_black_uploads=False, background_color=0,
+    green_threads=False, use_https=False
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -97,6 +97,9 @@ class CloudVolume(object):
           volume bounds, process only the area contained inside the volume. 
           This can be useful way to ensure that you are staying inside the 
           bounds when `bounded=False`.
+      background_color: (number) Specifies what the "background value" of the
+        volume is (traditionally 0). This is mainly for changing the behavior
+        of delete_black_uploads.
       bounded: (bool) If a region outside of volume bounds is accessed:
           True: Throw an error
           False: Allow accessing the region. If no files are present, an error 

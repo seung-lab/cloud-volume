@@ -64,6 +64,14 @@ class CloudVolumePrecomputed(object):
   def autocrop(self, val):
     self.image.autocrop = val
 
+  @property
+  def background_color(self):
+    return self.image.background_color 
+
+  @background_color.setter
+  def background_color(self, val):
+    self.image.background_color = val  
+
   @property 
   def bounded(self):
     return self.image.bounded
