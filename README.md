@@ -335,9 +335,10 @@ img = cv[...] # now green threads will be used
 ```python3
 CloudVolume(cloudpath, 
      mip=0, bounded=True, fill_missing=False, autocrop=False, 
-     cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, 
-     provenance=None, compress=None, non_aligned_writes=False, parallel=1,
-     delete_black_uploads=False, green_threads=False)
+     cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None, 
+     compress=None, non_aligned_writes=False, parallel=1,
+     delete_black_uploads=False, background_color=0, 
+     green_threads=False)
 ```
 
 * mip - Which mip level to access
@@ -355,7 +356,8 @@ CloudVolume(cloudpath,
     Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes)
 * parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
    that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
-* delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all zeros. This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
+* delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all background (usually all zeros). This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
+* background_color - Number. Determines the background color that `delete_black_uploads` will scan for (typically zero).
 * green_threads - True/False. If True, use the gevent cooperative threading library instead of preemptive threads. This requires monkey patching your program which may be undesirable. However, for certain workloads this can be a significant performance improvement on multi-core devices.
 
 ### CloudVolume Methods
