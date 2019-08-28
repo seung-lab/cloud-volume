@@ -373,13 +373,18 @@ Better documentation coming later, but for now, here's a summary of the most use
 * add_scale - Generate a new mip level in the info property. Does not autocommit.
 * commit_info - Push the current info property into the cloud as a JSON file.
 * commit_provenance - Push the current provenance property into the cloud as a JSON file.
+* image - Access image operations directly.
+  * download - Download bounding boxes from a given mip level.
+  * upload - Upload images to bounding boxes at a given mip level.
+  * transfer_to - Transfer data without painting a container array to avoid out of memory errors.
+  * exists - Check which chunk files exist in a given bounding box.
+  * delete - Delete chunks in a given bounding box at a given mip level.
 * mesh - Access mesh operations
 	* get - Download an object. Can merge multiple segmentids
 	* save - Download an object and save it in `.obj` format. You can combine equivialences into a single object too.
 * skeleton - Access Skeletons
   * get - Download an object.
   * upload - Save a skeleton object to the cloud.
-  * get_point_cloud - Download the point cloud, a skeleton precursor, for an object. 
 * cache - Access cache operations
 	* enabled - Boolean switch to enable/disable cache. If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
 	* path - Property that shows the current filesystem path to the cache
