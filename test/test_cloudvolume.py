@@ -18,7 +18,7 @@ from layer_harness import (
   delete_layer, create_layer
 )
 from cloudvolume.datasource.precomputed.common import cdn_cache_control
-from cloudvolume.datasource.precomputed.tx import generate_chunks
+from cloudvolume.datasource.precomputed.image.tx import generate_chunks
 
 def test_from_numpy():
   arr = np.random.random_integers(0, high=255, size=(128,128, 128))

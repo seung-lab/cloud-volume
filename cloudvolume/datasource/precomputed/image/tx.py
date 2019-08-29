@@ -18,10 +18,13 @@ from cloudvolume.volumecutout import VolumeCutout
 
 import cloudvolume.sharedmemory as shm
 
-from .. import check_grid_aligned
+from ... import check_grid_aligned
 from .common import (
   fs_lock, parallel_execution, chunknames, 
-  shade, content_type, cdn_cache_control,
+  shade
+) 
+from ..common import (
+  content_type, cdn_cache_control,
   should_compress
 )
 from .rx import download_chunks_threaded

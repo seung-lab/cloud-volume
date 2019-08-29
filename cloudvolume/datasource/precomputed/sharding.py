@@ -158,7 +158,7 @@ class ShardReader(object):
     index = np.frombuffer(binary, dtype=np.uint64)
     return index.reshape( (index.size // 2, 2), order='C' )
 
-  def get_data(self, label):
+  def get_data(self, label, key=""):
     shard_loc = self.spec.compute_shard_location(label)
     
     if self.cache.enabled:
@@ -169,7 +169,7 @@ class ShardReader(object):
     index = self.get_index(label)
 
     bytes_start, bytes_end = index[shard_loc.minishard_number]
-    filename = shard_loc.shard_number + ".data"
+    filename = self.meta.join(key, shard_loc.shard_number + ".data")
 
     with SimpleStorage(self.meta.full_path) as stor:
       minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
