@@ -54,7 +54,13 @@ def download_sharded(
 
   renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
-  for gridpoint in gridpoints(full_bbox, bounds, chunk_size):
+  gpts = tqdm(
+    gridpoints(full_bbox, bounds, chunk_size), 
+    disable=(not progress), 
+    desc='Downloading'
+  )
+
+  for gridpoint in gpts:
     zcurve_code = compressed_morton_code(gridpoint, grid_size)
     chunkdata = reader.get_data(zcurve_code, meta.key(mip))
     img3d = decode(
