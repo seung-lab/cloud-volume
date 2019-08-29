@@ -1,5 +1,6 @@
 from cloudvolume import CloudVolume, Skeleton
 from cloudvolume.storage import SimpleStorage
+from cloudvolume.datasource.precomputed.image.common import compressed_morton_code
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SpecViolation
 
@@ -40,6 +41,23 @@ def test_actual_example_hash():
 
   assert shard_loc.minishard_number == minishard_no
   assert shard_loc.shard_number == str(shard_no)
+
+def test_compressed_morton_code():
+  cmc = lambda coord: compressed_morton_code(coord, grid_size=(3,3,3))
+
+  assert cmc((0,0,0)) == 0b000000
+  assert cmc((1,0,0)) == 0b000001
+  assert cmc((2,0,0)) == 0b001000
+  assert cmc((3,0,0)) == 0b001001
+  assert cmc((2,2,0)) == 0b011000
+  assert cmc((2,2,1)) == 0b011100
+
+  cmc = lambda coord: compressed_morton_code(coord, grid_size=(2,3,1))
+
+  assert cmc((0,0,0)) == 0b000000
+  assert cmc((1,0,0)) == 0b000001
+  assert cmc((0,0,7)) == 0b000100
+  assert cmc((2,3,1)) == 0b011110
 
 
 def test_sharding_spec_validation():
