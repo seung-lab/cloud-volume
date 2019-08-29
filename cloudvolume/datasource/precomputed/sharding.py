@@ -144,7 +144,7 @@ class ShardReader(object):
     shard_loc = self.spec.compute_shard_location(label)
 
     filename = str(shard_loc.shard_number) + ".index"
-    index_path = self.meta.join(self.meta.layerpath, path, filename)
+    index_path = self.meta.join(path, filename)
     binary = self.cache.download_single(index_path)
 
     index_length = (2 ** self.spec.minishard_bits) * 16
@@ -166,12 +166,12 @@ class ShardReader(object):
       if cached is not None:
         return cached
 
-    index = self.get_index(label)
+    index = self.get_index(label, path)
 
     bytes_start, bytes_end = index[shard_loc.minishard_number]
     filename = shard_loc.shard_number + ".data"
 
-    full_path = self.meta.join(self.meta.layerpath, path)
+    full_path = self.meta.join(self.meta.cloudpath, path)
 
     with SimpleStorage(full_path) as stor:
       minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
