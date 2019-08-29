@@ -67,7 +67,7 @@ def gridpoints(bbox, volume_bbox, chunk_size):
   for x,y,z in xyzrange( grid_cutout.minpt, grid_cutout.maxpt, (1,1,1) ):
     yield Vec(x,y,z)
 
-def compressed_morton_code(pt, grid_size):
+def compressed_morton_code(gridpt, grid_size):
   code = np.uint64(0)
   num_bits = int(max([ np.ceil(np.log2(size)) for size in grid_size ]))
   j = np.uint64(0)
@@ -76,7 +76,7 @@ def compressed_morton_code(pt, grid_size):
   for i in range(num_bits):
     for dim in range(3):
       if 2 ** i <= grid_size[dim]:
-        bit = (((np.uint64(pt[dim]) >> np.uint64(i)) & one) << j)
+        bit = (((np.uint64(gridpt[dim]) >> np.uint64(i)) & one) << j)
         code |= bit
         j += one
   

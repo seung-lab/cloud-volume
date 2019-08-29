@@ -4,6 +4,8 @@ from cloudvolume.datasource.precomputed.image.common import compressed_morton_co
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SpecViolation
 
+from cloudvolume import Vec
+
 import numpy as np
 
 def test_actual_example_hash():
@@ -58,6 +60,29 @@ def test_compressed_morton_code():
   assert cmc((1,0,0)) == 0b000001
   assert cmc((0,0,7)) == 0b000100
   assert cmc((2,3,1)) == 0b011110
+
+def test_image_sharding_hash():
+  spec = ShardingSpecification(
+    type="neuroglancer_uint64_sharded_v1",
+    data_encoding="gzip",
+    hash="identity",
+    minishard_bits=6,
+    minishard_index_encoding="gzip",
+    preshift_bits=9,
+    shard_bits=16,
+  ) 
+
+  point = Vec(144689, 52487, 2829)
+  volume_size = Vec(*[248832, 134144, 7063])
+  chunk_size = Vec(*[128, 128, 16])
+
+  grid_size = np.ceil(volume_size / chunk_size).astype(np.uint32)
+  gridpt = np.ceil(point / chunk_size).astype(np.int32)
+  code = compressed_morton_code(gridpt, grid_size)
+  loc = spec.compute_shard_location(code)
+
+  assert loc.shard_number == '458d'
+
 
 
 def test_sharding_spec_validation():
