@@ -140,11 +140,11 @@ class ShardReader(object):
     self.cache = cache
     self.spec = spec
 
-  def get_index(self, label):
+  def get_index(self, label, path=""):
     shard_loc = self.spec.compute_shard_location(label)
 
     filename = str(shard_loc.shard_number) + ".index"
-    index_path = self.meta.join(self.meta.path, filename)
+    index_path = self.meta.join(self.meta.layerpath, path, filename)
     binary = self.cache.download_single(index_path)
 
     index_length = (2 ** self.spec.minishard_bits) * 16
@@ -158,7 +158,7 @@ class ShardReader(object):
     index = np.frombuffer(binary, dtype=np.uint64)
     return index.reshape( (index.size // 2, 2), order='C' )
 
-  def get_data(self, label, key=""):
+  def get_data(self, label, path=""):
     shard_loc = self.spec.compute_shard_location(label)
     
     if self.cache.enabled:
@@ -169,9 +169,11 @@ class ShardReader(object):
     index = self.get_index(label)
 
     bytes_start, bytes_end = index[shard_loc.minishard_number]
-    filename = self.meta.join(key, shard_loc.shard_number + ".data")
+    filename = shard_loc.shard_number + ".data"
 
-    with SimpleStorage(self.meta.full_path) as stor:
+    full_path = self.meta.join(self.meta.layerpath, path)
+
+    with SimpleStorage(full_path) as stor:
       minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
 
     if self.spec.minishard_index_encoding == 'gzip':
@@ -187,7 +189,7 @@ class ShardReader(object):
     idx = np.where(minishard_index == label)[0][0]
     _, offset, size = minishard_index[idx,:]
     
-    with SimpleStorage(self.meta.full_path) as stor:
+    with SimpleStorage(full_path) as stor:
       binary = stor.get_file(filename, start=offset, end=(offset + size))
 
     if self.spec.data_encoding == 'gzip':

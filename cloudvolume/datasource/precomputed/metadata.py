@@ -462,11 +462,11 @@ class PrecomputedMetadata(object):
 
   def chunk_size(self, mip):
     """Underlying chunk size dimensions in voxels. Synonym for underlying."""
-    return Vec(*self.info['scales'][mip]['chunk_sizes'][0])
+    return Vec(*self.scale(mip)['chunk_sizes'][0])
 
   def key(self, mip):
     """The subdirectory within the data layer containing the chunks for this mip level"""
-    return self.info['scales'][mip]['key']
+    return self.scale(mip)['key']
 
   def bounds(self, mip):
     """Returns a 3D spatial bounding box for the dataset with dimensions in voxels."""
