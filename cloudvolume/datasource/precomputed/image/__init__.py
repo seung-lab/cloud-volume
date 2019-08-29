@@ -111,7 +111,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     scale = self.meta.scale(mip)
     if 'sharding' in scale:
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
-      return shardrx.download_sharded(
+      return rx.download_sharded(
         bbox, mip, 
         self.meta, self.cache, spec,
         compress=self.config.compress,

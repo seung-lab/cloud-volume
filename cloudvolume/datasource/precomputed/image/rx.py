@@ -49,7 +49,7 @@ def download_sharded(
   chunk_size = meta.chunk_size(mip)
   grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
 
-  reader = ShardReader(meta, cache, spec)
+  reader = sharding.ShardReader(meta, cache, spec)
   bounds = meta.bounds(mip)
 
   renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)

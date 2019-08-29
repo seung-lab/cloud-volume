@@ -69,7 +69,7 @@ def gridpoints(bbox, volume_bbox, chunk_size):
 
 def compressed_morton_code(pt, grid_size):
   code = np.uint32(0)
-  num_bits = max([ np.ceil(np.log2(size)) for size in grid_size ])
+  num_bits = int(max([ np.ceil(np.log2(size)) for size in grid_size ]))
   j = np.uint32(0)
   one = np.uint32(1)
 
