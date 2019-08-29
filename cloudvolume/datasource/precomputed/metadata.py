@@ -423,7 +423,11 @@ class PrecomputedMetadata(object):
 
   def voxel_offset(self, mip):
     """Vec(x,y,z) start of the dataset in voxels"""
-    return Vec(*self.info['scales'][mip]['voxel_offset'])
+    scale = self.scale(mip)
+    if 'voxel_offset' in scale:
+      return Vec(*scale['voxel_offset'])
+    else:
+      return Vec(0,0,0)
 
   def resolution(self, mip):
     """Vec(x,y,z) dimensions of each voxel in nanometers"""
