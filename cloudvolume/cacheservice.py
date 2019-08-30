@@ -362,7 +362,7 @@ class CacheService(object):
 
     fragments = {}
     if self.enabled:
-      fragments = self.get(locs['local'])
+      fragments = self.get(locs['local'], progress=progress)
 
     StorageClass = self.pick_storage_class(locs['remote'])
     with StorageClass(self.meta.cloudpath, progress=progress) as stor:
