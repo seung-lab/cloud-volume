@@ -1,7 +1,10 @@
 from cloudvolume import CloudVolume, Skeleton
 from cloudvolume.storage import SimpleStorage
+from cloudvolume.datasource.precomputed.image.common import compressed_morton_code
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SpecViolation
+
+from cloudvolume import Vec
 
 import numpy as np
 
@@ -40,6 +43,46 @@ def test_actual_example_hash():
 
   assert shard_loc.minishard_number == minishard_no
   assert shard_loc.shard_number == str(shard_no)
+
+def test_compressed_morton_code():
+  cmc = lambda coord: compressed_morton_code(coord, grid_size=(3,3,3))
+
+  assert cmc((0,0,0)) == 0b000000
+  assert cmc((1,0,0)) == 0b000001
+  assert cmc((2,0,0)) == 0b001000
+  assert cmc((3,0,0)) == 0b001001
+  assert cmc((2,2,0)) == 0b011000
+  assert cmc((2,2,1)) == 0b011100
+
+  cmc = lambda coord: compressed_morton_code(coord, grid_size=(2,3,1))
+
+  assert cmc((0,0,0)) == 0b000000
+  assert cmc((1,0,0)) == 0b000001
+  assert cmc((0,0,7)) == 0b000100
+  assert cmc((2,3,1)) == 0b011110
+
+def test_image_sharding_hash():
+  spec = ShardingSpecification(
+    type="neuroglancer_uint64_sharded_v1",
+    data_encoding="gzip",
+    hash="identity",
+    minishard_bits=6,
+    minishard_index_encoding="gzip",
+    preshift_bits=9,
+    shard_bits=16,
+  ) 
+
+  point = Vec(144689, 52487, 2829)
+  volume_size = Vec(*[248832, 134144, 7063])
+  chunk_size = Vec(*[128, 128, 16])
+
+  grid_size = np.ceil(volume_size / chunk_size).astype(np.uint32)
+  gridpt = np.ceil(point / chunk_size).astype(np.int32)
+  code = compressed_morton_code(gridpt, grid_size)
+  loc = spec.compute_shard_location(code)
+
+  assert loc.shard_number == '458d'
+
 
 
 def test_sharding_spec_validation():
@@ -172,6 +215,17 @@ def test_skeleton_fidelity():
   )
 
   assert sharded_skel == unsharded_skel
+
+def test_image_fidelity():
+  point = (142195, 64376, 3130)
+  cv = CloudVolume('gs://seunglab-test/sharded')
+  img = cv.download_point(point, mip=0, size=128)
+
+  N_labels = np.unique(img).shape[0]
+
+  assert N_labels == 144
+
+
 
 
 

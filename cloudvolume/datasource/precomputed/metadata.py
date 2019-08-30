@@ -423,7 +423,11 @@ class PrecomputedMetadata(object):
 
   def voxel_offset(self, mip):
     """Vec(x,y,z) start of the dataset in voxels"""
-    return Vec(*self.info['scales'][mip]['voxel_offset'])
+    scale = self.scale(mip)
+    if 'voxel_offset' in scale:
+      return Vec(*scale['voxel_offset'])
+    else:
+      return Vec(0,0,0)
 
   def resolution(self, mip):
     """Vec(x,y,z) dimensions of each voxel in nanometers"""
@@ -458,11 +462,11 @@ class PrecomputedMetadata(object):
 
   def chunk_size(self, mip):
     """Underlying chunk size dimensions in voxels. Synonym for underlying."""
-    return Vec(*self.info['scales'][mip]['chunk_sizes'][0])
+    return Vec(*self.scale(mip)['chunk_sizes'][0])
 
   def key(self, mip):
     """The subdirectory within the data layer containing the chunks for this mip level"""
-    return self.info['scales'][mip]['key']
+    return self.scale(mip)['key']
 
   def bounds(self, mip):
     """Returns a 3D spatial bounding box for the dataset with dimensions in voxels."""

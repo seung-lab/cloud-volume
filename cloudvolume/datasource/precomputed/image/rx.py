@@ -7,13 +7,13 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
-from ...exceptions import EmptyVolumeException
-from ...lib import (  
+from ....exceptions import EmptyVolumeException
+from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, check_bounds, 
   jsonify
 )
-from ... import chunks
+from .... import chunks
 
 from cloudvolume.scheduler import schedule_jobs
 from cloudvolume.storage import SimpleStorage, reset_connection_pools
@@ -22,10 +22,64 @@ from cloudvolume.volumecutout import VolumeCutout
 
 import cloudvolume.sharedmemory as shm
 
+from ..common import should_compress, content_type
 from .common import (
-  fs_lock, parallel_execution, chunknames, shade,
-  should_compress, content_type
+  fs_lock, parallel_execution, 
+  chunknames, shade, gridpoints,
+  compressed_morton_code
 )
+
+from .. import sharding
+
+def download_sharded(
+    requested_bbox, mip,
+    meta, cache, spec,
+    compress, progress,
+    fill_missing, 
+    order
+  ):
+
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  shape = list(requested_bbox.size3()) + [ meta.num_channels ]
+  compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+
+  chunk_size = meta.chunk_size(mip)
+  grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
+
+  reader = sharding.ShardReader(meta, cache, spec)
+  bounds = meta.bounds(mip)
+
+  renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
+
+  gpts = tqdm(
+    list(gridpoints(full_bbox, bounds, chunk_size)),
+    disable=(not progress), 
+    desc='Downloading'
+  )
+
+  for gridpoint in gpts:
+    zcurve_code = compressed_morton_code(gridpoint, grid_size)
+    chunkdata = reader.get_data(zcurve_code, meta.key(mip))
+
+    cutout_bbox = Bbox(
+      bounds.minpt + gridpoint * chunk_size,
+      min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
+    )
+
+    img3d = decode(
+      meta, cutout_bbox, 
+      chunkdata, fill_missing, mip
+    )
+
+    shade(renderbuffer, requested_bbox, img3d, cutout_bbox)
+
+  return VolumeCutout.from_volume(
+    meta, mip, renderbuffer, 
+    requested_bbox
+  )
 
 def download(
     requested_bbox, mip, 
@@ -237,7 +291,7 @@ def download_chunks_threaded(
     green=green,
   )
 
-def decode(meta, filename, content, fill_missing, mip):
+def decode(meta, input_bbox, content, fill_missing, mip):
   """
   Decode content from bytes into a numpy array using the 
   dataset metadata.
@@ -248,14 +302,14 @@ def decode(meta, filename, content, fill_missing, mip):
 
   Returns: ndarray
   """
-  bbox = Bbox.from_filename(filename)
+  bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
 
   if not content:
     if fill_missing:
       content = ''
     else:
-      raise EmptyVolumeException(filename)
+      raise EmptyVolumeException(input_bbox)
 
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
@@ -269,6 +323,6 @@ def decode(meta, filename, content, fill_missing, mip):
     )
   except Exception as error:
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
-        content_len, bbox, filename, error)))
+        content_len, bbox, input_bbox, error)))
     raise
 

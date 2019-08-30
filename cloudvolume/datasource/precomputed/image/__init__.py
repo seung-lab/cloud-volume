@@ -14,11 +14,12 @@ import numpy as np
 from tqdm import tqdm
 
 from cloudvolume import lib, exceptions
-from ...lib import Bbox, Vec
-from ... import sharedmemory
-from ...storage import Storage
+from ....lib import Bbox, Vec
+from .... import sharedmemory
+from ....storage import Storage
 
-from .. import autocropfn, ImageSourceInterface
+from ... import autocropfn, ImageSourceInterface
+from .. import sharding
 from .common import chunknames
 from . import tx, rx
 
@@ -77,6 +78,27 @@ class PrecomputedImageSource(ImageSourceInterface):
       use_shared_memory=False, use_file=False,
       order='F'
     ):
+    """
+    Download a cutout image from the dataset.
+
+    bbox: a Bbox object describing what region to download
+    mip: which resolution to fetch, 0 is the highest resolution
+    parallel: how many processes to use for downloading 
+    location: if using shared memory or downloading to a file,
+      which file location should be used?
+    retain: don't delete the shared memory file after download
+      completes
+    use_shared_memory: download to a shared memory location. 
+      This enables efficient inter-process communication and
+      efficient parallel operation. mutually exclusive with
+      use_file.
+    use_file: download image directly to a file named by location. 
+      mutually exclusive with use_shared_memory. 
+    order: The underlying shared memory or file buffer can use either
+      C or Fortran order for storing a multidimensional array.
+
+    Returns: 4d ndarray
+    """
 
     if self.autocrop:
       bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
@@ -86,21 +108,33 @@ class PrecomputedImageSource(ImageSourceInterface):
     if location is None:
       location = self.shared_memory_id
 
-    return rx.download(
-      bbox, mip, 
-      meta=self.meta,
-      cache=self.cache,
-      parallel=parallel,
-      location=location,
-      retain=retain,
-      use_shared_memory=use_shared_memory,
-      use_file=use_file,
-      fill_missing=self.fill_missing,
-      progress=self.config.progress,
-      compress=self.config.compress,
-      order=order,
-      green=self.config.green,
-    )
+    scale = self.meta.scale(mip)
+    if 'sharding' in scale:
+      spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
+      return rx.download_sharded(
+        bbox, mip, 
+        self.meta, self.cache, spec,
+        compress=self.config.compress,
+        progress=self.config.progress,
+        fill_missing=self.fill_missing,
+        order=order,
+      )
+    else:
+      return rx.download(
+        bbox, mip, 
+        meta=self.meta,
+        cache=self.cache,
+        parallel=parallel,
+        location=location,
+        retain=retain,
+        use_shared_memory=use_shared_memory,
+        use_file=use_file,
+        fill_missing=self.fill_missing,
+        progress=self.config.progress,
+        compress=self.config.compress,
+        order=order,
+        green=self.config.green,
+      )
 
   def upload(
       self, 
@@ -280,4 +314,3 @@ class PrecomputedImageSource(ImageSourceInterface):
               content_type=tx.content_type(destvol),
             )
             pbar.update()
-

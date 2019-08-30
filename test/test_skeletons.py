@@ -101,7 +101,7 @@ def test_skeletons():
   assert np.all(skel.edges == edges)
   assert np.all(skel.radii == radii)
   assert np.all(skel.vertex_types == vertex_types)
-  assert vol.skeleton.meta.path == 'skeletons'
+  assert vol.skeleton.meta.skeleton_path == 'skeletons'
   assert not skel.empty()
 
   with SimpleStorage('file:///tmp/cloudvolume/test-skeletons/') as stor:

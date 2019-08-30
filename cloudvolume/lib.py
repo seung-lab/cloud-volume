@@ -20,8 +20,10 @@ from .exceptions import OutOfBoundsError
 
 if sys.version_info < (3,):
   integer_types = (int, long, np.integer)
+  string_types = (str, basestring, unicode)
 else:
   integer_types = (int, np.integer)
+  string_types = (str,)
 
 floating_types = (float, np.floating)
 
@@ -236,6 +238,8 @@ Vec.a = Vec.w
 def floating(lst):
   return any(( isinstance(x, float) for x in lst ))
 
+FILENAME_RE = re.compile(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz)?$')
+
 class Bbox(object):
   __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
 
@@ -301,7 +305,7 @@ class Bbox(object):
       obj = Bbox.from_slices(obj, context, bounded, autocrop)
     elif typ is Vec:
       obj = Bbox.from_vec(obj)
-    elif typ is str:
+    elif typ in string_types:
       obj = Bbox.from_filename(obj)
     elif typ is dict:
       obj = Bbox.from_dict(obj)
@@ -335,7 +339,7 @@ class Bbox(object):
 
   @classmethod
   def from_filename(cls, filename, dtype=int):
-    match = re.search(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz)?$', os.path.basename(filename))
+    match = FILENAME_RE.search(os.path.basename(filename))
 
     (xmin, xmax,
      ymin, ymax,

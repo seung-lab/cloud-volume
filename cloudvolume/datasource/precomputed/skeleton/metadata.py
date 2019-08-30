@@ -13,7 +13,7 @@ class PrecomputedSkeletonMetadata(object):
       self.info = self.fetch_info()
 
   @property
-  def path(self):
+  def skeleton_path(self):
     if 'skeletons' in self.meta.info:
       return self.meta.info['skeletons']
     return 'skeletons'
@@ -30,11 +30,19 @@ class PrecomputedSkeletonMetadata(object):
     self.info['transform'] = val
 
   @property
-  def full_path(self):
-    return self.meta.join(self.meta.cloudpath, self.path)
+  def basepath(self):
+    return self.meta.basepath
+
+  @property
+  def cloudpath(self):
+    return self.meta.cloudpath
+
+  @property
+  def layerpath(self):
+    return self.meta.join(self.meta.cloudpath, self.skeleton_path)
 
   def fetch_info(self):
-    info = self.cache.download_json(self.meta.join(self.path, 'info'))
+    info = self.cache.download_json(self.meta.join(self.skeleton_path, 'info'))
     if not info:
       return self.default_info()
     return info
