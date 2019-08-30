@@ -335,7 +335,7 @@ class CacheService(object):
 
     Returns: content or None
     """
-    res = self.download( [ path ], compress=compress )
+    res = self.download( [ path ], compress=compress, progress=False )
     res = res[path]
     if res is None:
       return None    
