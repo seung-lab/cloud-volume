@@ -216,6 +216,17 @@ def test_skeleton_fidelity():
 
   assert sharded_skel == unsharded_skel
 
+def test_image_fidelity():
+  point = (142195, 64376, 3130)
+  cv = CloudVolume('gs://seunglab-test/sharded')
+  img = cv.download_point(point, mip=0, size=128)
+
+  N_labels = np.unique(img).shape[0]
+
+  assert N_labels == 144
+
+
+
 
 
 
