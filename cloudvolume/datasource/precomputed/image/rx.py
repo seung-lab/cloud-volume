@@ -55,7 +55,7 @@ def download_sharded(
   renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
   gpts = tqdm(
-    gridpoints(full_bbox, bounds, chunk_size), 
+    list(gridpoints(full_bbox, bounds, chunk_size)),
     disable=(not progress), 
     desc='Downloading'
   )
@@ -63,20 +63,22 @@ def download_sharded(
   for gridpoint in gpts:
     zcurve_code = compressed_morton_code(gridpoint, grid_size)
     chunkdata = reader.get_data(zcurve_code, meta.key(mip))
-    img3d = decode(
-      meta, meta.join(meta.key(mip), str(zcurve_code)), 
-      chunkdata, fill_missing, mip
-    )
 
     cutout_bbox = Bbox(
       bounds.minpt + gridpoint * chunk_size,
       min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
     )
+
+    img3d = decode(
+      meta, cutout_bbox, 
+      chunkdata, fill_missing, mip
+    )
+
     shade(renderbuffer, requested_bbox, img3d, cutout_bbox)
 
   return VolumeCutout.from_volume(
     meta, mip, renderbuffer, 
-    requested_bbox, handle=handle
+    requested_bbox
   )
 
 def download(
@@ -289,7 +291,7 @@ def download_chunks_threaded(
     green=green,
   )
 
-def decode(meta, filename, content, fill_missing, mip):
+def decode(meta, input_bbox, content, fill_missing, mip):
   """
   Decode content from bytes into a numpy array using the 
   dataset metadata.
@@ -300,14 +302,14 @@ def decode(meta, filename, content, fill_missing, mip):
 
   Returns: ndarray
   """
-  bbox = Bbox.from_filename(filename)
+  bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
 
   if not content:
     if fill_missing:
       content = ''
     else:
-      raise EmptyVolumeException(filename)
+      raise EmptyVolumeException(input_bbox)
 
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
@@ -321,6 +323,6 @@ def decode(meta, filename, content, fill_missing, mip):
     )
   except Exception as error:
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
-        content_len, bbox, filename, error)))
+        content_len, bbox, input_bbox, error)))
     raise
 

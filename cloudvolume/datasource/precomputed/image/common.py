@@ -59,7 +59,7 @@ def gridpoints(bbox, volume_bbox, chunk_size):
   chunk_size = Vec(*chunk_size)
 
   grid_size = np.ceil(volume_bbox.size3() / chunk_size).astype(np.int32)
-  cutout_grid_size = np.ceil(volume_bbox.size3() / chunk_size).astype(np.int32)
+  cutout_grid_size = np.ceil(bbox.size3() / chunk_size).astype(np.int32)
   cutout_grid_offset = np.ceil((bbox.minpt - volume_bbox.minpt) / chunk_size).astype(np.int32)
 
   grid_cutout = Bbox( cutout_grid_offset, cutout_grid_offset + cutout_grid_size )

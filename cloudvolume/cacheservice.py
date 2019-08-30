@@ -342,10 +342,10 @@ class CacheService(object):
     return json.loads(res.decode('utf8'))
 
   def download_single(self, path, compress=None):
-    files = self.download([ path ], compress=compress)
+    files = self.download([ path ], compress=compress, progress=False)
     return files[path]
 
-  def download(self, paths, compress=None):
+  def download(self, paths, compress=None, progress=None):
     """
     Download the provided paths, but grab them from cache first
     if they are present and the cache is enabled. 
@@ -355,6 +355,8 @@ class CacheService(object):
     if len(paths) == 0:
       return {}
 
+    progress = progress if progress is not None else self.config.progress
+
     locs = self.compute_data_locations(paths)
     locs['remote'] = [ str(x) for x in locs['remote'] ]
 
@@ -363,7 +365,7 @@ class CacheService(object):
       fragments = self.get(locs['local'])
 
     StorageClass = self.pick_storage_class(locs['remote'])
-    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
+    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
       remote_fragments = stor.get_files(locs['remote'])
 
     for frag in remote_fragments:
@@ -382,13 +384,14 @@ class CacheService(object):
           if content is not None 
         ],
         compress=compress,
+        progress=progress
       )
 
     fragments.update(remote_fragments)
     return fragments
 
   def get_single(self, cloudpath, progress=None):
-    res = self.get([ cloudpath ], progress=None)
+    res = self.get([ cloudpath ], progress=progress)
     return res[cloudpath]
 
   def get(self, cloudpaths, progress=None):
@@ -403,6 +406,7 @@ class CacheService(object):
     return { res['filename']: res['content'] for res in results }
 
   def put_single(self, path, content, *args, **kwargs):
+    kwargs['progress'] = False
     return self.put([ (path, content) ], *args, **kwargs)
 
   def put(self, files, progress=None, compress=None):

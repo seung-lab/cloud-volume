@@ -162,7 +162,7 @@ class ShardReader(object):
     shard_loc = self.spec.compute_shard_location(label)
     
     if self.cache.enabled:
-      cached = self.cache.get_single(self.meta.join(self.meta.path, str(label)))
+      cached = self.cache.get_single(self.meta.join(path, str(label)), progress=False)
       if cached is not None:
         return cached
 
@@ -196,7 +196,7 @@ class ShardReader(object):
       binary = compression.decompress(binary, encoding='gzip', filename=filename)
       
     if self.cache.enabled:
-      self.cache.put_single(self.meta.join(self.meta.path, str(label)), binary)
+      self.cache.put_single(self.meta.join(path, str(label)), binary, progress=False)
       
     return binary
 
