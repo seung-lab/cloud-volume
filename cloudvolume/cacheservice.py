@@ -311,13 +311,16 @@ class CacheService(object):
         storage.put_file('provenance', self.meta.provenance.serialize(), 'application/json')
 
   def upload_single(self, filename, content, *args, **kwargs):
+    kwargs['progress'] = False
     return self.upload( [(filename, content)], *args, **kwargs )
 
-  def upload(self, files, subdir, compress, cache_control, content_type=None):
+  def upload(self, files, subdir, compress, cache_control, content_type=None, progress=None):
     files = list(files)
 
+    progress = progress if progress is not None else self.config.progress
+
     StorageClass = self.pick_storage_class(files)
-    with StorageClass(self.meta.cloudpath, progress=self.config.progress) as stor:
+    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
       remote_fragments = stor.put_files(
         files=files,
         compress=compress,
