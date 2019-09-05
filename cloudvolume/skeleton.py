@@ -384,7 +384,7 @@ class Skeleton(object):
 
     if len(skelbuf) < min_format_length:
       raise SkeletonDecodeError("The input skeleton was {} bytes but the format requires {} bytes.".format(
-        len(skelbuf), format_length
+        len(skelbuf), min_format_length
       ))
 
     vstart = 2 * 4 # two uint32s in
