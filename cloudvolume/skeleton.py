@@ -1007,7 +1007,7 @@ class Skeleton(object):
 
     def generate_swc(skel, offset):
       if skel.edges.size == 0:
-        return swc_header
+        return ""
 
       index = defaultdict(set)
       visited = defaultdict(bool)
