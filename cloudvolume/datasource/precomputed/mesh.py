@@ -94,7 +94,7 @@ class PrecomputedMeshSource(object):
     Optional:
       remove_duplicate_vertices: bool, fuse exactly matching vertices
       fuse: bool, merge all downloaded meshes into a single mesh
-      chunk_size: [chunk_x, chunk_y, chunk_z] if pass only merge at chunk boundaries
+      chunk_size: [chunk_x, chunk_y, chunk_z] if passed only merge at chunk boundaries
     Returns: {
       num_vertices: int,
       vertices: [ (x,y,z), ... ]  # floats

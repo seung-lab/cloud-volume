@@ -11,7 +11,7 @@ from ....exceptions import EmptyVolumeException
 from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, check_bounds, 
-  jsonify
+  jsonify, red
 )
 from .... import chunks
 
