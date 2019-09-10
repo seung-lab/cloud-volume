@@ -138,7 +138,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   def __getitem__(self, slices):
     return self.download(
       slices, mip=self.mip,
-      mask_base=False,
+      preserve_zeros=True,
       parallel=self.parallel, 
     )
 
