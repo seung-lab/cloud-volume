@@ -570,7 +570,12 @@ class CloudVolumePrecomputed(object):
       self.meta, mip, img, bbox
     )
 
-  def download_point(self, pt, size=256, mip=None, parallel=None, **kwargs):
+  def download_point(
+    self, pt, size=256, 
+    mip=None, parallel=None, 
+    coord_resolution=None,
+    **kwargs
+  ):
     """
     Download to the right of point given in mip 0 coords.
     Useful for quickly visualizing a neuroglancer coordinate
@@ -580,6 +585,9 @@ class CloudVolumePrecomputed(object):
     size: int or (sx,sy,sz)
     mip: int representing resolution level
     parallel: number of processes to launch (0 means all cores)
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
 
     Return: image
     """
@@ -593,6 +601,10 @@ class CloudVolumePrecomputed(object):
 
     mip = self.meta.to_mip(mip)
     size2 = size // 2
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(0) / Vec(*coord_resolution)
+      pt = Vec(*pt) / factor
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
     bbox = Bbox(pt - size2, pt + size2).astype(np.int64)

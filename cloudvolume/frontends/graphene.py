@@ -34,7 +34,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     # TODO: add this as new parameter to the info as it can be different from the chunkedgraph chunksize
     return self.meta.mesh_chunk_size
   
-  def download_point(self, pt, size=256, mip=None, parallel=None, **kwargs):
+  def download_point(
+    self, pt, size=256, 
+    mip=None, parallel=None, 
+    coord_resolution=None,
+    **kwargs
+  ):
     """
     Download to the right of point given in mip 0 coords.
     Useful for quickly visualizing a neuroglancer coordinate
@@ -44,10 +49,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     size: int or (sx,sy,sz)
     mip: int representing resolution level
     parallel: number of processes to launch (0 means all cores)
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
 
-    Also accepts the arguments for download such as root_ids and mask_base.
+    Also accepts the arguments for download such as segids and preserve_zeros.
 
-    Return: image
+    Return: image as VolumeCutout(ndarray)
     """
     if isinstance(size, int) or isinstance(size, float):
       size = Vec(size, size, size)
@@ -59,6 +67,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     mip = self.meta.to_mip(mip)
     size2 = size // 2
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(0) / Vec(*coord_resolution)
+      pt = Vec(*pt) / factor
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
     bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
