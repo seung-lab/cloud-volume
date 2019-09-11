@@ -92,4 +92,6 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
 def test_gcv(graphene_vol):
     cutout = graphene_vol.download(np.s_[0:5,0:5,0:5], segids=[999])
     assert (np.all(cutout==999))
+    cutout_sv = graphene_vol[0:5,0:5,0:5]
+
     
