@@ -43,13 +43,14 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
 
   def do_GET(self):  
     if self.path.find('..') != -1:
+      self.send_error(403, "Relative paths are not allowed.")
       raise ValueError("Relative paths are not allowed.")
 
     path = self.path[1:]
     data = self.storage.get_file(path)
 
     if data is None:
-      self.send_response(404)
+      self.send_error(404, '/' + path + ": Not Found")
       return 
 
     self.send_response(200)
