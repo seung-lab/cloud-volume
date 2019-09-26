@@ -163,7 +163,11 @@ class Mesh(object):
     # normal_vector_map = np.vectorize(lambda idx: normals[idx])
     # eff_normals = normal_vector_map(uniq_idx)
 
-    return Mesh(eff_verts, eff_faces, None, segid=self.segid)
+    return Mesh(eff_verts, eff_faces, None, 
+      segid=self.segid,
+      encoding_type=copy.deepcopy(self.encoding_type),
+      encoding_options=copy.deepcopy(self.encoding_options),
+    )
 
   @classmethod
   def from_precomputed(self, binary):
