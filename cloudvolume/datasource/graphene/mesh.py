@@ -45,7 +45,12 @@ class GrapheneMeshSource(PrecomputedMeshSource):
 
     return json.loads(res.content)["fragments"]
 
-  def get(self, seg_id, remove_duplicate_vertices=False, level=2, bounding_box=None):
+  def get(
+      self, segids, 
+      remove_duplicate_vertices=False, 
+      fuse=False, level=2, 
+      bounding_box=None
+    ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
 
@@ -56,48 +61,51 @@ class GrapheneMeshSource(PrecomputedMeshSource):
 
     Optional:
       remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
+      fuse: bool, merge all downloaded meshes into a single mesh
       level: int, level of mesh to return. None to return highest available (default 2) 
       bounding_box: Bbox, bounding box to restrict mesh download to
-    Returns: {
-      num_vertices: int,
-      vertices: [ (x,y,z), ... ]  # floats
-      faces: [ int, int, int, ... ] # int = vertex_index, 3 to a face
-    }
+    
+    Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
     import DracoPy
 
-    if isinstance(seg_id, list) or isinstance(seg_id, np.ndarray):
-      if len(seg_id) != 1:
-        raise IndexError("GrapheneMeshSource.get accepts at most one segid. Got: " + str(seg_id))
-      seg_id = seg_id[0]
+    segids = list(set([ int(segid) for segid in toiter(segids) ]))
 
-    segid = int(seg_id)
+    meshes = []
+    for seg_id in tqdm(segids, disable=(not self.config.progress), desc="Downloading Meshes"):
+      fragment_filenames = self._get_fragment_filenames(
+        seg_id, level=level, bbox=bounding_box
+      )
+      fragments = self._get_mesh_fragments(fragment_filenames)
+      fragments = sorted(fragments, key=lambda frag: frag[0])  # make decoding deterministic
 
-    fragment_filenames = self._get_fragment_filenames(
-      seg_id, level=level, bbox=bounding_box
-    )
-    fragments = self._get_mesh_fragments(fragment_filenames)
-    # fragments = sorted(fragments, key=lambda frag: frag['filename'])  # make decoding deterministic
-
-    # decode all the fragments
-    fragiter = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
-    is_draco = False
-    for i, (filename, frag) in enumerate(fragiter):
-      if frag is not None:
+      fragiter = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
+      is_draco = False
+      for i, (filename, frag) in enumerate(fragiter):
+        mesh = None
+        
+        if frag is not None:
           try:
             # Easier to ask forgiveness than permission
             mesh = Mesh.from_draco(frag)
-            is_draco=True
+            is_draco = True
           except DracoPy.FileTypeException:
             mesh = Mesh.from_precomputed(frag)
-      else:
-          mesh = None
-      fragments[i] = mesh
-    fragments = [f for f in fragments if f is not None]
-    if len(fragments) == 0:
-      raise IndexError('No mesh fragments found for segment {}'.format(seg_id))
+            
+        fragments[i] = mesh
+      
+      fragments = [ f for f in fragments if f is not None ] 
+      if len(fragments) == 0:
+        raise IndexError('No mesh fragments found for segment {}'.format(seg_id))
 
-    mesh = Mesh.concatenate(*fragments)
-    mesh.segid = seg_id
-    resolution = self.meta.resolution(self.config.mip)
-    return mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution, is_draco=is_draco)
+      mesh = Mesh.concatenate(*fragments)
+      mesh.segid = seg_id
+      resolution = self.meta.resolution(self.config.mip)
+      mesh = mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution, is_draco=is_draco)
+      meshes.append(mesh.consolidate())
+
+    if not fuse:
+      return { m.segid: m for m in meshes }
+
+    return Mesh.concatenate(*meshes).consolidate()
+
