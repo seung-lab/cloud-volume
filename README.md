@@ -338,7 +338,8 @@ CloudVolume(cloudpath,
      cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None, 
      compress=None, non_aligned_writes=False, parallel=1,
      delete_black_uploads=False, background_color=0, 
-     green_threads=False)
+     green_threads=False, use_https=False,
+     max_redirects=10)
 ```
 
 * mip - Which mip level to access
@@ -359,6 +360,8 @@ CloudVolume(cloudpath,
 * delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all background (usually all zeros). This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
 * background_color - Number. Determines the background color that `delete_black_uploads` will scan for (typically zero).
 * green_threads - True/False. If True, use the gevent cooperative threading library instead of preemptive threads. This requires monkey patching your program which may be undesirable. However, for certain workloads this can be a significant performance improvement on multi-core devices.
+* use_https - True/False. If True, use the same read-only access urls that neuroglancer does that may be cached vs the secured read/write strongly consistent API. Use this when you do not have credentials.  
+* max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).  
 
 ### CloudVolume Methods
 
