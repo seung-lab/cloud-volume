@@ -1,6 +1,20 @@
 
-class InfoUnavailableError(ValueError):
+class InfoError(Exception):
+  pass
+
+class InfoUnavailableError(InfoError):
   """CloudVolume was unable to access this layer's info file."""
+  pass
+
+class RedirectError(InfoError):
+  pass
+
+class TooManyRedirects(RedirectError):
+  """The chain of redirects became unconvincingly long."""
+  pass
+
+class CyclicRedirect(RedirectError):
+  """Unable to resolve redirects due to cycle."""
   pass
 
 class ScaleUnavailableError(IndexError):

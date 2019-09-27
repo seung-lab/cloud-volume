@@ -63,7 +63,7 @@ class PrecomputedMetadata(object):
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(128,128,64),
     compressed_segmentation_block_size=(8,8,8),
-    max_mip=0, factor=Vec(2,2,1) 
+    max_mip=0, factor=Vec(2,2,1), redirect=None
   ):
     """
     Create a new neuroglancer Precomputed info file.
@@ -85,6 +85,7 @@ class PrecomputedMetadata(object):
         (only used when encoding is 'compressed_segmentation')
       max_mip: (int), the maximum mip level id.
       factor: (Vec), the downsampling factor for each mip level
+      redirect: (str), cloudpath to redirect to
 
     Returns: dict representing a single mip level that's JSON encodable
     """
@@ -107,6 +108,9 @@ class PrecomputedMetadata(object):
         "size": list(map(int, volume_size)),
       }],
     }
+
+    if redirect is not None:
+      info['redirect'] = str(redirect)
     
     fullres = info['scales'][0]
     factor_in_mip = factor.clone()
@@ -172,8 +176,25 @@ class PrecomputedMetadata(object):
 
     Returns: dict
     """
-    with SimpleStorage(self.cloudpath) as stor:
-      info = stor.get_json('info')
+    visited = set()
+
+    for _ in range(10):
+      with SimpleStorage(self.cloudpath) as stor:
+        info = stor.get_json('info')
+
+      if 'redirect' not in info or not info['redirect']:
+        break
+
+      path = strict_extract(info['redirect'])
+      if path == self.path:
+        break 
+      elif path in visited:
+        raise exceptions.CyclicRedirect(str(path))
+
+      visited.add(path)
+      self.path = path
+    else:
+      raise exceptions.TooManyRedirects()
 
     if info is None:
       raise exceptions.InfoUnavailableError(
