@@ -142,13 +142,18 @@ class PrecomputedMetadata(object):
     
     return info
 
-  def refresh_info(self):
+  def refresh_info(self, max_redirects=10):
     """
     Refresh the current info file from the cache (if enabled) 
     or primary storage (e.g. the cloud) if not cached.
 
-    Raises cloudvolume.exceptions.InfoUnavailableError when the info file 
-    is unable to be retrieved.
+    Raises:
+      cloudvolume.exceptions.InfoUnavailableError when the info file 
+        is unable to be retrieved.
+      cloudvolume.exceptions.TooManyRedirects if more than max_redirects
+        are followed.
+      cloudvolume.exceptions.CyclicRedirect if a previously visited 
+        location is revisited.
 
     See also: fetch_info
 
@@ -160,13 +165,13 @@ class PrecomputedMetadata(object):
         self.info = info
         return self.info
 
-    self.info = self.fetch_info()
+    self.info = self.redirectable_fetch_info(max_redirects)
 
     if self.cache:
       self.cache.maybe_cache_info()
     return self.info
 
-  def fetch_info(self, allow_redirect=True):
+  def fetch_info(self):
     """
     Refresh the current info file from primary storage (e.g. the cloud) without
     refrence to the cache. The cache will not be updated.
@@ -178,15 +183,47 @@ class PrecomputedMetadata(object):
 
     Returns: dict
     """
+    with SimpleStorage(self.cloudpath) as stor:
+      info = stor.get_json('info')
+
+    if info is None:
+      raise exceptions.InfoUnavailableError(
+        red('No info file was found: {}'.format(self.infopath))
+      )
+
+    return info
+
+  def redirectable_fetch_info(self, max_redirects=10):
+    """
+    Refresh the current info file from primary storage (e.g. the cloud) without
+    refrence to the cache. The cache will not be updated. 'redirect' links
+    in the info file will be followed up to `max_redirects` times after which
+    an exception will be raised.
+
+    Raises:
+      cloudvolume.exceptions.InfoUnavailableError when the info file 
+        is unable to be retrieved.
+      cloudvolume.exceptions.TooManyRedirects if more than max_redirects
+        are followed.
+      cloudvolume.exceptions.CyclicRedirect if a previously visited 
+        location is revisited.
+
+    See also: refresh_info, fetch_info
+
+    Optional:
+      max_redirects: if 'redirect' is specified in an info file, 
+        follow the link up to this many times to the pointed locations.
+
+    Returns: dict
+    """
     visited = []
 
-    for _ in range(10):
-      with SimpleStorage(self.cloudpath) as stor:
-        info = stor.get_json('info')
+    if max_redirects == 0:
+      return self.fetch_info()
 
-      if not allow_redirect:
-        break
-
+    for _ in range(max_redirects):
+      info = self.fetch_info()
+      
       if 'redirect' not in info or not info['redirect']:
         break
 
@@ -201,13 +238,8 @@ class PrecomputedMetadata(object):
     else:
       raise exceptions.TooManyRedirects()
 
-    if info is None:
-      raise exceptions.InfoUnavailableError(
-        red('No info file was found: {}'.format(self.infopath))
-      )
-
     self.redirected_from = visited
-    
+
     return info
 
   def commit_info(self):
