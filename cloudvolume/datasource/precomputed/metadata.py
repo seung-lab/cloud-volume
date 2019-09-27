@@ -42,6 +42,8 @@ class PrecomputedMetadata(object):
       self.cache.meta = self
     self.info = None
 
+    self.redirected_from = []
+
     if info is None:
       self.refresh_info()
       if self.cache and self.cache.enabled:
@@ -164,7 +166,7 @@ class PrecomputedMetadata(object):
       self.cache.maybe_cache_info()
     return self.info
 
-  def fetch_info(self):
+  def fetch_info(self, allow_redirect=True):
     """
     Refresh the current info file from primary storage (e.g. the cloud) without
     refrence to the cache. The cache will not be updated.
@@ -176,11 +178,14 @@ class PrecomputedMetadata(object):
 
     Returns: dict
     """
-    visited = set()
+    visited = []
 
     for _ in range(10):
       with SimpleStorage(self.cloudpath) as stor:
         info = stor.get_json('info')
+
+      if not allow_redirect:
+        break
 
       if 'redirect' not in info or not info['redirect']:
         break
@@ -191,7 +196,7 @@ class PrecomputedMetadata(object):
       elif path in visited:
         raise exceptions.CyclicRedirect(str(path))
 
-      visited.add(path)
+      visited.append(path)
       self.path = path
     else:
       raise exceptions.TooManyRedirects()
@@ -200,6 +205,9 @@ class PrecomputedMetadata(object):
       raise exceptions.InfoUnavailableError(
         red('No info file was found: {}'.format(self.infopath))
       )
+
+    self.redirected_from = visited
+    
     return info
 
   def commit_info(self):
