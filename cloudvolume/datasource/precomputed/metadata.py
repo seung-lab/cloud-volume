@@ -218,12 +218,12 @@ class PrecomputedMetadata(object):
     """
     visited = []
 
-    if max_redirects == 0:
+    if max_redirects <= 0:
       return self.fetch_info()
 
     for _ in range(max_redirects):
       info = self.fetch_info()
-      
+
       if 'redirect' not in info or not info['redirect']:
         break
 
