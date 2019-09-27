@@ -43,6 +43,13 @@ class ImageSourceInterface(object):
   def transfer_to(self, cloudpath, bbox, mip):
     raise NotImplementedError()
 
+def readonlyguard(fn):
+  def guardfn(self, *args, **kwargs):
+    if self.readonly:
+      raise exceptions.ReadOnlyException(self.meta.cloudpath)
+    return fn(self, *args, **kwargs)
+  return guardfn
+
 def check_grid_aligned(meta, img, bounds, mip, throw_error=False):
   """Raise a cloudvolume.exceptions.AlignmentError if the provided image is not grid aligned."""
   shape = Vec(*img.shape)[:3]

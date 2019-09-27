@@ -38,6 +38,8 @@ def create_precomputed(
       info=info, provenance=provenance,
     )
 
+    readonly = bool(meta.redirected_from)
+
     image = PrecomputedImageSource(
       config, meta, cache,
       autocrop=bool(autocrop),
@@ -46,10 +48,11 @@ def create_precomputed(
       fill_missing=bool(fill_missing),
       delete_black_uploads=bool(delete_black_uploads),
       background_color=background_color,
+      readonly=readonly,
     )
 
-    mesh = PrecomputedMeshSource(meta, cache, config)
-    skeleton = PrecomputedSkeletonSource(meta, cache, config)
+    mesh = PrecomputedMeshSource(meta, cache, config, readonly)
+    skeleton = PrecomputedSkeletonSource(meta, cache, config, readonly)
 
     return CloudVolumePrecomputed(
       meta, cache, config, 

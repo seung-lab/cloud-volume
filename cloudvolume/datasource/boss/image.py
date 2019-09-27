@@ -5,7 +5,7 @@ from intern.resource.boss.resource import (
   ChannelResource, ExperimentResource, CoordinateFrameResource
 )
 
-from .. import autocropfn
+from .. import autocropfn, readonlyguard, ImageSourceInterface
 
 from ... import exceptions 
 from ...lib import ( 
@@ -15,12 +15,13 @@ from ...lib import (
 from ...secrets import boss_credentials
 from ...volumecutout import VolumeCutout
 
-class BossImageSource(object):
+class BossImageSource(ImageSourceInterface):
   def __init__(
     self, config, meta, cache,
     autocrop=False, bounded=True,
     non_aligned_writes=False,
-    delete_black_uploads=False
+    delete_black_uploads=False,
+    readonly=False,
   ):
     self.config = config
     self.meta = meta 
@@ -29,6 +30,7 @@ class BossImageSource(object):
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
     self.non_aligned_writes = bool(non_aligned_writes)
+    self.readonly = bool(readonly)
 
   def download(self, bbox, mip):
     bounds = Bbox.clamp(bbox, self.meta.bounds(mip))
@@ -74,6 +76,7 @@ class BossImageSource(object):
     txrx.shade(renderbuffer, bbox, cutout, bounds)
     return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
 
+  @readonlyguard
   def upload(self, image, offset, mip):
     shape = Vec(*image.shape[:3])
     offset = Vec(*offset)
@@ -118,6 +121,7 @@ class BossImageSource(object):
   def exists(self, bbox, mip=None):
     raise NotImplementedError()
 
+  @readonlyguard
   def delete(self, bbox, mip=None):
     raise NotImplementedError()
 

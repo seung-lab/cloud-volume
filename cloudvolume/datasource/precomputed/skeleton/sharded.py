@@ -3,10 +3,11 @@ from ....skeleton import Skeleton
 
 
 class ShardedPrecomputedSkeletonSource(object):
-  def __init__(self, meta, cache, config):
+  def __init__(self, meta, cache, config, readonly=False):
     self.meta = meta
     self.cache = cache
     self.config = config
+    self.readonly = bool(readonly)
 
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
     self.reader = ShardReader(meta, cache, spec)

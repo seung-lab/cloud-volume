@@ -238,7 +238,7 @@ class PrecomputedMetadata(object):
     else:
       raise exceptions.TooManyRedirects()
 
-    self.redirected_from = visited
+    self.redirected_from = visited[:-1]
 
     return info
 

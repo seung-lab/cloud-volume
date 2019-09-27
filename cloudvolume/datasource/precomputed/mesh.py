@@ -25,10 +25,12 @@ def filename_to_segid(filename):
   return int(segid)
 
 class PrecomputedMeshSource(object):
-  def __init__(self, meta, cache, config):
+  def __init__(self, meta, cache, config, readonly=False):
     self.meta = meta
     self.cache = cache
     self.config = config
+
+    self.readonly = bool(readonly)
 
   @property
   def path(self):

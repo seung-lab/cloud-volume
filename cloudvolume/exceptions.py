@@ -21,6 +21,10 @@ class ScaleUnavailableError(IndexError):
   """The info file is not configured to support this scale / mip level."""
   pass
 
+class ReadOnlyException(Exception):
+  """Attempted to write to a readonly data source."""
+  pass
+
 class AlignmentError(ValueError):
   """Signals that an operation requiring chunk alignment was not aligned."""
   pass 
