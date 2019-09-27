@@ -57,7 +57,8 @@ class CloudVolume(object):
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None,
     compress=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0,
-    green_threads=False, use_https=False
+    green_threads=False, use_https=False,
+    max_redirects=10
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 

@@ -35,7 +35,11 @@ class PrecomputedMetadata(object):
   This class is a building block for building a class that can
   read and write Precomputed data types.
   """
-  def __init__(self, cloudpath, cache=None, info=None, provenance=None):
+  def __init__(
+    self, cloudpath, cache=None, 
+    info=None, provenance=None, 
+    max_redirects=10
+  ):
     self.path = strict_extract(cloudpath)
     self.cache = cache
     if self.cache:
@@ -45,7 +49,7 @@ class PrecomputedMetadata(object):
     self.redirected_from = []
 
     if info is None:
-      self.refresh_info()
+      self.refresh_info(max_redirects=max_redirects)
       if self.cache and self.cache.enabled:
         self.cache.check_info_validity()
     else:
