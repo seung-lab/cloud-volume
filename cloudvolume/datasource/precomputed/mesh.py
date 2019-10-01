@@ -95,12 +95,8 @@ class PrecomputedMeshSource(object):
       remove_duplicate_vertices: bool, fuse exactly matching vertices
       fuse: bool, merge all downloaded meshes into a single mesh
       chunk_size: [chunk_x, chunk_y, chunk_z] if passed only merge at chunk boundaries
-    Returns: {
-      num_vertices: int,
-      vertices: [ (x,y,z), ... ]  # floats
-      faces: [ int, int, int, ... ] # int = vertex_index, 3 to a face
-    }
-
+    
+    Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
     segids = toiter(segids)
     dne = self._check_missing_manifests(segids)
@@ -119,12 +115,10 @@ class PrecomputedMeshSource(object):
 
     # decode all the fragments
     meshdata = defaultdict(list)
-    is_draco = False
     for frag in tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer"):
       segid = filename_to_segid(frag[0])
       try:
         mesh = Mesh.from_precomputed(frag[1])
-        is_draco=True
       except Exception:
         print(frag[0], 'had a problem.')
         raise
@@ -146,7 +140,7 @@ class PrecomputedMeshSource(object):
       return mesh.consolidate()
 
     resolution = self.meta.resolution(self.config.mip)
-    return mesh.deduplicate_chunk_boundaries(chunk_size*resolution, is_draco=is_draco)
+    return mesh.deduplicate_chunk_boundaries(chunk_size*resolution, is_draco=False)
 
   def save(self, segids, filepath=None, file_format='ply'):
     """
