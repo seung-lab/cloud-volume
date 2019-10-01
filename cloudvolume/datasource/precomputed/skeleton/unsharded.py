@@ -14,14 +14,17 @@ from cloudvolume.lib import red, Bbox
 from cloudvolume.storage import Storage, SimpleStorage
 
 from ..common import cdn_cache_control
+from ... import readonlyguard
 
 from ....skeleton import Skeleton
 
 class UnshardedPrecomputedSkeletonSource(object):
-  def __init__(self, meta, cache, config):
+  def __init__(self, meta, cache, config, readonly=False):
     self.meta = meta
     self.cache = cache
     self.config = config
+
+    self.readonly = bool(readonly)
 
   @property
   def path(self):
@@ -84,6 +87,7 @@ class UnshardedPrecomputedSkeletonSource(object):
 
     return None
 
+  @readonlyguard
   def upload_raw(self, segid, vertices, edges, radii=None, vertex_types=None):
     skel = Skeleton(
       vertices, edges, radii, 
@@ -91,6 +95,7 @@ class UnshardedPrecomputedSkeletonSource(object):
     )
     return self.upload(skel)
     
+  @readonlyguard
   def upload(self, skeletons):
     if type(skeletons) == Skeleton:
       skeletons = [ skeletons ]

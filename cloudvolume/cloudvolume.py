@@ -57,7 +57,8 @@ class CloudVolume(object):
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None,
     compress=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0,
-    green_threads=False, use_https=False
+    green_threads=False, use_https=False,
+    max_redirects=10
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -155,15 +156,18 @@ class CloudVolume(object):
       info: (dict) In lieu of fetching a neuroglancer info file, use this one.
           This is useful when creating new datasets and for repeatedly initializing
           a new cloudvolume instance.
+      max_redirects: (int) if > 0, allow up to this many redirects via info file 'redirect'
+          data fields. If <= 0, allow no redirections and access the current info file directly
+          without raising an error.
+      mip: (int or iterable) Which level of downsampling to read and write from.
+          0 is the highest resolution. You can also specify the voxel resolution
+          like mip=[6,6,30] which will search for the appropriate mip level.
       non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing 
           safe without careful design. When not enabled, a 
           cloudvolume.exceptions.AlignmentError is thrown for non-aligned writes. 
           
           https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
 
-      mip: (int or iterable) Which level of downsampling to read and write from.
-          0 is the highest resolution. You can also specify the voxel resolution
-          like mip=[6,6,30] which will search for the appropriate mip level.
       parallel (int: 1, bool): Number of extra processes to launch, 1 means only 
           use the main process. If parallel is True use the number of CPUs 
           returned by multiprocessing.cpu_count(). When parallel > 1, shared

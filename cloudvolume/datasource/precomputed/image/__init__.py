@@ -18,7 +18,7 @@ from ....lib import Bbox, Vec
 from .... import sharedmemory
 from ....storage import Storage
 
-from ... import autocropfn, ImageSourceInterface
+from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
 from .common import chunknames
 from . import tx, rx
@@ -31,6 +31,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     fill_missing=False, 
     delete_black_uploads=False,
     background_color=0,
+    readonly=False,
   ):
     self.config = config
     self.meta = meta 
@@ -40,6 +41,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     self.bounded = bool(bounded)
     self.fill_missing = bool(fill_missing)
     self.non_aligned_writes = bool(non_aligned_writes)
+    self.readonly = bool(readonly)
     
     self.delete_black_uploads = bool(delete_black_uploads)
     self.background_color = background_color
@@ -136,6 +138,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         green=self.config.green,
       )
 
+  @readonlyguard
   def upload(
       self, 
       image, offset, mip, 
@@ -194,6 +197,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       existence_report = storage.files_exist(cloudpaths)
     return existence_report
 
+  @readonlyguard
   def delete(self, bbox, mip=None):
     if mip is None:
       mip = self.config.mip

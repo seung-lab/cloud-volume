@@ -1300,7 +1300,80 @@ def test_get_mesh_order_stability():
 #   bimg = bossvol[:,:,5:6]
 #   assert np.any(bimg > 0)
 
+def test_redirects():
+  info = CloudVolume.create_new_info(
+    num_channels=1, # Increase this number when we add more tests for RGB
+    layer_type='image', 
+    data_type='uint8', 
+    encoding='raw',
+    resolution=[ 1,1,1 ], 
+    voxel_offset=[0,0,0], 
+    volume_size=[128,128,64],
+    mesh='mesh', 
+    chunk_size=[ 64,64,64 ],
+  )
 
+  vol = CloudVolume('file:///tmp/cloudvolume/redirects_0', mip=0, info=info)
+  vol.commit_info()
+  vol.refresh_info()
+
+  vol.info['redirect'] = 'file:///tmp/cloudvolume/redirects_0'
+  vol.commit_info()
+  vol.refresh_info()
+
+  del vol.info['redirect']
+
+  for i in range(0, 10):
+    info['redirect'] = 'file:///tmp/cloudvolume/redirects_' + str(i + 1)  
+    vol = CloudVolume('file:///tmp/cloudvolume/redirects_' + str(i), mip=0, info=info)
+    vol.commit_info()
+  else:
+    del vol.info['redirect']
+    vol.commit_info()
+
+  vol = CloudVolume('file:///tmp/cloudvolume/redirects_0', mip=0)
+
+  assert vol.cloudpath == 'file:///tmp/cloudvolume/redirects_9'
+
+  info['redirect'] = 'file:///tmp/cloudvolume/redirects_10'
+  vol = CloudVolume('file:///tmp/cloudvolume/redirects_9', mip=0, info=info)
+  vol.commit_info()
+
+  try:
+    CloudVolume('file:///tmp/cloudvolume/redirects_0', mip=0)  
+    assert False 
+  except exceptions.TooManyRedirects:
+    pass
+
+  vol = CloudVolume('file:///tmp/cloudvolume/redirects_9', max_redirects=0)
+  del vol.info['redirect']
+  vol.commit_info()
+
+  vol = CloudVolume('file:///tmp/cloudvolume/redirects_5', max_redirects=0)  
+  vol.info['redirect'] = 'file:///tmp/cloudvolume/redirects_1'
+  vol.commit_info()
+
+  try:
+    vol = CloudVolume('file:///tmp/cloudvolume/redirects_5')
+    assert False
+  except exceptions.CyclicRedirect:
+    pass
+
+  vol.info['redirect'] = 'file:///tmp/cloudvolume/redirects_6'
+  vol.commit_info()
+
+  vol = CloudVolume('file:///tmp/cloudvolume/redirects_1')
+
+  try:
+    vol[:,:,:] = 1
+    assert False 
+  except exceptions.ReadOnlyException:
+    pass
+
+  for i in range(0, 10):
+    delete_layer('/tmp/cloudvolume/redirects_' + str(i))  
   
+
+
 
 

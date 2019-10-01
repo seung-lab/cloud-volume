@@ -1,5 +1,6 @@
 from collections import namedtuple
 import os
+import posixpath
 import re
 import sys
 
@@ -27,6 +28,12 @@ Cloud Path Recieved: {}
 """).format(
   ", ".join(ALLOWED_FORMATS), ", ".join(ALLOWED_PROTOCOLS), '{}' # curry first two
 )
+
+def ascloudpath(epath):
+  return "{}://{}://{}".format(
+    epath.format, epath.protocol, 
+    posixpath.join(epath.basepath, epath.dataset, epath.layer)
+  )
 
 def pop_protocol(cloudpath):
   protocol_re = re.compile(r'(\w+)://')

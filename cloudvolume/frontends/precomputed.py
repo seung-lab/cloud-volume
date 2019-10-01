@@ -202,7 +202,8 @@ class CloudVolumePrecomputed(object):
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(64,64,64),
     compressed_segmentation_block_size=(8,8,8),
-    max_mip=0, factor=Vec(2,2,1), *args, **kwargs
+    max_mip=0, factor=Vec(2,2,1), redirect=None, 
+    *args, **kwargs
   ):
     """
     Create a new neuroglancer Precomputed info file.
@@ -224,6 +225,8 @@ class CloudVolumePrecomputed(object):
         (only used when encoding is 'compressed_segmentation')
       max_mip: (int), the maximum mip level id.
       factor: (Vec), the downsampling factor for each mip level
+      redirect: If this volume has moved, you can set an automatic redirect
+        by specifying a cloudpath here.
 
     Returns: dict representing a single mip level that's JSON encodable
     """

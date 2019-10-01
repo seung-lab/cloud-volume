@@ -10,13 +10,13 @@ from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
 class PrecomputedSkeletonSource(object):
-  def __new__(cls, meta, cache, config):
+  def __new__(cls, meta, cache, config, readonly=False):
     skel_meta = PrecomputedSkeletonMetadata(meta, cache)
 
     if skel_meta.is_sharded():
-      return ShardedPrecomputedSkeletonSource(skel_meta, cache, config)      
+      return ShardedPrecomputedSkeletonSource(skel_meta, cache, config, readonly) 
 
-    return UnshardedPrecomputedSkeletonSource(skel_meta, cache, config)
+    return UnshardedPrecomputedSkeletonSource(skel_meta, cache, config, readonly)
 
   @classmethod
   def from_cloudpath(cls, cloudpath, cache=False, progress=False):

@@ -6,6 +6,7 @@ from .skeleton import PrecomputedSkeletonSource
 from ...cloudvolume import register_plugin, SharedConfiguration
 from ...cacheservice import CacheService
 from ...frontends import CloudVolumePrecomputed
+from ...lib import yellow
 from ...paths import strict_extract
 
 def create_precomputed(
@@ -14,7 +15,8 @@ def create_precomputed(
     cdn_cache=True, progress=False, info=None, provenance=None,
     compress=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0, 
-    green_threads=False, use_https=False
+    green_threads=False, use_https=False,
+    max_redirects=10
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
@@ -36,7 +38,32 @@ def create_precomputed(
     meta = PrecomputedMetadata(
       cloudpath, cache=cache,
       info=info, provenance=provenance,
+      max_redirects=max_redirects
     )
+
+    readonly = bool(meta.redirected_from)
+
+    if readonly:
+      print(yellow("""
+        Redirected 
+
+        From: {} 
+        To:   {}
+        Hops: {}
+
+        Volume set to readonly to mitigate accidental
+        redirection resulting in writing data to the wrong 
+        location.
+
+        To set the data to writable, access the destination
+        location directly or set:
+
+        vol.image.readonly = False
+        vol.mesh.readonly = False 
+        vol.skeleton.readonly = False
+      """.format(
+        cloudpath, meta.cloudpath, len(meta.redirected_from)
+      )))
 
     image = PrecomputedImageSource(
       config, meta, cache,
@@ -46,10 +73,11 @@ def create_precomputed(
       fill_missing=bool(fill_missing),
       delete_black_uploads=bool(delete_black_uploads),
       background_color=background_color,
+      readonly=readonly,
     )
 
-    mesh = PrecomputedMeshSource(meta, cache, config)
-    skeleton = PrecomputedSkeletonSource(meta, cache, config)
+    mesh = PrecomputedMeshSource(meta, cache, config, readonly)
+    skeleton = PrecomputedSkeletonSource(meta, cache, config, readonly)
 
     return CloudVolumePrecomputed(
       meta, cache, config, 

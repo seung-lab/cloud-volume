@@ -19,7 +19,7 @@ from ...lib import (
   colorize, red, mkdir, 
   Vec, Bbox, jsonify, 
 )
-from ...paths import strict_extract
+from ...paths import strict_extract, ascloudpath
 
 def downscale(size, factor_in_mip, roundingfn):
   smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
@@ -35,15 +35,21 @@ class PrecomputedMetadata(object):
   This class is a building block for building a class that can
   read and write Precomputed data types.
   """
-  def __init__(self, cloudpath, cache=None, info=None, provenance=None):
+  def __init__(
+    self, cloudpath, cache=None, 
+    info=None, provenance=None, 
+    max_redirects=10
+  ):
     self.path = strict_extract(cloudpath)
     self.cache = cache
     if self.cache:
       self.cache.meta = self
     self.info = None
 
+    self.redirected_from = []
+
     if info is None:
-      self.refresh_info()
+      self.refresh_info(max_redirects=max_redirects)
       if self.cache and self.cache.enabled:
         self.cache.check_info_validity()
     else:
@@ -63,7 +69,7 @@ class PrecomputedMetadata(object):
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(128,128,64),
     compressed_segmentation_block_size=(8,8,8),
-    max_mip=0, factor=Vec(2,2,1) 
+    max_mip=0, factor=Vec(2,2,1), redirect=None
   ):
     """
     Create a new neuroglancer Precomputed info file.
@@ -85,6 +91,7 @@ class PrecomputedMetadata(object):
         (only used when encoding is 'compressed_segmentation')
       max_mip: (int), the maximum mip level id.
       factor: (Vec), the downsampling factor for each mip level
+      redirect: (str), cloudpath to redirect to
 
     Returns: dict representing a single mip level that's JSON encodable
     """
@@ -107,6 +114,9 @@ class PrecomputedMetadata(object):
         "size": list(map(int, volume_size)),
       }],
     }
+
+    if redirect is not None:
+      info['redirect'] = str(redirect)
     
     fullres = info['scales'][0]
     factor_in_mip = factor.clone()
@@ -136,13 +146,18 @@ class PrecomputedMetadata(object):
     
     return info
 
-  def refresh_info(self):
+  def refresh_info(self, max_redirects=10):
     """
     Refresh the current info file from the cache (if enabled) 
     or primary storage (e.g. the cloud) if not cached.
 
-    Raises cloudvolume.exceptions.InfoUnavailableError when the info file 
-    is unable to be retrieved.
+    Raises:
+      cloudvolume.exceptions.InfoUnavailableError when the info file 
+        is unable to be retrieved.
+      cloudvolume.exceptions.TooManyRedirects if more than max_redirects
+        are followed.
+      cloudvolume.exceptions.CyclicRedirect if a previously visited 
+        location is revisited.
 
     See also: fetch_info
 
@@ -154,7 +169,7 @@ class PrecomputedMetadata(object):
         self.info = info
         return self.info
 
-    self.info = self.fetch_info()
+    self.info = self.redirectable_fetch_info(max_redirects)
 
     if self.cache:
       self.cache.maybe_cache_info()
@@ -179,6 +194,75 @@ class PrecomputedMetadata(object):
       raise exceptions.InfoUnavailableError(
         red('No info file was found: {}'.format(self.infopath))
       )
+
+    return info
+
+  def redirectable_fetch_info(self, max_redirects=10):
+    """
+    Refresh the current info file from primary storage (e.g. the cloud) without
+    refrence to the cache. The cache will not be updated. 'redirect' links
+    in the info file will be followed up to `max_redirects` times after which
+    an exception will be raised.
+
+    Raises:
+      cloudvolume.exceptions.InfoUnavailableError when the info file 
+        is unable to be retrieved.
+      cloudvolume.exceptions.TooManyRedirects if more than max_redirects
+        are followed.
+      cloudvolume.exceptions.CyclicRedirect if a previously visited 
+        location is revisited.
+
+    See also: refresh_info, fetch_info
+
+    Optional:
+      max_redirects: if 'redirect' is specified in an info file, 
+        follow the link up to this many times to the pointed locations.
+
+    Returns: dict
+    """
+    visited = []
+
+    if max_redirects <= 0:
+      return self.fetch_info()
+
+    if self.path.format == 'graphene':
+      start = self.server_url
+    else:
+      start = self.cloudpath
+
+    for _ in range(max_redirects):
+      info = self.fetch_info()
+
+      if 'redirect' not in info or not info['redirect']:
+        break
+
+      path = strict_extract(info['redirect'])
+      if path == self.path:
+        break 
+      elif path in visited:
+        raise exceptions.CyclicRedirect(
+          """
+Tried to redirect through a cycle.
+
+Start: {}
+Hops: 
+\t{}
+\n""".format(
+          start, 
+          "\n\t".join([ 
+            str(i+1) + ". " + ascloudpath(v) for i, v in enumerate(visited) 
+          ]))
+        )
+
+      visited.append(path)
+      self.path = path
+    else:
+      raise exceptions.TooManyRedirects(
+        "Tried to redirect more than {} hops.".format(max_redirects)
+      )
+
+    self.redirected_from = visited[:-1]
+
     return info
 
   def commit_info(self):
