@@ -225,7 +225,10 @@ class PrecomputedMetadata(object):
     if max_redirects <= 0:
       return self.fetch_info()
 
-    start = self.cloudpath
+    if self.path.format == 'graphene':
+      start = self.server_url
+    else:
+      start = self.cloudpath
 
     for _ in range(max_redirects):
       info = self.fetch_info()
