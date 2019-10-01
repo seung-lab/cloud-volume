@@ -6,6 +6,7 @@ from .skeleton import PrecomputedSkeletonSource
 from ...cloudvolume import register_plugin, SharedConfiguration
 from ...cacheservice import CacheService
 from ...frontends import CloudVolumePrecomputed
+from ...lib import yellow
 from ...paths import strict_extract
 
 def create_precomputed(
@@ -41,6 +42,28 @@ def create_precomputed(
     )
 
     readonly = bool(meta.redirected_from)
+
+    if readonly:
+      print(yellow("""
+        Redirected 
+
+        From: {} 
+        To:   {}
+        Hops: {}
+
+        Volume set to readonly to mitigate accidental
+        redirection resulting in writing data to the wrong 
+        location.
+
+        To set the data to writable, access the destination
+        location directly or set:
+
+        vol.image.readonly = False
+        vol.mesh.readonly = False 
+        vol.skeleton.readonly = False
+      """.format(
+        cloudpath, meta.cloudpath, len(meta.redirected_from)
+      )))
 
     image = PrecomputedImageSource(
       config, meta, cache,
