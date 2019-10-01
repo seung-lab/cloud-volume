@@ -19,7 +19,7 @@ from ...lib import (
   colorize, red, mkdir, 
   Vec, Bbox, jsonify, 
 )
-from ...paths import strict_extract
+from ...paths import strict_extract, ascloudpath
 
 def downscale(size, factor_in_mip, roundingfn):
   smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
@@ -225,6 +225,8 @@ class PrecomputedMetadata(object):
     if max_redirects <= 0:
       return self.fetch_info()
 
+    start = self.cloudpath
+
     for _ in range(max_redirects):
       info = self.fetch_info()
 
@@ -235,12 +237,26 @@ class PrecomputedMetadata(object):
       if path == self.path:
         break 
       elif path in visited:
-        raise exceptions.CyclicRedirect(str(path))
+        raise exceptions.CyclicRedirect(
+          """
+Tried to redirect through a cycle.
+
+Start: {}
+Hops: 
+\t{}
+\n""".format(
+          start, 
+          "\n\t".join([ 
+            str(i+1) + ". " + ascloudpath(v) for i, v in enumerate(visited) 
+          ]))
+        )
 
       visited.append(path)
       self.path = path
     else:
-      raise exceptions.TooManyRedirects()
+      raise exceptions.TooManyRedirects(
+        "Tried to redirect more than {} hops.".format(max_redirects)
+      )
 
     self.redirected_from = visited[:-1]
 
