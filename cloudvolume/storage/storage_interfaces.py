@@ -338,7 +338,7 @@ class S3Interface(StorageInterface):
     return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
 
   @retry
-  def put_file(self, file_path, content, content_type, compress, cache_control=None):
+  def put_file(self, file_path, content, content_type, compress, cache_control=None, ACL="bucket-owner-full-control"):
     key = self.get_path_to_file(file_path)
 
     attrs = {
@@ -346,6 +346,7 @@ class S3Interface(StorageInterface):
       'Body': content,
       'Key': key,
       'ContentType': (content_type or 'application/octet-stream'),
+      'ACL': ACL,
     }
 
     if compress:
