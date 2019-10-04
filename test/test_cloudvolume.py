@@ -1240,7 +1240,7 @@ def test_get_mesh_caching():
 
   mesh = vol.mesh.get(18)
   
-  assert vol.cache.list_meshes() == [ '18:0:0-512_0-512_0-100.gz', '18:0' ]
+  assert set(vol.cache.list_meshes()) == set([ '18:0:0-512_0-512_0-100.gz', '18:0' ])
 
   assert len(mesh) == 6123
   assert mesh.vertices.shape[0] == 6123
