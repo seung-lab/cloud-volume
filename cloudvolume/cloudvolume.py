@@ -183,7 +183,7 @@ class CloudVolume(object):
     if use_https:
       cloudpath = to_https_protocol(cloudpath)
 
-    kwargs = locals()
+    kwargs = dict(locals())
     del kwargs['cls']
 
     path = strict_extract(cloudpath)
