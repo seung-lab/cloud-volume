@@ -299,7 +299,7 @@ def threaded_upload_chunks(
       spt.z, clamp_ept.z
     )
 
-    cloudpath = os.path.join(meta.key(mip), filename)
+    cloudpath = meta.join(meta.key(mip), filename)
 
     if delete_black_uploads:
       if np.any(imgchunk != background_color):
