@@ -157,7 +157,7 @@ class PrecomputedMeshSource(object):
     if type(segids) != list:
       segids = [segids]
 
-    mesh = self.get(segids, remove_duplicate_vertices=True)
+    mesh = self.get(segids, fuse=True, remove_duplicate_vertices=True)
 
     if file_format == 'obj':
       data = mesh.to_obj()
