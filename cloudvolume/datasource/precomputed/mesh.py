@@ -38,7 +38,7 @@ class PrecomputedMeshSource(object):
 
   def manifest_path(self, segid):
     mesh_json_file_name = str(segid) + ':0'
-    return os.path.join(self.path, mesh_json_file_name)
+    return self.meta.join(self.path, mesh_json_file_name)
 
   def _get_manifests(self, segids):
     segids = toiter(segids)    
@@ -55,7 +55,7 @@ class PrecomputedMeshSource(object):
     return contents
 
   def _get_mesh_fragments(self, paths):
-    paths = [ os.path.join(self.path, path) for path in paths ]
+    paths = [ self.meta.join(self.path, path) for path in paths ]
 
     compress = self.config.compress
     if compress is None:
