@@ -369,6 +369,19 @@ class Bbox(object):
     assert len(lst) == 6
     return Bbox( lst[:3], lst[3:6] )
 
+  @classmethod
+  def from_points(cls, arr):
+    arr = np.array(arr, dtype=np.float32)
+
+    mins = []
+    maxes = []
+
+    for i in range(arr.shape[1]):
+      mins.append( np.min(arr[:,i]) )
+      maxes.append( np.max(arr[:,i]) )
+
+    return Bbox( mins, maxes, dtype=np.int64)
+
   def to_filename(self):
     return '_'.join(
       ( str(self.minpt[i]) + '-' + str(self.maxpt[i]) for i in range(self.ndim) )
