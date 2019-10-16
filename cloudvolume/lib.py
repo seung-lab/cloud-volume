@@ -367,11 +367,12 @@ class Bbox(object):
   def from_list(cls, lst):
     """
     from_list(cls, lst)
-    the lst length should be 6
-    the first three values are the start, and the last 3 values are the stop 
+    
+    the first half of the values are the minpt, 
+    the last half are the maxpt
     """
-    assert len(lst) == 6
-    return Bbox( lst[:3], lst[3:6] )
+    half = len(lst) // 2 
+    return Bbox( lst[:half], lst[half:] )
 
   @classmethod
   def from_points(cls, arr):
