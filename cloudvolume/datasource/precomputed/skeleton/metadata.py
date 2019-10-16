@@ -13,6 +13,12 @@ class PrecomputedSkeletonMetadata(object):
       self.info = self.fetch_info()
 
   @property
+  def spatial_index(self):
+    if 'spatial_index' in self.info:
+      return self.info['spatial_index']
+    return None  
+
+  @property
   def skeleton_path(self):
     if 'skeletons' in self.meta.info:
       return self.meta.info['skeletons']
@@ -82,6 +88,7 @@ class PrecomputedSkeletonMetadata(object):
         }
       ],
       'sharding': None,
+      'spatial_index': None, # { 'chunk_size': physical units }
     }
 
   def is_sharded(self):
