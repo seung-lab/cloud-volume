@@ -126,7 +126,7 @@ def test_jsonify():
   obj = {
     'x': [ np.array([1,2,3,4,5], dtype=np.uint64) ],
     'y': [ {}, {} ],
-    'z': 5,
+    'z': np.int32(5),
     'w': '1 2 34 5'
   }
 
