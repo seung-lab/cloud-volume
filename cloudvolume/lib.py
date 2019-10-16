@@ -376,6 +376,13 @@ class Bbox(object):
 
   @classmethod
   def from_points(cls, arr):
+    """Create a Bbox from a point cloud arranged as:
+      [
+        [x,y,z],
+        [x,y,z],
+        ...
+      ]
+    """
     arr = np.array(arr, dtype=np.float32)
 
     mins = []
