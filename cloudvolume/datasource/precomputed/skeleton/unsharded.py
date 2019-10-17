@@ -14,7 +14,7 @@ from cloudvolume.lib import red, Bbox
 from cloudvolume.storage import Storage, SimpleStorage
 
 from ..common import cdn_cache_control
-from ...spatial_index import SpatialIndex
+from ..spatial_index import SpatialIndex
 from ... import readonlyguard
 
 from ....skeleton import Skeleton

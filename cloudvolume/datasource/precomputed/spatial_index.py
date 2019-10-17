@@ -1,13 +1,13 @@
 import numpy as np
 
 from ...storage import Storage, SimpleStorage
-from ...paths import extract_path
+from ... import paths
 from ...lib import Bbox, Vec, xyzrange, min2
 
 class SpatialIndex(object):
   def __init__(self, cloudpath, bounds, chunk_size):
     self.cloudpath = cloudpath
-    self.path = extract_path(cloudpath)
+    self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
     self.chunk_size = Vec(*chunk_size)
 

@@ -314,7 +314,7 @@ class CacheService(object):
     kwargs['progress'] = False
     return self.upload( [(filename, content)], *args, **kwargs )
 
-  def upload(self, files, subdir, compress, cache_control, content_type=None, progress=None):
+  def upload(self, files, compress, cache_control, content_type=None, progress=None):
     files = list(files)
 
     progress = progress if progress is not None else self.config.progress

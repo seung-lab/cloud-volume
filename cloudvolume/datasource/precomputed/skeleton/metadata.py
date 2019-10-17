@@ -60,7 +60,7 @@ class PrecomputedSkeletonMetadata(object):
   def commit_info(self):
     if self.info:
       self.cache.upload_single(
-      self.meta.join(self.path, 'info'),
+        self.meta.join(self.skeleton_path, 'info'),
         json.dumps(self.info), 
         content_type='application/json',
         compress=False,
