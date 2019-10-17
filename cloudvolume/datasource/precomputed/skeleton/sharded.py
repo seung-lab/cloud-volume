@@ -16,8 +16,8 @@ class ShardedPrecomputedSkeletonSource(object):
     if self.meta.spatial_index:
       self.spatial_index = SpatialIndex(
         cloudpath=self.meta.layerpath, 
-        bounds=self.meta.meta.bounds * self.meta.meta.resolution,
-        chunk_size=self.meta['spatial_index']['chunk_size']
+        bounds=self.meta.meta.bounds(0) * self.meta.meta.resolution(0),
+        chunk_size=self.meta.info['spatial_index']['chunk_size']
       )
 
   @property
@@ -59,5 +59,5 @@ class ShardedPrecomputedSkeletonSource(object):
     if self.spatial_index is None:
       raise IndexError("A spatial index has not been created.")
 
-    segids = self.spatial_index.query(slices)
+    segids = self.spatial_index.query(bbox)
     return self.get(segids)
