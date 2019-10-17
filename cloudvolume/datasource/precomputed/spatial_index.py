@@ -7,6 +7,32 @@ from ... import paths
 from ...lib import Bbox, Vec, xyzrange, min2
 
 class SpatialIndex(object):
+  """
+  Implements the client side reader of the 
+  spatial index. During data generation, the
+  labels in a given task are enumerated and 
+  assigned their bounding box as JSON:
+
+  {
+    SEGID: [ x,y,z, x,y,z ],
+    ...
+  }
+
+  The filename is the physical bounding box of the
+  task dot spatial.
+
+  e.g. "0-1024_0-1024_0-500.spatial" where the bbox 
+  units are nanometers.
+
+  The info file of the data type can then be augmented
+  with:
+
+  {
+    "spatial_index": { "chunk_size": [ sx, sy, sz ] }
+  }
+
+  Where sx, sy, and sz are given in physical dimensions.
+  """
   def __init__(self, cloudpath, bounds, chunk_size):
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
@@ -20,6 +46,12 @@ class SpatialIndex(object):
       return posixpath.join(*paths)    
 
   def query(self, bbox):
+    """
+    For the specified bounding box (or equivalent representation),
+    list all segment ids enclosed within it.
+
+    Returns: set(labels)
+    """
     bbox = Bbox.create(bbox, context=self.bounds, autocrop=True)
     original_bbox = bbox.clone()
     bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
@@ -49,15 +81,3 @@ class SpatialIndex(object):
           labels.add(label)
 
     return labels
-
-
-
-
-
-
-
-
-    
-
-
-
