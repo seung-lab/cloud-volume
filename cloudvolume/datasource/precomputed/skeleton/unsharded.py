@@ -117,7 +117,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       cache_control=cdn_cache_control(self.config.cdn_cache)
     )
 
-  def __getitem__(self, slices):
+  def get_bbox(self, bbox):
     if self.spatial_index is None:
       raise IndexError("A spatial index has not been created.")
 

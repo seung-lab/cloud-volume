@@ -12,6 +12,14 @@ class ShardedPrecomputedSkeletonSource(object):
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
     self.reader = ShardReader(meta, cache, spec)
 
+    self.spatial_index = None
+    if self.meta.spatial_index:
+      self.spatial_index = SpatialIndex(
+        cloudpath=self.meta.layerpath, 
+        bounds=self.meta.meta.bounds * self.meta.meta.resolution,
+        chunk_size=self.meta['spatial_index']['chunk_size']
+      )
+
   @property
   def path(self):
     return self.meta.path 
@@ -46,3 +54,10 @@ class ShardedPrecomputedSkeletonSource(object):
 
   def raw_upload(self):
     raise NotImplementedError()
+
+  def get_bbox(self, bbox):
+    if self.spatial_index is None:
+      raise IndexError("A spatial index has not been created.")
+
+    segids = self.spatial_index.query(slices)
+    return self.get(segids)
