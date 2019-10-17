@@ -112,7 +112,6 @@ class UnshardedPrecomputedSkeletonSource(object):
     files = [ (os.path.join(self.meta.skeleton_path, str(skel.id)), skel.to_precomputed()) for skel in skeletons ]
     self.cache.upload(
       files=files, 
-      subdir=self.meta.skeleton_path,
       compress='gzip', 
       cache_control=cdn_cache_control(self.config.cdn_cache)
     )
