@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 
 from ...storage import Storage, SimpleStorage
@@ -27,7 +29,7 @@ class SpatialIndex(object):
 
     index_files = []
     for pt in xyzrange(bbox.minpt, bbox.maxpt, self.chunk_size):
-      search = Bbox( pt, min2(pt + self.chunk_size, self.bounds) )
+      search = Bbox( pt, min2(pt + self.chunk_size, self.bounds.maxpt) )
       index_files.append(search.to_filename() + '.spatial')
 
     with Storage(self.cloudpath, progress=True) as stor:
@@ -44,7 +46,7 @@ class SpatialIndex(object):
         label_bbx = Bbox.from_list(label_bbx)
 
         if Bbox.intersects(label_bbx, original_bbox):
-          labels.update(label)
+          labels.add(label)
 
     return labels
 
