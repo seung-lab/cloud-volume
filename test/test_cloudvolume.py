@@ -1373,7 +1373,32 @@ def test_redirects():
   for i in range(0, 10):
     delete_layer('/tmp/cloudvolume/redirects_' + str(i))  
   
+@pytest.mark.parametrize("compress_method", ('', None, True, False, 'gzip', 'br'))
+def test_compression_methods(compress_method):
+  path = "file:///tmp/removeme/test/" + '-' + str(TEST_NUMBER)
 
 
+  # create a NG volume
+  info = CloudVolume.create_new_info(
+      num_channels=1,
+      layer_type="image",
+      data_type="uint16",  # Channel images might be 'uint8'
+      encoding="raw",  # raw, jpeg, compressed_segmentation, fpzip, kempressed
+      resolution=[4, 4, 40],  # Voxel scaling, units are in nanometers
+      voxel_offset=[0, 0, 0],  # x,y,z offset in voxels from the origin
+      chunk_size=[512, 512, 16],  # units are voxels
+      volume_size=[512 * 4, 512 * 4, 16 * 40],  
+  )
+  vol = CloudVolume(path, info=info, compress=compress_method)
+  vol.commit_info()
 
+  image = np.random.randint(low=0, high=2 ** 16 - 1, size=(512, 512, 16, 1), dtype="uint16")
 
+  vol[0:512, 0:512, 0:16] = image
+
+  image_test = vol[0:512, 0:512, 0:16]
+  
+  delete_layer('/tmp/cloudvolume/redirects_' + '-' + str(TEST_NUMBER))
+
+  assert vol.compress == compress_method
+  assert np.array_equal(image_test, image)

@@ -3,10 +3,12 @@ from six import StringIO, BytesIO
 import gzip
 import sys
 
+import brotli
+
 from .exceptions import DecompressionError, CompressionError
 from .lib import yellow
 
-COMPRESSION_TYPES = [ None, False, True, '', 'gzip' ]
+COMPRESSION_TYPES = [ None, False, True, '', 'gzip', 'br' ]
 
 def decompress(content, encoding, filename='N/A'):
   """
@@ -14,7 +16,7 @@ def decompress(content, encoding, filename='N/A'):
 
   Required: 
     content (bytes): a file to be compressed
-    encoding: None (no compression) or 'gzip'
+    encoding: None (no compression) or 'gzip' or 'br'
   Optional:   
     filename (str:default:'N/A'): Used for debugging messages
   Raises: 
@@ -29,6 +31,8 @@ def decompress(content, encoding, filename='N/A'):
       return content
     elif encoding == 'gzip':
       return gunzip(content)
+    elif encoding == 'br':
+      return brotli_decompress(content)
   except DecompressionError as err:
     print("Filename: " + str(filename))
     raise
@@ -57,6 +61,8 @@ def compress(content, method='gzip'):
     return content
   elif method == 'gzip': 
     return gzip_compress(content)
+  elif method == 'br':
+    return brotli_compress(content)
   raise NotImplementedError(str(method) + ' is not currently supported. Supported Options: None, gzip')
 
 def gzip_compress(content):
@@ -87,4 +93,8 @@ def gunzip(content):
   with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
     return gfile.read()
 
+def brotli_compress(content, quality=6):
+  return brotli.compress(content, quality=quality)
 
+def brotli_decompress(content):
+  return brotli.decompress(content)

@@ -133,6 +133,7 @@ class CloudVolume(object):
           str: 
             'gzip': Extension so that we can add additional methods in the future 
                     like lz4 or zstd. 
+            'br': Brotli compression
             '': no compression (same as False).
       compress_cache: (None or bool) If not None, override default compression 
           behavior for the cache.

@@ -130,6 +130,7 @@ def test_compression():
     True,
     False,
     'gzip',
+    'br',
   ]
 
   for url in urls:
@@ -151,7 +152,8 @@ def test_compression():
       except NotImplementedError:
         pass
 
-  delete_layer("/tmp/removeme/compression")
+    if "file://" in url:
+      delete_layer("/tmp/removeme/compress" + '-' + str(TEST_NUMBER))
 
 def test_list():  
   urls = [

@@ -67,7 +67,10 @@ class FileInterface(StorageInterface):
     path = self.get_path_to_file(file_path)
     mkdir(os.path.dirname(path))
 
-    if compress:
+    # keep default as gzip
+    if compress == "br":
+      path += ".br"
+    elif compress:
       path += '.gz'
 
     if content \
@@ -87,13 +90,15 @@ class FileInterface(StorageInterface):
   def get_file(self, file_path, start=None, end=None):
     path = self.get_path_to_file(file_path)
 
-    compressed = os.path.exists(path + '.gz')
-      
-    if compressed:
+    if os.path.exists(path + '.gz'):
+      encoding = "gzip"
       path += '.gz'
+    elif os.path.exists(path + '.br'):
+      encoding = "br"
+      path += ".br"
+    else:
+      encoding = None
 
-    encoding = 'gzip' if compressed else None
-    
     try:
       with open(path, 'rb') as f:
         if start is not None:
@@ -184,7 +189,11 @@ class GoogleCloudStorageInterface(StorageInterface):
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
-    if compress:
+
+    # keep default gzip
+    if compress == "br":
+      blob.content_encoding = "br"
+    elif compress:
       blob.content_encoding = "gzip"
     if cache_control:
       blob.cache_control = cache_control
@@ -349,7 +358,10 @@ class S3Interface(StorageInterface):
       'ACL': ACL,
     }
 
-    if compress:
+    # keep gzip as default
+    if compress == "br":
+      attrs['ContentEncoding'] = 'br'
+    elif compress:
       attrs['ContentEncoding'] = 'gzip'
     if cache_control:
       attrs['CacheControl'] = cache_control
