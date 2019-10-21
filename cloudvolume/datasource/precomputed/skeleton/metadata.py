@@ -1,4 +1,4 @@
-import json
+from ....lib import jsonify
 
 import numpy as np
 
@@ -55,7 +55,7 @@ class PrecomputedSkeletonMetadata(object):
     if self.info:
       self.cache.upload_single(
       self.meta.join(self.path, 'info'),
-        json.dumps(self.info), 
+        jsonify(self.info), 
         content_type='application/json',
         compress=False,
         cache_control='no-cache',
