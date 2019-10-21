@@ -2,6 +2,7 @@ import json
 
 import numpy as np
 
+from ...exceptions import SpatialIndexGapError
 from ...storage import Storage, SimpleStorage
 from ... import paths
 from ...lib import Bbox, Vec, xyzrange, min2
@@ -72,7 +73,11 @@ class SpatialIndex(object):
       if res['error'] is not None:
         raise LookupError(res['error'])
 
+      if res['content'] is None:
+        raise SpatialIndexGapError(res['filename'] + " was not found.")
+
       res = json.loads(res['content'])
+
       for label, label_bbx in res.items():
         label = int(label)
         label_bbx = Bbox.from_list(label_bbx)
