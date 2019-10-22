@@ -7,6 +7,7 @@ import struct
 
 from . import mmh3
 from ... import compression
+from ...lib import jsonify
 from ...exceptions import SpecViolation
 from ...storage import SimpleStorage
 
@@ -85,6 +86,17 @@ class ShardingSpecification(object):
   def from_json(cls, vals):
     dct = json.loads(vals.decode('utf8'))
     return cls.from_dict(dct)
+
+  def to_json(self):
+    return jsonify({
+      '@type': self.type,
+      'preshift_bits': self.preshift_bits,
+      'hash': self.hash,
+      'minishard_bits': self.minishard_bits,
+      'shard_bits': self.shard_bits,
+      'minishard_index_encoding': self.minishard_index_encoding,
+      'data_encoding': self.data_encoding,
+    })
 
   @classmethod
   def from_dict(cls, vals):
