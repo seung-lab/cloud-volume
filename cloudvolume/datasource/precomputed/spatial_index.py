@@ -34,18 +34,22 @@ class SpatialIndex(object):
 
   Where sx, sy, and sz are given in physical dimensions.
   """
-  def __init__(self, config, cloudpath, bounds, chunk_size):
-    self.config = config
+  def __init__(self, cloudpath, bounds, chunk_size, progress=False):
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
     self.chunk_size = Vec(*chunk_size)
+    self.progress = progress
 
   def join(self, *paths):
     if self.path.protocol == 'file':
       return os.path.join(*paths)
     else:
       return posixpath.join(*paths)    
+
+  def fetch_index_files(self, index_files):
+    with Storage(self.cloudpath, progress=self.progress) as stor:
+      return stor.get_files(index_files)
 
   def query(self, bbox):
     """
@@ -66,8 +70,7 @@ class SpatialIndex(object):
       search = Bbox( pt, min2(pt + self.chunk_size, self.bounds.maxpt) )
       index_files.append(search.to_filename() + '.spatial')
 
-    with Storage(self.cloudpath, progress=self.config.progress) as stor:
-      results = stor.get_files(index_files)
+    results = self.fetch_index_files(index_files)
 
     labels = set()
     for i, res in enumerate(results):
@@ -87,3 +90,13 @@ class SpatialIndex(object):
           labels.add(label)
 
     return labels
+
+class CachedSpatialIndex(SpatialIndex):
+  def __init__(self, cache, cloudpath, bounds, chunk_size, progress=None):
+    self.cache = cache
+    super(CachedSpatialIndex, self).__init__(
+      cloudpath, bounds, chunk_size, progress
+    )
+
+  def fetch_index_files(self, index_files):
+    return self.cache.download(index_files, progress=self.progress)

@@ -14,7 +14,7 @@ from cloudvolume.lib import red, Bbox
 from cloudvolume.storage import Storage, SimpleStorage
 
 from ..common import cdn_cache_control
-from ..spatial_index import SpatialIndex
+from ..spatial_index import CachedSpatialIndex
 from ... import readonlyguard
 
 from ....skeleton import Skeleton
@@ -29,8 +29,8 @@ class UnshardedPrecomputedSkeletonSource(object):
 
     self.spatial_index = None
     if self.meta.spatial_index:
-      self.spatial_index = SpatialIndex(
-        config,
+      self.spatial_index = CachedSpatialIndex(
+        self.cache,
         cloudpath=self.meta.layerpath, 
         bounds=self.meta.meta.bounds(0) * self.meta.meta.resolution(0),
         chunk_size=self.meta.info['spatial_index']['chunk_size'],
