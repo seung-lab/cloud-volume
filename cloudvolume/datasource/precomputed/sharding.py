@@ -88,15 +88,7 @@ class ShardingSpecification(object):
     return cls.from_dict(dct)
 
   def to_json(self):
-    return jsonify({
-      '@type': self.type,
-      'preshift_bits': self.preshift_bits,
-      'hash': self.hash,
-      'minishard_bits': self.minishard_bits,
-      'shard_bits': self.shard_bits,
-      'minishard_index_encoding': self.minishard_index_encoding,
-      'data_encoding': self.data_encoding,
-    })
+    return jsonify(self.to_dict())
 
   @classmethod
   def from_dict(cls, vals):
@@ -104,6 +96,17 @@ class ShardingSpecification(object):
     vals['type'] = vals['@type']
     del vals['@type']
     return cls(**vals)
+
+  def to_dict(self):
+    return {
+      '@type': self.type,
+      'preshift_bits': self.preshift_bits,
+      'hash': self.hash,
+      'minishard_bits': self.minishard_bits,
+      'shard_bits': self.shard_bits,
+      'minishard_index_encoding': self.minishard_index_encoding,
+      'data_encoding': self.data_encoding,
+    }
 
   def compute_shard_location(self, key):
     chunkid = uint64(key) >> uint64(self.preshift_bits)
