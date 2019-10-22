@@ -1,4 +1,5 @@
 import json
+import os 
 
 import numpy as np
 
@@ -49,7 +50,13 @@ class SpatialIndex(object):
 
   def fetch_index_files(self, index_files):
     with Storage(self.cloudpath, progress=self.progress) as stor:
-      return stor.get_files(index_files)
+      results = stor.get_files(index_files)
+
+    for res in results:
+      if res['error'] is not None:
+        raise SpatialIndexGapError(res['error'])
+
+    return { res['filename']: res['content'] for res in results }
 
   def query(self, bbox):
     """
@@ -73,14 +80,11 @@ class SpatialIndex(object):
     results = self.fetch_index_files(index_files)
 
     labels = set()
-    for i, res in enumerate(results):
-      if res['error'] is not None:
-        raise SpatialIndexGapError(res['error'])
+    for filename, content in results.items():
+      if content is None:
+        raise SpatialIndexGapError(filename + " was not found.")
 
-      if res['content'] is None:
-        raise SpatialIndexGapError(res['filename'] + " was not found.")
-
-      res = json.loads(res['content'])
+      res = json.loads(content)
 
       for label, label_bbx in res.items():
         label = int(label)
@@ -94,9 +98,12 @@ class SpatialIndex(object):
 class CachedSpatialIndex(SpatialIndex):
   def __init__(self, cache, cloudpath, bounds, chunk_size, progress=None):
     self.cache = cache
+    self.subdir = os.path.relpath(cloudpath, cache.meta.cloudpath)
+
     super(CachedSpatialIndex, self).__init__(
       cloudpath, bounds, chunk_size, progress
     )
 
   def fetch_index_files(self, index_files):
+    index_files = [ self.cache.meta.join(self.subdir, fname) for fname in index_files ]
     return self.cache.download(index_files, progress=self.progress)
