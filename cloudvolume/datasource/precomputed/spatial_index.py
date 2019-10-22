@@ -34,7 +34,8 @@ class SpatialIndex(object):
 
   Where sx, sy, and sz are given in physical dimensions.
   """
-  def __init__(self, cloudpath, bounds, chunk_size):
+  def __init__(self, config, cloudpath, bounds, chunk_size):
+    self.config = config
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
@@ -65,13 +66,13 @@ class SpatialIndex(object):
       search = Bbox( pt, min2(pt + self.chunk_size, self.bounds.maxpt) )
       index_files.append(search.to_filename() + '.spatial')
 
-    with Storage(self.cloudpath, progress=True) as stor:
+    with Storage(self.cloudpath, progress=self.config.progress) as stor:
       results = stor.get_files(index_files)
 
     labels = set()
     for i, res in enumerate(results):
       if res['error'] is not None:
-        raise LookupError(res['error'])
+        raise SpatialIndexGapError(res['error'])
 
       if res['content'] is None:
         raise SpatialIndexGapError(res['filename'] + " was not found.")
