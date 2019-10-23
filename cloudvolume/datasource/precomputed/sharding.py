@@ -155,18 +155,26 @@ class ShardReader(object):
     self.cache = cache
     self.spec = spec
 
+  def index_length(self):
+    return int((2 ** self.spec.minishard_bits) * 16)
+
   def get_index(self, label, path=""):
     shard_loc = self.spec.compute_shard_location(label)
 
-    filename = str(shard_loc.shard_number) + ".index"
-    index_path = self.meta.join(path, filename)
-    binary = self.cache.download_single(index_path)
+    filename = str(shard_loc.shard_number)
+    index_path = self.meta.join(path, filename + '.shard')
+    alias_path = self.meta.join(path, filename + '.index')
 
-    index_length = (2 ** self.spec.minishard_bits) * 16
+    index_length = self.index_length()
+
+    binary = self.cache.download_single_as(
+      index_path, alias_path,
+      start=0, end=index_length,
+    )
 
     if len(binary) != index_length:
-      return SpecViolation(
-        filename + " was an incorrect length ({}) for this specification ({}).".format(
+      raise SpecViolation(
+        filename + ".shard was an incorrect length ({}) for this specification ({}).".format(
           len(binary), index_length
         ))
     
@@ -181,10 +189,14 @@ class ShardReader(object):
       if cached is not None:
         return cached
 
-    index = self.get_index(label, path)
+    index_offset = self.index_length()
 
+    index = self.get_index(label, path)
     bytes_start, bytes_end = index[shard_loc.minishard_number]
-    filename = shard_loc.shard_number + ".data"
+    bytes_start += index_offset
+    bytes_end += index_offset
+
+    filename = shard_loc.shard_number + ".shard"
 
     full_path = self.meta.join(self.meta.cloudpath, path)
 
@@ -203,6 +215,8 @@ class ShardReader(object):
     
     idx = np.where(minishard_index == label)[0][0]
     _, offset, size = minishard_index[idx,:]
+
+    offset += index_offset
     
     with SimpleStorage(full_path) as stor:
       binary = stor.get_file(filename, start=offset, end=(offset + size))
