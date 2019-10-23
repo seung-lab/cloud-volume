@@ -230,11 +230,86 @@ class ShardReader(object):
       
     return binary
 
+def synthesize_shard_files(spec, data, progress=False):
+  """
+  From a set of data guaranteed to constitute one or more
+  complete and comprehensive shards (no partial shards) 
+  return a set of files ready for upload.
 
+  spec: a ShardingSpecification
+  data: { label: binary, ... }
+  """
+  shard_groupings = defaultdict(defaultdict(dict))
+  for label, binary in tqdm(data.items(), desc='Creating Shard Groupings', disable=(not progress)):
+    loc = spec.compute_shard_location(label)
+    shard_groupings[loc.shard_number][loc.minishard_number][label] = binary
 
+  shard_files = {}
+  for shardno, shardgrp in shard_groupings.items():
+    shard_files[shardno] = _synthesize_shard_file(spec, shardgrp)
+  return shard_files
 
+def _synthesize_shard_file(spec, shardgrp):
+  # Assemble the .shard file like:
+  # [ shard index; all minishard indices; minishards ]
 
+  minishardnos = []
+  minishard_indicies = []
+  minishards = []
 
+  for minishardno, minishardgrp in shardgrp.items():
+    labels = sorted([ int(label) for label in minishardgrp.keys() ])
 
+    if len(labels) == 0:
+      continue
 
+    minishard_index = np.zeros( (3, len(labels)), dtype=np.uint64, order='C')
 
+    label = labels.pop(0)
+    minishard = minishardgrp[label]
+    minishard_index[0, 0] = label                    # segid
+    minishard_index[1, 0] = 0                        # offset
+    minishard_index[2, 0] = len(minishardgrp[label]) # size
+
+    # label and offset are delta encoded from this point on
+    for offset, label in enumerate(labels):
+      i = offset + 1
+      binary = minishardgrp[label]
+      minishard_index[0, i] = label - minishard_index[0, i - 1]
+      minishard_index[1, i] = minishard_index[2, i - 1]
+      minishard_index[2, i] = len(binary)
+      minishard += binary
+    
+    minishardnos.append(minishardno)
+    minishard_indicies.append(minishard_index) 
+    minishards.append(minishard)
+
+  del shardgrp
+
+  total_minishard_index_size = sum([ 
+    idx.nbytes for idx in minishard_indicies
+  ])
+
+  cum_minishard_size = 0
+  for idx, minishard in zip(minishard_indicies, minishards):
+    idx[1, 0] = total_minishard_index_size + cum_minishard_size
+    cum_minishard_size += len(minishard)
+
+  variable_index_part = np.concatenate( minishard_indicies ).tobytes('C')
+  data_part = b''.join(minishards)
+  
+  del minishards
+
+  fixed_index = np.zeros( 
+    (len(2 ** spec.minishard_bits), 2), 
+    dtype=np.uint64, order='C'
+  )
+
+  start = end = 0
+  for i, idx in zip(minishardnos, minishard_indicies):
+    start = end
+    end += idx.nbytes
+    fixed_index[i, 0] = start
+    fixed_index[i, 1] = end
+
+  return fixed_index.tobytes('C') + variable_index_part + data_part
