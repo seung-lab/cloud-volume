@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import copy
 import json
 
@@ -37,6 +37,9 @@ class ShardingSpecification(object):
     self.shard_mask = self.compute_shard_mask(self.shard_bits, self.minishard_bits)              
 
     self.validate()
+
+  def index_length(self):
+    return int((2 ** self.minishard_bits) * 16)
 
   @property
   def hash(self):
@@ -155,9 +158,6 @@ class ShardReader(object):
     self.cache = cache
     self.spec = spec
 
-  def index_length(self):
-    return int((2 ** self.spec.minishard_bits) * 16)
-
   def get_index(self, label, path=""):
     shard_loc = self.spec.compute_shard_location(label)
 
@@ -165,7 +165,7 @@ class ShardReader(object):
     index_path = self.meta.join(path, filename + '.shard')
     alias_path = self.meta.join(path, filename + '.index')
 
-    index_length = self.index_length()
+    index_length = self.spec.index_length()
 
     binary = self.cache.download_single_as(
       index_path, alias_path,
@@ -190,7 +190,7 @@ class ShardReader(object):
       if cached is not None:
         return cached
 
-    index_offset = self.index_length()
+    index_offset = self.spec.index_length()
 
     index = self.get_index(label, path)
     bytes_start, bytes_end = index[shard_loc.minishard_number]
