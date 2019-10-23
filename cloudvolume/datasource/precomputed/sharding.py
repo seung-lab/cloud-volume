@@ -170,6 +170,7 @@ class ShardReader(object):
     binary = self.cache.download_single_as(
       index_path, alias_path,
       start=0, end=index_length,
+      compress=False
     )
 
     if len(binary) != index_length:

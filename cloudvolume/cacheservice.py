@@ -356,7 +356,6 @@ class CacheService(object):
     Download a file or a byte range from a file 
     and save it locally as `local_alias`.
     """
-
     if self.enabled:
       locs = self.compute_data_locations([local_alias])
       if locs['local']:
@@ -366,7 +365,7 @@ class CacheService(object):
       filedata = stor.get_file(path, start=start, end=end)
 
     if self.enabled:
-      self.put([ (path, filedata) ], compress=compress)
+      self.put([ (local_alias, filedata) ], compress=compress)
 
     return filedata
 
