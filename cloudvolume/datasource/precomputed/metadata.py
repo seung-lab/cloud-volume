@@ -79,7 +79,7 @@ class PrecomputedMetadata(object):
       layer_type: (str) typically "image" or "segmentation"
       data_type: (str) e.g. "uint8", "uint16", "uint32", "float32"
       encoding: (str) "raw" for binaries like numpy arrays, "jpeg"
-      resolution: int (x,y,z), x,y,z voxel dimensions in nanometers
+      resolution: float (x,y,z), x,y,z voxel dimensions in nanometers
       voxel_offset: int (x,y,z), beginning of dataset in positive cartesian space
       volume_size: int (x,y,z), extent of dataset in cartesian space from voxel_offset
     
@@ -109,7 +109,7 @@ class PrecomputedMetadata(object):
         "encoding": encoding,
         "chunk_sizes": [chunk_size],
         "key": "_".join(map(str, resolution)),
-        "resolution": list(map(int, resolution)),
+        "resolution": list(map(float, resolution)),
         "voxel_offset": list(map(int, voxel_offset)),
         "size": list(map(int, volume_size)),
       }],
@@ -123,7 +123,7 @@ class PrecomputedMetadata(object):
  
     # add mip levels
     for _ in range(max_mip):
-      new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
+      new_resolution = list(map(float, Vec(*fullres['resolution'], dtype=float) * factor_in_mip ))
       newscale = {
         u"encoding": encoding,
         u"chunk_sizes": [ list(map(int, chunk_size)) ],
@@ -632,7 +632,7 @@ Hops:
     newscale = {
       u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
-      u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
+      u"resolution": list(map(float, Vec(*fullres['resolution'], dtype=float) * factor )),
       u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
       u"size": downscale(fullres['size'], factor, np.ceil),
     }
@@ -645,11 +645,11 @@ Hops:
 
     newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
 
-    new_res = np.array(newscale['resolution'], dtype=int)
+    new_res = np.array(newscale['resolution'], dtype=float)
 
     preexisting = False
     for index, scale in enumerate(info['scales']):
-      res = np.array(scale['resolution'], dtype=int)
+      res = np.array(scale['resolution'], dtype=float)
       if np.array_equal(new_res, res):
         preexisting = True
         info['scales'][index] = newscale
