@@ -1,9 +1,12 @@
+from __future__ import print_function
+
 from collections import namedtuple, defaultdict
 import copy
 import json
 
 import numpy as np
 import struct
+from tqdm import tqdm
 
 from . import mmh3
 from ... import compression
@@ -240,16 +243,31 @@ def synthesize_shard_files(spec, data, progress=False):
   data: { label: binary, ... }
   """
   shard_groupings = defaultdict(defaultdict(dict))
-  for label, binary in tqdm(data.items(), desc='Creating Shard Groupings', disable=(not progress)):
+  pbar = tqdm(
+    data.items(), 
+    desc='Creating Shard Groupings', 
+    disable=(not progress)
+  )
+
+  for label, binary in pbar:
     loc = spec.compute_shard_location(label)
     shard_groupings[loc.shard_number][loc.minishard_number][label] = binary
 
   shard_files = {}
-  for shardno, shardgrp in shard_groupings.items():
-    shard_files[shardno] = _synthesize_shard_file(spec, shardgrp)
+
+  pbar = tqdm(
+    shard_groupings.items(), 
+    desc="Synthesizing Shard Files", 
+    disable=(not progress)
+  )
+
+  for shardno, shardgrp in pbar:
+    shard_files[shardno] = _synthesize_shard_file(spec, shardgrp, progress)
+
   return shard_files
 
-def _synthesize_shard_file(spec, shardgrp):
+# NB: This is going to be memory hungry and can be optimized
+def _synthesize_shard_file(spec, shardgrp, progress):
   # Assemble the .shard file like:
   # [ shard index; all minishard indices; minishards ]
 
@@ -257,7 +275,7 @@ def _synthesize_shard_file(spec, shardgrp):
   minishard_indicies = []
   minishards = []
 
-  for minishardno, minishardgrp in shardgrp.items():
+  for minishardno, minishardgrp in tqdm(shardgrp.items(), desc="Minishard Indices", disable=(not progress)):
     labels = sorted([ int(label) for label in minishardgrp.keys() ])
 
     if len(labels) == 0:
@@ -268,7 +286,7 @@ def _synthesize_shard_file(spec, shardgrp):
     label = labels.pop(0)
     minishard = minishardgrp[label]
     minishard_index[0, 0] = label                    # segid
-    minishard_index[1, 0] = 0                        # offset
+    minishard_index[1, 0] = 0                        # offset: dummy value
     minishard_index[2, 0] = len(minishardgrp[label]) # size
 
     # label and offset are delta encoded from this point on
@@ -284,8 +302,6 @@ def _synthesize_shard_file(spec, shardgrp):
     minishard_indicies.append(minishard_index) 
     minishards.append(minishard)
 
-  del shardgrp
-
   total_minishard_index_size = sum([ 
     idx.nbytes for idx in minishard_indicies
   ])
@@ -295,21 +311,36 @@ def _synthesize_shard_file(spec, shardgrp):
     idx[1, 0] = total_minishard_index_size + cum_minishard_size
     cum_minishard_size += len(minishard)
 
+  if progress:
+    print("Partial assembly of minishard indicies and data...", end="", flush=True)
+
   variable_index_part = np.concatenate( minishard_indicies ).tobytes('C')
   data_part = b''.join(minishards)
   
   del minishards
+
+  if progress:
+    print("Assembled.")
 
   fixed_index = np.zeros( 
     (len(2 ** spec.minishard_bits), 2), 
     dtype=np.uint64, order='C'
   )
 
-  start = end = 0
+  start = 0
+  end = 0
   for i, idx in zip(minishardnos, minishard_indicies):
     start = end
     end += idx.nbytes
     fixed_index[i, 0] = start
     fixed_index[i, 1] = end
 
-  return fixed_index.tobytes('C') + variable_index_part + data_part
+  if progress:
+    print("Final assembly...", end="", flush=True)
+
+  result =  fixed_index.tobytes('C') + variable_index_part + data_part
+
+  if progress:
+    print("Done.")
+
+  return result
