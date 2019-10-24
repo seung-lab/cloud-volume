@@ -33,6 +33,7 @@ def upload(
     meta, cache,
     image, offset, mip,
     compress=None,
+    compress_level=None,
     cdn_cache=None,
     parallel=1,
     progress=False,
@@ -65,6 +66,7 @@ def upload(
 
   options = {
     "compress": compress,
+    "compress_level": compress_level,
     "cdn_cache": cdn_cache,
     "parallel": parallel, 
     "progress": progress,
@@ -132,6 +134,7 @@ def upload_aligned(
     meta, cache,
     img, offset, mip,
     compress=None,
+    compress_level=None,
     cdn_cache=None,
     progress=False,
     parallel=1, 
@@ -156,7 +159,7 @@ def upload_aligned(
       compress=compress, cdn_cache=cdn_cache,
       delete_black_uploads=delete_black_uploads,
       background_color=background_color,
-      green=green,
+      green=green, compress_level=compress_level,
     )
     return
 
@@ -184,7 +187,7 @@ def upload_aligned(
     compress, cdn_cache, progress,
     location, location_bbox, location_order, 
     delete_black_uploads, background_color, 
-    green,
+    green, compress_level=compress_level
   )
 
   parallel_execution(cup, chunk_ranges_by_process, parallel, cleanup_shm=location)
@@ -201,7 +204,7 @@ def child_upload_process(
     compress, cdn_cache, progress,
     location, location_bbox, location_order, 
     delete_black_uploads, background_color,
-    green, chunk_ranges
+    green, chunk_ranges, compress_level=None,
   ):
   global fs_lock
   reset_connection_pools()
@@ -230,7 +233,7 @@ def child_upload_process(
     compress=compress, cdn_cache=cdn_cache, progress=progress,
     delete_black_uploads=delete_black_uploads, 
     background_color=background_color,
-    green=green,
+    green=green, compress_level=compress_level,
   )
   array_like.close()
 

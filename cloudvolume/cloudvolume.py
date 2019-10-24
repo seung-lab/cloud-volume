@@ -30,7 +30,7 @@ class SharedConfiguration(object):
   synchronize them.
   """
   def __init__(
-    self, cdn_cache, compress, green,
+    self, cdn_cache, compress, compress_level, green,
     mip, parallel, progress,
     *args, **kwargs
   ):
@@ -43,6 +43,7 @@ class SharedConfiguration(object):
 
     self.cdn_cache = cdn_cache
     self.compress = compress
+    self.compress_level = compress_level
     self.green = bool(green)
     self.mip = mip
     self.parallel = parallel 
@@ -55,7 +56,7 @@ class CloudVolume(object):
     cloudpath, mip=0, bounded=True, autocrop=False,
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None,
-    compress=None, non_aligned_writes=False, parallel=1,
+    compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
     max_redirects=10

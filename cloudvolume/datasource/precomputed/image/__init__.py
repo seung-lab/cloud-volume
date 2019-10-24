@@ -163,6 +163,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       self.meta, self.cache,
       image, offset, mip,
       compress=self.config.compress,
+      compress_level=self.config.compress_level,
       cdn_cache=self.config.cdn_cache,
       parallel=parallel, 
       progress=self.config.progress,

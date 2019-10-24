@@ -23,6 +23,7 @@ class PrecomputedSkeletonSource(object):
     config = SharedConfiguration(
       cdn_cache=False,
       compress=True,
+      compress_level=None,
       green=False,
       mip=0,
       parallel=1,
