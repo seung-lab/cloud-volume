@@ -135,6 +135,8 @@ class CloudVolume(object):
                     like lz4 or zstd. 
             'br': Brotli compression
             '': no compression (same as False).
+      compress_level: (int, None) level for brotli compression. Ignored for other compression types.
+        Defaults to 6 for brotli if not specified or None.
       compress_cache: (None or bool) If not None, override default compression 
           behavior for the cache.
       delete_black_uploads: (bool) If True, on uploading an entirely black chunk,

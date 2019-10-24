@@ -39,7 +39,7 @@ def decompress(content, encoding, filename='N/A'):
   
   raise NotImplementedError(str(encoding) + ' is not currently supported. Supported Options: None, gzip')
 
-def compress(content, method='gzip'):
+def compress(content, method='gzip', compress_level=None):
   """
   Compresses file content.
 
@@ -62,7 +62,7 @@ def compress(content, method='gzip'):
   elif method == 'gzip': 
     return gzip_compress(content)
   elif method == 'br':
-    return brotli_compress(content)
+    return brotli_compress(content, quality=compress_level)
   raise NotImplementedError(str(method) + ' is not currently supported. Supported Options: None, gzip')
 
 def gzip_compress(content):
@@ -93,7 +93,9 @@ def gunzip(content):
   with gzip.GzipFile(mode='rb', fileobj=stringio) as gfile:
     return gfile.read()
 
-def brotli_compress(content, quality=6):
+def brotli_compress(content, quality=None):
+  if quality is None:
+    quality = 6  # 5/6 are good balance between compression speed and compression rate
   return brotli.compress(content, quality=quality)
 
 def brotli_decompress(content):

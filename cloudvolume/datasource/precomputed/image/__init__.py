@@ -228,7 +228,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         storage.delete_files(cloudpaths)
 
 
-  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True):
+  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True, compress_level=None):
     """
     Transfer files from one storage location to another, bypassing
     volume painting. This enables using a single CloudVolume instance
@@ -315,6 +315,7 @@ class PrecomputedImageSource(ImageSourceInterface):
             dest_stor.put_files(
               files=files, 
               compress=compress, 
+              compress_level=compress_level,
               content_type=tx.content_type(destvol),
             )
             pbar.update()

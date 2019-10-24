@@ -314,7 +314,7 @@ class CacheService(object):
     kwargs['progress'] = False
     return self.upload( [(filename, content)], *args, **kwargs )
 
-  def upload(self, files, subdir, compress, cache_control, content_type=None, progress=None):
+  def upload(self, files, subdir, compress, cache_control, compress_level=None, content_type=None, progress=None):
     files = list(files)
 
     progress = progress if progress is not None else self.config.progress
@@ -324,6 +324,7 @@ class CacheService(object):
       remote_fragments = stor.put_files(
         files=files,
         compress=compress,
+        compress_level=compress_level,
         cache_control=cache_control,
         content_type=content_type,
       )
@@ -412,7 +413,7 @@ class CacheService(object):
     kwargs['progress'] = False
     return self.put([ (path, content) ], *args, **kwargs)
 
-  def put(self, files, progress=None, compress=None):
+  def put(self, files, progress=None, compress=None, compress_level=None):
     if progress is None:
       progress = self.config.progress
 
@@ -429,6 +430,7 @@ class CacheService(object):
       stor.put_files(
         [ (name, content) for name, content in files ],
         compress=compress,
+        compress_level=compress_level,
       )
 
   def compute_data_locations(self, cloudpaths):

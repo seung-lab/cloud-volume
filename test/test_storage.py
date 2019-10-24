@@ -155,6 +155,26 @@ def test_compression():
     if "file://" in url:
       delete_layer("/tmp/removeme/compress" + '-' + str(TEST_NUMBER))
 
+def test_br_compress_level():
+  url = "file:///tmp/removeme/compress_level" + '-' + str(TEST_NUMBER)
+
+  content = b'some_string' * 1000
+
+  compr_rate = []
+  compress_levels = range(1, 9, 2)
+  for compress_level in compress_levels:
+    with Storage(url, n_threads=5) as s:
+      s.put_file('info', content, compress="br", compress_level=compress_level)
+      s.wait()
+      retrieved = s.get_file('info')
+      assert content == retrieved
+      assert s.get_file('nonexistentfile') is None
+
+      c, e = s._interface.get_file("info")
+      assert e == "br"
+
+  delete_layer(url)
+
 def test_list():  
   urls = [
     "file:///tmp/removeme/list",

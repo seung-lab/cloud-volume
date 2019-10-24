@@ -242,6 +242,7 @@ def threaded_upload_chunks(
     delete_black_uploads=False,
     background_color=0,
     green=False,
+    compress_level=None,
   ):
   
   if cache.enabled:
@@ -262,6 +263,7 @@ def threaded_upload_chunks(
         content=encoded,
         content_type=content_type(meta.encoding(mip)), 
         compress=should_compress(meta.encoding(mip), compress, cache),
+        compress_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
       )
 
