@@ -294,6 +294,9 @@ def _synthesize_shard_file(spec, shardgrp, progress):
     for offset, label in enumerate(labels):
       i = offset + 1
       binary = minishardgrp[label]
+      if spec.data_encoding != 'raw':
+        binary = compression.compress(binary, method=spec.data_encoding)
+
       minishard_index[0, i] = label - minishard_index[0, i - 1]
       minishard_index[1, i] = minishard_index[2, i - 1]
       minishard_index[2, i] = len(binary)
@@ -315,9 +318,15 @@ def _synthesize_shard_file(spec, shardgrp, progress):
   if progress:
     print("Partial assembly of minishard indicies and data... ", end="", flush=True)
 
-  variable_index_part = np.concatenate( minishard_indicies ).tobytes('C')
+  variable_index_part = [ idx.tobytes('C') for idx in minishard_indicies ]
+  if spec.minishard_index_encoding != 'raw':
+    variable_index_part = [ 
+      compression.compress(idx, method=spec.minishard_index_encoding) \
+      for idx in variable_index_part 
+    ]
+
+  variable_index_part = b''.join(minishard_indicies)
   data_part = b''.join(minishards)
-  
   del minishards
 
   if progress:
