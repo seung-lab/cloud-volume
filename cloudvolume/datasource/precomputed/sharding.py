@@ -242,7 +242,7 @@ def synthesize_shard_files(spec, data, progress=False):
   spec: a ShardingSpecification
   data: { label: binary, ... }
   """
-  shard_groupings = defaultdict(defaultdict(dict))
+  shard_groupings = defaultdict(lambda: defaultdict(dict))
   pbar = tqdm(
     data.items(), 
     desc='Creating Shard Groupings', 
@@ -262,7 +262,8 @@ def synthesize_shard_files(spec, data, progress=False):
   )
 
   for shardno, shardgrp in pbar:
-    shard_files[shardno] = _synthesize_shard_file(spec, shardgrp, progress)
+    filename = str(shardno) + '.shard'
+    shard_files[filename] = _synthesize_shard_file(spec, shardgrp, progress)
 
   return shard_files
 
@@ -312,7 +313,7 @@ def _synthesize_shard_file(spec, shardgrp, progress):
     cum_minishard_size += len(minishard)
 
   if progress:
-    print("Partial assembly of minishard indicies and data...", end="", flush=True)
+    print("Partial assembly of minishard indicies and data... ", end="", flush=True)
 
   variable_index_part = np.concatenate( minishard_indicies ).tobytes('C')
   data_part = b''.join(minishards)
@@ -323,7 +324,7 @@ def _synthesize_shard_file(spec, shardgrp, progress):
     print("Assembled.")
 
   fixed_index = np.zeros( 
-    (len(2 ** spec.minishard_bits), 2), 
+    (int(2 ** spec.minishard_bits), 2), 
     dtype=np.uint64, order='C'
   )
 
@@ -336,7 +337,7 @@ def _synthesize_shard_file(spec, shardgrp, progress):
     fixed_index[i, 1] = end
 
   if progress:
-    print("Final assembly...", end="", flush=True)
+    print("Final assembly... ", end="", flush=True)
 
   result =  fixed_index.tobytes('C') + variable_index_part + data_part
 
