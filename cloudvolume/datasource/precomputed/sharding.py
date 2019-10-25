@@ -310,13 +310,9 @@ def _synthesize_shard_file(spec, shardgrp, progress):
     minishard_indicies.append(minishard_index) 
     minishards.append(minishard)
 
-  total_minishard_index_size = sum([ 
-    idx.nbytes for idx in minishard_indicies
-  ])
-
   cum_minishard_size = 0
   for idx, minishard in zip(minishard_indicies, minishards):
-    idx[1, 0] = total_minishard_index_size + cum_minishard_size
+    idx[1, 0] = cum_minishard_size
     cum_minishard_size += len(minishard)
 
   if progress:
@@ -340,18 +336,23 @@ def _synthesize_shard_file(spec, shardgrp, progress):
     dtype=np.uint64, order='C'
   )
 
-  start = 0
-  end = 0
+  start = len(data_part)
+  end = len(data_part)
   for i, idx in zip(minishardnos, variable_index_part):
     start = end
     end += len(idx)
     fixed_index[i, 0] = start
     fixed_index[i, 1] = end
-    
+
   if progress:
     print("Final assembly... ", end="", flush=True)
 
-  result = fixed_index.tobytes('C') + b''.join(variable_index_part) + data_part
+  # The order here is important. The fixed index must go first because the locations
+  # of the other parts are calculated with it implicitly in front. The variable
+  # index must go last because otherwise compressing it will affect offset of the
+  # data it is attempting to index.
+
+  result = fixed_index.tobytes('C') + data_part + b''.join(variable_index_part) 
 
   if progress:
     print("Done.")
