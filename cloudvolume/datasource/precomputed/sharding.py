@@ -329,7 +329,6 @@ def _synthesize_shard_file(spec, shardgrp, progress):
       for idx in variable_index_part 
     ]
 
-  variable_index_part = b''.join(minishard_indicies)
   data_part = b''.join(minishards)
   del minishards
 
@@ -352,7 +351,7 @@ def _synthesize_shard_file(spec, shardgrp, progress):
   if progress:
     print("Final assembly... ", end="", flush=True)
 
-  result = fixed_index.tobytes('C') + variable_index_part + data_part
+  result = fixed_index.tobytes('C') + b''.join(variable_index_part) + data_part
 
   if progress:
     print("Done.")
