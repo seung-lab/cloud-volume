@@ -125,7 +125,7 @@ class CloudVolume(object):
         - int: number of seconds for cache to be considered fresh (max-age)
         - bool: True: max-age=3600, False: no-cache
         - str: set the header manually
-      compress: (bool, str, None) pick which compression method to use. 
+      compress: (bool, str, None) pick which compression method to use.
           None: (default) gzip for raw arrays and no additional compression
             for compressed_segmentation and fpzip.
           bool: 
@@ -134,10 +134,12 @@ class CloudVolume(object):
           str: 
             'gzip': Extension so that we can add additional methods in the future 
                     like lz4 or zstd. 
-            'br': Brotli compression
+            'br': Brotli compression, better compression rate than gzip
             '': no compression (same as False).
-      compress_level: (int, None) level for brotli compression. Ignored for other compression types.
-        Defaults to 6 for brotli if not specified or None.
+      compress_level: (int, None) level for compression. Higher number results
+          in better compression but takes longer.
+        Defaults to 9 for gzip (ranges from 0 to 9).
+        Defaults to 5 for brotli (ranges from 0 to 11).
       compress_cache: (None or bool) If not None, override default compression 
           behavior for the cache.
       delete_black_uploads: (bool) If True, on uploading an entirely black chunk,
