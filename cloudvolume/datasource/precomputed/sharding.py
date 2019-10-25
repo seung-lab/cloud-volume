@@ -342,12 +342,12 @@ def _synthesize_shard_file(spec, shardgrp, progress):
 
   start = 0
   end = 0
-  for i, idx in zip(minishardnos, minishard_indicies):
+  for i, idx in zip(minishardnos, variable_index_part):
     start = end
-    end += idx.nbytes
+    end += len(idx)
     fixed_index[i, 0] = start
     fixed_index[i, 1] = end
-
+    
   if progress:
     print("Final assembly... ", end="", flush=True)
 
