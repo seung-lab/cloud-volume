@@ -207,30 +207,31 @@ class ShardReader(object):
     with SimpleStorage(full_path) as stor:
       minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
 
-    if self.spec.minishard_index_encoding == 'gzip':
-      minishard_index = compression.decompress(minishard_index, encoding='gzip', filename=filename)
+    if self.spec.minishard_index_encoding != 'raw':
+      minishard_index = compression.decompress(
+        minishard_index, encoding=self.spec.minishard_index_encoding, filename=filename
+      )
 
     minishard_index = np.copy(np.frombuffer(minishard_index, dtype=np.uint64))
     minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' ).T
-    
+
     for i in range(1, minishard_index.shape[0]):
       minishard_index[i, 0] += minishard_index[i-1, 0]
       minishard_index[i, 1] += minishard_index[i-1, 1] + minishard_index[i-1, 2]
-    
+
     idx = np.where(minishard_index == label)[0][0]
     _, offset, size = minishard_index[idx,:]
-
-    offset += index_offset
-    
+    offset = int(offset + index_offset)
+       
     with SimpleStorage(full_path) as stor:
       binary = stor.get_file(filename, start=offset, end=(offset + size))
 
-    if self.spec.data_encoding == 'gzip':
-      binary = compression.decompress(binary, encoding='gzip', filename=filename)
+    if self.spec.data_encoding != 'raw':
+      binary = compression.decompress(binary, encoding=self.spec.data_encoding, filename=filename)
       
     if self.cache.enabled:
       self.cache.put_single(self.meta.join(path, str(label)), binary, progress=False)
-      
+
     return binary
 
 def synthesize_shard_files(spec, data, progress=False):
@@ -241,6 +242,8 @@ def synthesize_shard_files(spec, data, progress=False):
 
   spec: a ShardingSpecification
   data: { label: binary, ... }
+
+  Returns: { filename: binary, ... }
   """
   shard_groupings = defaultdict(lambda: defaultdict(dict))
   pbar = tqdm(
@@ -278,7 +281,6 @@ def _synthesize_shard_file(spec, shardgrp, progress):
 
   for minishardno, minishardgrp in tqdm(shardgrp.items(), desc="Minishard Indices", disable=(not progress)):
     labels = sorted([ int(label) for label in minishardgrp.keys() ])
-
     if len(labels) == 0:
       continue
 
@@ -291,16 +293,18 @@ def _synthesize_shard_file(spec, shardgrp, progress):
     minishard_index[2, 0] = len(minishardgrp[label]) # size
 
     # label and offset are delta encoded from this point on
+    last_label = label
     for offset, label in enumerate(labels):
       i = offset + 1
       binary = minishardgrp[label]
       if spec.data_encoding != 'raw':
         binary = compression.compress(binary, method=spec.data_encoding)
 
-      minishard_index[0, i] = label - minishard_index[0, i - 1]
-      minishard_index[1, i] = minishard_index[2, i - 1]
+      minishard_index[0, i] = label - last_label
+      minishard_index[1, i] = 0 # minishard_index[2, i - 1]
       minishard_index[2, i] = len(binary)
       minishard += binary
+      last_label = label
     
     minishardnos.append(minishardno)
     minishard_indicies.append(minishard_index) 
@@ -348,7 +352,7 @@ def _synthesize_shard_file(spec, shardgrp, progress):
   if progress:
     print("Final assembly... ", end="", flush=True)
 
-  result =  fixed_index.tobytes('C') + variable_index_part + data_part
+  result = fixed_index.tobytes('C') + variable_index_part + data_part
 
   if progress:
     print("Done.")
