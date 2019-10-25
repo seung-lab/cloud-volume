@@ -1375,7 +1375,7 @@ def test_redirects():
   
 @pytest.mark.parametrize("compress_method", ('', None, True, False, 'gzip', 'br'))
 def test_compression_methods(compress_method):
-  path = "file:///tmp/removeme/test/" + '-' + str(TEST_NUMBER)
+  path = "file:///tmp/cloudvolume/test" + '-' + str(TEST_NUMBER)
 
 
   # create a NG volume
@@ -1398,7 +1398,7 @@ def test_compression_methods(compress_method):
 
   image_test = vol[0:512, 0:512, 0:16]
   
-  delete_layer('/tmp/cloudvolume/redirects_' + '-' + str(TEST_NUMBER))
+  delete_layer('/tmp/cloudvolume/test' + '-' + str(TEST_NUMBER))
 
   assert vol.compress == compress_method
   assert np.array_equal(image_test, image)
