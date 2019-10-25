@@ -1,6 +1,6 @@
 from ..sharding import ShardingSpecification, ShardReader
 from ....skeleton import Skeleton
-
+from ..spatial_index import CachedSpatialIndex
 
 class ShardedPrecomputedSkeletonSource(object):
   def __init__(self, meta, cache, config, readonly=False):
