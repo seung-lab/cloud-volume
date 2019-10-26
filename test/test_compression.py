@@ -14,7 +14,7 @@ def test_compression(compression_method):
     assert decompressed == flts
 
 @pytest.mark.parametrize("compression_method", ("gzip", "br"))
-def test_br_compress_level(compression_method):
+def test_compress_level(compression_method):
   N = 10000
   x = np.array(range(N), dtype=np.float32).reshape( (N, 1, 1, 1) )
   content = np.ascontiguousarray(x, dtype=np.float32).tostring()

@@ -153,28 +153,30 @@ def test_compression():
         pass
 
     if "file://" in url:
-      delete_layer("/tmp/removeme/compress" + '-' + str(TEST_NUMBER))
+      delete_layer("/tmp/removeme/compress-" + str(TEST_NUMBER))
 
 @pytest.mark.parametrize("compression_method", ("gzip", "br"))
-def test_br_compress_level(compression_method):
-  url = "file:///tmp/removeme/compress_level" + '-' + str(TEST_NUMBER)
+def test_compress_level(compression_method):
+  filepath = "/tmp/removeme/compress_level-" + str(TEST_NUMBER)
+  url = "file://" + filepath
 
   content = b'some_string' * 1000
 
-  compr_rate = []
   compress_levels = range(1, 9, 2)
   for compress_level in compress_levels:
     with Storage(url, n_threads=5) as s:
       s.put_file('info', content, compress=compression_method, compress_level=compress_level)
       s.wait()
+
       retrieved = s.get_file('info')
       assert content == retrieved
-      assert s.get_file('nonexistentfile') is None
 
-      c, e = s._interface.get_file("info")
+      _, e = s._interface.get_file("info")
       assert e == compression_method
 
-  delete_layer(url)
+      assert s.get_file('nonexistentfile') is None
+
+    delete_layer(filepath)
 
 
 def test_list():  
