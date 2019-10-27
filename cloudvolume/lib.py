@@ -572,6 +572,9 @@ class Bbox(object):
     Required:
       chunk_size: arraylike (x,y,z), the size of chunks in the 
                     dataset e.g. (64,64,64)
+      offset: arraylike (x,y,z) the origin of the coordinate system
+        so that this offset can be accounted for in the grid line 
+        calculation.
     Optional:
       offset: arraylike (x,y,z), the starting coordinate of the dataset
     """
@@ -590,6 +593,9 @@ class Bbox(object):
     Required:
       chunk_size: arraylike (x,y,z), the size of chunks in the 
                     dataset e.g. (64,64,64)
+      offset: arraylike (x,y,z) the origin of the coordinate system
+        so that this offset can be accounted for in the grid line 
+        calculation.
     Optional:
       offset: arraylike (x,y,z), the starting coordinate of the dataset
     """
@@ -615,6 +621,9 @@ class Bbox(object):
     Required:
       chunk_size: arraylike (x,y,z), the size of chunks in the 
                     dataset e.g. (64,64,64)
+      offset: arraylike (x,y,z) the origin of the coordinate system
+        so that this offset can be accounted for in the grid line 
+        calculation.
     Optional:
       offset: arraylike (x,y,z), the starting coordinate of the dataset
     """

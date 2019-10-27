@@ -249,6 +249,10 @@ skel = vol.skeleton.get(12345)
 vol.skeleton.upload_raw(segid, skel.vertices, skel.edges, skel.radii, skel.vertex_types) 
 vol.skeleton.upload(skel) 
 
+# specified in nm, only available for datasets with a generated index
+skels = vol.skeleton.get_by_bbox( Bbox( (0,0,0), (500, 500, 500) ) ) 
+vol.skeleton.spatial_index # None if not available
+
 skel.empty() # boolean
 
 bytes = skel.encode() # encode to Precomputed format (bytes)
