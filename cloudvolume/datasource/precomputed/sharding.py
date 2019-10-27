@@ -199,6 +199,7 @@ class ShardReader(object):
     bytes_start, bytes_end = index[shard_loc.minishard_number]
     bytes_start += index_offset
     bytes_end += index_offset
+    bytes_start, bytes_end = int(bytes_start), int(bytes_end)
 
     filename = shard_loc.shard_number + ".shard"
 
@@ -224,7 +225,7 @@ class ShardReader(object):
     offset = int(offset + index_offset)
        
     with SimpleStorage(full_path) as stor:
-      binary = stor.get_file(filename, start=offset, end=(offset + size))
+      binary = stor.get_file(filename, start=offset, end=int(offset + size))
 
     if self.spec.data_encoding != 'raw':
       binary = compression.decompress(binary, encoding=self.spec.data_encoding, filename=filename)
@@ -273,7 +274,7 @@ def synthesize_shard_files(spec, data, progress=False):
 # NB: This is going to be memory hungry and can be optimized
 def _synthesize_shard_file(spec, shardgrp, progress):
   # Assemble the .shard file like:
-  # [ shard index; all minishard indices; minishards ]
+  # [ shard index; minishards; all minishard indices ]
 
   minishardnos = []
   minishard_indicies = []
