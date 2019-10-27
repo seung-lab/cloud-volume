@@ -124,6 +124,22 @@ class ShardingSpecification(object):
 
     return ShardLocation(shard_number, minishard_number, remainder)
 
+  def synthesize_shards(self, data):
+    """
+    Given this specification and a comprehensive listing of
+    all the items that could be combined into a given shard,
+    synthesize the shard files for this set of labels.
+
+    data: { label: binary, ... }
+
+    e.g. { 5: b'...', 7: b'...' }
+
+    Returns: {
+      $filename: binary data,
+    }
+    """
+    return synthesize_shard_files(self, data)
+
   def validate(self):
     if self.type not in ('neuroglancer_uint64_sharded_v1',):
       raise SpecViolation(

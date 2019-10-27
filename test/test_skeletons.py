@@ -12,7 +12,7 @@ from cloudvolume import CloudVolume, chunks, Storage, Skeleton
 from cloudvolume.storage import SimpleStorage
 from cloudvolume.lib import mkdir, Bbox, Vec, jsonify
 
-from cloudvolume.datasource.precomputed.sharding import ShardingSpecification, synthesize_shard_files
+from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SkeletonDecodeError, SkeletonAttributeMixingError
 
 info = CloudVolume.create_new_info(
@@ -694,7 +694,7 @@ def test_sharded():
       with open('/tmp/removeme/skeletons/sharded/skeletons/info', 'wt') as f:
         f.write(jsonify(skel_info))
 
-      files = synthesize_shard_files(spec, skels)
+      files = spec.synthesize_shards(skels)
       for fname in files.keys():
         with open('/tmp/removeme/skeletons/sharded/skeletons/' + fname, 'wb') as f:
           f.write(files[fname])      
