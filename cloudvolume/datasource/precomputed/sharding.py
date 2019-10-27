@@ -285,17 +285,11 @@ def _synthesize_shard_file(spec, shardgrp, progress):
       continue
 
     minishard_index = np.zeros( (3, len(labels)), dtype=np.uint64, order='C')
-
-    label = labels.pop(0)
-    minishard = minishardgrp[label]
-    minishard_index[0, 0] = label                    # segid
-    minishard_index[1, 0] = 0                        # offset: dummy value
-    minishard_index[2, 0] = len(minishardgrp[label]) # size
-
-    # label and offset are delta encoded from this point on
-    last_label = label
-    for offset, label in enumerate(labels):
-      i = offset + 1
+    minishard = b''
+    
+    # label and offset are delta encoded
+    last_label = 0
+    for i, label in enumerate(labels):
       binary = minishardgrp[label]
       if spec.data_encoding != 'raw':
         binary = compression.compress(binary, method=spec.data_encoding)
