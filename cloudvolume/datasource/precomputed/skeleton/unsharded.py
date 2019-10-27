@@ -14,6 +14,7 @@ from cloudvolume.lib import red, Bbox
 from cloudvolume.storage import Storage, SimpleStorage
 
 from ..common import cdn_cache_control
+from ..spatial_index import CachedSpatialIndex
 from ... import readonlyguard
 
 from ....skeleton import Skeleton
@@ -25,6 +26,15 @@ class UnshardedPrecomputedSkeletonSource(object):
     self.config = config
 
     self.readonly = bool(readonly)
+
+    self.spatial_index = None
+    if self.meta.spatial_index:
+      self.spatial_index = CachedSpatialIndex(
+        self.cache,
+        cloudpath=self.meta.layerpath, 
+        bounds=self.meta.meta.bounds(0) * self.meta.meta.resolution(0),
+        chunk_size=self.meta.info['spatial_index']['chunk_size'],
+      )
 
   @property
   def path(self):
@@ -103,7 +113,13 @@ class UnshardedPrecomputedSkeletonSource(object):
     files = [ (os.path.join(self.meta.skeleton_path, str(skel.id)), skel.to_precomputed()) for skel in skeletons ]
     self.cache.upload(
       files=files, 
-      subdir=self.meta.skeleton_path,
       compress='gzip', 
       cache_control=cdn_cache_control(self.config.cdn_cache)
     )
+
+  def get_bbox(self, bbox):
+    if self.spatial_index is None:
+      raise IndexError("A spatial index has not been created.")
+
+    segids = self.spatial_index.query(bbox)
+    return self.get(segids)

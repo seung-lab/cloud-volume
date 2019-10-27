@@ -111,3 +111,7 @@ class UnsupportedProtocolError(ValueError):
 class SpecViolation(Exception):
   """The values held by this object violate its written specification."""
   pass
+
+class SpatialIndexGapError(Exception):
+  """Part of the spatial index was not found. A complete result set cannot be fetched."""
+  pass

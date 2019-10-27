@@ -1,6 +1,6 @@
 from ..sharding import ShardingSpecification, ShardReader
 from ....skeleton import Skeleton
-
+from ..spatial_index import CachedSpatialIndex
 
 class ShardedPrecomputedSkeletonSource(object):
   def __init__(self, meta, cache, config, readonly=False):
@@ -11,6 +11,15 @@ class ShardedPrecomputedSkeletonSource(object):
 
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
     self.reader = ShardReader(meta, cache, spec)
+
+    self.spatial_index = None
+    if self.meta.spatial_index:
+      self.spatial_index = CachedSpatialIndex(
+        self.cache,
+        cloudpath=self.meta.layerpath, 
+        bounds=self.meta.meta.bounds(0) * self.meta.meta.resolution(0),
+        chunk_size=self.meta.info['spatial_index']['chunk_size'],
+      )
 
   @property
   def path(self):
@@ -46,3 +55,10 @@ class ShardedPrecomputedSkeletonSource(object):
 
   def raw_upload(self):
     raise NotImplementedError()
+
+  def get_bbox(self, bbox):
+    if self.spatial_index is None:
+      raise IndexError("A spatial index has not been created.")
+
+    segids = self.spatial_index.query(bbox)
+    return self.get(segids)

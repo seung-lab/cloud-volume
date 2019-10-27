@@ -13,6 +13,12 @@ class PrecomputedSkeletonMetadata(object):
       self.info = self.fetch_info()
 
   @property
+  def spatial_index(self):
+    if 'spatial_index' in self.info:
+      return self.info['spatial_index']
+    return None  
+
+  @property
   def skeleton_path(self):
     if 'skeletons' in self.meta.info:
       return self.meta.info['skeletons']
@@ -54,7 +60,7 @@ class PrecomputedSkeletonMetadata(object):
   def commit_info(self):
     if self.info:
       self.cache.upload_single(
-      self.meta.join(self.path, 'info'),
+        self.meta.join(self.skeleton_path, 'info'),
         jsonify(self.info), 
         content_type='application/json',
         compress=False,
@@ -82,6 +88,7 @@ class PrecomputedSkeletonMetadata(object):
         }
       ],
       'sharding': None,
+      'spatial_index': None, # { 'chunk_size': physical units }
     }
 
   def is_sharded(self):

@@ -314,7 +314,7 @@ class CacheService(object):
     kwargs['progress'] = False
     return self.upload( [(filename, content)], *args, **kwargs )
 
-  def upload(self, files, subdir, compress, cache_control, content_type=None, progress=None):
+  def upload(self, files, compress, cache_control, content_type=None, progress=None):
     files = list(files)
 
     progress = progress if progress is not None else self.config.progress
@@ -347,6 +347,27 @@ class CacheService(object):
   def download_single(self, path, compress=None):
     files = self.download([ path ], compress=compress, progress=False)
     return files[path]
+
+  def download_single_as(
+    self, path, local_alias, 
+    compress=None, start=None, end=None
+  ):
+    """
+    Download a file or a byte range from a file 
+    and save it locally as `local_alias`.
+    """
+    if self.enabled:
+      locs = self.compute_data_locations([local_alias])
+      if locs['local']:
+        return self.get_single(local_alias)
+
+    with SimpleStorage(self.meta.cloudpath) as stor:
+      filedata = stor.get_file(path, start=start, end=end)
+
+    if self.enabled:
+      self.put([ (local_alias, filedata) ], compress=compress)
+
+    return filedata
 
   def download(self, paths, compress=None, progress=None):
     """

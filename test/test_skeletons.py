@@ -10,8 +10,9 @@ import shutil
 
 from cloudvolume import CloudVolume, chunks, Storage, Skeleton
 from cloudvolume.storage import SimpleStorage
-from cloudvolume.lib import mkdir, Bbox, Vec
+from cloudvolume.lib import mkdir, Bbox, Vec, jsonify
 
+from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SkeletonDecodeError, SkeletonAttributeMixingError
 
 info = CloudVolume.create_new_info(
@@ -25,6 +26,14 @@ info = CloudVolume.create_new_info(
   volume_size=(100, 100, 100),
   chunk_size=(64, 64, 64),
 )
+
+skel_info = {
+  "@type": "neuroglancer_skeletons", 
+  "transform": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0], 
+  "vertex_attributes": [
+    {"id": "radius", "data_type": "float32", "num_components": 1}
+  ], 
+}
 
 def test_skeletons():
   
@@ -638,6 +647,66 @@ def test_simple_merge():
   except SkeletonAttributeMixingError:
     pass
 
+def test_sharded():
+  skel = Skeleton(
+    [ 
+      (0,0,0), (1,0,0), (2,0,0),
+      (0,1,0), (0,2,0), (0,3,0),
+    ], 
+    edges=[ 
+      (0,1), (1,2), 
+      (3,4), (4,5), (3,5)
+    ],
+    segid=1,
+    extra_attributes=[
+      {
+          "id": "radius",
+          "data_type": "float32",
+          "num_components": 1,
+      }
+    ]
+  ).physical_space()
+
+  skels = {}
+  for i in range(10):
+    sk = skel.clone()
+    sk.id = i
+    skels[i] = sk.to_precomputed()
+
+  mkdir('/tmp/removeme/skeletons/sharded/skeletons')
+  with open('/tmp/removeme/skeletons/sharded/info', 'wt') as f:
+    f.write(jsonify(info))
+
+  for idxenc in ('raw', 'gzip'):
+    for dataenc in ('raw', 'gzip'):
+
+      spec = ShardingSpecification(
+        'neuroglancer_uint64_sharded_v1', 
+        preshift_bits=1,
+        hash='murmurhash3_x86_128', 
+        minishard_bits=2, 
+        shard_bits=1, 
+        minishard_index_encoding=idxenc, 
+        data_encoding=dataenc,
+      )
+      skel_info['sharding'] = spec.to_dict()
+
+      with open('/tmp/removeme/skeletons/sharded/skeletons/info', 'wt') as f:
+        f.write(jsonify(skel_info))
+
+      files = spec.synthesize_shards(skels)
+      for fname in files.keys():
+        with open('/tmp/removeme/skeletons/sharded/skeletons/' + fname, 'wb') as f:
+          f.write(files[fname])      
+
+      cv = CloudVolume('file:///tmp/removeme/skeletons/sharded/')
+
+      for i in range(10):
+        sk = cv.skeleton.get(i).physical_space()
+        sk.id = 1
+        assert sk == skel
+
+  shutil.rmtree('/tmp/removeme/skeletons')
 
 
 
