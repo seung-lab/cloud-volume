@@ -316,6 +316,7 @@ def _synthesize_shard_file(spec, shardgrp, progress):
       minishard_index[2, i] = len(binary)
       minishard += binary
       last_label = label
+      del minishardgrp[label]
     
     minishardnos.append(minishardno)
     minishard_indicies.append(minishard_index) 
