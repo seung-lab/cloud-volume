@@ -140,8 +140,15 @@ def test_compression():
         content = b'some_string'
         s.put_file('info', content, compress=method)
         s.wait()
-        retrieved = s.get_file('info')
-        assert content == retrieved
+
+        # remove when GCS enables "br"
+        if method == "br" and "gs://" in url:
+          with pytest.raises(TypeError, match="Brotli unsupported on google cloud storage"):
+            retrieved = s.get_file('info')
+        else:
+          retrieved = s.get_file('info')
+          assert content == retrieved
+
         assert s.get_file('nonexistentfile') is None
 
     with Storage(url, n_threads=5) as s:

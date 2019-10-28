@@ -191,7 +191,9 @@ class GoogleCloudStorageInterface(StorageInterface):
     blob = self._bucket.blob( key )
 
     # gcloud disable brotli until content-encoding works
-    if compress:
+    if compress == "br":
+      raise TypeError("Brotli unsupported on google cloud storage")
+    elif compress:
       blob.content_encoding = "gzip"
     if cache_control:
       blob.cache_control = cache_control
