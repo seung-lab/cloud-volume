@@ -190,10 +190,8 @@ class GoogleCloudStorageInterface(StorageInterface):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
-    # keep default gzip
-    if compress == "br":
-      blob.content_encoding = "br"
-    elif compress:
+    # gcloud disable brotli until content-encoding works
+    if compress:
       blob.content_encoding = "gzip"
     if cache_control:
       blob.cache_control = cache_control
