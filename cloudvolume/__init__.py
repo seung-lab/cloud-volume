@@ -67,7 +67,7 @@ from . import secrets
 from . import microviewer
 from .microviewer import view, hyperview
 
-__version__ = '0.64.0'
+__version__ = '0.65.0'
 
 # Register plugins
 from .datasource.precomputed import register as register_precomputed
