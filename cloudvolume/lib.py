@@ -242,7 +242,7 @@ Vec.a = Vec.w
 def floating(lst):
   return any(( isinstance(x, float) for x in lst ))
 
-FILENAME_RE = re.compile(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz)?$')
+FILENAME_RE = re.compile(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz|\.br)?$')
 
 class Bbox(object):
   __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
@@ -344,6 +344,9 @@ class Bbox(object):
   @classmethod
   def from_filename(cls, filename, dtype=int):
     match = FILENAME_RE.search(os.path.basename(filename))
+
+    if match is None:
+      raise FileNotFoundError
 
     (xmin, xmax,
      ymin, ymax,
