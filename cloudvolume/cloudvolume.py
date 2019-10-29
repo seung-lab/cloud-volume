@@ -30,7 +30,7 @@ class SharedConfiguration(object):
   synchronize them.
   """
   def __init__(
-    self, cdn_cache, compress, green,
+    self, cdn_cache, compress, compress_level, green,
     mip, parallel, progress,
     *args, **kwargs
   ):
@@ -43,6 +43,7 @@ class SharedConfiguration(object):
 
     self.cdn_cache = cdn_cache
     self.compress = compress
+    self.compress_level = compress_level
     self.green = bool(green)
     self.mip = mip
     self.parallel = parallel 
@@ -55,7 +56,7 @@ class CloudVolume(object):
     cloudpath, mip=0, bounded=True, autocrop=False,
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None,
-    compress=None, non_aligned_writes=False, parallel=1,
+    compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
     max_redirects=10
@@ -124,7 +125,7 @@ class CloudVolume(object):
         - int: number of seconds for cache to be considered fresh (max-age)
         - bool: True: max-age=3600, False: no-cache
         - str: set the header manually
-      compress: (bool, str, None) pick which compression method to use. 
+      compress: (bool, str, None) pick which compression method to use.
           None: (default) gzip for raw arrays and no additional compression
             for compressed_segmentation and fpzip.
           bool: 
@@ -133,7 +134,12 @@ class CloudVolume(object):
           str: 
             'gzip': Extension so that we can add additional methods in the future 
                     like lz4 or zstd. 
+            'br': Brotli compression, better compression rate than gzip
             '': no compression (same as False).
+      compress_level: (int, None) level for compression. Higher number results
+          in better compression but takes longer.
+        Defaults to 9 for gzip (ranges from 0 to 9).
+        Defaults to 5 for brotli (ranges from 0 to 11).
       compress_cache: (None or bool) If not None, override default compression 
           behavior for the cache.
       delete_black_uploads: (bool) If True, on uploading an entirely black chunk,

@@ -356,7 +356,7 @@ CloudVolume(cloudpath,
 * progress - Show progress bars. Defaults to True if in python interactive mode else default False.
 * info - Use this info object rather than pulling from the cloud (useful for creating new layers).
 * provenance - Use this object as the provenance file.
-* compress - None or 'gzip', force this compression algorithm to be used for upload
+* compress - None, 'gzip' or 'br', force this compression algorithm to be used for upload
 * non_aligned_writes - True/False. If False, non-chunk-aligned writes will trigger an error with a helpful message. If True,
     Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes)
 * parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 

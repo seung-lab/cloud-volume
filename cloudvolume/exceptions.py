@@ -55,6 +55,12 @@ class OutOfBoundsError(ValueError):
   of the volume's bounds
   """
 
+class UnsupportedCompressionType(ValueError):
+  """
+  Raised when attempting to use a compression type which is unsupported
+  by the storage interface.
+  """
+
 # Inheritance below done for backwards compatibility reasons.
 
 class DecompressionError(DecodingError):

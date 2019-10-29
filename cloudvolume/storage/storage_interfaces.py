@@ -15,6 +15,7 @@ import tenacity
 
 from cloudvolume.connectionpools import S3ConnectionPool, GCloudBucketPool
 from cloudvolume.lib import mkdir
+from cloudvolume.exceptions import UnsupportedCompressionType
 
 # This is just to support pooling by bucket
 class keydefaultdict(defaultdict):
@@ -67,7 +68,10 @@ class FileInterface(StorageInterface):
     path = self.get_path_to_file(file_path)
     mkdir(os.path.dirname(path))
 
-    if compress:
+    # keep default as gzip
+    if compress == "br":
+      path += ".br"
+    elif compress:
       path += '.gz'
 
     if content \
@@ -87,13 +91,15 @@ class FileInterface(StorageInterface):
   def get_file(self, file_path, start=None, end=None):
     path = self.get_path_to_file(file_path)
 
-    compressed = os.path.exists(path + '.gz')
-      
-    if compressed:
+    if os.path.exists(path + '.gz'):
+      encoding = "gzip"
       path += '.gz'
+    elif os.path.exists(path + '.br'):
+      encoding = "br"
+      path += ".br"
+    else:
+      encoding = None
 
-    encoding = 'gzip' if compressed else None
-    
     try:
       with open(path, 'rb') as f:
         if start is not None:
@@ -110,7 +116,7 @@ class FileInterface(StorageInterface):
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
-    return os.path.exists(path) or os.path.exists(path + '.gz')
+    return os.path.exists(path) or os.path.exists(path + '.gz') or os.path.exists(path + ".br")
 
   def files_exist(self, file_paths):
     return { path: self.exists(path) for path in file_paths }
@@ -121,6 +127,8 @@ class FileInterface(StorageInterface):
       os.remove(path)
     elif os.path.exists(path + '.gz'):
       os.remove(path + '.gz')
+    elif os.path.exists(path + ".br"):
+      os.remove(path + ".br")
 
   def delete_files(self, file_paths):
     for path in file_paths:
@@ -160,14 +168,14 @@ class FileInterface(StorageInterface):
         for filename in files:
           filenames.append(filename)
     
-    def stripgz(fname):
+    def stripext(fname):
       (base, ext) = os.path.splitext(fname)
-      if ext == '.gz':
+      if ext == '.gz' or ext == ".br":
         return base
       else:
         return fname
 
-    filenames = list(map(stripgz, filenames))
+    filenames = list(map(stripext, filenames))
     return _radix_sort(filenames).__iter__()
 
 class GoogleCloudStorageInterface(StorageInterface):
@@ -184,7 +192,11 @@ class GoogleCloudStorageInterface(StorageInterface):
   def put_file(self, file_path, content, content_type, compress, cache_control=None):
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
-    if compress:
+
+    # gcloud disable brotli until content-encoding works
+    if compress == "br":
+      raise UnsupportedCompressionType("Brotli unsupported on google cloud storage")
+    elif compress:
       blob.content_encoding = "gzip"
     if cache_control:
       blob.cache_control = cache_control
@@ -309,6 +321,10 @@ class HttpInterface(StorageInterface):
       resp = requests.get(key, headers=headers)
     else:
       resp = requests.get(key)
+      if resp.headers.get('Content-Encoding') == 'br':
+        # needed until requests natively supports brotli
+        # https://github.com/psf/requests/issues/4525
+        resp._content = brotli.decompress(resp.content)
     if resp.status_code in (404, 403):
       return None, None
     resp.raise_for_status()
@@ -349,7 +365,10 @@ class S3Interface(StorageInterface):
       'ACL': ACL,
     }
 
-    if compress:
+    # keep gzip as default
+    if compress == "br":
+      attrs['ContentEncoding'] = 'br'
+    elif compress:
       attrs['ContentEncoding'] = 'gzip'
     if cache_control:
       attrs['CacheControl'] = cache_control

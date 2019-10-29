@@ -18,6 +18,7 @@ def create_boss(
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
       compress=compress,
+      compress_level=None,
       green=green_threads,
       mip=mip,
       parallel=parallel,
