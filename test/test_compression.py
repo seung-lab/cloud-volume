@@ -22,13 +22,14 @@ def test_compress_level(compression_method):
   compr_rate = []
   compress_levels = (1, 8)
   for compress_level in compress_levels:
+    print(compress_level)
     compressed = compress(content, compression_method, compress_level=compress_level)
-    
+
     assert compressed != content
     decompressed = decompress(compressed, compression_method)
     assert decompressed == content
 
-    compr_rate.append(len(compressed) / len(content))
+    compr_rate.append(float(len(compressed)) / float(len(content)))
 
   # make sure we get better compression at highest level than lowest level
   assert compr_rate[-1] < compr_rate[0]
