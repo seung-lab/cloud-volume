@@ -6,7 +6,9 @@ import re
 import time
 
 from cloudvolume.storage import Storage
+from cloudvolume import exceptions
 from layer_harness import delete_layer, TEST_NUMBER
+
 
 #TODO delete files created by tests
 def test_read_write():
@@ -138,14 +140,19 @@ def test_compression():
     for method in compression_tests:
       with Storage(url, n_threads=5) as s:
         content = b'some_string'
-        s.put_file('info', content, compress=method)
-        s.wait()
 
         # remove when GCS enables "br"
         if method == "br" and "gs://" in url:
-          with pytest.raises(TypeError, match="Brotli unsupported on google cloud storage"):
+          with pytest.raises(
+              exceptions.UnsupportedCompressionType, 
+              match="Brotli unsupported on google cloud storage"
+          ):
+            s.put_file('info', content, compress=method)
+            s.wait()
             retrieved = s.get_file('info')
         else:
+          s.put_file('info', content, compress=method)
+          s.wait()
           retrieved = s.get_file('info')
           assert content == retrieved
 
