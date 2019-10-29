@@ -346,7 +346,7 @@ class Bbox(object):
     match = FILENAME_RE.search(os.path.basename(filename))
 
     if match is None:
-      raise FileNotFoundError
+      raise ValueError("Unable to decode bounding box from: " + str(filename))
 
     (xmin, xmax,
      ymin, ymax,

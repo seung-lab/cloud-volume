@@ -156,5 +156,5 @@ def test_bbox_from_filename():
     "0-abc_0-512_0-16",
   ]
   for fn in filenames:
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ValueError):
       bbox = Bbox.from_filename(fn)
