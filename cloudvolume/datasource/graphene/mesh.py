@@ -43,7 +43,7 @@ class GrapheneMeshSource(PrecomputedMeshSource):
 
     res.raise_for_status()
 
-    return json.loads(res.content)["fragments"]
+    return json.loads(res.content.decode('utf8'))["fragments"]
 
   def get(
       self, segids, 
