@@ -163,6 +163,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       self.meta, self.cache,
       image, offset, mip,
       compress=self.config.compress,
+      compress_level=self.config.compress_level,
       cdn_cache=self.config.cdn_cache,
       parallel=parallel, 
       progress=self.config.progress,
@@ -228,7 +229,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         storage.delete_files(cloudpaths)
 
 
-  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True):
+  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True, compress_level=None):
     """
     Transfer files from one storage location to another, bypassing
     volume painting. This enables using a single CloudVolume instance
@@ -315,6 +316,7 @@ class PrecomputedImageSource(ImageSourceInterface):
             dest_stor.put_files(
               files=files, 
               compress=compress, 
+              compress_level=compress_level,
               content_type=tx.content_type(destvol),
             )
             pbar.update()

@@ -242,7 +242,7 @@ Vec.a = Vec.w
 def floating(lst):
   return any(( isinstance(x, float) for x in lst ))
 
-FILENAME_RE = re.compile(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz)?$')
+FILENAME_RE = re.compile(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz|\.br)?$')
 
 class Bbox(object):
   __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
@@ -344,6 +344,9 @@ class Bbox(object):
   @classmethod
   def from_filename(cls, filename, dtype=int):
     match = FILENAME_RE.search(os.path.basename(filename))
+
+    if match is None:
+      raise ValueError("Unable to decode bounding box from: " + str(filename))
 
     (xmin, xmax,
      ymin, ymax,
@@ -572,6 +575,9 @@ class Bbox(object):
     Required:
       chunk_size: arraylike (x,y,z), the size of chunks in the 
                     dataset e.g. (64,64,64)
+      offset: arraylike (x,y,z) the origin of the coordinate system
+        so that this offset can be accounted for in the grid line 
+        calculation.
     Optional:
       offset: arraylike (x,y,z), the starting coordinate of the dataset
     """
@@ -590,6 +596,9 @@ class Bbox(object):
     Required:
       chunk_size: arraylike (x,y,z), the size of chunks in the 
                     dataset e.g. (64,64,64)
+      offset: arraylike (x,y,z) the origin of the coordinate system
+        so that this offset can be accounted for in the grid line 
+        calculation.
     Optional:
       offset: arraylike (x,y,z), the starting coordinate of the dataset
     """
@@ -615,6 +624,9 @@ class Bbox(object):
     Required:
       chunk_size: arraylike (x,y,z), the size of chunks in the 
                     dataset e.g. (64,64,64)
+      offset: arraylike (x,y,z) the origin of the coordinate system
+        so that this offset can be accounted for in the grid line 
+        calculation.
     Optional:
       offset: arraylike (x,y,z), the starting coordinate of the dataset
     """

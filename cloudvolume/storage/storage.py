@@ -64,7 +64,7 @@ class StorageBase(object):
       return None
     return json.loads(content.decode('utf8'))
 
-  def put_file(self, file_path, content, content_type=None, compress=None, cache_control=None):
+  def put_file(self, file_path, content, content_type=None, compress=None, compress_level=None, cache_control=None):
     """ 
     Args:
       filename (string): it can contains folders
@@ -73,6 +73,7 @@ class StorageBase(object):
     return self.put_files([ (file_path, content) ], 
       content_type=content_type, 
       compress=compress, 
+      compress_level=compress_level,
       cache_control=cache_control, 
       block=False
     )
@@ -127,7 +128,7 @@ class SimpleStorage(StorageBase):
     super(SimpleStorage, self).__init__(layer_path, progress)
     self._interface = self.get_connection()
 
-  def put_files(self, files, content_type=None, compress=None, cache_control=None, block=True):
+  def put_files(self, files, content_type=None, compress=None, compress_level=None, cache_control=None, block=True):
     """
     Put lots of files at once and get a nice progress bar. It'll also wait
     for the upload to complete, just like get_files.
@@ -136,7 +137,7 @@ class SimpleStorage(StorageBase):
       files: [ (filepath, content), .... ]
     """
     for path, content in tqdm(files, disable=(not self.progress), desc="Uploading"):
-      content = compression.compress(content, method=compress)
+      content = compression.compress(content, method=compress, compress_level=compress_level)
       self._interface.put_file(path, content, content_type, compress, cache_control=cache_control)
     return self
 
@@ -321,7 +322,7 @@ class GreenStorage(StorageBase):
 
   def put_files(
     self, files, 
-    content_type=None, compress=None, 
+    content_type=None, compress=None, compress_level=None,
     cache_control=None, block=True
   ):
     """
@@ -336,7 +337,7 @@ class GreenStorage(StorageBase):
 
     def uploadfn(path, content):
       with self.get_connection() as conn:
-        content = compression.compress(content, method=compress)
+        content = compression.compress(content, method=compress, compress_level=compress_level)
         conn.put_file(
           file_path=path, 
           content=content, 
@@ -469,7 +470,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
       content = json.dumps(content)
     return self.put_file(file_path, content, content_type=content_type, *args, **kwargs)
   
-  def put_file(self, file_path, content, content_type=None, compress=None, cache_control=None):
+  def put_file(self, file_path, content, content_type=None, compress=None, compress_level=None, cache_control=None):
     """ 
     Args:
       filename (string): it can contains folders
@@ -478,11 +479,12 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
     return self.put_files([ (file_path, content) ], 
       content_type=content_type, 
       compress=compress, 
+      compress_level=compress_level,
       cache_control=cache_control, 
       block=False
     )
 
-  def put_files(self, files, content_type=None, compress=None, cache_control=None, block=True):
+  def put_files(self, files, content_type=None, compress=None, compress_level=None, cache_control=None, block=True):
     """
     Put lots of files at once and get a nice progress bar. It'll also wait
     for the upload to complete, just like get_files.
@@ -494,7 +496,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
       interface.put_file(path, content, content_type, compress, cache_control=cache_control)
 
     for path, content in files:
-      content = compression.compress(content, method=compress)
+      content = compression.compress(content, method=compress, compress_level=compress_level)
       uploadfn = partial(base_uploadfn, path, content)
 
       if len(self._threads):

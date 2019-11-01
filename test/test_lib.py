@@ -132,3 +132,29 @@ def test_jsonify():
 
   assert lib.jsonify(obj, sort_keys=True) == r"""{"w": "1 2 34 5", "x": [[1, 2, 3, 4, 5]], "y": [{}, {}], "z": 5}"""
 
+
+def test_bbox_from_filename():
+  filenames = [
+    "0-512_0-512_0-16",
+    "0-512_0-512_0-16.gz",
+    "0-512_0-512_0-16.br",
+  ]
+
+  for fn in filenames:
+    bbox = Bbox.from_filename(fn)
+    assert np.array_equal(bbox.minpt, [0, 0, 0])
+    assert np.array_equal(bbox.maxpt, [512, 512, 16])
+
+  filenames = [
+    "gibberish",
+    "0-512_0-512_0-16.lol",
+    "0-512_0-512_0-16.gzip",
+    "0-512_0-512_0-16.brotli",
+    "0-512_0-512_0-16.na",
+    "0-512_0-512_0-abc",
+    "0-512_0-abc_0-16",
+    "0-abc_0-512_0-16",
+  ]
+  for fn in filenames:
+    with pytest.raises(ValueError):
+      bbox = Bbox.from_filename(fn)

@@ -13,7 +13,7 @@ def create_precomputed(
     cloudpath, mip=0, bounded=True, autocrop=False,
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=False, info=None, provenance=None,
-    compress=None, non_aligned_writes=False, parallel=1,
+    compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0, 
     green_threads=False, use_https=False,
     max_redirects=10
@@ -22,6 +22,7 @@ def create_precomputed(
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
       compress=compress,
+      compress_level=compress_level,
       green=green_threads,
       mip=mip,
       parallel=parallel,

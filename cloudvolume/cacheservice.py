@@ -314,7 +314,7 @@ class CacheService(object):
     kwargs['progress'] = False
     return self.upload( [(filename, content)], *args, **kwargs )
 
-  def upload(self, files, subdir, compress, cache_control, content_type=None, progress=None):
+  def upload(self, files, compress, cache_control, compress_level=None, content_type=None, progress=None):
     files = list(files)
 
     progress = progress if progress is not None else self.config.progress
@@ -324,6 +324,7 @@ class CacheService(object):
       remote_fragments = stor.put_files(
         files=files,
         compress=compress,
+        compress_level=compress_level,
         cache_control=cache_control,
         content_type=content_type,
       )
@@ -347,6 +348,27 @@ class CacheService(object):
   def download_single(self, path, compress=None):
     files = self.download([ path ], compress=compress, progress=False)
     return files[path]
+
+  def download_single_as(
+    self, path, local_alias, 
+    compress=None, start=None, end=None
+  ):
+    """
+    Download a file or a byte range from a file 
+    and save it locally as `local_alias`.
+    """
+    if self.enabled:
+      locs = self.compute_data_locations([local_alias])
+      if locs['local']:
+        return self.get_single(local_alias)
+
+    with SimpleStorage(self.meta.cloudpath) as stor:
+      filedata = stor.get_file(path, start=start, end=end)
+
+    if self.enabled:
+      self.put([ (local_alias, filedata) ], compress=compress)
+
+    return filedata
 
   def download(self, paths, compress=None, progress=None):
     """
@@ -412,7 +434,7 @@ class CacheService(object):
     kwargs['progress'] = False
     return self.put([ (path, content) ], *args, **kwargs)
 
-  def put(self, files, progress=None, compress=None):
+  def put(self, files, progress=None, compress=None, compress_level=None):
     if progress is None:
       progress = self.config.progress
 
@@ -429,6 +451,7 @@ class CacheService(object):
       stor.put_files(
         [ (name, content) for name, content in files ],
         compress=compress,
+        compress_level=compress_level,
       )
 
   def compute_data_locations(self, cloudpaths):
