@@ -109,7 +109,7 @@ class PrecomputedMetadata(object):
         "encoding": encoding,
         "chunk_sizes": [chunk_size],
         "key": "_".join(map(str, resolution)),
-        "resolution": list(map(float, resolution)),
+        "resolution": [int(r) if r == int(r) else float(r) for r in resolution],
         "voxel_offset": list(map(int, voxel_offset)),
         "size": list(map(int, volume_size)),
       }],
@@ -123,7 +123,7 @@ class PrecomputedMetadata(object):
  
     # add mip levels
     for _ in range(max_mip):
-      new_resolution = list(map(float, Vec(*fullres['resolution'], dtype=float) * factor_in_mip ))
+      new_resolution = list([int(r) if r == int(r) else float(r) for r in list(Vec(*fullres['resolution'], dtype=float) * factor_in_mip)])
       newscale = {
         u"encoding": encoding,
         u"chunk_sizes": [ list(map(int, chunk_size)) ],
