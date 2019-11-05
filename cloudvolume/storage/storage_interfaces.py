@@ -279,7 +279,9 @@ class GoogleCloudStorageInterface(StorageInterface):
     path = posixpath.join(layer_path, prefix)
     for blob in self._bucket.list_blobs(prefix=path):
       filename = blob.name.replace(layer_path, '')
-      if not flat and filename[-1] != '/':
+      if not filename:
+        continue
+      elif not flat and filename[-1] != '/':
         yield filename
       elif flat and '/' not in blob.name.replace(path, ''):
         yield filename
