@@ -70,7 +70,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       compress = True
 
     results = self.cache.download(
-      [ os.path.join(self.meta.skeleton_path, str(segid)) for segid in segids ],
+      [ self.meta.join(self.meta.skeleton_path, str(segid)) for segid in segids ],
       compress=compress
     )
     missing = [ filename for filename, content in results.items() if content is None ]
@@ -110,7 +110,7 @@ class UnshardedPrecomputedSkeletonSource(object):
     if type(skeletons) == Skeleton:
       skeletons = [ skeletons ]
 
-    files = [ (os.path.join(self.meta.skeleton_path, str(skel.id)), skel.to_precomputed()) for skel in skeletons ]
+    files = [ (self.meta.join(self.meta.skeleton_path, str(skel.id)), skel.to_precomputed()) for skel in skeletons ]
     self.cache.upload(
       files=files, 
       compress='gzip', 
