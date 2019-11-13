@@ -93,6 +93,18 @@ def test_aligned_read():
     assert cutout2.shape == (64,64,64,1) 
     assert np.all(cutout2 == data[64:128,:64,:64,:])
 
+def test_save_images():
+  delete_layer()
+  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))  
+
+  img = cv[:]
+  directory = img.save_images()
+
+  for z, fname in enumerate(sorted(os.listdir(directory))):
+    assert fname == str(z).zfill(3) + '.png'
+
+  shutil.rmtree(directory)
+
 def test_bbox_read():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
