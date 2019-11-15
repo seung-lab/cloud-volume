@@ -74,3 +74,9 @@ class PrecomputedMeshMetadata(object):
       return False
     else:
       return True
+
+  def is_multires(self):
+    return self.info['@type'] == 'neuroglancer_multilod_draco'
+
+  def is_legacy(self):
+    return not self.is_multires()
