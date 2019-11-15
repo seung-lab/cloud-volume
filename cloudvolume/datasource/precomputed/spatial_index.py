@@ -58,10 +58,13 @@ class SpatialIndex(object):
 
     return { res['filename']: res['content'] for res in results }
 
-  def query(self, bbox):
+  def query(self, bbox, allow_missing=False):
     """
     For the specified bounding box (or equivalent representation),
     list all segment ids enclosed within it.
+
+    If allow_missing is set, then don't raise an error if an index
+    file is missing.
 
     Returns: set(labels)
     """
@@ -82,7 +85,10 @@ class SpatialIndex(object):
     labels = set()
     for filename, content in results.items():
       if content is None:
-        raise SpatialIndexGapError(filename + " was not found.")
+        if allow_missing:
+          continue
+        else:
+          raise SpatialIndexGapError(filename + " was not found.")
 
       res = json.loads(content)
 
