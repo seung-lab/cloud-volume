@@ -528,7 +528,7 @@ class Skeleton(object):
     edges = self.edges 
 
     if self.empty():
-      return Skeleton()
+      return Skeleton(segid=self.id)
     
     eff_vertices, uniq_idx, idx_representative = np.unique(
       nodes, axis=0, return_index=True, return_inverse=True
