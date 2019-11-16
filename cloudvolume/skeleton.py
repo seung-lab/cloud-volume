@@ -534,8 +534,7 @@ class Skeleton(object):
       nodes, axis=0, return_index=True, return_inverse=True
     )
 
-    edge_vector_map = np.vectorize(lambda x: idx_representative[x])
-    eff_edges = edge_vector_map(edges)
+    eff_edges = idx_representative[ edges ]
     eff_edges = np.sort(eff_edges, axis=1) # sort each edge [2,1] => [1,2]
     eff_edges = eff_edges[np.lexsort(eff_edges[:,::-1].T)] # Sort rows 
     eff_edges = np.unique(eff_edges, axis=0)
@@ -546,8 +545,7 @@ class Skeleton(object):
     for attr in self.extra_attributes:
       name = attr['id']
       buf = getattr(self, name)
-      name_vector_map = np.vectorize(lambda idx: buf[idx])
-      eff_name = name_vector_map(uniq_idx)
+      eff_name = buf[ uniq_idx ]
       setattr(skel, name, eff_name)
 
     if remove_disconnected_vertices:
