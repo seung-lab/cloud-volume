@@ -807,7 +807,7 @@ class Skeleton(object):
     return paths
 
   def _compute_components(self):
-    skel = self.consolidate()
+    skel = self.consolidate(remove_disconnected_vertices=False)
     if skel.edges.size == 0:
       return skel, []
 
