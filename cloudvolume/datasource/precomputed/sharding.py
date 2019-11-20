@@ -283,7 +283,7 @@ def synthesize_shard_files(spec, data, progress=False):
 
   for shardno, shardgrp in pbar:
     filename = str(shardno) + '.shard'
-    shard_files[filename] = _synthesize_shard_file(spec, shardgrp, progress)
+    shard_files[filename] = _synthesize_shard_file(spec, shardgrp, progress=(progress > 1))
 
   return shard_files
 

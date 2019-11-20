@@ -759,7 +759,10 @@ class Bbox(object):
   def __repr__(self):
     return "Bbox({},{}, dtype={})".format(list(self.minpt), list(self.maxpt), self.dtype)
 
-def save_images(image, directory=None, axis='z', channel=None, global_norm=True, image_format='PNG'):
+def save_images(
+  image, directory=None, axis='z', 
+  channel=None, global_norm=True, 
+  image_format='PNG', progress=True):
   """
   Serialize a 3D or 4D array into a series of PNGs for visualization.
 
@@ -769,13 +772,17 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
   directory: override the default output directory
   global_norm: Normalize floating point volumes globally or per slice?
   image_format: 'PNG', 'JPEG', etc
+  progress: display progress bars and messages
+
+  Returns: the directory path written to
   """
   if directory is None:
     directory = os.path.join('./saved_images', 'default', 'default', '0', Bbox( (0,0,0), image.shape[:3] ).to_filename())
   
   mkdir(directory)
 
-  print("Saving to {}".format(directory))
+  if progress:
+    print("Saving to {}".format(directory))
 
   indexmap = {
     'x': 0,
@@ -801,7 +808,7 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
   if global_norm and np.issubdtype(image.dtype, np.floating):
     image = normalize_float(image)      
 
-  for level in tqdm(range(image.shape[index]), desc="Saving Images"):
+  for level in tqdm(range(image.shape[index]), desc="Saving Images", disable=(not progress)):
     if index == 0:
       img = image[level, :, :, channel ]
     elif index == 1:
@@ -845,3 +852,5 @@ def save_images(image, directory=None, axis='z', channel=None, global_norm=True,
 
       path = os.path.join(directory, filename)
       img2d.save(path, image_format)
+
+  return toabs(directory)

@@ -528,14 +528,13 @@ class Skeleton(object):
     edges = self.edges 
 
     if self.empty():
-      return Skeleton()
+      return Skeleton(segid=self.id)
     
     eff_vertices, uniq_idx, idx_representative = np.unique(
       nodes, axis=0, return_index=True, return_inverse=True
     )
 
-    edge_vector_map = np.vectorize(lambda x: idx_representative[x])
-    eff_edges = edge_vector_map(edges)
+    eff_edges = idx_representative[ edges ]
     eff_edges = np.sort(eff_edges, axis=1) # sort each edge [2,1] => [1,2]
     eff_edges = eff_edges[np.lexsort(eff_edges[:,::-1].T)] # Sort rows 
     eff_edges = np.unique(eff_edges, axis=0)
@@ -546,8 +545,7 @@ class Skeleton(object):
     for attr in self.extra_attributes:
       name = attr['id']
       buf = getattr(self, name)
-      name_vector_map = np.vectorize(lambda idx: buf[idx])
-      eff_name = name_vector_map(uniq_idx)
+      eff_name = buf[ uniq_idx ]
       setattr(skel, name, eff_name)
 
     if remove_disconnected_vertices:
@@ -570,33 +568,26 @@ class Skeleton(object):
       idx_map[tuple(vert)] = i
 
     connected_verts = np.unique(self.vertices[ self.edges.flatten() ], axis=0)
-    Nv = connected_verts.shape[0]
 
-    idx_reverse_map = {}
+    edge_map = np.zeros( (len(self.vertices),), dtype=self.edges.dtype)
+    vertex_remap = np.zeros( (len(self.vertices),), dtype=np.int32) - 1
     for i, vert in enumerate(connected_verts):
-      idx_reverse_map[idx_map[tuple(vert)]] = i
+      reverse_idx = idx_map[tuple(vert)]
+      edge_map[reverse_idx] = i
+      vertex_remap[i] = reverse_idx
 
-    edges = []
-    for e1, e2 in self.edges:
-      e1 = idx_reverse_map[e1]
-      e2 = idx_reverse_map[e2]
-
-      if e1 < e2:
-        edges += [ (e1, e2) ]
-      else:
-        edges += [ (e2, e1) ]
-
-    edges = np.array(edges, dtype=np.uint32)
+    edges = np.sort(edge_map[self.edges], axis=1)
+    vertex_remap = vertex_remap[ vertex_remap > -1 ]
 
     skel = Skeleton(connected_verts, edges, segid=self.id)
 
+    if len(self.extra_attributes) == 0:
+      return skel
+
     for attr in self.extra_attributes:
       name = attr['id']
-      skel_buf = np.zeros( (Nv,), dtype=attr['data_type'] )
       self_buf = getattr(self, name)
-      for i, vert in enumerate(connected_verts):
-        reverse_idx = idx_map[tuple(vert)]
-        skel_buf[i] = self_buf[reverse_idx]
+      skel_buf = self_buf[vertex_remap]
       setattr(skel, name, skel_buf)
         
     return skel
@@ -816,7 +807,7 @@ class Skeleton(object):
     return paths
 
   def _compute_components(self):
-    skel = self.consolidate()
+    skel = self.consolidate(remove_disconnected_vertices=False)
     if skel.edges.size == 0:
       return skel, []
 
