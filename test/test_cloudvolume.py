@@ -93,6 +93,8 @@ def test_aligned_read():
     assert cutout2.shape == (64,64,64,1) 
     assert np.all(cutout2 == data[64:128,:64,:64,:])
 
+    assert cv[25, 25, 25].shape == (1,1,1,1)
+
 def test_save_images():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))  

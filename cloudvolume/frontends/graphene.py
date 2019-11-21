@@ -102,12 +102,15 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     Returns: img
     """
+    if type(bbox) is Vec:
+      bbox = Bbox(bbox, bbox+1)
+    
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=self.bounded, 
       autocrop=self.autocrop
     )
-    
+  
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
 
