@@ -101,8 +101,13 @@ class GrapheneMeshSource(PrecomputedMeshSource):
       mesh = Mesh.concatenate(*fragments)
       mesh.segid = seg_id
       resolution = self.meta.resolution(self.config.mip)
-      mesh = mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution, is_draco=is_draco)
-      meshes.append(mesh.consolidate())
+
+      if remove_duplicate_vertices:
+        mesh = mesh.consolidate()
+      else:
+        mesh = mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution, is_draco=is_draco)
+      
+      meshes.append(mesh)
 
     if not fuse:
       return { m.segid: m for m in meshes }
