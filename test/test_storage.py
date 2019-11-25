@@ -23,7 +23,7 @@ def test_read_write():
       url = url + '-' + str(TEST_NUMBER)
       with Storage(url, n_threads=num_threads) as s:
         content = b'some_string'
-        s.put_file('info', content, compress=None)
+        s.put_file('info', content, compress=None, cache_control='no-cache')
         s.wait()
         assert s.get_file('info') == content
         assert s.get_file('nonexistentfile') is None
@@ -41,7 +41,7 @@ def test_read_write():
         s.delete_file('info')
         s.wait()
 
-        s.put_json('info', { 'omg': 'wow' })
+        s.put_json('info', { 'omg': 'wow' }, cache_control='no-cache')
         s.wait()
         results = s.get_json('info')
         assert results == { 'omg': 'wow' }
