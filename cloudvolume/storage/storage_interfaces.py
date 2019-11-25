@@ -12,6 +12,7 @@ import google.cloud.exceptions
 from google.cloud.storage import Batch, Client
 import requests
 import tenacity
+import brotli
 
 from cloudvolume.connectionpools import S3ConnectionPool, GCloudBucketPool
 from cloudvolume.lib import mkdir
