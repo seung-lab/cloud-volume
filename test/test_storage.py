@@ -6,7 +6,7 @@ import re
 import time
 
 from cloudvolume.storage import Storage
-from cloudvolume import exceptions
+from cloudvolume import exceptions, Bbox, chunks
 from layer_harness import delete_layer, TEST_NUMBER
 
 
@@ -85,6 +85,18 @@ def test_http_read():
     ],
     "type": "image"
   }
+
+
+def test_http_read_brotli_image():
+  fn = "2_2_50/4096-4608_4096-4608_112-128"
+  bbox = Bbox.from_filename(fn) # possible off by one error w/ exclusive bounds
+
+  with Storage("https://open-neurodata.s3.amazonaws.com/kharris15/apical/em") as stor:
+    img_bytes = stor.get_file(fn)
+
+  img = chunks.decode(img_bytes, 'raw', shape=bbox.size3(), dtype="uint8")
+
+  assert img.shape == (512, 512, 16)
 
 
 def test_delete():
