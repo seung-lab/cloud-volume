@@ -151,14 +151,20 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       return mesh.consolidate()
 
     if self.meta.mip is not None:
-      resolution = self.meta.meta.resolution(self.meta.mip)
+      mip = self.meta.mip
     else:
       # This will usually be wrong, but it's backwards compatible.
       # Throwing an exception instead would probably break too many
       # things.
-      resolution = self.meta.meta.resolution(self.config.mip)
+      mip = self.config.mip
 
-    return mesh.deduplicate_chunk_boundaries(chunk_size*resolution, is_draco=False)
+    resolution = self.meta.meta.resolution(mip)
+    chunk_offset = self.meta.meta.voxel_offset(mip)
+
+    return mesh.deduplicate_chunk_boundaries(
+      chunk_size * resolution, is_draco=False,
+      offset=(chunk_offset * resolution)
+    )
 
   def save(self, segids, filepath=None, file_format='ply'):
     """
