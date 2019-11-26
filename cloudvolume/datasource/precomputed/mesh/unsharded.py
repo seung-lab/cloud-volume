@@ -10,9 +10,9 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from ...lib import yellow, red, toiter
-from ...mesh import Mesh
-from ...storage import Storage
+from ....lib import yellow, red, toiter
+from ....mesh import Mesh
+from ....storage import Storage
 
 SEGIDRE = re.compile(r'\b(\d+):0.*?$')
 
@@ -24,7 +24,7 @@ def filename_to_segid(filename):
   segid, = matches.groups()
   return int(segid)
 
-class PrecomputedMeshSource(object):
+class UnshardedLegacyPrecomputedMeshSource(object):
   def __init__(self, meta, cache, config, readonly=False):
     self.meta = meta
     self.cache = cache
@@ -32,9 +32,18 @@ class PrecomputedMeshSource(object):
 
     self.readonly = bool(readonly)
 
+    self.spatial_index = None
+    if self.meta.spatial_index:
+      self.spatial_index = CachedSpatialIndex(
+        self.cache,
+        cloudpath=self.meta.layerpath, 
+        bounds=self.meta.meta.bounds(0) * self.meta.meta.resolution(0),
+        chunk_size=self.meta.info['spatial_index']['chunk_size'],
+      )
+
   @property
   def path(self):
-    return self.meta.info['mesh']
+    return self.meta.mesh_path
 
   def manifest_path(self, segid):
     mesh_json_file_name = str(segid) + ':0'
@@ -178,3 +187,10 @@ class PrecomputedMeshSource(object):
     except AttributeError:
       with open(filepath, 'wb') as f:
         f.write(data)
+
+  def get_bbox(self, bbox):
+    if self.spatial_index is None:
+      raise IndexError("A spatial index has not been created.")
+
+    segids = self.spatial_index.query(bbox)
+    return self.get(segids, fuse=False)
