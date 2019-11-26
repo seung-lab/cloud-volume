@@ -1,6 +1,10 @@
+import re
+
 from ....lib import jsonify
 
 import numpy as np
+
+MESH_MIP_REGEXP = re.compile(r'mesh_mip_(\d+)')
 
 class PrecomputedMeshMetadata(object):
   def __init__(self, meta, cache=None, info=None):
@@ -12,6 +16,27 @@ class PrecomputedMeshMetadata(object):
     else:
       self.info = self.fetch_info()
 
+  @property
+  def chunk_size(self):
+    if 'chunk_size' in self.info:
+      return self.info['chunk_size']
+    return None
+
+  @property
+  def mip(self):
+    if 'mip' in self.info:
+      return int(self.info['mip'])
+    
+    # Igneous has long used mesh_mip_N_err_M to store
+    # some information about the meshing job. Let's 
+    # exploit that for now.
+    matches = re.search(MESH_MIP_REGEXP, self.mesh_path)
+    if matches is None:
+      return None 
+
+    mip, = matches.groups()
+    return int(mip)
+  
   @property
   def spatial_index(self):
     if 'spatial_index' in self.info:
