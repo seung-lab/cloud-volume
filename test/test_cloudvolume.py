@@ -21,7 +21,7 @@ from cloudvolume.datasource.precomputed.common import cdn_cache_control
 from cloudvolume.datasource.precomputed.image.tx import generate_chunks
 
 def test_from_numpy():
-  arr = np.random.random_integers(0, high=255, size=(128,128, 128))
+  arr = np.random.randint(0, high=256, size=(128,128, 128))
   arr = np.asarray(arr, dtype=np.uint8)
   vol = CloudVolume.from_numpy(arr, max_mip=1)
   arr2 = vol[:,:,:]
