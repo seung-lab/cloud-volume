@@ -6,7 +6,6 @@ import numpy as np
 import shutil
 import pytest
 import os
-from meshparty import trimesh_io
 from scipy import sparse 
 
 tempdir = tempfile.mkdtemp()
@@ -170,11 +169,66 @@ def test_gcv(graphene_vol):
     assert cutout_sv.shape == (5,5,5,1)
     assert graphene_vol[0,0,0].shape == (1,1,1,1)
 
+
+def faces_to_edges(faces, return_index=False):
+    """
+    Given a list of faces (n,3), return a list of edges (n*3,2)
+    Parameters
+    -----------
+    faces : (n, 3) int
+      Vertex indices representing faces
+    Returns
+    -----------
+    edges : (n*3, 2) int
+      Vertex indices representing edges
+    """
+    faces = np.asanyarray(faces)
+
+    # each face has three edges
+    edges = faces[:, [0, 1, 1, 2, 2, 0]].reshape((-1, 2))
+
+    if return_index:
+        # edges are in order of faces due to reshape
+        face_index = np.tile(np.arange(len(faces)),
+                             (3, 1)).T.reshape(-1)
+        return edges, face_index
+    return edges
+
+    
+def create_csgraph(vertices, edges, euclidean_weight=True, directed=False):
+    '''
+    Builds a csr graph from vertices and edges, with optional control
+    over weights as boolean or based on Euclidean distance.
+    '''
+    if euclidean_weight:
+        xs = vertices[edges[:,0]]
+        ys = vertices[edges[:,1]]
+        weights = np.linalg.norm(xs-ys, axis=1)
+        use_dtype = np.float32
+    else:   
+        weights = np.ones((len(edges),)).astype(np.int8)
+        use_dtype = np.int8 
+
+    if directed:
+        edges = edges.T
+    else:
+        edges = np.concatenate([edges.T, edges.T[[1, 0]]], axis=1)
+        weights = np.concatenate([weights, weights]).astype(dtype=use_dtype)
+
+    csgraph = sparse.csr_matrix((weights, edges),
+                                shape=[len(vertices), ] * 2,
+                                dtype=use_dtype)
+
+    return csgraph
+
 def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
 
     mesh = cv_graphene_mesh_precomputed.mesh.get(TEST_SEG_ID)
-    tmesh = trimesh_io.Mesh(mesh[TEST_SEG_ID].vertices, mesh[TEST_SEG_ID].faces)
-    ccs, labels =  sparse.csgraph.connected_components(tmesh.csgraph,
+    edges = faces_to_edges(mesh[TEST_SEG_ID].faces)
+    graph = create_csgraph(mesh[TEST_SEG_ID].vertices,
+                           edges,
+                           directed=False)
+    ccs, labels =  sparse.csgraph.connected_components(graph,
                                                        directed=False)
     assert(ccs==3)
 
