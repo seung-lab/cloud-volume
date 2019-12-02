@@ -218,6 +218,11 @@ class ShardReader(object):
   def get_minishard_index(self, index, shard_no, minishard_no, path=""):
     index_offset = self.spec.index_length()
     bytes_start, bytes_end = index[minishard_no]
+
+    # most typically: [0,0] for an incomplete shard
+    if bytes_start == bytes_end:
+      return None
+
     bytes_start += index_offset
     bytes_end += index_offset
     bytes_start, bytes_end = int(bytes_start), int(bytes_end)
