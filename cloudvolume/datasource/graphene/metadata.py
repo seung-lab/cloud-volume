@@ -37,6 +37,12 @@ class GrapheneMetadata(PrecomputedMetadata):
     return r.json()
 
   @property
+  def mesh_path(self):
+    if 'mesh' in self.info:
+      return self.info['mesh']
+    return 'mesh'
+
+  @property
   def cloudpath(self):
     data_dir = self.info['data_dir']
     if self.use_https:
