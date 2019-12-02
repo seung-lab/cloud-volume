@@ -236,7 +236,12 @@ class ShardReader(object):
       minishard_index[i, 0] += minishard_index[i-1, 0]
       minishard_index[i, 1] += minishard_index[i-1, 1] + minishard_index[i-1, 2]
 
-    idx = np.where(minishard_index == label)[0][0]
+    idx = np.where(minishard_index[:,0] == label)[0]
+    if len(idx) == 0:
+      return None
+    else:
+      idx = idx[0]
+
     _, offset, size = minishard_index[idx,:]
     offset = int(offset + index_offset)
        
