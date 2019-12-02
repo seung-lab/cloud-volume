@@ -12,9 +12,8 @@ numpy>=1.13.3
 python-jsonschema-objects>=0.3.3
 Pillow>=4.2.1
 protobuf>=3.3.0
-requests>=2.18.4
+requests>=2.22.0
 six>=1.10.0
 tenacity>=4.10.0
 tqdm
-urllib3[secure]==1.24.2
-brotli>=1.0.7
+urllib3[secure,brotli]>=1.25.7
