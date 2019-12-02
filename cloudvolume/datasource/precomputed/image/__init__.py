@@ -176,6 +176,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       background_color=self.background_color,
       non_aligned_writes=self.non_aligned_writes,
       green=self.config.green,
+      fill_missing=self.fill_missing, # applies only to unaligned writes
     )
 
   def exists(self, bbox, mip=None):

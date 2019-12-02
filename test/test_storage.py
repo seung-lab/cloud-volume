@@ -110,8 +110,8 @@ def test_delete():
     url = url + '-' + str(TEST_NUMBER)
     with Storage(url, n_threads=1) as s:
       content = b'some_string'
-      s.put_file('delete-test', content, compress=None).wait()
-      s.put_file('delete-test-compressed', content, compress='gzip').wait()
+      s.put_file('delete-test', content, compress=None, cache_control='no-cache').wait()
+      s.put_file('delete-test-compressed', content, compress='gzip', cache_control='no-cache').wait()
       assert s.get_file('delete-test') == content
       s.delete_file('delete-test').wait()
       assert s.get_file('delete-test') is None
@@ -121,8 +121,8 @@ def test_delete():
       assert s.get_file('delete-test-compressed') is None
 
       # Reset for batch delete
-      s.put_file('delete-test', content, compress=None).wait()
-      s.put_file('delete-test-compressed', content, compress='gzip').wait()
+      s.put_file('delete-test', content, compress=None, cache_control='no-cache').wait()
+      s.put_file('delete-test-compressed', content, compress='gzip', cache_control='no-cache').wait()
       assert s.get_file('delete-test') == content
       assert s.get_file('delete-test-compressed') == content
 
