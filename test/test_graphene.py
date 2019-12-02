@@ -6,6 +6,8 @@ import numpy as np
 import shutil
 import pytest
 import os
+from meshparty import trimesh_io
+from scipy import sparse 
 
 tempdir = tempfile.mkdtemp()
 TEST_PATH = "file:/{}".format(tempdir)
@@ -19,7 +21,7 @@ TEST_SEG_ID = 648518346349515986
 def cv_graphene_mesh_precomputed(requests_mock):
     test_dir = os.path.dirname(os.path.abspath(__file__))
     test_cv_dir = os.path.join(test_dir,'test_cv')
-    test_cv_path = "file:/{}".format(test_cv_dir)
+    test_cv_path = "file://{}".format(test_cv_dir)
 
     info_d={
         "data_dir": test_cv_path,
@@ -170,7 +172,9 @@ def test_gcv(graphene_vol):
 
 def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
 
-    filenames = cv_graphene_mesh_precomputed.mesh._get_fragment_filenames(TEST_SEG_ID, lod=0, level=2)
-
     mesh = cv_graphene_mesh_precomputed.mesh.get(TEST_SEG_ID)
+    tmesh = trimesh_io.Mesh(mesh[TEST_SEG_ID].vertices, mesh[TEST_SEG_ID].faces)
+    ccs, labels =  sparse.csgraph.connected_components(tmesh.csgraph,
+                                                       directed=False)
+    assert(ccs==3)
 
