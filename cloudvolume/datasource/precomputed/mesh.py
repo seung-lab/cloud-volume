@@ -142,7 +142,10 @@ class PrecomputedMeshSource(object):
       return mesh.consolidate()
 
     resolution = self.meta.resolution(self.config.mip)
-    return mesh.deduplicate_chunk_boundaries(chunk_size*resolution, is_draco=False)
+    offset = self.meta.voxel_offset(self.config.mip)
+    return mesh.deduplicate_chunk_boundaries(chunk_size * resolution,
+                                             offset=offset*resolution,
+                                             is_draco=False)
 
   def save(self, segids, filepath=None, file_format='ply'):
     """

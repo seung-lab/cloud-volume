@@ -23,15 +23,15 @@ def deprecation_notice(key):
     NOTICE[key] += 1
 
 
-def dist_to_chunk(v, chunk_size):
-      plus_one_dist = np.mod(v, chunk_size)
+def dist_to_chunk(v, chunk_size, offset=np.array([0,0,0])):
+      plus_one_dist = np.mod(v-offset[np.newaxis,:], chunk_size)
       minus_one_dist = chunk_size - plus_one_dist
       return np.minimum(plus_one_dist, minus_one_dist)
   
-def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=21):
-    d_me = dist_to_chunk(verts, chunk_size)
-    d_up = dist_to_chunk(verts+draco_grid_size, chunk_size)
-    d_down = dist_to_chunk(verts-draco_grid_size, chunk_size)
+def is_draco_chunk_aligned(verts, chunk_size, offset=np.array([0,0,0]), draco_grid_size=21):
+    d_me = dist_to_chunk(verts, chunk_size, offset=offset)
+    d_up = dist_to_chunk(verts+draco_grid_size, chunk_size, offset=offset)
+    d_down = dist_to_chunk(verts-draco_grid_size, chunk_size, offset=offset)
     is_draco_grid = np.any((d_me<d_down) &(d_me<d_up) & (d_me<draco_grid_size), axis=1)
     return is_draco_grid
     
@@ -325,14 +325,17 @@ end_header
       encoding_options=mesh_object.encoding_options
     )
 
-  def deduplicate_chunk_boundaries(self, chunk_size, is_draco=False, draco_grid_size=21):
+  def deduplicate_chunk_boundaries(self, chunk_size, offset=np.array([0,0,0]), is_draco=False, draco_grid_size=21):
+    
+    verts = self.vertices
+    faces = self.faces
+    
     # find all vertices that are exactly on chunk_size boundaries
     if is_draco:
-      is_chunk_aligned = is_draco_chunk_aligned(self.vertices, chunk_size, draco_grid_size=draco_grid_size)
+      is_chunk_aligned = is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=draco_grid_size)
     else:
-      is_chunk_aligned = np.any(np.mod(self.vertices, chunk_size) == 0, axis=1)
+      is_chunk_aligned = np.any(np.mod(verts- offset[np.newaxis,:], chunk_size) == 0, axis=1)
 
-    verts, faces = self.vertices, self.faces
 
     # find all vertices that have exactly 2 duplicates
     unique_vertices, unique_inverse, counts = np.unique(
