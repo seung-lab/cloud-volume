@@ -12,9 +12,10 @@ TEST_PATH = "file:/{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
 MESH_TEST_DATASET_NAME = "meshvol"
 PCG_LOCATION = "http://localhost/segmentation/1.0/"
-PCG_MESH_LOCATION = "http://localhost/meshing/1.0/"
+PCG_MESH_LOCATION = "http://localhost./meshing/1.0/"
+TEST_SEG_ID = 648518346349515986
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def cv_graphene_mesh_precomputed(requests_mock):
     test_dir = os.path.dirname(os.path.abspath(__file__))
     test_cv_dir = os.path.join(test_dir,'test_cv')
@@ -68,12 +69,13 @@ def cv_graphene_mesh_precomputed(requests_mock):
     }
     requests_mock.get(PCG_LOCATION+MESH_TEST_DATASET_NAME+"/info", json=info_d)
     requests_mock.get(PCG_LOCATION+MESH_TEST_DATASET_NAME+"/info/", json=info_d)
-    frag_files = os.path.listdir(os.path.join(test_cv_dir, info_d['mesh']))
-    frag_files = [f for f in files if f[0]=='9']
+    frag_files = os.listdir(os.path.join(test_cv_dir, info_d['mesh']))
+    frag_files = [f[:-3] for f in frag_files if f[0]=='9']
     frag_d = {'fragments':frag_files}
-    requests_mock.get(PCG_MESH_LOCATION + MESH_TEST_DATSET_NAME+f"/manifest/{648518346349515986:0}",
+    mock_url = PCG_MESH_LOCATION + MESH_TEST_DATASET_NAME+f"/manifest/{TEST_SEG_ID}:0?verify=True"
+    requests_mock.get(mock_url,
                       json=frag_d)
-    
+    print(mock_url)
     gcv = cloudvolume.CloudVolume(
         "graphene://{}{}".format(PCG_LOCATION, MESH_TEST_DATASET_NAME)
     )
@@ -166,4 +168,9 @@ def test_gcv(graphene_vol):
     assert cutout_sv.shape == (5,5,5,1)
     assert graphene_vol[0,0,0].shape == (1,1,1,1)
 
-    
+def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
+
+    filenames = cv_graphene_mesh_precomputed.mesh._get_fragment_filenames(TEST_SEG_ID, lod=0, level=2)
+
+    mesh = cv_graphene_mesh_precomputed.mesh.get(TEST_SEG_ID)
+

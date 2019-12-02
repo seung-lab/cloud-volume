@@ -16,6 +16,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     self.server_path = extract_graphene_path(self.server_url)
     self.use_https = use_https
     self.auth_header = None
+    self.spatial_index = None
     if use_auth:
       token = None
       if chunkedgraph_credentials:

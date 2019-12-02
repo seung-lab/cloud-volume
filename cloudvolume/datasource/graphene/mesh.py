@@ -16,9 +16,10 @@ from ...mesh import Mesh
 from ... import paths
 from ...storage import Storage, GreenStorage
 
-from ..precomputed.mesh import PrecomputedMeshSource
+from ..precomputed.mesh import UnshardedLegacyPrecomputedMeshSource
 
-class GrapheneMeshSource(PrecomputedMeshSource):
+class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
+      
   def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
     # TODO: add lod to endpoint
     query_d = {
