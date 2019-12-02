@@ -1,0 +1,202 @@
+{
+  "data_dir": "file:///Users/forrestc/ConnectomeStack/cloud-volume/test/test_files/",
+  "data_type": "uint64",
+  "graph": {
+    "chunk_size": [
+      512,
+      512,
+      128
+    ]
+  },
+  "mesh": "mesh_mip_2_err_40_sv16",
+  "num_channels": 1,
+  "scales": [
+    {
+      "chunk_sizes": [
+        [
+          512,
+          512,
+          16
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "8_8_40",
+      "resolution": [
+        8,
+        8,
+        40
+      ],
+      "size": [
+        43520,
+        26112,
+        2176
+      ],
+      "voxel_offset": [
+        17920,
+        14848,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          512,
+          512,
+          16
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "16_16_40",
+      "resolution": [
+        16,
+        16,
+        40
+      ],
+      "size": [
+        21760,
+        13056,
+        2176
+      ],
+      "voxel_offset": [
+        8960,
+        7424,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          512,
+          512,
+          16
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "32_32_40",
+      "resolution": [
+        32,
+        32,
+        40
+      ],
+      "size": [
+        10880,
+        6528,
+        2176
+      ],
+      "voxel_offset": [
+        4480,
+        3712,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          512,
+          512,
+          16
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "64_64_40",
+      "resolution": [
+        64,
+        64,
+        40
+      ],
+      "size": [
+        5440,
+        3264,
+        2176
+      ],
+      "voxel_offset": [
+        2240,
+        1856,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          512,
+          512,
+          16
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "128_128_40",
+      "resolution": [
+        128,
+        128,
+        40
+      ],
+      "size": [
+        2720,
+        1632,
+        2176
+      ],
+      "voxel_offset": [
+        1120,
+        928,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          512,
+          512,
+          16
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "256_256_40",
+      "resolution": [
+        256,
+        256,
+        40
+      ],
+      "size": [
+        1360,
+        816,
+        2176
+      ],
+      "voxel_offset": [
+        560,
+        464,
+        0
+      ]
+    }
+  ],
+  "type": "segmentation"
+}

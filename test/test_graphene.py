@@ -5,11 +5,81 @@ import cloudvolume
 import numpy as np
 import shutil
 import pytest
+import os
 
 tempdir = tempfile.mkdtemp()
 TEST_PATH = "file:/{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
+MESH_TEST_DATASET_NAME = "meshvol"
 PCG_LOCATION = "http://localhost/segmentation/1.0/"
+PCG_MESH_LOCATION = "http://localhost/meshing/1.0/"
+
+@pytest.fixture(scope='session')
+def cv_graphene_mesh_precomputed(requests_mock):
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    test_cv_dir = os.path.join(test_dir,'test_cv')
+    test_cv_path = "file:/{}".format(test_cv_dir)
+
+    info_d={
+        "data_dir": test_cv_path,
+        "data_type": "uint64",
+        "graph": {
+        "chunk_size": [
+        512,
+        512,
+        128
+        ]
+        },
+        "mesh": "mesh_mip_2_err_40_sv16",
+        "num_channels": 1,
+        "scales": [
+        {
+        "chunk_sizes": [
+            [
+            512,
+            512,
+            16
+            ]
+        ],
+        "compressed_segmentation_block_size": [
+            8,
+            8,
+            8
+        ],
+        "encoding": "compressed_segmentation",
+        "key": "8_8_40",
+        "resolution": [
+            8,
+            8,
+            40
+        ],
+        "size": [
+            43520,
+            26112,
+            2176
+        ],
+        "voxel_offset": [
+            17920,
+            14848,
+            0
+        ]
+        }],
+        "type": "segmentation"
+    }
+    requests_mock.get(PCG_LOCATION+MESH_TEST_DATASET_NAME+"/info", json=info_d)
+    requests_mock.get(PCG_LOCATION+MESH_TEST_DATASET_NAME+"/info/", json=info_d)
+    frag_files = os.path.listdir(os.path.join(test_cv_dir, info_d['mesh']))
+    frag_files = [f for f in files if f[0]=='9']
+    frag_d = {'fragments':frag_files}
+    requests_mock.get(PCG_MESH_LOCATION + MESH_TEST_DATSET_NAME+f"/manifest/{648518346349515986:0}",
+                      json=frag_d)
+    
+    gcv = cloudvolume.CloudVolume(
+        "graphene://{}{}".format(PCG_LOCATION, MESH_TEST_DATASET_NAME)
+    )
+
+    yield gcv
+
 
 @pytest.fixture(scope='session')
 def cv_supervoxels(N=64, blockN=16):
