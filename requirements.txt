@@ -8,11 +8,11 @@ gevent
 google-auth>=1.0.2
 google-cloud-storage>=1.23.0
 json5==0.5.1
-lru-dict
 numpy>=1.13.3
 python-jsonschema-objects>=0.3.3
 Pillow>=4.2.1
 protobuf>=3.3.0
+pylru
 requests>=2.18.4
 six>=1.10.0
 tenacity>=4.10.0

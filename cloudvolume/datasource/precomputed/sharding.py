@@ -6,7 +6,7 @@ import json
 import struct
 
 import numpy as np
-from lru import LRU
+import pylru
 from tqdm import tqdm
 
 from . import mmh3
@@ -185,8 +185,8 @@ class ShardReader(object):
     self.cache = cache
     self.spec = spec
 
-    self.shard_index_cache = LRU(shard_index_cache_size)
-    self.minishard_index_cache = LRU(minishard_index_cache_size)
+    self.shard_index_cache = pylru.lrucache(shard_index_cache_size)
+    self.minishard_index_cache = pylru.lrucache(minishard_index_cache_size)
 
   def get_index(self, label, shard_number, path=""):
     filename = str(shard_number)
