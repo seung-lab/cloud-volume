@@ -61,7 +61,10 @@ class GrapheneMetadata(PrecomputedMetadata):
   @property
   def manifest_endpoint(self):
     pth = self.server_path
-    url = pth.scheme + '://' + pth.subdomain + '.' + pth.domain
+    url = pth.scheme + '://'
+    if pth.subdomain is not None:
+      url += pth.subdomain + '.' 
+    url += pth.domain
     return url + '/' + posixpath.join('meshing', pth.version, pth.dataset, 'manifest')
 
 GraphenePath = namedtuple('GraphenePath', ('scheme', 'subdomain', 'domain', 'modality', 'version', 'dataset'))
