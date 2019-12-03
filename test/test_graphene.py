@@ -221,7 +221,7 @@ def create_csgraph(vertices, edges, euclidean_weight=True, directed=False):
                                 dtype=use_dtype)
 
     return csgraph
-
+@pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
 def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
 
     mesh = cv_graphene_mesh_precomputed.mesh.get(TEST_SEG_ID)
