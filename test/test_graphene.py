@@ -7,6 +7,7 @@ import shutil
 import pytest
 import os
 from scipy import sparse 
+import sys
 
 tempdir = tempfile.mkdtemp()
 TEST_PATH = "file://{}".format(tempdir)
