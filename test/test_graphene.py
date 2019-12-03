@@ -295,7 +295,7 @@ def create_csgraph(vertices, edges, euclidean_weight=True, directed=False):
 @pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
 def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
 
-    mesh = cv_graphene.mesh.get(TEST_SEG_ID)
+    mesh = cv_graphene_mesh_precomputed.mesh.get(TEST_SEG_ID)
     edges = faces_to_edges(mesh[TEST_SEG_ID].faces)
     graph = create_csgraph(mesh[TEST_SEG_ID].vertices,
                            edges,
@@ -307,7 +307,7 @@ def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
 @pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
 def test_graphene_mesh_get(cv_graphene_mesh_draco):
 
-    mesh = cv_graphene.mesh.get(TEST_SEG_ID)
+    mesh = cv_graphene_mesh_draco.mesh.get(TEST_SEG_ID)
     edges = faces_to_edges(mesh[TEST_SEG_ID].faces)
     graph = create_csgraph(mesh[TEST_SEG_ID].vertices,
                            edges,
