@@ -72,7 +72,7 @@ def test_threads_die():
   with ThreadedQueue(n_threads=40) as tq:
     threads = tq._threads
   
-  assert not any(map(lambda t: t.isAlive(), threads))
+  assert not any(map(lambda t: t.is_alive(), threads))
 
 def test_thread_exceptions():
 
