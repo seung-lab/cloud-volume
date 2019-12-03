@@ -9,7 +9,7 @@ import os
 from scipy import sparse 
 
 tempdir = tempfile.mkdtemp()
-TEST_PATH = "file:/{}".format(tempdir)
+TEST_PATH = "file://{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
 MESH_TEST_DATASET_NAME = "meshvol"
 PCG_LOCATION = "https://www.dynamicannotationframework.com/segmentation/1.0/"
@@ -19,11 +19,11 @@ TEST_SEG_ID = 648518346349515986
 @pytest.fixture()
 def cv_graphene_mesh_precomputed(requests_mock):
     test_dir = os.path.dirname(os.path.abspath(__file__))
-    test_cv_dir = os.path.join(test_dir,'test_cv')
-    test_cv_path = "file://{}".format(test_cv_dir)
+    graphene_test_cv_dir = os.path.join(test_dir,'test_cv')
+    graphene_test_cv_path = "file://{}".format(graphene_test_cv_dir)
 
     info_d={
-        "data_dir": test_cv_path,
+        "data_dir": graphene_test_cv_path,
         "data_type": "uint64",
         "graph": {
         "chunk_size": [
@@ -69,8 +69,10 @@ def cv_graphene_mesh_precomputed(requests_mock):
         "type": "segmentation"
     }
     requests_mock.get(PCG_LOCATION+MESH_TEST_DATASET_NAME+"/info", json=info_d)
-    requests_mock.get(PCG_LOCATION+MESH_TEST_DATASET_NAME+"/info/", json=info_d)
-    frag_files = os.listdir(os.path.join(test_cv_dir, info_d['mesh']))
+  
+    frag_files = os.listdir(os.path.join(graphene_test_cv_dir, info_d['mesh']))
+    # the file are saved as .gz but we want to list the non gz version
+    # as cloudvolume will take care of finding the compressed files
     frag_files = [f[:-3] for f in frag_files if f[0]=='9']
     frag_d = {'fragments':frag_files}
     mock_url = PCG_MESH_LOCATION + MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
@@ -151,7 +153,6 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
     }
 
     requests_mock.get(PCG_LOCATION+TEST_DATASET_NAME+"/info", json=info_d)
-    requests_mock.get(PCG_LOCATION+TEST_DATASET_NAME+"/info/")
     
     def mock_get_leaves(self, root_id, bbox, mip):
         return np.array([0,1,2,3], dtype=np.uint64)
