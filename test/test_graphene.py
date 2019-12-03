@@ -12,8 +12,8 @@ tempdir = tempfile.mkdtemp()
 TEST_PATH = "file:/{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
 MESH_TEST_DATASET_NAME = "meshvol"
-PCG_LOCATION = "http://localhost/segmentation/1.0/"
-PCG_MESH_LOCATION = "http://localhost./meshing/1.0/"
+PCG_LOCATION = "https://www.dynamicannotationframework.com/segmentation/1.0/"
+PCG_MESH_LOCATION = "https://www.dynamicannotationframework.com/meshing/1.0/"
 TEST_SEG_ID = 648518346349515986
 
 @pytest.fixture()
