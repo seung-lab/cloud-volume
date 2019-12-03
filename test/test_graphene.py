@@ -73,7 +73,7 @@ def cv_graphene_mesh_precomputed(requests_mock):
     frag_files = os.listdir(os.path.join(test_cv_dir, info_d['mesh']))
     frag_files = [f[:-3] for f in frag_files if f[0]=='9']
     frag_d = {'fragments':frag_files}
-    mock_url = PCG_MESH_LOCATION + MESH_TEST_DATASET_NAME+f"/manifest/{TEST_SEG_ID}:0?verify=True"
+    mock_url = PCG_MESH_LOCATION + MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
     requests_mock.get(mock_url,
                       json=frag_d)
     print(mock_url)
