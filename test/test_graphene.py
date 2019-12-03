@@ -11,7 +11,8 @@ from scipy import sparse
 tempdir = tempfile.mkdtemp()
 TEST_PATH = "file://{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
-MESH_TEST_DATASET_NAME = "meshvol"
+PRECOMPUTED_MESH_TEST_DATASET_NAME = "meshvol_precompute"
+DRACO_MESH_TEST_DATASET_NAME = "meshvol_draco"
 PCG_LOCATION = "https://www.dynamicannotationframework.com/segmentation/1.0/"
 PCG_MESH_LOCATION = "https://www.dynamicannotationframework.com/meshing/1.0/"
 TEST_SEG_ID = 648518346349515986
@@ -68,23 +69,90 @@ def cv_graphene_mesh_precomputed(requests_mock):
         }],
         "type": "segmentation"
     }
-    requests_mock.get(PCG_LOCATION+MESH_TEST_DATASET_NAME+"/info", json=info_d)
+    requests_mock.get(PCG_LOCATION+PRECOMPUTED_MESH_TEST_DATASET_NAME+"/info", json=info_d)
   
     frag_files = os.listdir(os.path.join(graphene_test_cv_dir, info_d['mesh']))
     # the file are saved as .gz but we want to list the non gz version
     # as cloudvolume will take care of finding the compressed files
     frag_files = [f[:-3] for f in frag_files if f[0]=='9']
     frag_d = {'fragments':frag_files}
-    mock_url = PCG_MESH_LOCATION + MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
+    mock_url = PCG_MESH_LOCATION + PRECOMPUTED_MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
     requests_mock.get(mock_url,
                       json=frag_d)
     print(mock_url)
     gcv = cloudvolume.CloudVolume(
-        "graphene://{}{}".format(PCG_LOCATION, MESH_TEST_DATASET_NAME)
+        "graphene://{}{}".format(PCG_LOCATION, PRECOMPUTED_MESH_TEST_DATASET_NAME)
     )
 
     yield gcv
 
+@pytest.fixture()
+def cv_graphene_mesh_draco(requests_mock):
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    graphene_test_cv_dir = os.path.join(test_dir,'test_cv')
+    graphene_test_cv_path = "file://{}".format(graphene_test_cv_dir)
+
+    info_d={
+        "data_dir": graphene_test_cv_path,
+        "data_type": "uint64",
+        "graph": {
+        "chunk_size": [
+        512,
+        512,
+        128
+        ]
+        },
+        "mesh": "mesh_mip_2_draco_sv16",
+        "num_channels": 1,
+        "scales": [
+        {
+        "chunk_sizes": [
+            [
+            512,
+            512,
+            16
+            ]
+        ],
+        "compressed_segmentation_block_size": [
+            8,
+            8,
+            8
+        ],
+        "encoding": "compressed_segmentation",
+        "key": "8_8_40",
+        "resolution": [
+            8,
+            8,
+            40
+        ],
+        "size": [
+            43520,
+            26112,
+            2176
+        ],
+        "voxel_offset": [
+            17920,
+            14848,
+            0
+        ]
+        }],
+        "type": "segmentation"
+    }
+    requests_mock.get(PCG_LOCATION+DRACO_MESH_TEST_DATASET_NAME+"/info", json=info_d)
+  
+    frag_files = os.listdir(os.path.join(graphene_test_cv_dir, info_d['mesh']))
+    # we want to filter out the manifest file
+    frag_files = [f for f in frag_files if f[0]=='1']
+    frag_d = {'fragments':frag_files}
+    mock_url = PCG_MESH_LOCATION + DRACO_MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
+    requests_mock.get(mock_url,
+                      json=frag_d)
+    print(mock_url)
+    gcv = cloudvolume.CloudVolume(
+        "graphene://{}{}".format(PCG_LOCATION, DRACO_MESH_TEST_DATASET_NAME)
+    )
+
+    yield gcv
 
 @pytest.fixture(scope='session')
 def cv_supervoxels(N=64, blockN=16):
@@ -221,10 +289,12 @@ def create_csgraph(vertices, edges, euclidean_weight=True, directed=False):
                                 dtype=use_dtype)
 
     return csgraph
-@pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
-def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
 
-    mesh = cv_graphene_mesh_precomputed.mesh.get(TEST_SEG_ID)
+@pytest.mark.parametrize("cv_graphene", [cv_graphene_mesh_precomputed, cv_graphene_mesh_draco])
+@pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
+def test_graphene_mesh_get(cv_graphene):
+
+    mesh = cv_graphene.mesh.get(TEST_SEG_ID)
     edges = faces_to_edges(mesh[TEST_SEG_ID].faces)
     graph = create_csgraph(mesh[TEST_SEG_ID].vertices,
                            edges,
