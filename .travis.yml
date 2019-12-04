@@ -24,5 +24,7 @@ install:
 - if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then python setup.py sdist; fi
 - if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 setup.py sdist bdist_wheel --universal; fi
 script:
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then py.test -v -x test; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 -m pytest -v -x test; fi
+- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then python -m pytest -v -x test --cov=./; fi
+- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 -m pytest -v -x test --cov=./; fi
+after_success:
+  - codecov --token=$CODECOV_TOKEN
