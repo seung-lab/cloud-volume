@@ -16,6 +16,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     self.server_path = extract_graphene_path(self.server_url)
     self.use_https = use_https
     self.auth_header = None
+    self.spatial_index = None
     if use_auth:
       token = None
       if chunkedgraph_credentials:
@@ -36,6 +37,12 @@ class GrapheneMetadata(PrecomputedMetadata):
     return r.json()
 
   @property
+  def mesh_path(self):
+    if 'mesh' in self.info:
+      return self.info['mesh']
+    return 'mesh'
+
+  @property
   def cloudpath(self):
     data_dir = self.info['data_dir']
     if self.use_https:
@@ -54,7 +61,10 @@ class GrapheneMetadata(PrecomputedMetadata):
   @property
   def manifest_endpoint(self):
     pth = self.server_path
-    url = pth.scheme + '://' + pth.subdomain + '.' + pth.domain
+    url = pth.scheme + '://'
+    if pth.subdomain is not None:
+      url += pth.subdomain + '.' 
+    url += pth.domain
     return url + '/' + posixpath.join('meshing', pth.version, pth.dataset, 'manifest')
 
 GraphenePath = namedtuple('GraphenePath', ('scheme', 'subdomain', 'domain', 'modality', 'version', 'dataset'))
