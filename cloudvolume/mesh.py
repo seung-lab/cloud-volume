@@ -16,7 +16,7 @@ def deprecation_notice(key):
   if NOTICE[key] < 1:
     print(yellow("""
   Deprecation Notice: Meshes, formerly dicts, are now PrecomputedMesh objects
-  as of CloudVolume 0.51.0. 
+  as of CloudVolume 0.51.0, renamed to Mesh objects as of 0.53.0
 
   Please change mesh['{}'] to mesh.{}
   """.format(key, key)))
