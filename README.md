@@ -57,7 +57,7 @@ pip install cloud-volume # standard installation
 
 CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/fpzip) and [`compressed_segmentation`](https://github.com/seung-lab/compressedseg), which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
 
-### Optional Dependencies 
+#### Optional Dependencies 
 
 | Tag             | Description                        | Dependencies          |
 |-----------------|------------------------------------|-----------------------|
@@ -201,7 +201,7 @@ We currently support reading the sharded skeleton format within Precomputed that
 
 Neuroglancer relies on an [`info`](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed#info-json-file-specification) file located at the root of a dataset layer to tell it how to compute file locations and interpret the data in each file. CloudVolume piggy-backs on this functionality.
 
-In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major, aka CZYX) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`.
+In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major, aka CZYX) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`. A more detailed example for uploading a local volume [is located here](https://github.com/seung-lab/cloud-volume/wiki/Example-Single-Machine-Dataset-Upload).
 
 ```python3
 from cloudvolume import CloudVolume
