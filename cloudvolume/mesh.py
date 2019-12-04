@@ -4,7 +4,7 @@ import struct
 import numpy as np
 
 from .exceptions import MeshDecodeError
-from .lib import yellow
+from .lib import yellow, Vec
 
 NOTICE = {
   'vertices': 0,
