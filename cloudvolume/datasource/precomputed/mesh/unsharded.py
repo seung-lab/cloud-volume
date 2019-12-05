@@ -158,6 +158,9 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       # things.
       mip = self.config.mip
 
+    if mip not in self.meta.meta.available_mips:
+      raise exceptions.ScaleUnavailableError("mip {} is not available.".format(mip))
+
     resolution = self.meta.meta.resolution(mip)
     chunk_offset = self.meta.meta.voxel_offset(mip)
 

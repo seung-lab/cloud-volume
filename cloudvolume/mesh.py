@@ -41,11 +41,10 @@ class Mesh(object):
   Represents the vertices, faces, and normals of a mesh
   as numpy arrays.
 
-  class PrecomputedMesh:
+  class Mesh:
     ndarray[float32, ndim=2] self.vertices: [ [x,y,z], ... ]
     ndarray[uint32,  ndim=2] self.faces:    [ [v1,v2,v3], ... ]
     ndarray[float32, ndim=2] self.normals:  [ [nx,ny,nz], ... ]
-
   """
   def __init__(
     self, vertices, faces, normals=None, 
