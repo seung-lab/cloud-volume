@@ -326,14 +326,14 @@ end_header
 
   def deduplicate_chunk_boundaries(self, chunk_size, offset=np.array([0,0,0]), is_draco=False, draco_grid_size=21):
     
-    verts = self.vertices - offset
+    verts = self.vertices
     faces = self.faces
     
     # find all vertices that are exactly on chunk_size boundaries
     if is_draco:
       is_chunk_aligned = is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=draco_grid_size)
     else:
-      is_chunk_aligned = np.any(np.mod(verts- offset[np.newaxis,:], chunk_size) == 0, axis=1)
+      is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
 
 
     # find all vertices that have exactly 2 duplicates
@@ -358,7 +358,7 @@ end_header
     vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
     newfaces = newfaces.astype(np.uint32).reshape( (len(newfaces) // 3, 3) )
 
-    return Mesh(vertices[:,0:3] + offset, newfaces, None, segid=self.segid, 
+    return Mesh(vertices[:,0:3] , newfaces, None, segid=self.segid, 
       encoding_type=self.encoding_type, encoding_options=self.encoding_options
     )
 
