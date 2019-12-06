@@ -163,7 +163,7 @@ class UnshardedLegacyPrecomputedMeshSource(object):
 
     for seg_id in meshes.keys():
       if remove_duplicate_vertices or (stitch_mesh and not chunk_size):
-        meshes[seg_id] = meshes[seg_id] .consolidate()
+        meshes[seg_id] = meshes[seg_id].consolidate()
       if (stitch_mesh and chunk_size):
         meshes[seg_id]=meshes[seg_id].deduplicate_chunk_boundaries(
                     chunk_size * resolution, is_draco=False,
