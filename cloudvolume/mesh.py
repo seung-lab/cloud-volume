@@ -326,7 +326,7 @@ end_header
 
   def deduplicate_chunk_boundaries(self, chunk_size, offset=np.array([0,0,0]), is_draco=False, draco_grid_size=21):
     
-    verts = self.vertices
+    verts = self.vertices - offset
     faces = self.faces
     
     # find all vertices that are exactly on chunk_size boundaries
