@@ -21,7 +21,7 @@ from cloudvolume.datasource.precomputed.common import cdn_cache_control
 from cloudvolume.datasource.precomputed.image.tx import generate_chunks
 
 def test_from_numpy():
-  arr = np.random.random_integers(0, high=255, size=(128,128, 128))
+  arr = np.random.randint(0, high=256, size=(128,128, 128))
   arr = np.asarray(arr, dtype=np.uint8)
   vol = CloudVolume.from_numpy(arr, max_mip=1)
   arr2 = vol[:,:,:]
@@ -92,6 +92,8 @@ def test_aligned_read():
     cutout2 = cv[74:138,20:84,0:64]
     assert cutout2.shape == (64,64,64,1) 
     assert np.all(cutout2 == data[64:128,:64,:64,:])
+
+    assert cv[25, 25, 25].shape == (1,1,1,1)
 
 def test_save_images():
   delete_layer()
@@ -1209,83 +1211,6 @@ def test_slices_to_global_coords():
   slices = cv.slices_to_global_coords( Bbox( (100, 100, 1), (500, 512, 2) ) )
   result = Bbox.from_slices(slices)
   assert result == Bbox( (100, 100, 1), (500, 512, 2) )
-
-@pytest.mark.parametrize(("use_https"),[True, False])
-def test_mesh_fragment_download(use_https):
-  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation', use_https=use_https)
-  paths = vol.mesh._get_manifests(18)
-  assert len(paths) == 1
-  assert paths[18] == [ '18:0:0-512_0-512_0-100' ]
-
-  paths = vol.mesh._get_manifests(147)
-  assert len(paths) == 1
-  assert paths[147] == [ '147:0:0-512_0-512_0-100' ]
-
-
-
-def test_get_mesh():
-  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
-  mesh = vol.mesh.get(18)
-  assert len(mesh) == 6123
-  assert mesh.vertices.shape[0] == 6123
-  assert len(mesh.faces) == 12242
-  assert isinstance(mesh.vertices, np.ndarray)
-  assert mesh.vertices.dtype == np.float32
-  assert mesh.faces.dtype == np.uint32
-
-  meshes = vol.mesh.get([148, 18], fuse=False)
-  assert len(meshes) == 2
-  mesh = meshes[18]
-  assert len(mesh.vertices) == 6123
-  assert len(mesh.vertices) == 6123
-  assert len(mesh.faces) == 12242
-  
-  try:
-    vol.mesh.get(666666666)
-    assert False
-  except ValueError:
-    pass
-
-def test_get_mesh_caching():
-  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation', cache=True)
-  vol.cache.flush()
-
-  mesh = vol.mesh.get(18)
-  
-  assert set(vol.cache.list_meshes()) == set([ '18:0:0-512_0-512_0-100.gz', '18:0' ])
-
-  assert len(mesh) == 6123
-  assert mesh.vertices.shape[0] == 6123
-  assert len(mesh.faces) == 12242
-  assert isinstance(mesh.vertices, np.ndarray)
-  assert mesh.vertices.dtype == np.float32
-  assert mesh.faces.dtype == np.uint32
-
-  meshes = vol.mesh.get([148, 18], fuse=False)
-  assert len(meshes) == 2
-  mesh = meshes[18]
-  assert len(mesh.vertices) == 6123
-  assert len(mesh.vertices) == 6123
-  assert len(mesh.faces) == 12242
-  
-  try:
-    vol.mesh.get(666666666)
-    assert False
-  except ValueError:
-    pass
-
-  vol.cache.flush()
-
-
-def test_get_mesh_order_stability():
-  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
-  first_mesh = vol.mesh.get([148, 18], fuse=True)
-  
-  for _ in range(5):
-    next_mesh = vol.mesh.get([148, 18], fuse=True)
-    assert len(first_mesh.vertices) == len(next_mesh.vertices)
-    assert np.all(first_mesh.vertices == next_mesh.vertices)
-    assert np.all(first_mesh.faces == next_mesh.faces)
 
 # def test_boss_download():
 #   vol = CloudVolume('gs://seunglab-test/test_v0/image')

@@ -42,7 +42,7 @@ def upload(
     non_aligned_writes=False,
     location=None, location_bbox=None, location_order='F',
     use_shared_memory=False, use_file=False,
-    green=False, 
+    green=False, fill_missing=False
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
 
@@ -125,7 +125,7 @@ def upload(
 
   download_chunks_threaded(
     meta, cache, mip, shell_chunks, fn=shade_and_upload,
-    fill_missing=False, progress=progress, 
+    fill_missing=fill_missing, progress=progress, 
     compress_cache=compress_cache,
     green=green
   )

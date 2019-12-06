@@ -50,6 +50,7 @@ from .cloudvolume import CloudVolume, register_plugin
 
 from .connectionpools import ConnectionPool
 from .lib import Bbox, Vec
+from .mesh import Mesh
 from .provenance import DataLayerProvenance
 from .storage import Storage
 from .threaded_queue import ThreadedQueue
@@ -67,7 +68,7 @@ from . import secrets
 from . import microviewer
 from .microviewer import view, hyperview
 
-__version__ = '0.65.4'
+__version__ = '0.66.0'
 
 # Register plugins
 from .datasource.precomputed import register as register_precomputed
@@ -77,7 +78,7 @@ register_precomputed()
 register_graphene()
 
 try:
-  from .datasource.boss  import register as register_boss
+  from .datasource.boss import register as register_boss
   register_boss()
 except ImportError:
   pass

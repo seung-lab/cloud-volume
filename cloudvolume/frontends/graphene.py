@@ -73,7 +73,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       pt = Vec(*pt) / factor
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
-    bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
+
+    if all(size == 1):
+      bbox = Bbox(pt, pt + 1).astype(np.int64)
+    else:
+      bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
 
     if parallel is None:
       parallel = self.parallel
@@ -102,12 +106,15 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     Returns: img
     """
+    if type(bbox) is Vec:
+      bbox = Bbox(bbox, bbox+1)
+    
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=self.bounded, 
       autocrop=self.autocrop
     )
-    
+  
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
 

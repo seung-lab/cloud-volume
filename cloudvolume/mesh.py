@@ -4,7 +4,7 @@ import struct
 import numpy as np
 
 from .exceptions import MeshDecodeError
-from .lib import yellow
+from .lib import yellow, Vec
 
 NOTICE = {
   'vertices': 0,
@@ -16,7 +16,7 @@ def deprecation_notice(key):
   if NOTICE[key] < 1:
     print(yellow("""
   Deprecation Notice: Meshes, formerly dicts, are now PrecomputedMesh objects
-  as of CloudVolume 0.51.0. 
+  as of CloudVolume 0.51.0, renamed to Mesh objects as of 0.53.0
 
   Please change mesh['{}'] to mesh.{}
   """.format(key, key)))
@@ -41,11 +41,10 @@ class Mesh(object):
   Represents the vertices, faces, and normals of a mesh
   as numpy arrays.
 
-  class PrecomputedMesh:
+  class Mesh:
     ndarray[float32, ndim=2] self.vertices: [ [x,y,z], ... ]
     ndarray[uint32,  ndim=2] self.faces:    [ [v1,v2,v3], ... ]
     ndarray[float32, ndim=2] self.normals:  [ [nx,ny,nz], ... ]
-
   """
   def __init__(
     self, vertices, faces, normals=None, 
@@ -359,7 +358,7 @@ end_header
     vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
     newfaces = newfaces.astype(np.uint32).reshape( (len(newfaces) // 3, 3) )
 
-    return Mesh(vertices[:,0:3], newfaces, None, segid=self.segid, 
+    return Mesh(vertices[:,0:3] + offset, newfaces, None, segid=self.segid, 
       encoding_type=self.encoding_type, encoding_options=self.encoding_options
     )
 

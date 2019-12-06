@@ -323,10 +323,6 @@ class HttpInterface(StorageInterface):
       resp = requests.get(key, headers=headers)
     else:
       resp = requests.get(key)
-      if resp.headers.get('Content-Encoding') == 'br':
-        # needed until requests natively supports brotli
-        # https://github.com/psf/requests/issues/4525
-        resp._content = brotli.decompress(resp.content)
     if resp.status_code in (404, 403):
       return None, None
     resp.raise_for_status()
