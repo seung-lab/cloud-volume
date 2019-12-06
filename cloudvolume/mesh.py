@@ -324,9 +324,9 @@ end_header
       encoding_options=mesh_object.encoding_options
     )
 
-  def deduplicate_chunk_boundaries(self, chunk_size, offset=np.array([0,0,0]), is_draco=False, draco_grid_size=21):
-    
-    verts = self.vertices
+  def deduplicate_chunk_boundaries(self, chunk_size, offset=(0,0,0), is_draco=False, draco_grid_size=21):
+    offset=Vec(*offset)
+    verts = self.vertices-offset
     faces = self.faces
     
     # find all vertices that are exactly on chunk_size boundaries
@@ -358,7 +358,7 @@ end_header
     vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
     newfaces = newfaces.astype(np.uint32).reshape( (len(newfaces) // 3, 3) )
 
-    return Mesh(vertices[:,0:3] , newfaces, None, segid=self.segid, 
+    return Mesh(vertices[:,0:3]+offset , newfaces, None, segid=self.segid, 
       encoding_type=self.encoding_type, encoding_options=self.encoding_options
     )
 
