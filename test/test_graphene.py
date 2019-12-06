@@ -305,7 +305,7 @@ def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
     assert(ccs==3)
 
 @pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
-def test_graphene_mesh_get(cv_graphene_mesh_draco):
+def test_graphene_mesh_get_draco(cv_graphene_mesh_draco):
 
     mesh = cv_graphene_mesh_draco.mesh.get(TEST_SEG_ID)
     edges = faces_to_edges(mesh[TEST_SEG_ID].faces)
