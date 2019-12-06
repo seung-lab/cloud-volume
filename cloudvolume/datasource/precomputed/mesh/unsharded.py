@@ -162,9 +162,9 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     chunk_offset = self.meta.meta.voxel_offset(mip)
 
     for seg_id in meshes.keys():
-      if remove_duplicate_vertices or (stitch_mesh and not chunk_size):
+      if remove_duplicate_vertices or (stitch_mesh and (chunk_size is None)):
         meshes[seg_id] = meshes[seg_id].consolidate()
-      if (stitch_mesh and chunk_size):
+      if (stitch_mesh and (chunk_size is not None)):
         meshes[seg_id]=meshes[seg_id].deduplicate_chunk_boundaries(
                     chunk_size * resolution, is_draco=False,
                     offset=(chunk_offset * resolution))
