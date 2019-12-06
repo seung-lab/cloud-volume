@@ -332,7 +332,7 @@ end_header
     
     # find all vertices that are exactly on chunk_size boundaries
     if is_draco:
-      is_chunk_aligned = is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=draco_grid_size)
+      is_chunk_aligned = is_draco_chunk_aligned(verts- offset[np.newaxis,:], chunk_size, draco_grid_size=draco_grid_size)
     else:
       is_chunk_aligned = np.any(np.mod(verts- offset[np.newaxis,:], chunk_size) == 0, axis=1)
 
