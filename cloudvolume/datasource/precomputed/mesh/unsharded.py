@@ -90,9 +90,10 @@ class UnshardedLegacyPrecomputedMeshSource(object):
 
   def get(
       self, segids, 
-      remove_duplicate_vertices=True, 
+      remove_duplicate_vertices=False, 
       fuse=True,
-      chunk_size=None
+      chunk_size=None, 
+      stitch_mesh=True
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
@@ -135,21 +136,17 @@ class UnshardedLegacyPrecomputedMeshSource(object):
         raise
       meshdata[segid].append(mesh)
 
+    meshes={}
     if not fuse:
-      return { segid: Mesh.concatenate(*meshes) for segid, meshes in six.iteritems(meshdata) }
-
-    meshdata = [ (segid, mesh) for segid, mesh in six.iteritems(meshdata) ]
-    meshdata = sorted(meshdata, key=lambda sm: sm[0])
-    meshdata = [ mesh for segid, mesh in meshdata ]
-    meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
-    mesh = Mesh.concatenate(*meshdata)
-
-    if not remove_duplicate_vertices:
-      return mesh 
-
-    if not chunk_size:
-      return mesh.consolidate()
-
+      meshes= { segid: Mesh.concatenate(*meshes) for segid, meshes in six.iteritems(meshdata) }
+    else:
+      meshdata = [ (segid, mesh) for segid, mesh in six.iteritems(meshdata) ]
+      meshdata = sorted(meshdata, key=lambda sm: sm[0])
+      meshdata = [ mesh for segid, mesh in meshdata ]
+      meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
+      mesh = Mesh.concatenate(*meshdata)
+      meshes[0]=mesh
+    
     if self.meta.mip is not None:
       mip = self.meta.mip
     else:
@@ -164,10 +161,17 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     resolution = self.meta.meta.resolution(mip)
     chunk_offset = self.meta.meta.voxel_offset(mip)
 
-    return mesh.deduplicate_chunk_boundaries(
-      chunk_size * resolution, is_draco=False,
-      offset=(chunk_offset * resolution)
-    )
+    for seg_id in meshes.keys():
+      if remove_duplicate_vertices or (stitch_mesh and not chunk_size):
+        meshes[seg_id] = meshes[seg_id] .consolidate()
+      if (stitch_mesh and chunk_size):
+        meshes[seg_id]=meshes[seg_id].deduplicate_chunk_boundaries(
+                    chunk_size * resolution, is_draco=False,
+                    offset=(chunk_offset * resolution))
+    if fuse:
+      return meshes[0]
+    else:
+      return meshes
 
   def save(self, segids, filepath=None, file_format='ply'):
     """

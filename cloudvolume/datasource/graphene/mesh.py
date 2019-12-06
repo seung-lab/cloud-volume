@@ -52,7 +52,7 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
       self, segids, 
       remove_duplicate_vertices=False, 
       fuse=False, level=2, 
-      bounding_box=None
+      bounding_box=None, stitch_mesh = True
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
@@ -105,13 +105,23 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
       mesh.segid = seg_id
       resolution = self.meta.resolution(self.config.mip)
       offset = self.meta.voxel_offset(self.config.mip)
-      mesh = mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution,
-                                               offset=offset*resolution,
-                                               is_draco=is_draco)
-      meshes.append(mesh.consolidate())
+      if remove_duplicate_vertices:
+        mesh = mesh.consolidate()
+      elif stitch_mesh:
+        mesh = mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution,
+                                                offset=offset*resolution,
+                                                is_draco=is_draco)
+      meshes.append(mesh)
 
-    if not fuse:
+    if fuse:
+      mesh=Mesh.concatenate(*meshes)
+      if remove_duplicate_vertices:
+        return mesh.consolidate()
+      elif stitch_mesh:
+        mesh = mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution,
+                                                offset=offset*resolution,
+                                                is_draco=is_draco)
+      return mesh
+    else:
       return { m.segid: m for m in meshes }
-
-    return Mesh.concatenate(*meshes).consolidate()
 
