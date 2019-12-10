@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume) [![PyPI version](https://badge.fury.io/py/cloud-volume.svg)](https://badge.fury.io/py/cloud-volume) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi) [![codecov](https://img.shields.io/badge/codecov-link-%23d819a6)](https://codecov.io/gh/seung-lab/cloud-volume)  
+[![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume) [![PyPI version](https://badge.fury.io/py/cloud-volume.svg)](https://badge.fury.io/py/cloud-volume) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi) [![codecov](https://img.shields.io/badge/codecov-link-%23d819a6)](https://codecov.io/gh/seung-lab/cloud-volume) 
 
 # CloudVolume
 
@@ -18,7 +18,9 @@ CloudVolume is a serverless Python client for random access reading and writing 
 
 Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports key-value access.
 
-The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment vector fields, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers. Recently, we have introduced the ability to interact with the graph server ("PyChunkGraph") that backs proofreading automated segmentations via the `graphene://` format. 
+The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment vector fields, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers. Recently, we have introduced the ability to interact with the graph server ("PyChunkGraph") that backs proofreading automated segmentations via the `graphene://` format.  
+
+Follow [@thundercloudvol](https://twitter.com/thundercloudvol) on Twitter for announcements.
 
 ## Highlights
 
@@ -518,9 +520,9 @@ There are also seperate viewers for skeleton and mesh objects that can be invoke
 pip install vtk matplotlib
 ```
 
-## Python 2.7 End of Life
+## Policy  
 
-Python 2.7's [End of Life date](https://pythonclock.org/) is January, 1 2020. CloudVolume will support Python 2.7 up to that point and possibly a few months after. Numpy will be dropping support on January 1. We may accelerate the deprecation schedule if substantial technical problems arise with supporting Python 2.7, but so far the impact has been mostly limited.
+Policies relating to the CloudVolume, its release process, and community can be found on [the Policy page](https://github.com/seung-lab/cloud-volume/wiki/Policy). There's no formal amendment process at this time, but a one could be developed as interest evolves.  
 
 ## Related Projects
 
