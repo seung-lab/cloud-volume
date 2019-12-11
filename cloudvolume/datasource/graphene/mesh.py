@@ -104,11 +104,30 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
       mesh = Mesh.concatenate(*fragments)
       mesh.segid = seg_id
       resolution = self.meta.resolution(self.config.mip)
+      offset = self.meta.voxel_offset(self.config.mip)
 
       if remove_duplicate_vertices:
         mesh = mesh.consolidate()
       else:
-        mesh = mesh.deduplicate_chunk_boundaries(self.meta.mesh_chunk_size * resolution, is_draco=is_draco)
+        if is_draco:
+          if self.meta.uniform_draco_grid_size is not None or level == 2:
+            draco_grid_size = self.meta.get_draco_grid_size(level)
+            mesh = mesh.deduplicate_chunk_boundaries(
+              self.meta.mesh_chunk_size * resolution,
+              # offset=
+              is_draco=True,
+              draco_grid_size=draco_grid_size,
+            )
+          else:
+            # TODO: cyclic draco quantization to properly
+            # stitch and deduplicate draco meshes at variable
+            # levels (see github issue #299)
+            print('Warning: deduplication not currently supported for this layer\'s variable layered draco meshes')
+        else:
+          mesh = mesh.deduplicate_chunk_boundaries(
+              self.meta.mesh_chunk_size * resolution,
+              is_draco=False,
+            )
       
       meshes.append(mesh)
 

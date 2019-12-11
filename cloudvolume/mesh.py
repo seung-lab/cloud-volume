@@ -324,16 +324,14 @@ end_header
       encoding_options=mesh_object.encoding_options
     )
 
-  def deduplicate_chunk_boundaries(
-    self, chunk_size, is_draco=False, 
-    draco_grid_size=21, offset=(0,0,0)
-  ):
+  def deduplicate_chunk_boundaries(self, chunk_size, is_draco=False, draco_grid_size=None, offset=(0,0,0)):
     offset = Vec(*offset)
     verts = self.vertices - offset
-
     # find all vertices that are exactly on chunk_size boundaries
     if is_draco:
-      is_chunk_aligned = is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=draco_grid_size)
+      if draco_grid_size is None:
+        raise ValueError('Must specify draco grid size to dedup draco meshes')
+      is_chunk_aligned = is_draco_chunk_aligned(self.vertices, chunk_size, draco_grid_size=draco_grid_size)
     else:
       is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
 
