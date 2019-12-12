@@ -11,7 +11,7 @@ import requests
 import numpy as np
 from tqdm import tqdm
 
-from ...lib import red, toiter, Bbox
+from ...lib import red, toiter, Bbox, Vec
 from ...mesh import Mesh
 from ... import paths
 from ...storage import Storage, GreenStorage
@@ -104,7 +104,10 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
       mesh = Mesh.concatenate(*fragments)
       mesh.segid = seg_id
       resolution = self.meta.resolution(self.config.mip)
-      offset = self.meta.voxel_offset(self.config.mip)
+      if self.meta.chunks_start_at_voxel_offset:
+        offset = self.meta.voxel_offset(self.config.mip)
+      else:
+        offset = Vec(0,0,0)
 
       if remove_duplicate_vertices:
         mesh = mesh.consolidate()
@@ -114,7 +117,7 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
             draco_grid_size = self.meta.get_draco_grid_size(level)
             mesh = mesh.deduplicate_chunk_boundaries(
               self.meta.mesh_chunk_size * resolution,
-              # offset=
+              offset=offset * resolution,
               is_draco=True,
               draco_grid_size=draco_grid_size,
             )
@@ -126,6 +129,7 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
         else:
           mesh = mesh.deduplicate_chunk_boundaries(
               self.meta.mesh_chunk_size * resolution,
+              offset=offset * resolution,
               is_draco=False,
             )
       

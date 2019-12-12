@@ -23,17 +23,19 @@ def deprecation_notice(key):
     NOTICE[key] += 1
 
 
-def dist_to_chunk(v, chunk_size):
-      plus_one_dist = np.mod(v, chunk_size)
-      minus_one_dist = chunk_size - plus_one_dist
-      return np.minimum(plus_one_dist, minus_one_dist)
-  
-def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=21):
-    d_me = dist_to_chunk(verts, chunk_size)
-    d_up = dist_to_chunk(verts+draco_grid_size, chunk_size)
-    d_down = dist_to_chunk(verts-draco_grid_size, chunk_size)
-    is_draco_grid = np.any((d_me<d_down) &(d_me<d_up) & (d_me<draco_grid_size), axis=1)
-    return is_draco_grid
+def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size):
+  dist_to_chunk_behind = np.mod(verts, chunk_size)
+  dist_to_chunk_ahead = chunk_size - dist_to_chunk_behind
+  # Draco rounds up
+  is_on_chunk_behind = np.any(
+    dist_to_chunk_behind < (draco_grid_size / 2),
+    axis=1,
+  )
+  is_on_chunk_ahead = np.any(
+    dist_to_chunk_ahead <= (draco_grid_size / 2),
+    axis=1,
+  )
+  return np.logical_or(is_on_chunk_behind, is_on_chunk_ahead)
     
 
 class Mesh(object):
@@ -326,12 +328,13 @@ end_header
 
   def deduplicate_chunk_boundaries(self, chunk_size, is_draco=False, draco_grid_size=None, offset=(0,0,0)):
     offset = Vec(*offset)
+    print('offset = ', offset)
     verts = self.vertices - offset
     # find all vertices that are exactly on chunk_size boundaries
     if is_draco:
       if draco_grid_size is None:
         raise ValueError('Must specify draco grid size to dedup draco meshes')
-      is_chunk_aligned = is_draco_chunk_aligned(self.vertices, chunk_size, draco_grid_size=draco_grid_size)
+      is_chunk_aligned = is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=draco_grid_size)
     else:
       is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
 

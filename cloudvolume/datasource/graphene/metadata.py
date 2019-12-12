@@ -26,6 +26,8 @@ class GrapheneMetadata(PrecomputedMetadata):
       self.auth_header = {
         "Authorization": "Bearer %s" % token
       }
+    if custom_mesh_metadata is not None:
+      self.mesh_metadata = custom_mesh_metadata
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
   def fetch_info(self):
@@ -66,6 +68,16 @@ class GrapheneMetadata(PrecomputedMetadata):
       url += pth.subdomain + '.' 
     url += pth.domain
     return url + '/' + posixpath.join('meshing', pth.version, pth.dataset, 'manifest')
+
+  @property
+  def chunks_start_at_voxel_offset(self):
+    """
+    Boolean property specifying whether ChunkedGraph chunks begin
+    at voxel offset or at origin.
+    """
+    if 'chunks_start_at_voxel_offset' in self.info:
+      return self.info["chunks_start_at_voxel_offset"]
+    return False
 
   @property
   def mesh_metadata(self):
