@@ -51,7 +51,7 @@ setuptools.setup(
   url = "https://github.com/seung-lab/cloud-volume/",
   classifiers=[
     "Intended Audience :: Developers",
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 2",
