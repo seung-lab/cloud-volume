@@ -26,8 +26,6 @@ class GrapheneMetadata(PrecomputedMetadata):
       self.auth_header = {
         "Authorization": "Bearer %s" % token
       }
-    if custom_mesh_metadata is not None:
-      self.mesh_metadata = custom_mesh_metadata
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
   def fetch_info(self):
