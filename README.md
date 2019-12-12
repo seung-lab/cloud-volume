@@ -20,6 +20,8 @@ Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/)
 
 The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment vector fields, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers. Recently, we have introduced the ability to interact with the graph server ("PyChunkGraph") that backs proofreading automated segmentations via the `graphene://` format. 
 
+You can find a collection of CloudVolume accessible and Neuroglancer viewable datasets at https://neurodata.io/ocp/, an open data project by some of our collaborators.
+
 ## Highlights
 
 - Random access to petavoxel Neuroglancer images, meshes\*, and skeletons.
@@ -539,5 +541,5 @@ Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/p
 Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him).   
 Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.  
 Thanks to Fredrik Kihlander for his [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) for developing murmurhash3.  
-  
+Thanks to Ben Falk for advocating and doing the bulk of the work on brotli compression.  
 
