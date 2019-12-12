@@ -316,12 +316,19 @@ class CloudVolumePrecomputed(object):
     return self.cache.path
 
   @property
+  def ndim(self):
+    return len(self.shape)
+
+  def mip_ndim(self, mip):
+    return len(self.meta.shape(mip))
+
+  @property
   def shape(self):
     """Returns Vec(x,y,z,channels) shape of the volume similar to numpy.""" 
-    return self.meta.shape(self.mip)
+    return tuple(self.meta.shape(self.mip))
 
   def mip_shape(self, mip):
-    return self.meta.shape(mip)
+    return tuple(self.meta.shape(mip))
 
   @property
   def volume_size(self):
