@@ -328,7 +328,6 @@ end_header
 
   def deduplicate_chunk_boundaries(self, chunk_size, is_draco=False, draco_grid_size=None, offset=(0,0,0)):
     offset = Vec(*offset)
-    print('offset = ', offset)
     verts = self.vertices - offset
     # find all vertices that are exactly on chunk_size boundaries
     if is_draco:
