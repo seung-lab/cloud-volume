@@ -10,7 +10,7 @@ from functools import reduce
 import numpy as np
 from cloudvolume import CloudVolume
 
-N = 2
+N = 3
 
 CHUNK_SIZES = ( 
 	(128,128,1),
@@ -50,8 +50,7 @@ def benchmark(fn, N):
 	}
 
 def MBs(vol, sec):
-	bits, = re.search(r'(\d+)$', vol.dtype).groups()
-	dtype_bytes = int(bits) // 8
+	dtype_bytes = np.dtype(vol.dtype).itemsize
 	total_bytes = vol.bounds.volume() * dtype_bytes
 	return total_bytes / 1e6 / sec
 
@@ -63,8 +62,7 @@ def disp(desc, vol, stats):
 
 def log(row):
 	global logfile
-	bits, = re.search(r'(\d+)$', row['dtype']).groups()
-	dtype_bytes = int(bits) // 8
+	dtype_bytes = np.dtype(row['dtype']).itemsize
 	row['MB'] = reduce(mul, row['chunk_size']) * dtype_bytes / 1024**2
 	row['MBs'] = row['MB'] / row['mean']
 
