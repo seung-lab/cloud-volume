@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from cloudvolume import compression
 from cloudvolume.exceptions import UnsupportedProtocolError
-from cloudvolume.lib import mkdir, scatter
+from cloudvolume.lib import mkdir, scatter, jsonify
 from cloudvolume.threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from cloudvolume.scheduler import schedule_green_jobs
 
@@ -55,7 +55,7 @@ class StorageBase(object):
 
   def put_json(self, file_path, content, content_type='application/json', *args, **kwargs):
     if type(content) != str:
-      content = json.dumps(content)
+      content = jsonify(content)
     return self.put_file(file_path, content, content_type=content_type, *args, **kwargs)
     
   def get_json(self, file_path):
@@ -467,7 +467,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
 
   def put_json(self, file_path, content, content_type='application/json', *args, **kwargs):
     if type(content) != str:
-      content = json.dumps(content)
+      content = jsonify(content)
     return self.put_file(file_path, content, content_type=content_type, *args, **kwargs)
   
   def put_file(self, file_path, content, content_type=None, compress=None, compress_level=None, cache_control=None):
