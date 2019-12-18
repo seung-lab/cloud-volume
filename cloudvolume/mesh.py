@@ -24,6 +24,10 @@ def deprecation_notice(key):
 
 
 def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size):
+  """
+  Return a mask that for each vertex is true iff it is within
+  half a draco_grid_size from a chunk border.
+  """
   dist_to_chunk_behind = np.mod(verts, chunk_size)
   dist_to_chunk_ahead = chunk_size - dist_to_chunk_behind
   # Draco rounds up

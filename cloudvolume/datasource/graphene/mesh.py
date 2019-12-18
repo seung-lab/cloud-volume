@@ -112,7 +112,8 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
       if remove_duplicate_vertices:
         mesh = mesh.consolidate()
       elif is_draco:
-        if self.meta.uniform_draco_grid_size is not None or level == 2:
+        if level == 2:
+          # Deduplicate at quantized lvl2 chunk borders
           draco_grid_size = self.meta.get_draco_grid_size(level)
           mesh = mesh.deduplicate_chunk_boundaries(
             self.meta.mesh_chunk_size * resolution,

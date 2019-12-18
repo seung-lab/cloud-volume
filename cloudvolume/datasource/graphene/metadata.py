@@ -85,17 +85,26 @@ class GrapheneMetadata(PrecomputedMetadata):
 
   @property
   def uniform_draco_grid_size(self):
+    """
+    If not None, a number that specifies the draco_grid_size at every ChunkedGraph level.
+    """
     if self.mesh_metadata and 'uniform_draco_grid_size' in self.mesh_metadata:
       return self.mesh_metadata["uniform_draco_grid_size"]
     return None
 
   @property
   def max_meshed_layer(self):
+    """
+    The highest level in the ChunkedGraph that we create meshes for in this dataset.
+    """
     if self.mesh_metadata and 'max_meshed_layer' in self.mesh_metadata:
       return self.mesh_metadata["max_meshed_layer"]
     return None
 
   def get_draco_grid_size(self, level):
+    """
+    Returns the draco_grid_size for specified ChunkedGraph level.
+    """
     if self.mesh_metadata is None:
       raise ValueError('This layer is not draco meshed')
     if self.uniform_draco_grid_size is not None:
