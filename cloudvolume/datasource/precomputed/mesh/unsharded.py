@@ -13,6 +13,7 @@ from tqdm import tqdm
 from ....lib import yellow, red, toiter
 from ....mesh import Mesh
 from ....storage import Storage
+from ..spatial_index import CachedSpatialIndex
 
 SEGIDRE = re.compile(r'\b(\d+):0.*?$')
 
