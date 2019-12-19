@@ -34,6 +34,7 @@ def cv_graphene_mesh_precomputed(requests_mock):
         128
         ]
         },
+        "chunks_start_at_voxel_offset": False,
         "mesh": "mesh_mip_2_err_40_sv16",
         "num_channels": 1,
         "scales": [
@@ -103,7 +104,12 @@ def cv_graphene_mesh_draco(requests_mock):
         128
         ]
         },
+        "chunks_start_at_voxel_offset": False,
         "mesh": "mesh_mip_2_draco_sv16",
+        "mesh_metadata": {
+            "max_meshed_layer": 6,
+            "uniform_draco_grid_size": 21
+        },
         "num_channels": 1,
         "scales": [
         {

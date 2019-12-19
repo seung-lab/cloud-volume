@@ -67,6 +67,58 @@ class GrapheneMetadata(PrecomputedMetadata):
     url += pth.domain
     return url + '/' + posixpath.join('meshing', pth.version, pth.dataset, 'manifest')
 
+  @property
+  def chunks_start_at_voxel_offset(self):
+    """
+    Boolean property specifying whether ChunkedGraph chunks begin
+    at voxel offset or at origin.
+    """
+    if 'chunks_start_at_voxel_offset' in self.info:
+      return self.info["chunks_start_at_voxel_offset"]
+    return False
+
+  @property
+  def mesh_metadata(self):
+    if 'mesh_metadata' in self.info:
+      return self.info["mesh_metadata"]
+    return None
+
+  @property
+  def uniform_draco_grid_size(self):
+    """
+    If not None, a number that specifies the draco_grid_size at every ChunkedGraph level.
+    """
+    if self.mesh_metadata and 'uniform_draco_grid_size' in self.mesh_metadata:
+      return self.mesh_metadata["uniform_draco_grid_size"]
+    return None
+
+  @property
+  def max_meshed_layer(self):
+    """
+    The highest level in the ChunkedGraph that we create meshes for in this dataset.
+    """
+    if self.mesh_metadata and 'max_meshed_layer' in self.mesh_metadata:
+      return self.mesh_metadata["max_meshed_layer"]
+    return None
+
+  def get_draco_grid_size(self, level):
+    """
+    Returns the draco_grid_size for specified ChunkedGraph level.
+    """
+    if self.mesh_metadata is None:
+      raise ValueError('This layer is not draco meshed')
+    if self.uniform_draco_grid_size is not None:
+      return self.uniform_draco_grid_size
+    if self.mesh_metadata["max_meshed_layer"] < level:
+      raise ValueError(
+        "Request level",
+        level,
+        ". But the maximum meshed level is ",
+        self.mesh_metadata["max_meshed_layer"],
+      )
+    return self.mesh_metadata["draco_grid_sizes"][str(level)]
+
+
 GraphenePath = namedtuple('GraphenePath', ('scheme', 'subdomain', 'domain', 'modality', 'version', 'dataset'))
 EXTRACTION_RE = re.compile(r'/?(\w+)/([\d.]+)/([\w\d\.\_\-]+)/?')
 
