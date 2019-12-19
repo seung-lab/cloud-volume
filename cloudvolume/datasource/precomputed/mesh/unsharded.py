@@ -10,6 +10,7 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
+from .... import exceptions
 from ....lib import yellow, red, toiter
 from ....mesh import Mesh
 from ....storage import Storage
