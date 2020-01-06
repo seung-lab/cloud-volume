@@ -11,16 +11,16 @@ import numpy as np
 from .cloudvolume import CloudVolume
 
 
-def from_dask(arr,
-              cloudpath,
-              resolution=(1, 1, 1),
-              voxel_offset=(0, 0, 0),
-              layer_type=None,
-              encoding='raw',
-              max_mip=0,
-              compute=True,
-              return_stored=False,
-              **kwargs):
+def to_cloudvolume(arr,
+                   cloudpath,
+                   resolution=(1, 1, 1),
+                   voxel_offset=(0, 0, 0),
+                   layer_type=None,
+                   encoding='raw',
+                   max_mip=0,
+                   compute=True,
+                   return_stored=False,
+                   **kwargs):
   """Save 3d or 4d dask array to the precomputed CloudVolume storage format.
 
   NOTE: DO NOT USE thread-based dask scheduler. See comment at top of module.
@@ -58,6 +58,10 @@ def from_dask(arr,
   ------
   ValueError
     If ``arr`` has ndim different that 3 or 4, or ``layer_type`` is unsupported.
+
+  Returns
+  -------
+  See notes on `compute` and `return_stored` parameters.
   """
   import dask.array as da
   if not da.core._check_regular_chunks(arr.chunks):
@@ -97,7 +101,7 @@ def from_dask(arr,
   return arr.store(vol, lock=False, compute=compute, return_stored=return_stored)
 
 
-def to_dask(cloudpath, chunks=None, name=None, **kwargs):
+def from_cloudvolume(cloudpath, chunks=None, name=None, **kwargs):
   """Load dask array from a cloudvolume compatible dataset.
 
   NOTE: DO NOT USE thread-based dask scheduler. See comment at top of module.
@@ -129,6 +133,10 @@ def to_dask(cloudpath, chunks=None, name=None, **kwargs):
   name: str, optional
      An optional keyname for the array.  Defaults to hashing the input
   kwargs: passed to the ``cloudvolume.CloudVolume()`` function, e.g., compression options
+
+  Returns
+  -------
+  Dask array
   """
   import dask.array as da
   from dask.base import tokenize
