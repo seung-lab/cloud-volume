@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume) [![PyPI version](https://badge.fury.io/py/cloud-volume.svg)](https://badge.fury.io/py/cloud-volume) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi) [![codecov](https://img.shields.io/badge/codecov-link-%23d819a6)](https://codecov.io/gh/seung-lab/cloud-volume)  
+[![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume) [![PyPI version](https://badge.fury.io/py/cloud-volume.svg)](https://badge.fury.io/py/cloud-volume) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi) [![codecov](https://img.shields.io/badge/codecov-link-%23d819a6)](https://codecov.io/gh/seung-lab/cloud-volume)
 
 # CloudVolume
 
@@ -10,7 +10,7 @@ image = vol[:,:,:] # Download a whole image stack into a numpy array from the cl
 vol[:,:,:] = image # Upload an entire image stack from a numpy array to the cloud
 
 label = 1
-mesh = vol.mesh.get(label) 
+mesh = vol.mesh.get(label)
 skel = vol.skeletons.get(label)
 ```
 
@@ -18,14 +18,14 @@ CloudVolume is a serverless Python client for random access reading and writing 
 
 Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports key-value access.
 
-The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment vector fields, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers. Recently, we have introduced the ability to interact with the graph server ("PyChunkGraph") that backs proofreading automated segmentations via the `graphene://` format. 
+The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment vector fields, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers. Recently, we have introduced the ability to interact with the graph server ("PyChunkGraph") that backs proofreading automated segmentations via the `graphene://` format.
 
 You can find a collection of CloudVolume accessible and Neuroglancer viewable datasets at https://neurodata.io/ocp/, an open data project by some of our collaborators.
 
 ## Highlights
 
 - Random access to petavoxel Neuroglancer images, meshes\*, and skeletons.
-- Nearly all output is immediately visualizable using Neuroglancer.\*\*    
+- Nearly all output is immediately visualizable using Neuroglancer.\*\*
 - Reads graph server backed proofreading volumes (via `graphene://`).
 - Serverless (except `graphene://`) and multi-cloud.
 
@@ -42,14 +42,14 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 - Only 3 dimensions + RBG channels currently supported for images.
 - No data versioning.
 
-\* Except the new mutli-res format for now.  
-\*\* fpzip compressed data, used for 32-bit per pixel vectors, is not currently visualizable.  
+\* Except the new mutli-res format for now.
+\*\* fpzip compressed data, used for 32-bit per pixel vectors, is not currently visualizable.
 
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.5, 3.6, and 3.7 (we've noticed it's faster on Python 3). We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).  
+Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.5, 3.6, and 3.7 (we've noticed it's faster on Python 3). We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
 
-Note that Python 2.7 does not currently support the DracoPy library, and therefore does not support the `graphene://` format.  
+Note that Python 2.7 does not currently support the DracoPy library, and therefore does not support the `graphene://` format.
 
 #### `pip` Binary Installation
 
@@ -59,15 +59,16 @@ pip install cloud-volume # standard installation
 
 CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/fpzip) and [`compressed_segmentation`](https://github.com/seung-lab/compressedseg), which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
 
-#### Optional Dependencies 
+#### Optional Dependencies
 
-| Tag             | Description                        | Dependencies          |
-|-----------------|------------------------------------|-----------------------|
-| boss            | `boss://` format support           | intern                |
-| test            | Supports testing                   | pytest                |
-| mesh_viewer     | `mesh.viewer()` GUI                | vtk                   |
-| skeleton_viewer | `skeleton.viewer()` GUI            | matplotlib            |
-| all_viewers     | All viewers now and in the future. | vtk, matplotlib       |
+| Tag             | Description                             | Dependencies          |
+|-----------------|-----------------------------------------|-----------------------|
+| boss            | `boss://` format support                | intern                |
+| test            | Supports testing                        | pytest                |
+| mesh_viewer     | `mesh.viewer()` GUI                     | vtk                   |
+| skeleton_viewer | `skeleton.viewer()` GUI                 | matplotlib            |
+| all_viewers     | All viewers now and in the future.      | vtk, matplotlib       |
+| dask            | Supports converting to/from dask arrays | dask[array            |
 
 Example:
 
@@ -87,13 +88,13 @@ pip install cloud-volume
 
 Due to packaging problems endemic to Python, Cython packages that depend on numpy require numpy header files be installed before attempting to install the package you want. The numpy headers are not recognized unless numpy is installed in a seperate process that runs first. There are hacks for this issue, but I haven't gotten them to work. If you think binaries should be available for your platform, please let us know by opening an issue.
 
-The libraries depending on numpy are:  
+The libraries depending on numpy are:
 - compressed_segmentation: Smaller and faster segmentation files. A pure python fallback is present. When the accelerated version is present, IO is faster than with gzip alone.
 - fpzip: A lossless compression library for 3D & 4D floating point data.
 
 #### Manual Installation
 
-This can be desirable if you want to hack on CloudVolume itself.  
+This can be desirable if you want to hack on CloudVolume itself.
 
 ```bash
 git clone git@github.com:seung-lab/cloud-volume.git
@@ -114,7 +115,7 @@ pip install -e .[all_viewers] # with e.g. the all_viewers optional dependency
 
 ### Credentials
 
-You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided. 
+You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided.
 
 If neither of those two conditions apply, you need a service account credential. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
 
@@ -173,9 +174,9 @@ CloudVolume supports reading and writing to Neuroglancer data layers on Amazon S
 
 Supported URLs are of the forms:
 
-`$FORMAT://$PROTOCOL://$BUCKET/$DATASET/$LAYER`  
+`$FORMAT://$PROTOCOL://$BUCKET/$DATASET/$LAYER`
 
-The format or protocol fields may be omitted where required. In the case of the precomputed format, the format specifier is optional.  
+The format or protocol fields may be omitted where required. In the case of the precomputed format, the format specifier is optional.
 
 | Format      | Protocols                         | Default | Example                                |
 |-------------|-----------------------------------|---------|----------------------------------------|
@@ -189,12 +190,12 @@ The format or protocol fields may be omitted where required. In the case of the 
 * graphene: Precomputed based format used by the PyChunkGraph server.
 * boss: The BOSS (https://docs.theboss.io/docs)
 
-We currently support reading the sharded skeleton format within Precomputed that is used in some newer datasets. Other data types are forthcoming.  
+We currently support reading the sharded skeleton format within Precomputed that is used in some newer datasets. Other data types are forthcoming.
 
-### Supported Protocols 
+### Supported Protocols
 * gs:   Google Storage
 * s3:   Amazon S3
-* http(s): (read-only) Ordinary Web Servers 
+* http(s): (read-only) Ordinary Web Servers
 * file: Local File System (absolute path)
 * matrix: Princeton Internal System
 
@@ -223,15 +224,15 @@ info = CloudVolume.create_new_info(
 )
 vol = CloudVolume(cfg.path, info=info)
 vol.commit_info()
-vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:] 
+vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.length] = rawdata[:,:,:]
 ```
-| Encoding                | Image Type                 | Lossless | Neuroglancer Viewable | Description                                                                              | 
-|-------------------------|----------------------------|----------|-------------|------------------------------------------------------------------------------------------| 
-| raw                     | Any                        | Y        | Y           | Serialized numpy arrays.                                                                 | 
-| jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              | 
-| compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      | 
-| fpzip                   | Floating Point             | Y        | N*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  | 
-| kempressed              | Anisotropic Z Floating Point | N        | N*           | Adds manipulations on top of fpzip to achieve higher compression.                        | 
+| Encoding                | Image Type                 | Lossless | Neuroglancer Viewable | Description                                                                              |
+|-------------------------|----------------------------|----------|-------------|------------------------------------------------------------------------------------------|
+| raw                     | Any                        | Y        | Y           | Serialized numpy arrays.                                                                 |
+| jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              |
+| compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      |
+| fpzip                   | Floating Point             | Y        | N*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  |
+| kempressed              | Anisotropic Z Floating Point | N        | N*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
 
 \* Coming soon.
 
@@ -240,8 +241,8 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 
 ```python3
 # Basic Examples
-vol = CloudVolume('gs://mybucket/retina/image') 
-vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missing=False) 
+vol = CloudVolume('gs://mybucket/retina/image')
+vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missing=False)
 vol = CloudVolume('gs://bucket/dataset/channel', mip=[ 8, 8, 40 ], bounded=True, fill_missing=False) # set mip at this resolution
 vol = CloudVolume('gs://bucket/datasset/channel', info=info) # New info file from scratch
 image = vol[:,:,:] # Download the entire image stack into a numpy array
@@ -250,7 +251,7 @@ listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
 
-# Server 
+# Server
 vol.viewer() # launches neuroglancer compatible web server on http://localhost:1337
 
 # Microviewer
@@ -262,18 +263,18 @@ vol.mesh.save(12345) # save 12345 as ./12345.ply on disk
 vol.mesh.save([12345, 12346, 12347]) # merge three segments into one file
 vol.mesh.save(12345, file_format='obj') # 'ply' and 'obj' are both supported
 vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
-vol.mesh.get([ 12345, 12346 ]) # return these two segids fused into a single mesh 
+vol.mesh.get([ 12345, 12346 ]) # return these two segids fused into a single mesh
 vol.mesh.get([ 12345, 12346 ], fuse=False) # return { 12345: mesh, 12346: mesh }
 
 mesh.viewer() # Opens GUI. Requires vtk.
 
 # Skeletons
 skel = vol.skeleton.get(12345)
-vol.skeleton.upload_raw(segid, skel.vertices, skel.edges, skel.radii, skel.vertex_types) 
-vol.skeleton.upload(skel) 
+vol.skeleton.upload_raw(segid, skel.vertices, skel.edges, skel.radii, skel.vertex_types)
+vol.skeleton.upload(skel)
 
 # specified in nm, only available for datasets with a generated index
-skels = vol.skeleton.get_by_bbox( Bbox( (0,0,0), (500, 500, 500) ) ) 
+skels = vol.skeleton.get_by_bbox( Bbox( (0,0,0), (500, 500, 500) ) )
 vol.skeleton.spatial_index # None if not available
 
 skel.empty() # boolean
@@ -290,7 +291,7 @@ skel_str = skel.to_swc() # convert to SWC file in string representation
 skel.viewer() # Opens GUI. Requires matplotlib
 
 skel.cable_length() # sum of all edge lengths
-skel = skel.downsample(2) # reduce size of skeleton by factor of 2 
+skel = skel.downsample(2) # reduce size of skeleton by factor of 2
 
 skel1 == skel2 # check if contents of internal arrays match
 Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
@@ -304,16 +305,16 @@ data = vol[:] # uses shared memory to coordinate processes under the hood
 vol = CloudVolume(...)
 # data backed by a shared memory buffer
 # location is optional (defaults to vol.shared_memory_id)
-data = vol.download_to_shared_memory(np.s_[:], location='some-example') 
+data = vol.download_to_shared_memory(np.s_[:], location='some-example')
 vol.unlink_shared_memory() # delete the shared memory associated with this cloudvolume
 vol.shared_memory_id # get/set the default shared memory location for this instance
 
 # Shared Memory Upload
 vol = CloudVolume(...)
 vol.upload_from_shared_memory('my-shared-memory-id', # do not prefix with /dev/shm
-    bbox=Bbox( (0,0,0), (10000, 7500, 64) )) 
+    bbox=Bbox( (0,0,0), (10000, 7500, 64) ))
 
-# Download or Upload directly with Files 
+# Download or Upload directly with Files
 # The files must be in Precomputed raw format.
 vol.download_to_file('/path/to/file', bbox=Bbox(...), mip=0) # bbox is the download region
 vol.upload_from_file('/path/to/file', bbox=Bbox(...), mip=0) # bbox is the region it represents
@@ -321,7 +322,7 @@ vol.upload_from_file('/path/to/file', bbox=Bbox(...), mip=0) # bbox is the regio
 # Transfer w/o Excess Memory Allocation
 vol = CloudVolume(...)
 # single core, send all of vol to destination, no painting memory
-vol.transfer_to('gs://bucket/dataset/layer', vol.bounds) 
+vol.transfer_to('gs://bucket/dataset/layer', vol.bounds)
 
 # Caching, located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
 vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
@@ -329,23 +330,23 @@ image = vol[0:10,0:10,0:10] # Download partial image and cache
 vol[0:10,0:10,0:10] = image # Upload partial image and cache
 
 # Evaluating the Cache
-vol.cache.list() # list files in cache at this mip level  
-vol.cache.list(mip=1) # list files in cache at mip 1  
+vol.cache.list() # list files in cache at this mip level
+vol.cache.list(mip=1) # list files in cache at mip 1
 vol.cache.list_meshes()
 vol.cache.list_skeletons()
-vol.cache.num_files() # number of files at this mip level  
-vol.cache.num_bytes(all_mips=True) # Return num files for each mip level in a list  
-vol.cache.num_bytes() # number of bytes taken up by files, size on disk can be bigger  
-vol.cache.num_bytes(all_mips=True) # Return num bytes for each mip level in a list  
+vol.cache.num_files() # number of files at this mip level
+vol.cache.num_bytes(all_mips=True) # Return num files for each mip level in a list
+vol.cache.num_bytes() # number of bytes taken up by files, size on disk can be bigger
+vol.cache.num_bytes(all_mips=True) # Return num bytes for each mip level in a list
 
-vol.cache.enabled = True/False # Turn the cache on/off 
+vol.cache.enabled = True/False # Turn the cache on/off
 vol.cache.path = Str # set the cache location
 vol.cache.compress = None/True/False # None: Link to cloud setting, Boolean: Force cache to compressed (True) or uncompressed (False)
 
 # Deleting Cache
-vol.cache.flush() # Delete local cache for this layer at this mip level  
-vol.cache.flush(preserve=Bbox(...)) # Same, but preserve cache in a region of space  
-vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)  
+vol.cache.flush() # Delete local cache for this layer at this mip level
+vol.cache.flush(preserve=Bbox(...)) # Same, but preserve cache in a region of space
+vol.cache.flush_region(region=Bbox(...), mips=[...]) # Delete the cached files in this region at these mip levels (default all mips)
 vol.cache.flush_info()
 vol.cache.flush_provenance()
 
@@ -360,11 +361,11 @@ img = cv[...] # now green threads will be used
 ### CloudVolume Constructor
 
 ```python3
-CloudVolume(cloudpath, 
-     mip=0, bounded=True, fill_missing=False, autocrop=False, 
-     cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None, 
+CloudVolume(cloudpath,
+     mip=0, bounded=True, fill_missing=False, autocrop=False,
+     cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None,
      compress=None, non_aligned_writes=False, parallel=1,
-     delete_black_uploads=False, background_color=0, 
+     delete_black_uploads=False, background_color=0,
      green_threads=False, use_https=False,
      max_redirects=10)
 ```
@@ -382,13 +383,13 @@ CloudVolume(cloudpath,
 * compress - None, 'gzip' or 'br', force this compression algorithm to be used for upload
 * non_aligned_writes - True/False. If False, non-chunk-aligned writes will trigger an error with a helpful message. If True,
     Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes)
-* parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading 
+* parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading
    that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
 * delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all background (usually all zeros). This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
 * background_color - Number. Determines the background color that `delete_black_uploads` will scan for (typically zero).
 * green_threads - True/False. If True, use the gevent cooperative threading library instead of preemptive threads. This requires monkey patching your program which may be undesirable. However, for certain workloads this can be a significant performance improvement on multi-core devices.
-* use_https - True/False. If True, use the same read-only access urls that neuroglancer does that may be cached vs the secured read/write strongly consistent API. Use this when you do not have credentials.  
-* max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).  
+* use_https - True/False. If True, use the same read-only access urls that neuroglancer does that may be cached vs the secured read/write strongly consistent API. Use this when you do not have credentials.
+* max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).
 
 ### CloudVolume Methods
 
@@ -398,7 +399,7 @@ Better documentation coming later, but for now, here's a summary of the most use
 * refresh_info - Repull the info file.
 * refresh_provenance - Repull the provenance file.
 * bbox_to_mip - Covert a bounding box or slice from one mip level to another.
-* slices_from_global_coords - *deprecated, why not use bbox_to_mip?* Find the CloudVolume slice from MIP 0 coordinates if you're on a different MIP. Often used in combination with neuroglancer. 
+* slices_from_global_coords - *deprecated, why not use bbox_to_mip?* Find the CloudVolume slice from MIP 0 coordinates if you're on a different MIP. Often used in combination with neuroglancer.
 * reset_scales - Delete mips other than 0 in the info file. Does not autocommit.
 * add_scale - Generate a new mip level in the info property. Does not autocommit.
 * commit_info - Push the current info property into the cloud as a JSON file.
@@ -418,7 +419,7 @@ Better documentation coming later, but for now, here's a summary of the most use
 * cache - Access cache operations
 	* enabled - Boolean switch to enable/disable cache. If true, on reading, check local disk cache before downloading, and save downloaded chunks to cache. When writing, write to the cloud then save the chunks you wrote to cache. If false, bypass cache completely. The cache is located at `$HOME/.cloudvolume/cache`.
 	* path - Property that shows the current filesystem path to the cache
-	* list - List files in cache 
+	* list - List files in cache
 	* num_files - Number of files in cache at this mip level , use all_mips=True to get them all
 	* num_bytes - Return the number of bytes in cache at this mip level, all_mips=True to get them all
 	* flush - Delete the cache at this mip level, preserve=Bbox/slice to save a spatial region
@@ -452,9 +453,9 @@ Accessed as `vol.$PROPERTY` like `vol.mip`. Parens next to each property mean (d
 * info_cloudpath (str, r) - Generate the cloud path to this data layer's info file.
 * scales (dict, r) - Shortcut to the 'scales' property of the info object
 * scale (dict, rw)* - Shortcut to the working scale of the current mip level
-* shape (Vec4, r)* - Like numpy.ndarray.shape for the entire data layer. 
-* volume_size (Vec3, r)* - Like shape, but omits channel (x,y,z only). 
-* num_channels (int, r) - The number of channels, the last element of shape. 
+* shape (Vec4, r)* - Like numpy.ndarray.shape for the entire data layer.
+* volume_size (Vec3, r)* - Like shape, but omits channel (x,y,z only).
+* num_channels (int, r) - The number of channels, the last element of shape.
 * layer_type (str, r) - The neuroglancer info type, 'image' or 'segmentation'.
 * dtype (str, r) - The info data_type of the volume, e.g. uint8, uint32, etc. Similar to numpy.ndarray.dtype.
 * encoding (str, r) - The neuroglancer info encoding. e.g. 'raw', 'jpeg', 'npz'
@@ -484,16 +485,16 @@ When you download an image using CloudVolume it gives you a `VolumeCutout`. Thes
 
 If you have Precomputed volume onto local disk and would like to point neuroglancer to it:
 
-```python 
+```python
 vol = CloudVolume(...)
 vol.viewer()
 ```
 
-You can then point any version of neuroglancer at it using `precomputed://http://localhost:1337/NAME_OF_LAYER`.  
+You can then point any version of neuroglancer at it using `precomputed://http://localhost:1337/NAME_OF_LAYER`.
 
 ### Microviewer
 
-CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports bool, uint8, uint16, uint32, float32, and float64 numpy data types for both images and segmentation and can render a composite overlay of image and segmentation.  
+CloudVolume includes a built-in dependency free viewer for 3D volumetric datasets smaller than about 2GB uncompressed. It supports bool, uint8, uint16, uint32, float32, and float64 numpy data types for both images and segmentation and can render a composite overlay of image and segmentation.
 
 You can launch a viewer using the `.viewer()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
 
@@ -506,9 +507,9 @@ img = vol[...]
 seg = vol[...]
 
 img.viewer() # works on VolumeCutouts
-seg.viewer() # segmentation type derived from info 
+seg.viewer() # segmentation type derived from info
 view(img) # alternative for arbitrary numpy arrays
-view(seg, segmentation=True) 
+view(seg, segmentation=True)
 hyperview(img, seg) # img and seg shape must match
 
 >>> Viewer server listening to http://localhost:8080
@@ -528,18 +529,17 @@ Python 2.7's [End of Life date](https://pythonclock.org/) is January, 1 2020. Cl
 
 1. [Igneous](https://github.com/seung-lab/igneous): Computational pipeline for visualizing neuroglancer volumes.
 2. [CloudVolume.jl](https://github.com/seung-lab/CloudVolume.jl): CloudVolume in Julia
-3. [fpzip](https://github.com/seung-lab/fpzip): A Python Package for the C++ code by Lindstrom et al.  
+3. [fpzip](https://github.com/seung-lab/fpzip): A Python Package for the C++ code by Lindstrom et al.
 4. [compressed_segmentation](https://github.com/seung-lab/compressedseg): A Python Package wrapping the code for the compressed_segmentation format developed by Jeremy Maitin-Shepard and Stephen Plaza.
 5. [Kimimaro](https://github.com/seung-lab/kimimaro): High performance skeletonization of densely labeled 3D volumes.
 
 ## Acknowledgments
 
-Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.  
-Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format.  
-Thanks to Jeremy Maitin-Shepard and Stephen Plaza for their C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg).  
-Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.  
-Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him).   
-Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.  
-Thanks to Fredrik Kihlander for his [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) for developing murmurhash3.  
-Thanks to Ben Falk for advocating and doing the bulk of the work on brotli compression.  
-
+Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.
+Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format.
+Thanks to Jeremy Maitin-Shepard and Stephen Plaza for their C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg).
+Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.
+Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him).
+Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.
+Thanks to Fredrik Kihlander for his [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) for developing murmurhash3.
+Thanks to Ben Falk for advocating and doing the bulk of the work on brotli compression.

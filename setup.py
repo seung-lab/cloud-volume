@@ -18,7 +18,7 @@ setuptools.setup(
     'numpy; python_version>="3.5"',
   ],
   install_requires=requirements(),
-  # Environment Marker Examples: 
+  # Environment Marker Examples:
   # https://www.python.org/dev/peps/pep-0496/
   extras_require={
     "boss": "intern>=0.9.11",
@@ -32,6 +32,7 @@ setuptools.setup(
     "mesh_viewer": [ 'vtk' ],
     "skeleton_viewer": [ 'matplotlib' ],
     "all_viewers": [ 'vtk', 'matplotlib' ],
+    "dask": [ 'dask[array]' ],
     "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"]
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
