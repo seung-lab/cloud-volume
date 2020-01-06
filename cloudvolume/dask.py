@@ -1,4 +1,12 @@
-"""Utilties for translating to/from dask arrays."""
+"""Utilties for translating to/from dask arrays.
+
+NOTE: Using the thread-based dask scheduler is very inefficient with
+      CloudVolume because CV is pure python and will cause substantial
+      GIL contention between the dask worker threads.  It is HIGHLY
+      ADVISABLE to use a distributed process scheduler with one thread
+      per process.
+
+"""
 import numpy as np
 from .cloudvolume import CloudVolume
 
@@ -14,6 +22,8 @@ def from_dask(arr,
               return_stored=False,
               **kwargs):
   """Save 3d or 4d dask array to the precomputed CloudVolume storage format.
+
+  NOTE: DO NOT USE thread-based dask scheduler. See comment at top of module.
 
   See https://docs.dask.org/en/latest/array.html for details about the format.
 
@@ -89,6 +99,8 @@ def from_dask(arr,
 
 def to_dask(cloudpath, chunks=None, name=None, **kwargs):
   """Load dask array from a cloudvolume compatible dataset.
+
+  NOTE: DO NOT USE thread-based dask scheduler. See comment at top of module.
 
   Volumes with a single channel will be returned as 4d arrays with a
   length-1 channel dimension, even if they were stored from 3d data.
