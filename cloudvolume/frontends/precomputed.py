@@ -888,5 +888,28 @@ class CloudVolumePrecomputed(object):
 
     cloudvolume.server.view(self.cloudpath, port=port)
 
+  def to_dask(self, chunks=None, name=None):
+    """Return a dask array for this volume.
 
+    Parameters
+    ----------
+    chunks: tuple of ints or tuples of ints
+      Passed to ``da.from_array``, allows setting the chunks on
+      initialisation, if the chunking scheme in the stored dataset is not
+      optimal for the calculations to follow. Note that the chunking should
+      be compatible with an underlying 4d array.
+    name: str, optional
+      An optional keyname for the array. Defaults to hashing the input
 
+    Returns
+    -------
+    Dask array
+    """
+    import dask.array as da
+    from dask.base import tokenize
+
+    if chunks is None:
+      chunks = tuple(self.chunk_size) + (self.num_channels, )
+    if name is None:
+      name = 'to-dask-' + tokenize(self, chunks)
+    return da.from_array(self, chunks, name=name)
