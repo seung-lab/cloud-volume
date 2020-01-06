@@ -68,7 +68,7 @@ CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/
 | mesh_viewer     | `mesh.viewer()` GUI                     | vtk                   |
 | skeleton_viewer | `skeleton.viewer()` GUI                 | matplotlib            |
 | all_viewers     | All viewers now and in the future.      | vtk, matplotlib       |
-| dask            | Supports converting to/from dask arrays | dask[array            |
+| dask            | Supports converting to/from dask arrays | dask\[array\]         |
 
 Example:
 
@@ -356,6 +356,11 @@ gevent.monkey.patch_all(thread=False)
 
 cv = CloudVolume(..., green_threads=True)
 img = cv[...] # now green threads will be used
+
+# Dask Interface (requires dask installation)
+arr = cv.to_dask()
+arr = cloudvolume.dask.from_cloudvolume(cloudpath) # same as to_dask
+res = cloudvolume.dask.to_cloudvolume(arr, cloudpath, compute=bool, return_store=bool)
 ```
 
 ### CloudVolume Constructor
@@ -543,3 +548,4 @@ Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on
 Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.
 Thanks to Fredrik Kihlander for his [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) for developing murmurhash3.
 Thanks to Ben Falk for advocating and doing the bulk of the work on brotli compression.
+Thanks to 
