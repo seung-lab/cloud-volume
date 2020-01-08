@@ -298,6 +298,22 @@ class Skeleton(object):
 
     return skel
 
+  def terminals(self):
+    """
+    Returns vertex indices that correspond to terminal 
+    nodes of the skeleton defined as having only one edge.
+    """
+    unique_nodes, unique_counts = np.unique(self.edges, return_counts=True)
+    return unique_nodes[ unique_counts == 1 ]
+
+  def branches(self):
+    """
+    Returns vertex indices that correspond to branch points
+    in the skeleton defined as having three or more edges.
+    """
+    unique_nodes, unique_counts = np.unique(self.edges, return_counts=True)
+    return unique_nodes[ unique_counts >= 3 ]
+
   def merge(self, skel):
     """Combine with an additional skeleton and consolidate."""
     return Skeleton.simple_merge((self, skel)).consolidate()
