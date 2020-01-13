@@ -73,6 +73,20 @@ def ndarray_fs(
   if lock:
     lock.acquire()
 
+  try:
+    allocate_shm_file(filename, nbytes, dbytes, readonly)
+  finally:
+    if lock:
+      lock.release()
+
+  with open(filename, 'r+b') as f:
+    array_like = mmap.mmap(f.fileno(), 0) # map entire file
+  
+  renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order=order, **kwargs)
+  renderbuffer.setflags(write=(not readonly))
+  return array_like, renderbuffer
+
+def allocate_shm_file(filename, nbytes, dbytes, readonly):
   exists = os.path.exists(filename)
   size = 0 if not exists else os.path.getsize(filename)
 
@@ -103,17 +117,7 @@ def ndarray_fs(
       for i in range(0, steps):
         write_bytes = min(blocksize, nbytes - total)
         f.write(b'\x00' * write_bytes)
-        total += blocksize
-
-  if lock:
-    lock.release()
-
-  with open(filename, 'r+b') as f:
-    array_like = mmap.mmap(f.fileno(), 0) # map entire file
-  
-  renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order=order, **kwargs)
-  renderbuffer.setflags(write=(not readonly))
-  return array_like, renderbuffer
+        total += blocksize  
 
 def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
   """Create a shared memory numpy array. Requires /dev/shm to exist."""
