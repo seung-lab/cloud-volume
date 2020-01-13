@@ -92,12 +92,22 @@ class SpatialIndex(object):
 
       res = json.loads(content)
 
-      for label, label_bbx in res.items():
-        label = int(label)
-        label_bbx = Bbox.from_list(label_bbx)
+      # The bbox test saps performance a lot
+      # but we can skip it if we know 100% that
+      # the labels are going to be inside. This
+      # optimization is important for querying 
+      # entire datasets, which is contemplated
+      # for shard generation.
+      if bbox.contains_bbox(self.bounds):
+        for label, label_bbx in res.items():
+          labels.add(int(label))
+      else:
+        for label, label_bbx in res.items():
+          label = int(label)
+          label_bbx = Bbox.from_list(label_bbx)
 
-        if Bbox.intersects(label_bbx, original_bbox):
-          labels.add(label)
+          if Bbox.intersects(label_bbx, original_bbox):
+            labels.add(label)
 
     return labels
 
