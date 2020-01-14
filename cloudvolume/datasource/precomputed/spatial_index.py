@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 import os 
 
@@ -6,7 +7,7 @@ import numpy as np
 from ...exceptions import SpatialIndexGapError
 from ...storage import Storage, SimpleStorage
 from ... import paths
-from ...lib import Bbox, Vec, xyzrange, min2
+from ...lib import Bbox, Vec, xyzrange, min2, toiter
 
 class SpatialIndex(object):
   """
@@ -58,6 +59,44 @@ class SpatialIndex(object):
 
     return { res['filename']: res['content'] for res in results }
 
+  def index_file_paths_for_bbox(self, bbox):
+    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
+
+    if bbox.subvoxel():
+      return []
+
+    index_files = []
+    for pt in xyzrange(bbox.minpt, bbox.maxpt, self.chunk_size):
+      search = Bbox( pt, min2(pt + self.chunk_size, self.bounds.maxpt) )
+      index_files.append(search.to_filename() + '.spatial')
+    
+    return index_files
+
+  def file_locations_per_label(self, labels, allow_missing=False):
+    """
+    Queries entire dataset to find which spatial index files the 
+    given labels are located in. Can be expensive.
+
+    Returns: { filename: [ labels... ], ... }
+    """
+    labels = toiter(labels)
+    index_files = self.index_file_paths_for_bbox(self.bounds)
+    index_files = self.fetch_index_files(index_files)
+    locations = defaultdict(list)
+    for filename, content in index_files.items():
+      if content is None:
+        if allow_missing:
+          continue
+        else:
+          raise SpatialIndexGapError(filename + " was not found.")
+
+      segid_bbox_dict = json.loads(content)
+      for label in labels:
+        if str(label) in segid_bbox_dict:
+          locations[label].append(filename)
+
+    return locations
+
   def query(self, bbox, allow_missing=False):
     """
     For the specified bounding box (or equivalent representation),
@@ -75,11 +114,7 @@ class SpatialIndex(object):
     if bbox.subvoxel():
       return []
 
-    index_files = []
-    for pt in xyzrange(bbox.minpt, bbox.maxpt, self.chunk_size):
-      search = Bbox( pt, min2(pt + self.chunk_size, self.bounds.maxpt) )
-      index_files.append(search.to_filename() + '.spatial')
-
+    index_files = self.index_file_paths_for_bbox(bbox)
     results = self.fetch_index_files(index_files)
 
     labels = set()
