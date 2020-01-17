@@ -96,14 +96,11 @@ def to_cloudvolume(arr,
                                      chunk_size=chunk_size,
                                      max_mip=max_mip)
 
-  # If not doing an immediate computation, also delay writing any metadata:
+  # Delay writing any metadata until computation time.
   #   - the caller may never do the full computation
-  #   - the filesystem may be slow
-  if compute:
-    vol = _create_cloudvolume(cloudpath, info, **kwargs)
-  else:
-    vol = dask.delayed(_create_cloudvolume)(cloudpath, info, **kwargs)
-
+  #   - the filesystem may be slow, and there is a desire to open files
+  #     in parallel on worker machines.
+  vol = dask.delayed(_create_cloudvolume)(cloudpath, info, **kwargs)
   return arr.store(vol, lock=False, compute=compute, return_stored=return_stored)
 
 
