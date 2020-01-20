@@ -1,3 +1,4 @@
+import os
 import pytest
 import sys
 
@@ -90,5 +91,19 @@ def test_delayed_compute():
     assert isinstance(out, dd.Delayed)
     dask.compute(out)
     a2 = dasklib.from_cloudvolume(d)
+    da.utils.assert_eq(a, a2, check_meta=False)  # TODO: add meta check
+    assert a.chunks == a2.chunks
+
+@pytest.mark.skipif(sys.version_info[0] < 3, reason="Python 2 not supported.")
+def test_roundtrip_delayed():
+  da = pytest.importorskip('dask.array')
+  du = pytest.importorskip('dask.utils')
+  a = da.zeros((3, 3, 3, 3))
+  with du.tmpdir() as d:
+    cloudpath = 'file://' + d
+    task = dasklib.to_cloudvolume(a, cloudpath, compute=False)
+    assert not os.listdir(d)
+    task.compute()
+    a2 = dasklib.from_cloudvolume(cloudpath)
     da.utils.assert_eq(a, a2, check_meta=False)  # TODO: add meta check
     assert a.chunks == a2.chunks
