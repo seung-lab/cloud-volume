@@ -5,6 +5,7 @@ import shutil
 
 from .provenance import DataLayerProvenance
 from .storage import SimpleStorage, Storage, GreenStorage
+from .storage.storage_interfaces import COMPRESSION_EXTENSIONS
 
 from .lib import (
   Bbox, colorize, jsonify, mkdir, 
@@ -460,15 +461,22 @@ class CacheService(object):
 
     pathmodule = posixpath if self.meta.path.protocol != 'file' else os.path
 
-    def noextensions(fnames):
-      return [ pathmodule.splitext(fname)[0] for fname in fnames ]
+    def no_compression_ext(fnames):
+      results = []
+      for fname in fnames:
+        (name, ext) = pathmodule.splitext(fname)
+        if ext in COMPRESSION_EXTENSIONS:
+          results.append(name)
+        else:
+          results.append(fname)
+      return results
 
     list_dirs = set([ pathmodule.dirname(pth) for pth in cloudpaths ])
     filenames = []
 
     for list_dir in list_dirs:
       list_dir = os.path.join(self.path, list_dir)
-      filenames += noextensions(os.listdir(mkdir(list_dir)))
+      filenames += no_compression_ext(os.listdir(mkdir(list_dir)))
 
     basepathmap = { pathmodule.basename(path): pathmodule.dirname(path) for path in cloudpaths }
 

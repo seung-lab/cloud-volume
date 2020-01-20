@@ -17,6 +17,8 @@ from cloudvolume.connectionpools import S3ConnectionPool, GCloudBucketPool
 from cloudvolume.lib import mkdir
 from cloudvolume.exceptions import UnsupportedCompressionType
 
+COMPRESSION_EXTENSIONS = ('.gz', '.br')
+
 # This is just to support pooling by bucket
 class keydefaultdict(defaultdict):
   def __missing__(self, key):
@@ -116,7 +118,7 @@ class FileInterface(StorageInterface):
 
   def exists(self, file_path):
     path = self.get_path_to_file(file_path)
-    return os.path.exists(path) or os.path.exists(path + '.gz') or os.path.exists(path + ".br")
+    return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
 
   def files_exist(self, file_paths):
     return { path: self.exists(path) for path in file_paths }
@@ -170,7 +172,7 @@ class FileInterface(StorageInterface):
     
     def stripext(fname):
       (base, ext) = os.path.splitext(fname)
-      if ext == '.gz' or ext == ".br":
+      if ext in COMPRESSION_EXTENSIONS:
         return base
       else:
         return fname

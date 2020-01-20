@@ -72,14 +72,17 @@ class SpatialIndex(object):
     
     return index_files
 
-  def file_locations_per_label(self, labels, allow_missing=False):
+  def file_locations_per_label(self, labels=None, allow_missing=False):
     """
     Queries entire dataset to find which spatial index files the 
-    given labels are located in. Can be expensive.
+    given labels are located in. Can be expensive. If labels is not 
+    specified, all labels are fetched.
 
     Returns: { filename: [ labels... ], ... }
     """
-    labels = toiter(labels)
+    if labels is not None:
+      labels = set(toiter(labels))
+      
     index_files = self.index_file_paths_for_bbox(self.bounds)
     index_files = self.fetch_index_files(index_files)
     locations = defaultdict(list)
@@ -91,9 +94,19 @@ class SpatialIndex(object):
           raise SpatialIndexGapError(filename + " was not found.")
 
       segid_bbox_dict = json.loads(content)
-      for label in labels:
-        if str(label) in segid_bbox_dict:
-          locations[label].append(filename)
+      filename = os.path.basename(filename)
+
+      if labels is None:
+        for label in segid_bbox_dict.keys():
+          locations[int(label)].append(filename)
+      elif len(labels) > len(segid_bbox_dict):
+        for label in segid_bbox_dict.keys():
+          if int(label) in labels:
+            locations[int(label)].append(filename)
+      else:
+        for label in labels:
+          if str(label) in segid_bbox_dict:
+            locations[int(label)].append(filename)
 
     return locations
 
