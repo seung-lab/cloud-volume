@@ -33,6 +33,7 @@ skel_info = {
   "vertex_attributes": [
     {"id": "radius", "data_type": "float32", "num_components": 1}
   ], 
+  "mip": 3,
 }
 
 def test_skeletons():
@@ -700,6 +701,7 @@ def test_sharded():
           f.write(files[fname])      
 
       cv = CloudVolume('file:///tmp/removeme/skeletons/sharded/')
+      assert cv.skeleton.meta.mip == 3
 
       for i in range(10):
         sk = cv.skeleton.get(i).physical_space()

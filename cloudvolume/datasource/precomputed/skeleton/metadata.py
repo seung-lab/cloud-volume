@@ -1,6 +1,10 @@
+import re
+
 from ....lib import jsonify
 
 import numpy as np
+
+SKEL_MIP_REGEXP = re.compile(r'skeletons_mip_(\d+)')
 
 class PrecomputedSkeletonMetadata(object):
   def __init__(self, meta, cache=None, info=None):
@@ -23,6 +27,21 @@ class PrecomputedSkeletonMetadata(object):
     if 'skeletons' in self.meta.info:
       return self.meta.info['skeletons']
     return 'skeletons'
+
+  @property
+  def mip(self):
+    if 'mip' in self.info:
+      return int(self.info['mip'])
+    
+    # Igneous has long used skeletons_mip_N to store
+    # some information about the skeletonizing job. Let's 
+    # exploit that for now.
+    matches = re.search(SKEL_MIP_REGEXP, self.skeleton_path)
+    if matches is None:
+      return None 
+
+    mip, = matches.groups()
+    return int(mip)
 
   def join(self, *paths):
     return self.meta.join(*paths)
