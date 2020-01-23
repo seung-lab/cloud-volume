@@ -72,6 +72,40 @@ class SpatialIndex(object):
     
     return index_files
 
+  def get_bbox(self, label):
+    """
+    Given a label, compute an enclosing bounding box for it.
+
+    Returns: Bbox in physical coordinates
+    """
+    index_files = self.index_file_paths_for_bbox(self.bounds)
+    index_files = self.fetch_index_files(index_files)
+    locations = defaultdict(list)
+    
+    label = str(label)
+    bbox = None
+    for filename, content in index_files.items():
+      if content is None:
+        if allow_missing:
+          continue
+        else:
+          raise SpatialIndexGapError(filename + " was not found.")
+
+      segid_bbox_dict = json.loads(content)
+      filename = os.path.basename(filename)
+
+      if label not in segid_bbox_dict: 
+        continue 
+
+      current_bbox = Bbox.from_list(segid_bbox_dict[label])
+
+      if bbox is None:
+        bbox = current_bbox
+      else:
+        bbox = Bbox.expand(bbox, current_bbox)
+
+    return bbox
+
   def file_locations_per_label(self, labels=None, allow_missing=False):
     """
     Queries entire dataset to find which spatial index files the 
