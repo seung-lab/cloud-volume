@@ -11,7 +11,7 @@ vol[:,:,:] = image # Upload an entire image stack from a numpy array to the clou
 
 label = 1
 mesh = vol.mesh.get(label)
-skel = vol.skeletons.get(label)
+skel = vol.skeleton.get(label)
 ```
 
 CloudVolume is a serverless Python client for random access reading and writing [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
