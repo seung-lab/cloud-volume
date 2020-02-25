@@ -74,11 +74,18 @@ class GrapheneMetadata(PrecomputedMetadata):
       }
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
+  def info_path(self):
+    """e.g. https://SUBDOMAIN.dynamicannotationframework.com/segmentation/table/DATASET/info"""
+    path = self.server_path
+    return path.scheme + '://' + path.subdomain + '.' + path.domain + '/' \
+      + posixpath.join(path.modality, 'table', path.dataset, 'info')
+
   def fetch_info(self):
     """
     Reads info from chunkedgraph endpoint and extracts relevant information
     """
-    r = requests.get(posixpath.join(self.server_url, "info"), headers=self.auth_header)
+    info_path = self.info_path()
+    r = requests.get(info_path, headers=self.auth_header)
     r.raise_for_status()
     return r.json()
 
