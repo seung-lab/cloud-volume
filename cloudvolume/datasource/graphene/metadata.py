@@ -118,23 +118,33 @@ class GrapheneMetadata(PrecomputedMetadata):
       )
     return self.mesh_metadata["draco_grid_sizes"][str(level)]
 
-
 GraphenePath = namedtuple('GraphenePath', ('scheme', 'subdomain', 'domain', 'modality', 'version', 'dataset'))
-EXTRACTION_RE = re.compile(r'/?(\w+)/([\d.]+)/([\w\d\.\_\-]+)/?')
+LEGACY_EXTRACTION_RE = re.compile(r'/?(\w+)/([\d\.]+)/([\w\d\.\_\-]+)/?')
+API_VX_EXTRACTION_RE = re.compile(r'/?(\w+)/api/(v[\d\.]+)/([\w\d\.\_\-]+)/?')
 
 def extract_graphene_path(url):
+  """
+  segmentation/fly_v31/info
+  segmentation/fly_v26/info <-- sandbox
+  Examples:
+  Legacy endpoint:
+    graphene://https://fafbv2.dynamicannotationframework.com/segmentation/1.0/fly_v31
+  Newer endpoint:
+    graphene://https://fafbv2.dynamicannotationframework.com/segmentation/api/v1/fly_v31 
+  """
   parse = urllib.parse.urlparse(url)
   subdomain = parse.netloc.split('.')[0]
   domain = '.'.join(parse.netloc.split('.')[1:])
 
-  match = re.match(EXTRACTION_RE, parse.path)
-  if not match:
+  schemes = [ API_VX_EXTRACTION_RE, LEGACY_EXTRACTION_RE ]
+
+  for scheme in schemes:
+    match = re.match(scheme, parse.path)
+    if match:
+      break
+  else:
     raise exceptions.UnsupportedFormatError("Unable to parse Graphene URL: " + url)
 
   modality, version, dataset = match.groups()
   return GraphenePath(parse.scheme, subdomain, domain, modality, version, dataset)
-
-
-
-
 
