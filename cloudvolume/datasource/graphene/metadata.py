@@ -10,10 +10,56 @@ from ... import paths
 from ...secrets import chunkedgraph_credentials
 from ..precomputed import PrecomputedMetadata
 
+VERSION_ORDERING = [  
+  '1.0', 'v1'
+]
+VERSION_MAP = {
+  version: i for i, version in enumerate(VERSION_ORDERING)
+}
+
+class GrapheneApiVersion():
+  def __init__(self, version):
+    self.version = version.lower()
+  def __eq__(self, rhs):
+    return self.version == rhs.version
+  def __ne__(self, rhs):
+    return self.version != rhs.version
+  def __lt__(self, rhs):
+    return self.sequence_number() < rhs.sequence_number()
+  def __gt__(self, rhs):
+    return self.sequence_number() > rhs.sequence_number()
+  def __le__(self, rhs):
+    return self.sequence_number() <= rhs.sequence_number()
+  def __ge__(self, rhs):
+    return self.sequence_number() >= rhs.sequence_number()
+  
+  def sequence_number(self):
+    return VERSION_MAP[self.version]
+
+  def path(self, graphene_path):
+    if self.version == '1.0':
+      return self.legacy_path(graphene_path)
+    return self.api_vx_path(graphene_path)
+
+  def legacy_path(self, graphene_path):
+    """All /segmentation/1.0/$DATASET paths"""
+    return posixpath.join(graphene_path.modality, '1.0', graphene_path.dataset)
+
+  def api_vx_path(self, graphene_path):
+    """
+    All /segmentation/api/v1/$DATASET paths.
+
+    As of Feb. 2020, these were the latest paths.
+    """
+    return posixpath.join( 
+      graphene_path.modality, 'api', self.version, graphene_path.dataset
+    )
+
 class GrapheneMetadata(PrecomputedMetadata):
   def __init__(self, cloudpath, use_https=False, use_auth=True, auth_token=None, *args, **kwargs):
     self.server_url = cloudpath.replace('graphene://', '')
     self.server_path = extract_graphene_path(self.server_url)
+    self.api_version = GrapheneApiVersion(self.server_path.version)
     self.use_https = use_https
     self.auth_header = None
     self.spatial_index = None
