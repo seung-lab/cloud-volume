@@ -173,22 +173,29 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     if self.meta.supports_api('v1'):
       version = GrapheneApiVersion('v1')
-      path = version.table_path(self.meta.server_path)
+      path = version.path(self.meta.server_path)
       url = posixpath.join(self.meta.base_path, path, "roots")
       response = requests.post(url, json={
         'node_ids': segids,
-      })
-      roots = np.frombuffer(response.content, dtype=np.uint64)
-    else:
+      }, headers=self.meta.auth_header)
+      response.raise_for_status()
+      roots = np.array(json.loads(response.content), dtype=np.uint64)
+    elif self.meta.supports_api('1.0'):
       roots = []
       version = GrapheneApiVersion('1.0')
       path = version.path(self.meta.server_path)
       url = posixpath.join(self.meta.base_path, path, "graph/root")
       for segid in segids:
-        response = requests.post(url, json=[ int(segid) ])
+        response = requests.post(url, json=[ int(segid) ], headers=self.meta.auth_header)
         response.raise_for_status()
         root = np.frombuffer(response.content, dtype=np.uint64)[0]
         roots.append(root)
+    else:
+      raise exceptions.UnsupportedGrapheneAPIVersionError(
+        "{} is not a supported API version.".format(
+          self.meta.api_version
+        )
+      )
 
     return np.array(roots, dtype=np.uint64)
 

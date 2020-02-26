@@ -62,7 +62,7 @@ class GrapheneApiVersion():
     As of Feb. 2020, these were the latest paths.
     """
     return posixpath.join( 
-      graphene_path.modality, 'api', self.version, graphene_path.dataset
+      graphene_path.modality, 'api', self.version, 'table', graphene_path.dataset
     )
 
 class GrapheneMetadata(PrecomputedMetadata):

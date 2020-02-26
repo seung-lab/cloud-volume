@@ -114,6 +114,10 @@ class UnsupportedProtocolError(ValueError):
   """Unknown protocol extension."""
   pass
 
+class UnsupportedGrapheneAPIVersionError(Exception):
+  """This dataset does not support the specified api version."""
+  pass
+
 class SpecViolation(Exception):
   """The values held by this object violate its written specification."""
   pass
