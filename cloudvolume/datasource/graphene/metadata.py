@@ -85,7 +85,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
   def supports_api(self, version):
-    return GrapheneApiVersion(version) >= self.supported_api_versions[-1]
+    return GrapheneApiVersion(version) in self.supported_api_versions
 
   @property  
   def supported_api_versions(self):
