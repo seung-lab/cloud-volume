@@ -99,14 +99,17 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     mip: which resolution level to get (default self.mip)
     parallel: what parallel level to use (default self.parallel)
 
+    agglomerate: if true, remap all watershed ids in the volume
+      and return a flat segmentation.
+
+    if agglomerate is false, these other options come into play:
+
     segids: agglomerate the leaves of these segids from the graph 
       server and label them with the given segid.
     preserve_zeros: If segids is not None:
       False: mask other segids with zero
       True: mask other segids with the largest integer value
         contained by the image data type and leave zero as is.
-    agglomerate: if true, remap all watershed ids in the volume
-      and return a flat segmentation.
 
     Returns: img as a VolumeCutout
     """
@@ -166,7 +169,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
     labels = fastremap.unique(img)
     roots = self.get_roots(labels, timestamp=timestamp)
-    mapping = { segid: root for segid, root in zip(labels, mapping) }
+    mapping = { segid: root for segid, root in zip(labels, roots) }
     return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=True)
 
   def __getitem__(self, slices):
@@ -185,8 +188,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     Get the root ids for these labels.
     """
     segids = toiter(segids)
+    if isinstance(segids, np.ndarray):
+      segids = segids.tolist()
 
-    if False and self.meta.supports_api('v1'):
+    if self.meta.supports_api('v1'):
       roots = self._get_roots_v1(segids, timestamp)
     elif self.meta.supports_api('1.0'):
       roots = self._get_roots_legacy(segids, timestamp)
