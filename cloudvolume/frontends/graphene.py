@@ -8,6 +8,7 @@ import sys
 import fastremap
 import numpy as np
 
+from .. import compression
 from .. import exceptions
 from ..cacheservice import CacheService
 from ..lib import Bbox, Vec, toiter
@@ -208,11 +209,24 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if timestamp is not None:
       args['timestamp'] = timestamp
 
+    headers = {}
+    headers.update(self.meta.auth_header)
+
+    gzip_condition = len(segids) * (1 + len(str(max(segids)))) > 1e6
+
+    if gzip_condition:
+      headers['Content-Encoding'] = 'gzip'
+
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
     url = posixpath.join(self.meta.base_path, path, "roots")
     args['node_ids'] = segids
-    response = requests.post(url, json=args, headers=self.meta.auth_header)
+
+    data = json.dumps(args)
+    if gzip_condition:
+      data = compression.compress(data.encode('utf8'), method='gzip')
+
+    response = requests.post(url, data=data, headers=headers)
     response.raise_for_status()
     return json.loads(response.content)
 
