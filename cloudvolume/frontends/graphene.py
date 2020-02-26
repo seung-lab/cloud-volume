@@ -13,6 +13,7 @@ from ..cacheservice import CacheService
 from ..lib import Bbox, Vec, toiter
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
+from ..datasource.graphene.metadata import GrapheneApiVersion
 
 from .precomputed import CloudVolumePrecomputed
 
@@ -162,13 +163,34 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     )
 
   def get_root(self, segid):
+    return get_roots(segid)[0]
+
+  def get_roots(self, segids):
     """
     Get the root id of this label.
     """
-    url = posixpath.join(self.meta.server_url, "graph/root")
-    response = requests.post(url, json=[ int(segid) ])
-    response.raise_for_status()
-    return np.frombuffer(response.content, dtype=np.uint64)[0]
+    segids = toiter(segids)
+
+    if self.meta.supports_api('v1'):
+      version = GrapheneApiVersion('v1')
+      path = version.table_path(self.meta.server_path)
+      url = posixpath.join(self.meta.base_path, path, "roots")
+      response = requests.post(url, json={
+        'node_ids': segids,
+      })
+      roots = np.frombuffer(response.content, dtype=np.uint64)
+    else:
+      roots = []
+      version = GrapheneApiVersion('1.0')
+      path = version.path(self.meta.server_path)
+      url = posixpath.join(self.meta.base_path, path, "graph/root")
+      for segid in segids:
+        response = requests.post(url, json=[ int(segid) ])
+        response.raise_for_status()
+        root = np.frombuffer(response.content, dtype=np.uint64)[0]
+        roots.append(root)
+
+    return np.array(roots, dtype=np.uint64)
 
   def get_leaves(self, root_id, bbox, mip):
     """

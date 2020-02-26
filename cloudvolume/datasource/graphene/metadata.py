@@ -20,6 +20,9 @@ VERSION_MAP = {
 class GrapheneApiVersion():
   def __init__(self, version):
     self.version = version.lower()
+    if self.version not in VERSION_MAP:
+      raise ValueError("Unknown Graphene API version {}".format(self.version))
+
   def __eq__(self, rhs):
     return self.version == rhs.version
   def __ne__(self, rhs):
@@ -32,7 +35,11 @@ class GrapheneApiVersion():
     return self.sequence_number() <= rhs.sequence_number()
   def __ge__(self, rhs):
     return self.sequence_number() >= rhs.sequence_number()
-  
+  def __str__(self):
+    return self.version
+  def __repr__(self):
+    return "GrapheneApiVersion('{}')".format(self.version)
+
   def sequence_number(self):
     return VERSION_MAP[self.version]
 
@@ -40,6 +47,9 @@ class GrapheneApiVersion():
     if self.version == '1.0':
       return self.legacy_path(graphene_path)
     return self.api_vx_path(graphene_path)
+
+  def table_path(self, graphene_path):
+    return posixpath.join(graphene_path.modality, 'table', graphene_path.dataset)
 
   def legacy_path(self, graphene_path):
     """All /segmentation/1.0/$DATASET paths"""
@@ -74,18 +84,37 @@ class GrapheneMetadata(PrecomputedMetadata):
       }
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
+  def supports_api(self, version):
+    return GrapheneApiVersion(version) >= self.supported_api_versions[-1]
+
+  @property  
+  def supported_api_versions(self):
+    versions = [ 
+      GrapheneApiVersion(VERSION_ORDERING[i]) \
+      for i in self.info['app']['supported_api_versions'] 
+    ]
+    versions.sort(key=lambda ver: ver.sequence_number())
+    return versions
+
+  @property
+  def base_path(self):
+    path = self.server_path
+    return path.scheme + '://' + path.subdomain + '.' + path.domain + '/' 
+
+  @property
+  def table_path(self):
+    return self.base_path + self.api_version.table_path(self.server_path)
+
+  @property
   def info_path(self):
     """e.g. https://SUBDOMAIN.dynamicannotationframework.com/segmentation/table/DATASET/info"""
-    path = self.server_path
-    return path.scheme + '://' + path.subdomain + '.' + path.domain + '/' \
-      + posixpath.join(path.modality, 'table', path.dataset, 'info')
+    return posixpath.join(self.table_path, 'info')
 
   def fetch_info(self):
     """
     Reads info from chunkedgraph endpoint and extracts relevant information
     """
-    info_path = self.info_path()
-    r = requests.get(info_path, headers=self.auth_header)
+    r = requests.get(self.info_path, headers=self.auth_header)
     r.raise_for_status()
     return r.json()
 
