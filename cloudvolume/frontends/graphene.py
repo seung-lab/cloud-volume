@@ -204,7 +204,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(roots, dtype=np.uint64)
 
-  def _get_roots_v1(self, segids, timestamp, binary=True):
+  def _get_roots_v1(self, segids, timestamp, binary=False):
     args = {}
     if timestamp is not None:
       args['timestamp'] = timestamp
