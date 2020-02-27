@@ -210,13 +210,11 @@ API_VX_EXTRACTION_RE = re.compile(r'/?(\w+)/api/(v[\d\.]+)/([\w\d\.\_\-]+)/?')
 
 def extract_graphene_path(url):
   """
-  segmentation/fly_v31/info
-  segmentation/fly_v26/info <-- sandbox
   Examples:
   Legacy endpoint:
-    graphene://https://fafbv2.dynamicannotationframework.com/segmentation/1.0/fly_v31
+    graphene://https://SUBDOMAIN.dynamicannotationframework.com/segmentation/1.0/DATASET
   Newer endpoint:
-    graphene://https://fafbv2.dynamicannotationframework.com/segmentation/api/v1/fly_v31 
+    graphene://https://SUBDOMAIN.dynamicannotationframework.com/segmentation/api/v1/DATASET
   """
   parse = urllib.parse.urlparse(url)
   subdomain = parse.netloc.split('.')[0]
