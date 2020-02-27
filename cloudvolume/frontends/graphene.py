@@ -204,7 +204,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(roots, dtype=np.uint64)
 
-  def _get_roots_v1(self, segids, timestamp):
+  def _get_roots_v1(self, segids, timestamp, binary=True):
     args = {}
     if timestamp is not None:
       args['timestamp'] = timestamp
@@ -212,15 +212,21 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     headers = {}
     headers.update(self.meta.auth_header)
 
-    gzip_condition = len(segids) * (1 + len(str(max(segids)))) > 1e6
+    gzip_condition = len(segids) * 8 > 1e6
 
     if gzip_condition:
       headers['Content-Encoding'] = 'gzip'
+      headers['Accept-Encoding'] = 'gzip;q=1, identity;q=0.1'
+    else:
+      headers['Accept-Encoding'] = 'identity'
 
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
     url = posixpath.join(self.meta.base_path, path, "roots")
     args['node_ids'] = segids
+
+    if binary:
+      args['as_binary'] = 'node_ids'
 
     data = json.dumps(args)
     if gzip_condition:
@@ -228,7 +234,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     response = requests.post(url, data=data, headers=headers)
     response.raise_for_status()
-    return json.loads(response.content)
+
+    if binary:
+      return np.frombuffer(response.content, dtype=np.uint64)
+    else:
+      return json.loads(response.content)
 
   def _get_roots_legacy(self, segids, timestamp):
     args = {}
