@@ -145,7 +145,7 @@ def cv_graphene_mesh_draco(requests_mock):
         }],
         "type": "segmentation"
     }
-    infourl = posixpath.join(PCG_LOCATION, 'mesh/table', TEST_DATASET_NAME, "info")
+    infourl = posixpath.join(PCG_LOCATION, 'meshing/table', DRACO_MESH_TEST_DATASET_NAME, "info")
     requests_mock.get(infourl, json=info_d)
   
     frag_files = os.listdir(os.path.join(graphene_test_cv_dir, info_d['mesh']))
@@ -160,7 +160,7 @@ def cv_graphene_mesh_draco(requests_mock):
     requests_mock.get(mock_url, json=frag_d)
     
     cloudpath = posixpath.join(PCG_LOCATION, 'meshing/api/v1', DRACO_MESH_TEST_DATASET_NAME)
-    yield cloudvolume.CloudVolume(cloudpath)
+    yield cloudvolume.CloudVolume('graphene://' + cloudpath)
 
 @pytest.fixture(scope='session')
 def cv_supervoxels(N=64, blockN=16):
