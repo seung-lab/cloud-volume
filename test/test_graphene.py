@@ -79,14 +79,10 @@ def cv_graphene_mesh_precomputed(requests_mock):
     frag_files = [f[:-3] for f in frag_files if f[0]=='9']
     frag_d = {'fragments':frag_files}
     mock_url = PCG_MESH_LOCATION + PRECOMPUTED_MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
-    requests_mock.get(mock_url,
-                      json=frag_d)
-    print(mock_url)
-    gcv = cloudvolume.CloudVolume(
-        "graphene://{}{}".format(PCG_LOCATION, PRECOMPUTED_MESH_TEST_DATASET_NAME)
-    )
+    requests_mock.get(mock_url, json=frag_d)
 
-    yield gcv
+    cloudpath = "graphene://{}{}".format(PCG_LOCATION, PRECOMPUTED_MESH_TEST_DATASET_NAME)
+    yield cloudvolume.CloudVolume(cloudpath)
 
 @pytest.fixture()
 def cv_graphene_mesh_draco(requests_mock):
@@ -150,10 +146,10 @@ def cv_graphene_mesh_draco(requests_mock):
   
     frag_files = os.listdir(os.path.join(graphene_test_cv_dir, info_d['mesh']))
     # we want to filter out the manifest file
-    frag_files = [ f for f in frag_files if f[0]=='1' ]
-    frag_d = { 'fragments':frag_files }
+    frag_files = [ f for f in frag_files if f[0] == '1' ]
+    frag_d = { 'fragments': frag_files }
     mock_url = posixpath.join(
-        PCG_LOCATION, 'meshing', 
+        PCG_LOCATION, 'meshing/api/v1/table', 
         DRACO_MESH_TEST_DATASET_NAME, 
         "manifest/{}:0?verify=True".format(TEST_SEG_ID)
     )

@@ -99,6 +99,8 @@ class GrapheneMetadata(PrecomputedMetadata):
   @property
   def base_path(self):
     path = self.server_path
+    if path.subdomain is None:
+      return path.scheme + '://' + path.domain + '/'   
     return path.scheme + '://' + path.subdomain + '.' + path.domain + '/' 
 
   @property
@@ -143,11 +145,13 @@ class GrapheneMetadata(PrecomputedMetadata):
   @property
   def manifest_endpoint(self):
     pth = self.server_path
-    url = pth.scheme + '://'
-    if pth.subdomain is not None:
-      url += pth.subdomain + '.' 
-    url += pth.domain
-    return url + '/' + posixpath.join('meshing', pth.version, pth.dataset, 'manifest')
+    pth = GraphenePath(
+      pth.scheme, pth.subdomain, pth.domain, 
+      'meshing', pth.version, pth.dataset
+    )
+
+    url = self.api_version.path(pth)
+    return posixpath.join(self.base_path, url, 'manifest')
 
   @property
   def chunks_start_at_voxel_offset(self):

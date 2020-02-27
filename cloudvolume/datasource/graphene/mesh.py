@@ -19,7 +19,6 @@ from ...storage import Storage, GreenStorage
 from ..precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, PrecomputedMeshMetadata
 
 
-
 class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
   def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
