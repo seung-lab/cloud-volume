@@ -86,6 +86,9 @@ def gunzip(content):
   There is once chance in 65536 that a file that is not gzipped will
   be ungzipped.
   """
+  if len(content) == 0:
+    raise DecompressionError('File contains zero bytes.')
+
   gzip_magic_numbers = [ 0x1f, 0x8b ]
   first_two_bytes = [ byte for byte in bytearray(content)[:2] ]
   if first_two_bytes != gzip_magic_numbers:

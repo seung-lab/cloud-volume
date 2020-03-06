@@ -2,6 +2,7 @@ import pytest
 
 import numpy as np
 
+from cloudvolume.exceptions import DecompressionError
 from cloudvolume.compression import compress, decompress
 
 @pytest.mark.parametrize("compression_method", ("gzip", "br"))
@@ -12,6 +13,13 @@ def test_compression(compression_method):
     assert compressed != flts
     decompressed = decompress(compressed, compression_method)
     assert decompressed == flts
+
+  flts = np.array([], dtype=np.float32).tobytes()
+  try:
+    decompress(flts, compression_method)
+    assert False
+  except DecompressionError:
+    pass
 
 @pytest.mark.parametrize("compression_method", ("gzip", "br"))
 def test_compress_level(compression_method):
