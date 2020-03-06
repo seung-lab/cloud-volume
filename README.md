@@ -540,12 +540,6 @@ Python 2.7's [End of Life date](https://pythonclock.org/) is January, 1 2020. Cl
 
 ## Acknowledgments
 
-Thank you to Jeremy Maitin-Shepard for creating [Neuroglancer](https://github.com/google/neuroglancer) and defining the Precomputed format.
-Thanks to Yann Leprince for providing a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format.
-Thanks to Jeremy Maitin-Shepard and Stephen Plaza for their C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg).
-Thanks to Peter Lindstrom et al. for [their work](https://computation.llnl.gov/projects/floating-point-compression) on fpzip, the C++ code, and assistance.
-Thanks to Nico Kemnitz for his work on the "Kempression" protocol that builds on fpzip (we named it, not him).
-Thanks to Dan Bumbarger for contributing code and information helpful for getting CloudVolume working on Windows.
-Thanks to Fredrik Kihlander for his [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) for developing murmurhash3.
-Thanks to Ben Falk for advocating and doing the bulk of the work on brotli compression.
-Thanks to 
+Thank you to everyone that has contributed past or current to CloudVolume or the ecosystem it serves. We love you!  
+
+Jeremy Maitin-Shepard created [Neuroglancer](https://github.com/google/neuroglancer) and defined the Precomputed format. Yann Leprince provided a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. Jeremy Maitin-Shepard and Stephen Plaza created C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg). Peter Lindstrom et al. created [the fpzip algorithm](https://computation.llnl.gov/projects/floating-point-compression), and contributed a C++ implementation and advice. Nico Kemnitz adapted our data to fpzip using the "Kempression" protocol (we named it, not him). Dan Bumbarger contributed code and information helpful for getting CloudVolume working on Windows. Fredrik Kihlander's [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) developed murmurhash3 which is necessary for the sharded format. Ben Falk for advocated for and did the bulk of the work on brotli compression. Some of the ideas in CloudVolume are based on work by Jingpeng Wu in [BigArrays.jl](https://github.com/seung-lab/BigArrays.jl). Ignacio Tartavull and William Silversmith wrote the initial version of CloudVolume.
