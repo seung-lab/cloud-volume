@@ -29,6 +29,8 @@ def decompress(content, encoding, filename='N/A'):
     encoding = (encoding or '').lower()
     if encoding == '':
       return content
+    elif len(content) == 0:
+      raise DecompressionError('File contains zero bytes: ' + str(filename))
     elif encoding == 'gzip':
       return gunzip(content)
     elif encoding == 'br':
@@ -106,4 +108,7 @@ def brotli_compress(content, quality=None):
   return brotli.compress(content, quality=quality)
 
 def brotli_decompress(content):
+  if len(content) == 0:
+    raise DecompressionError('File contains zero bytes.')
+
   return brotli.decompress(content)
