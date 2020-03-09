@@ -5,7 +5,7 @@ import json5
 __all__ = [ 'DatasetProvenance', 'DataLayerProvenance' ]
 
 dataset_provenance_schema = {
-  "$schema": "http://json-schema.org/draft-04/schema",
+  "$schema": "http://json-schema.org/draft-04/schema#",
   "title": "Dataset Provenance",
   "description": "Represents a dataset and its derived data layers.",
   "required": [
@@ -46,7 +46,7 @@ classes = builder.build_classes()
 DatasetProvenance = classes.DatasetProvenance
 
 layer_provenance_schema = {
-  "$schema": "http://json-schema.org/draft-04/schema",
+  "$schema": "http://json-schema.org/draft-04/schema#",
   "title": "Data Layer Provenance",
   "description": "Represents a data layer within a dataset. e.g. image, segmentation, etc",
   "required": [
