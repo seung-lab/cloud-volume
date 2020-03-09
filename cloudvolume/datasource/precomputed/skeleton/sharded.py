@@ -50,10 +50,10 @@ class ShardedPrecomputedSkeletonSource(object):
     else:
       return results[0]
 
-  def upload(self):
+  def upload(self, *args, **kwargs):
     raise NotImplementedError()
 
-  def raw_upload(self):
+  def raw_upload(self, *args, **kwargs):
     raise NotImplementedError()
 
   def get_bbox(self, bbox):
