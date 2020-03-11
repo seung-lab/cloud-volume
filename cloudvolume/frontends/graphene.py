@@ -184,7 +184,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     """Deprecated. Get a single root id for a single segid."""
     return get_roots(segid, *args, **kwargs)[0]
 
-  def get_roots(self, segids, timestamp=None):
+  def get_roots(self, segids, timestamp=None, binary=False):
     """
     Get the root ids for these labels.
     """
@@ -193,7 +193,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       segids = segids.tolist()
 
     if self.meta.supports_api('v1'):
-      roots = self._get_roots_v1(segids, timestamp)
+      roots = self._get_roots_v1(segids, timestamp, binary)
     elif self.meta.supports_api('1.0'):
       roots = self._get_roots_legacy(segids, timestamp)
     else:
