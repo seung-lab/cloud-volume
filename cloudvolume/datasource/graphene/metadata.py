@@ -20,7 +20,9 @@ VERSION_MAP = {
 class GrapheneApiVersion():
   def __init__(self, version):
     self.version = version.lower()
-    if self.version not in VERSION_MAP:
+    if self.version == 'table':
+      self.version = VERSION_ORDERING[-1]
+    elif self.version not in VERSION_MAP:
       raise ValueError("Unknown Graphene API version {}".format(self.version))
 
   def __eq__(self, rhs):
@@ -69,7 +71,6 @@ class GrapheneMetadata(PrecomputedMetadata):
   def __init__(self, cloudpath, use_https=False, use_auth=True, auth_token=None, *args, **kwargs):
     self.server_url = cloudpath.replace('graphene://', '')
     self.server_path = extract_graphene_path(self.server_url)
-    self.api_version = GrapheneApiVersion(self.server_path.version)
     self.use_https = use_https
     self.auth_header = None
     self.spatial_index = None
@@ -83,6 +84,12 @@ class GrapheneMetadata(PrecomputedMetadata):
         "Authorization": "Bearer %s" % token
       }
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
+
+    version = self.server_path.version
+    if version == 'table':
+      version = self.supported_api_versions[-1].version
+
+    self.api_version = GrapheneApiVersion(version)
 
   def supports_api(self, version):
     return GrapheneApiVersion(version) in self.supported_api_versions
@@ -105,7 +112,7 @@ class GrapheneMetadata(PrecomputedMetadata):
 
   @property
   def table_path(self):
-    return self.base_path + self.api_version.table_path(self.server_path)
+    return posixpath.join(self.base_path, self.server_path.modality, 'table', self.server_path.dataset)
 
   @property
   def info_path(self):
@@ -207,6 +214,7 @@ class GrapheneMetadata(PrecomputedMetadata):
 GraphenePath = namedtuple('GraphenePath', ('scheme', 'subdomain', 'domain', 'modality', 'version', 'dataset'))
 LEGACY_EXTRACTION_RE = re.compile(r'/?(\w+)/([\d\.]+)/([\w\d\.\_\-]+)/?')
 API_VX_EXTRACTION_RE = re.compile(r'/?(\w+)/api/(v[\d\.]+)/([\w\d\.\_\-]+)/?')
+LATEST_API_EXTRACTION_RE = re.compile(r'/?(\w+)/(table)/([\w\d\.\_\-]+)/?')
 
 def extract_graphene_path(url):
   """
@@ -215,12 +223,16 @@ def extract_graphene_path(url):
     graphene://https://SUBDOMAIN.dynamicannotationframework.com/segmentation/1.0/DATASET
   Newer endpoint:
     graphene://https://SUBDOMAIN.dynamicannotationframework.com/segmentation/api/v1/DATASET
+  Latest endpoint:
+    graphene://https://SUBDOMAIN.DOMAIN_DOT_COM/segmentation/table/DATASET
   """
   parse = urllib.parse.urlparse(url)
   subdomain = parse.netloc.split('.')[0]
   domain = '.'.join(parse.netloc.split('.')[1:])
 
-  schemes = [ API_VX_EXTRACTION_RE, LEGACY_EXTRACTION_RE ]
+  schemes = [ 
+    LATEST_API_EXTRACTION_RE, API_VX_EXTRACTION_RE, LEGACY_EXTRACTION_RE 
+  ]
 
   for scheme in schemes:
     match = re.match(scheme, parse.path)
