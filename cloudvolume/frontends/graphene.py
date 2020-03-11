@@ -202,7 +202,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         + ", ".join([ str(_) for _ in self.meta.supported_api_versions ])
       )
 
-    return np.array(roots, dtype=np.uint64)
+    return np.array(roots, dtype=self.meta.dtype)
 
   def _get_roots_v1(self, segids, timestamp, binary=False):
     args = {}
