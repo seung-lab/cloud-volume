@@ -235,10 +235,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     response = requests.post(url, data=data, headers=headers)
     response.raise_for_status()
 
+    roots = json.loads(response.content)['root_ids']
+
     if binary:
-      return np.frombuffer(response.content, dtype=np.uint64)
-    else:
-      return json.loads(response.content)
+      return np.frombuffer(roots, dtype=np.uint64)
+    
+    return roots
 
   def _get_roots_legacy(self, segids, timestamp):
     args = {}
