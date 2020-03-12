@@ -165,11 +165,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return VolumeCutout.from_volume(
       self.meta, mip, img, bbox 
     )
-
+  
   def agglomerate_cutout(self, img, timestamp=None):
     """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
     labels = fastremap.unique(img)
-    roots = self.get_roots(labels, timestamp=timestamp)
+    roots = self.get_roots(labels, timestamp=timestamp, binary=True)
     mapping = { segid: root for segid, root in zip(labels, roots) }
     return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=True)
 
