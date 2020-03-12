@@ -530,7 +530,8 @@ class CloudVolumePrecomputed(object):
 
   def download(
       self, bbox, mip=None, parallel=None,
-      segids=None, preserve_zeros=False
+      segids=None, preserve_zeros=False,
+      agglomerate=False, timestamp=None
     ):
     """
     Downloads segmentation from the indicated cutout
@@ -546,6 +547,9 @@ class CloudVolumePrecomputed(object):
       False: mask other segids with zero
       True: mask other segids with the largest integer value
         contained by the image data type and leave zero as is.
+
+    agglomerate & timestamp are just there to absorb arguments
+    to what could be a graphene frontend.
 
     Returns: img
     """  

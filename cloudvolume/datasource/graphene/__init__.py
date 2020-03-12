@@ -7,7 +7,6 @@ from ...cacheservice import CacheService
 from ...cloudvolume import SharedConfiguration, register_plugin
 from ...paths import strict_extract
 
-from ...frontends import CloudVolumeGraphene
 from requests import HTTPError
 
 def create_graphene(
@@ -19,6 +18,7 @@ def create_graphene(
     green_threads=False, use_https=False,
     **kwargs
   ):
+    from ...frontends import CloudVolumeGraphene
     
     path = strict_extract(cloudpath)
     config = SharedConfiguration(

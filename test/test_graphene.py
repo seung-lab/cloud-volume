@@ -4,6 +4,7 @@ import tempfile
 import cloudvolume
 import numpy as np
 import shutil
+import posixpath
 import pytest
 import os
 from scipy import sparse 
@@ -14,8 +15,7 @@ TEST_PATH = "file://{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
 PRECOMPUTED_MESH_TEST_DATASET_NAME = "meshvol_precompute"
 DRACO_MESH_TEST_DATASET_NAME = "meshvol_draco"
-PCG_LOCATION = "https://www.dynamicannotationframework.com/segmentation/1.0/"
-PCG_MESH_LOCATION = "https://www.dynamicannotationframework.com/meshing/1.0/"
+PCG_LOCATION = "https://www.dynamicannotationframework.com/"
 TEST_SEG_ID = 648518346349515986
 
 @pytest.fixture()
@@ -79,14 +79,10 @@ def cv_graphene_mesh_precomputed(requests_mock):
     frag_files = [f[:-3] for f in frag_files if f[0]=='9']
     frag_d = {'fragments':frag_files}
     mock_url = PCG_MESH_LOCATION + PRECOMPUTED_MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
-    requests_mock.get(mock_url,
-                      json=frag_d)
-    print(mock_url)
-    gcv = cloudvolume.CloudVolume(
-        "graphene://{}{}".format(PCG_LOCATION, PRECOMPUTED_MESH_TEST_DATASET_NAME)
-    )
+    requests_mock.get(mock_url, json=frag_d)
 
-    yield gcv
+    cloudpath = "graphene://{}{}".format(PCG_LOCATION, PRECOMPUTED_MESH_TEST_DATASET_NAME)
+    yield cloudvolume.CloudVolume(cloudpath)
 
 @pytest.fixture()
 def cv_graphene_mesh_draco(requests_mock):
@@ -145,21 +141,22 @@ def cv_graphene_mesh_draco(requests_mock):
         }],
         "type": "segmentation"
     }
-    requests_mock.get(PCG_LOCATION+DRACO_MESH_TEST_DATASET_NAME+"/info", json=info_d)
+    infourl = posixpath.join(PCG_LOCATION, 'meshing/table', DRACO_MESH_TEST_DATASET_NAME, "info")
+    requests_mock.get(infourl, json=info_d)
   
     frag_files = os.listdir(os.path.join(graphene_test_cv_dir, info_d['mesh']))
     # we want to filter out the manifest file
-    frag_files = [f for f in frag_files if f[0]=='1']
-    frag_d = {'fragments':frag_files}
-    mock_url = PCG_MESH_LOCATION + DRACO_MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
-    requests_mock.get(mock_url,
-                      json=frag_d)
-    print(mock_url)
-    gcv = cloudvolume.CloudVolume(
-        "graphene://{}{}".format(PCG_LOCATION, DRACO_MESH_TEST_DATASET_NAME)
+    frag_files = [ f for f in frag_files if f[0] == '1' ]
+    frag_d = { 'fragments': frag_files }
+    mock_url = posixpath.join(
+        PCG_LOCATION, 'meshing/api/v1/table', 
+        DRACO_MESH_TEST_DATASET_NAME, 
+        "manifest/{}:0?verify=True".format(TEST_SEG_ID)
     )
-
-    yield gcv
+    requests_mock.get(mock_url, json=frag_d)
+    
+    cloudpath = posixpath.join(PCG_LOCATION, 'meshing/api/v1', DRACO_MESH_TEST_DATASET_NAME)
+    yield cloudvolume.CloudVolume('graphene://' + cloudpath)
 
 @pytest.fixture(scope='session')
 def cv_supervoxels(N=64, blockN=16):
@@ -227,14 +224,15 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
         "type": "segmentation"
     }
 
-    requests_mock.get(PCG_LOCATION+TEST_DATASET_NAME+"/info", json=info_d)
+    infourl = posixpath.join(PCG_LOCATION, 'segmentation/table', TEST_DATASET_NAME, "info")
+    requests_mock.get(infourl, json=info_d)
     
     def mock_get_leaves(self, root_id, bbox, mip):
         return np.array([0,1,2,3], dtype=np.uint64)
 
-    gcv = cloudvolume.CloudVolume(
-        "graphene://{}{}".format(PCG_LOCATION, TEST_DATASET_NAME)
-    )
+    cloudpath = "graphene://" + posixpath.join(PCG_LOCATION, 'segmentation', 'api/v1/', TEST_DATASET_NAME)
+
+    gcv = cloudvolume.CloudVolume(cloudpath)
     gcv.get_leaves = partial(mock_get_leaves, gcv)
     yield gcv
 

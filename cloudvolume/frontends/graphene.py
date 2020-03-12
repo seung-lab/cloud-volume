@@ -8,11 +8,13 @@ import sys
 import fastremap
 import numpy as np
 
+from .. import compression
 from .. import exceptions
 from ..cacheservice import CacheService
 from ..lib import Bbox, Vec, toiter
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
+from ..datasource.graphene.metadata import GrapheneApiVersion
 
 from .precomputed import CloudVolumePrecomputed
 
@@ -87,7 +89,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   def download(
     self, bbox, mip=None, 
     parallel=None, segids=None,
-    preserve_zeros=False
+    preserve_zeros=False,
+    agglomerate=False, timestamp=None
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -97,6 +100,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     mip: which resolution level to get (default self.mip)
     parallel: what parallel level to use (default self.parallel)
 
+    agglomerate: if true, remap all watershed ids in the volume
+      and return a flat segmentation.
+
+    if agglomerate is false, these other options come into play:
+
     segids: agglomerate the leaves of these segids from the graph 
       server and label them with the given segid.
     preserve_zeros: If segids is not None:
@@ -104,7 +112,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       True: mask other segids with the largest integer value
         contained by the image data type and leave zero as is.
 
-    Returns: img
+    Returns: img as a VolumeCutout
     """
     if type(bbox) is Vec:
       bbox = Bbox(bbox, bbox+1)
@@ -127,6 +135,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
 
     img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel)
+
+    if agglomerate:
+      img = self.agglomerate_cutout(img, timestamp=timestamp)
+      return VolumeCutout.from_volume(self.meta, mip, img, bbox)
 
     if segids is None:
       return img
@@ -153,6 +165,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return VolumeCutout.from_volume(
       self.meta, mip, img, bbox 
     )
+  
+  def agglomerate_cutout(self, img, timestamp=None):
+    """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
+    labels = fastremap.unique(img)
+    roots = self.get_roots(labels, timestamp=timestamp, binary=True)
+    mapping = { segid: root for segid, root in zip(labels, roots) }
+    return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=True)
 
   def __getitem__(self, slices):
     return self.download(
@@ -161,14 +180,83 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       parallel=self.parallel, 
     )
 
-  def get_root(self, segid):
+  def get_root(self, segid, *args, **kwargs):
+    """Deprecated. Get a single root id for a single segid."""
+    return get_roots(segid, *args, **kwargs)[0]
+
+  def get_roots(self, segids, timestamp=None, binary=False):
     """
-    Get the root id of this label.
+    Get the root ids for these labels.
     """
-    url = posixpath.join(self.meta.server_url, "graph/root")
-    response = requests.post(url, json=[ int(segid) ])
+    segids = toiter(segids)
+    if isinstance(segids, np.ndarray):
+      segids = segids.tolist()
+
+    if self.meta.supports_api('v1'):
+      roots = self._get_roots_v1(segids, timestamp, binary)
+    elif self.meta.supports_api('1.0'):
+      roots = self._get_roots_legacy(segids, timestamp)
+    else:
+      raise exceptions.UnsupportedGrapheneAPIVersionError(
+        "{} is not a supported API version. Supported versions: ".format(self.meta.api_version) \
+        + ", ".join([ str(_) for _ in self.meta.supported_api_versions ])
+      )
+
+    return np.array(roots, dtype=self.meta.dtype)
+
+  def _get_roots_v1(self, segids, timestamp, binary=False):
+    args = {}
+    if timestamp is not None:
+      args['timestamp'] = timestamp
+
+    headers = {}
+    headers.update(self.meta.auth_header)
+
+    gzip_condition = len(segids) * 8 > 1e6
+
+    params = {}
+    if gzip_condition:
+      headers['Content-Encoding'] = 'gzip'
+      headers['Accept-Encoding'] = 'gzip;q=1, identity;q=0.1'
+      params['gzip'] = 1
+    else:
+      headers['Accept-Encoding'] = 'identity'
+
+    version = GrapheneApiVersion('v1')
+    path = version.path(self.meta.server_path)
+    url = posixpath.join(self.meta.base_path, path, "roots")
+    args['node_ids'] = segids
+
+    if binary:
+      params['as_binary'] = 'root_ids'
+
+    data = json.dumps(args)
+    if gzip_condition:
+      data = compression.compress(data.encode('utf8'), method='gzip')
+
+    response = requests.post(url, data=data, headers=headers, params=params)
     response.raise_for_status()
-    return np.frombuffer(response.content, dtype=np.uint64)[0]
+
+    if binary:
+      return np.frombuffer(response.content, dtype=np.uint64)
+    else:
+      return json.loads(response.content)['root_ids']
+
+  def _get_roots_legacy(self, segids, timestamp):
+    args = {}
+    if timestamp is not None:
+      args['timestamp'] = timestamp
+
+    version = GrapheneApiVersion('1.0')
+    path = version.path(self.meta.server_path)
+    roots = []
+    for segid in segids:
+      url = posixpath.join(self.meta.base_path, path, "graph/{:d}/root".format(int(segid)))
+      response = requests.get(url, json=args, headers=self.meta.auth_header)
+      response.raise_for_status()
+      root = np.frombuffer(response.content, dtype=np.uint64)[0]
+      roots.append(root)
+    return roots
 
   def get_leaves(self, root_id, bbox, mip):
     """

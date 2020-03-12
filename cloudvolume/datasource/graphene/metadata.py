@@ -10,6 +10,63 @@ from ... import paths
 from ...secrets import chunkedgraph_credentials
 from ..precomputed import PrecomputedMetadata
 
+VERSION_ORDERING = [  
+  '1.0', 'v1'
+]
+VERSION_MAP = {
+  version: i for i, version in enumerate(VERSION_ORDERING)
+}
+
+class GrapheneApiVersion():
+  def __init__(self, version):
+    self.version = version.lower()
+    if self.version == 'table':
+      self.version = VERSION_ORDERING[-1]
+    elif self.version not in VERSION_MAP:
+      raise ValueError("Unknown Graphene API version {}".format(self.version))
+
+  def __eq__(self, rhs):
+    return self.version == rhs.version
+  def __ne__(self, rhs):
+    return self.version != rhs.version
+  def __lt__(self, rhs):
+    return self.sequence_number() < rhs.sequence_number()
+  def __gt__(self, rhs):
+    return self.sequence_number() > rhs.sequence_number()
+  def __le__(self, rhs):
+    return self.sequence_number() <= rhs.sequence_number()
+  def __ge__(self, rhs):
+    return self.sequence_number() >= rhs.sequence_number()
+  def __str__(self):
+    return self.version
+  def __repr__(self):
+    return "GrapheneApiVersion('{}')".format(self.version)
+
+  def sequence_number(self):
+    return VERSION_MAP[self.version]
+
+  def path(self, graphene_path):
+    if self.version == '1.0':
+      return self.legacy_path(graphene_path)
+    return self.api_vx_path(graphene_path)
+
+  def table_path(self, graphene_path):
+    return posixpath.join(graphene_path.modality, 'table', graphene_path.dataset)
+
+  def legacy_path(self, graphene_path):
+    """All /segmentation/1.0/$DATASET paths"""
+    return posixpath.join(graphene_path.modality, '1.0', graphene_path.dataset)
+
+  def api_vx_path(self, graphene_path):
+    """
+    All /segmentation/api/v1/$DATASET paths.
+
+    As of Feb. 2020, these were the latest paths.
+    """
+    return posixpath.join( 
+      graphene_path.modality, 'api', self.version, 'table', graphene_path.dataset
+    )
+
 class GrapheneMetadata(PrecomputedMetadata):
   def __init__(self, cloudpath, use_https=False, use_auth=True, auth_token=None, *args, **kwargs):
     self.server_url = cloudpath.replace('graphene://', '')
@@ -28,11 +85,45 @@ class GrapheneMetadata(PrecomputedMetadata):
       }
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
+    version = self.server_path.version
+    if version == 'table':
+      version = self.supported_api_versions[-1].version
+
+    self.api_version = GrapheneApiVersion(version)
+
+  def supports_api(self, version):
+    return GrapheneApiVersion(version) in self.supported_api_versions
+
+  @property  
+  def supported_api_versions(self):
+    versions = [ 
+      GrapheneApiVersion(VERSION_ORDERING[i]) \
+      for i in self.info['app']['supported_api_versions'] 
+    ]
+    versions.sort(key=lambda ver: ver.sequence_number())
+    return versions
+
+  @property
+  def base_path(self):
+    path = self.server_path
+    if path.subdomain is None:
+      return path.scheme + '://' + path.domain + '/'   
+    return path.scheme + '://' + path.subdomain + '.' + path.domain + '/' 
+
+  @property
+  def table_path(self):
+    return posixpath.join(self.base_path, self.server_path.modality, 'table', self.server_path.dataset)
+
+  @property
+  def info_path(self):
+    """e.g. https://SUBDOMAIN.dynamicannotationframework.com/segmentation/table/DATASET/info"""
+    return posixpath.join(self.table_path, 'info')
+
   def fetch_info(self):
     """
     Reads info from chunkedgraph endpoint and extracts relevant information
     """
-    r = requests.get(posixpath.join(self.server_url, "info"), headers=self.auth_header)
+    r = requests.get(self.info_path, headers=self.auth_header)
     r.raise_for_status()
     return r.json()
 
@@ -61,11 +152,13 @@ class GrapheneMetadata(PrecomputedMetadata):
   @property
   def manifest_endpoint(self):
     pth = self.server_path
-    url = pth.scheme + '://'
-    if pth.subdomain is not None:
-      url += pth.subdomain + '.' 
-    url += pth.domain
-    return url + '/' + posixpath.join('meshing', pth.version, pth.dataset, 'manifest')
+    pth = GraphenePath(
+      pth.scheme, pth.subdomain, pth.domain, 
+      'meshing', pth.version, pth.dataset
+    )
+
+    url = self.api_version.path(pth)
+    return posixpath.join(self.base_path, url, 'manifest')
 
   @property
   def chunks_start_at_voxel_offset(self):
@@ -118,23 +211,36 @@ class GrapheneMetadata(PrecomputedMetadata):
       )
     return self.mesh_metadata["draco_grid_sizes"][str(level)]
 
-
 GraphenePath = namedtuple('GraphenePath', ('scheme', 'subdomain', 'domain', 'modality', 'version', 'dataset'))
-EXTRACTION_RE = re.compile(r'/?(\w+)/([\d.]+)/([\w\d\.\_\-]+)/?')
+LEGACY_EXTRACTION_RE = re.compile(r'/?(\w+)/([\d\.]+)/([\w\d\.\_\-]+)/?')
+API_VX_EXTRACTION_RE = re.compile(r'/?(\w+)/api/(v[\d\.]+)/([\w\d\.\_\-]+)/?')
+LATEST_API_EXTRACTION_RE = re.compile(r'/?(\w+)/(table)/([\w\d\.\_\-]+)/?')
 
 def extract_graphene_path(url):
+  """
+  Examples:
+  Legacy endpoint:
+    graphene://https://SUBDOMAIN.dynamicannotationframework.com/segmentation/1.0/DATASET
+  Newer endpoint:
+    graphene://https://SUBDOMAIN.dynamicannotationframework.com/segmentation/api/v1/DATASET
+  Latest endpoint:
+    graphene://https://SUBDOMAIN.DOMAIN_DOT_COM/segmentation/table/DATASET
+  """
   parse = urllib.parse.urlparse(url)
   subdomain = parse.netloc.split('.')[0]
   domain = '.'.join(parse.netloc.split('.')[1:])
 
-  match = re.match(EXTRACTION_RE, parse.path)
-  if not match:
+  schemes = [ 
+    LATEST_API_EXTRACTION_RE, API_VX_EXTRACTION_RE, LEGACY_EXTRACTION_RE 
+  ]
+
+  for scheme in schemes:
+    match = re.match(scheme, parse.path)
+    if match:
+      break
+  else:
     raise exceptions.UnsupportedFormatError("Unable to parse Graphene URL: " + url)
 
   modality, version, dataset = match.groups()
   return GraphenePath(parse.scheme, subdomain, domain, modality, version, dataset)
-
-
-
-
 
