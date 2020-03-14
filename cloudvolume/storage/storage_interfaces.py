@@ -328,7 +328,14 @@ class HttpInterface(StorageInterface):
     if resp.status_code in (404, 403):
       return None, None
     resp.raise_for_status()
-    return resp.content, resp.encoding
+
+    if 'Content-Encoding' not in resp.headers:
+      return resp.content, None
+    # requests automatically decodes these
+    elif resp.headers['Content-Encoding'] in ('', 'gzip', 'deflate', 'br'):
+      return resp.content, None
+    else:
+      return resp.content, resp.headers['Content-Encoding']
 
   @retry
   def exists(self, file_path):
