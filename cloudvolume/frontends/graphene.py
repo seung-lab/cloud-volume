@@ -214,26 +214,28 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     gzip_condition = len(segids) * 8 > 1e6
 
-    params = {}
     if gzip_condition:
       headers['Content-Encoding'] = 'gzip'
       headers['Accept-Encoding'] = 'gzip;q=1, identity;q=0.1'
-      params['gzip'] = 1
     else:
       headers['Accept-Encoding'] = 'identity'
 
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
-    url = posixpath.join(self.meta.base_path, path, "roots")
-    args['node_ids'] = segids
 
+    params = {}
     if binary:
-      params['as_binary'] = 'root_ids'
+      url = posixpath.join(self.meta.base_path, path, "roots_binary")
+      data = np.array(segids, dtype=np.uint64).tobytes()
+      params['timestamp'] = timestamp
+    else:
+      url = posixpath.join(self.meta.base_path, path, "roots")
+      args['node_ids'] = segids
+      data = json.dumps(args).encode('utf8')
 
-    data = json.dumps(args)
     if gzip_condition:
-      data = compression.compress(data.encode('utf8'), method='gzip')
-
+      data = compression.compress(data, method='gzip')
+    
     response = requests.post(url, data=data, headers=headers, params=params)
     response.raise_for_status()
 
