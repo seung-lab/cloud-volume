@@ -200,6 +200,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if isinstance(segids, np.ndarray):
       segids = segids.tolist()
 
+    try:
+      segids.remove(0) # background segid
+    except ValueError:
+      pass
+
     if isinstance(timestamp, str):
       timestamp = dateutil.parser.parse(timestamp) # returns datetime
     if isinstance(timestamp, datetime): # NB. do not change to elif
