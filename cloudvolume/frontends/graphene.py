@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import os
 import posixpath
@@ -5,6 +6,7 @@ import re
 import requests
 import sys
 
+import dateutil.parser
 import fastremap
 import numpy as np
 
@@ -187,10 +189,21 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   def get_roots(self, segids, timestamp=None, binary=False):
     """
     Get the root ids for these labels.
+
+    timestamp: get the roots from this date and time
+      formats accepted:
+        int: unix timestamp
+        datetime: self explainatory
+        string: ISO 8601 date
     """
     segids = toiter(segids)
     if isinstance(segids, np.ndarray):
       segids = segids.tolist()
+
+    if isinstance(timestamp, str):
+      timestamp = dateutil.parser.parse(timestamp) # returns datetime
+    if isinstance(timestamp, datetime): # NB. do not change to elif
+      timestamp = datetime.timestamp(timestamp)
 
     if self.meta.supports_api('v1'):
       roots = self._get_roots_v1(segids, timestamp, binary)
