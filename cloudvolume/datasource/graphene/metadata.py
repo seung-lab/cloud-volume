@@ -142,7 +142,7 @@ class GrapheneMetadata(PrecomputedMetadata):
 
   @property
   def n_bits_for_layer_id(self):
-    return int(self.info['n_bits_for_layer_id'])
+    return int(self.info.get('n_bits_for_layer_id', 8))
 
   @property
   def n_layers(self):
