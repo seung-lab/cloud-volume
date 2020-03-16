@@ -182,6 +182,14 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       parallel=self.parallel, 
     )
 
+  def get_chunk_layer(self, node_or_chunk_id):
+    """
+    Extract Layer from Node ID or Chunk ID
+    
+    Returns: (int) layer number
+    """
+    return int(int(node_or_chunk_id) >> (64 - self.meta.n_bits_for_layer_id))
+
   def get_root(self, segid, *args, **kwargs):
     """Deprecated. Get a single root id for a single segid."""
     return get_roots(segid, *args, **kwargs)[0]
