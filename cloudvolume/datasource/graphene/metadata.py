@@ -141,6 +141,14 @@ class GrapheneMetadata(PrecomputedMetadata):
     return data_dir
 
   @property
+  def n_bits_for_layer_id(self):
+    return int(self.info.get('n_bits_for_layer_id', 8))
+
+  @property
+  def n_layers(self):
+    return int(self.info['n_layers'])
+
+  @property
   def graph_chunk_size(self):
     return self.info["graph"]["chunk_size"]
   
