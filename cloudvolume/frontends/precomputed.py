@@ -531,7 +531,9 @@ class CloudVolumePrecomputed(object):
   def download(
       self, bbox, mip=None, parallel=None,
       segids=None, preserve_zeros=False,
-      agglomerate=False, timestamp=None
+      
+      # Absorbing polymorphic Graphene calls
+      agglomerate=None, timestamp=None, stop_layer=None
     ):
     """
     Downloads segmentation from the indicated cutout
@@ -548,8 +550,8 @@ class CloudVolumePrecomputed(object):
       True: mask other segids with the largest integer value
         contained by the image data type and leave zero as is.
 
-    agglomerate & timestamp are just there to absorb arguments
-    to what could be a graphene frontend.
+    agglomerate, timestamp, and stop_layer are just there to 
+    absorb arguments to what could be a graphene frontend.
 
     Returns: img
     """  

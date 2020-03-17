@@ -92,7 +92,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     self, bbox, mip=None, 
     parallel=None, segids=None,
     preserve_zeros=False,
-    agglomerate=False, timestamp=None
+    agglomerate=False, timestamp=None,
+    stop_layer=None
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -104,6 +105,20 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     agglomerate: if true, remap all watershed ids in the volume
       and return a flat segmentation.
+
+    if agglomerate is true these options are available:
+
+    timestamp: (agglomerate only) get the roots from this date and time
+      formats accepted:
+        int: unix timestamp
+        datetime: self explainatory
+        string: ISO 8601 date
+    stop_layer: (agglomerate only) (int) if specified, return the lowest 
+      parent at or above that layer. If not specified, go all the way 
+      to the root id. 
+        Layer 1: Watershed
+        Layer 2: Within-Chunk Agglomeration
+        Layer 2+: Between chunk interconnections (skip connections possible)
 
     if agglomerate is false, these other options come into play:
 
@@ -139,7 +154,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel)
 
     if agglomerate:
-      img = self.agglomerate_cutout(img, timestamp=timestamp)
+      img = self.agglomerate_cutout(img, timestamp=timestamp, stop_layer=stop_layer)
       return VolumeCutout.from_volume(self.meta, mip, img, bbox)
 
     if segids is None:
@@ -168,10 +183,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       self.meta, mip, img, bbox 
     )
   
-  def agglomerate_cutout(self, img, timestamp=None):
+  def agglomerate_cutout(self, img, timestamp=None, stop_layer=None):
     """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
     labels = fastremap.unique(img)
-    roots = self.get_roots(labels, timestamp=timestamp, binary=True)
+    roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
     mapping = { segid: root for segid, root in zip(labels, roots) }
     return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=True)
 
@@ -194,15 +209,24 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     """Deprecated. Get a single root id for a single segid."""
     return get_roots(segid, *args, **kwargs)[0]
 
-  def get_roots(self, segids, timestamp=None, binary=True):
+  def get_roots(self, segids, timestamp=None, binary=True, stop_layer=None):
     """
     Get the root ids for these labels.
 
+    segids: (int or iterable) one or more segids to remap
     timestamp: get the roots from this date and time
       formats accepted:
         int: unix timestamp
         datetime: self explainatory
         string: ISO 8601 date
+    binary: if true, send and receive segids as a 
+      binary stream else, use JSON. The difference can
+      be a 2x difference in bandwidth used.
+    stop_layer: (int) if specified, return the lowest parent at or above 
+      that layer. If not specified, go all the way to the root id. 
+        Layer 1: Watershed
+        Layer 2: Within-Chunk Agglomeration
+        Layer 2+: Between chunk interconnections (skip connections possible)
     """
     segids = toiter(segids)
     if isinstance(segids, np.ndarray):
@@ -218,8 +242,15 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if isinstance(timestamp, datetime): # NB. do not change to elif
       timestamp = datetime.timestamp(timestamp)
 
+    if stop_layer is not None:
+      stop_layer = int(stop_layer)
+      if stop_layer < 1 or stop_layer > self.meta.n_layers:
+        raise ValueError("stop_layer ({}) must be between 1 and {} inclusive.".format(
+          stop_layer, self.meta.n_layers
+        ))
+
     if self.meta.supports_api('v1'):
-      roots = self._get_roots_v1(segids, timestamp, binary)
+      roots = self._get_roots_v1(segids, timestamp, binary, stop_layer)
     elif self.meta.supports_api('1.0'):
       roots = self._get_roots_legacy(segids, timestamp)
     else:
@@ -230,7 +261,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(roots, dtype=self.meta.dtype)
 
-  def _get_roots_v1(self, segids, timestamp, binary=False):
+  def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
     args = {}
     if timestamp is not None:
       args['timestamp'] = timestamp
@@ -250,6 +281,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     path = version.path(self.meta.server_path)
 
     params = {}
+    if stop_layer:
+      params['stop_layer'] = int(stop_layer)
+
     if binary:
       url = posixpath.join(self.meta.base_path, path, "roots_binary")
       data = np.array(segids, dtype=np.uint64).tobytes()
