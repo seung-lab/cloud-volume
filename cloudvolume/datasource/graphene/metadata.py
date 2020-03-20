@@ -5,6 +5,8 @@ import re
 import requests
 from six.moves import urllib
 
+import numpy as np
+
 from ... import exceptions
 from ... import paths
 from ...secrets import chunkedgraph_credentials
@@ -16,6 +18,10 @@ VERSION_ORDERING = [
 VERSION_MAP = {
   version: i for i, version in enumerate(VERSION_ORDERING)
 }
+
+uint64 = np.uint64
+GrapheneLabel = namedtuple('GrapheneLabel', ('level', 'x', 'y', 'z', 'segid'))
+
 
 class GrapheneApiVersion():
   def __init__(self, version):
@@ -140,17 +146,93 @@ class GrapheneMetadata(PrecomputedMetadata):
       data_dir = paths.to_https_protocol(data_dir)
     return data_dir
 
+  def decode_label(self, label):
+    level = self.decode_level(label)
+    x,y,z = self.decode_chunk_position(label)
+    segid = self.decode_segid(label)
+    return GrapheneLabel(level, x, y, z, segid)
+
+  def decode_segid(self, label):
+    label = uint64(label)
+    level = self.decode_level(label)
+    segid_bits = self.level_segid_bits(level)
+
+    mask = uint64(0)
+    for _ in range(segid_bits):
+      mask |= uint64(1)
+      mask = mask << uint64(1)
+
+    return label & mask
+
+  def decode_chunk_position(self, label):
+    label = uint64(label)
+    level = self.decode_level(label)
+    ct = self.spatial_bit_count(level)
+    label = label & uint64(0x00ffffffffffffff)
+    masks = self.spatial_bit_masks(level)
+    segid_bits = self.level_segid_bits(level)
+
+    x = (label & masks[0]) >> uint64(segid_bits + 2 * ct)
+    y = (label & masks[1]) >> uint64(segid_bits + 1 * ct)
+    z = (label & masks[2]) >> uint64(segid_bits + 0 * ct)
+
+    return (x,y,z)
+
+  def level_segid_bits(self, level):
+    ct = self.spatial_bit_count(level)
+    return 64 - self.n_bits_for_layer_id - 3 * ct
+
+  def decode_level(self, label):
+    return (uint64(label) & uint64(0xff00000000000000)) >> uint64(64 - self.n_bits_for_layer_id)
+
+  def decode_chunk_id(self, label):
+    label = uint64(label)
+
+    level = self.decode_level(label)
+    ct = self.spatial_bit_count(level)
+
+    segid_bits = self.level_segid_bits(level)
+    label = label & uint64(0x00ffffffffffffff)
+    return label >> uint64(segid_bits)
+
+  def spatial_bit_masks(self, level):
+    ct = self.spatial_bit_count(level)
+
+    mask = uint64(0x0000000000000000)
+    for _ in range(ct):
+      mask |= uint64(1)
+      mask = mask << uint64(1)
+
+    segid_bits = 64 - self.n_bits_for_layer_id - 3 * ct
+
+    return [
+      mask << uint64(segid_bits + 2 * ct),
+      mask << uint64(segid_bits + 1 * ct),
+      mask << uint64(segid_bits + 0 * ct)
+    ]
+
+  def spatial_bit_count(self, level):
+    """
+    64-bit labels
+
+    8-bit  chunk coord
+    layer | X | Y | Z | segid
+
+    This method returns how many bits in X,Y,Z
+    """
+    return int(self.info['graph']['spatial_bit_masks'][str(level)])
+
   @property
   def n_bits_for_layer_id(self):
-    return int(self.info.get('n_bits_for_layer_id', 8))
+    return int(self.info['graph'].get('n_bits_for_layer_id', 8))
 
   @property
   def n_layers(self):
-    return int(self.info['n_layers'])
+    return int(self.info['graph']['n_layers'])
 
   @property
   def graph_chunk_size(self):
-    return self.info["graph"]["chunk_size"]
+    return self.info['graph']['chunk_size']
   
   @property
   def mesh_chunk_size(self):
