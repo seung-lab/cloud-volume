@@ -29,12 +29,15 @@ def create_precomputed(
       progress=progress,
     )
 
-    cache = CacheService(
-      cloudpath=(cache if type(cache) == str else cloudpath),
-      enabled=bool(cache),
-      config=config,
-      compress=compress_cache,
-    )
+    def cachecrt(cloudpath):
+      return CacheService(
+        cloudpath=cloudpath,
+        enabled=bool(cache),
+        config=config,
+        compress=compress_cache,
+      )
+
+    cache = cachecrt(cache if type(cache) == str else cloudpath)
 
     meta = PrecomputedMetadata(
       cloudpath, cache=cache,
@@ -77,8 +80,17 @@ def create_precomputed(
       readonly=readonly,
     )
 
-    mesh = PrecomputedMeshSource(meta, cache, config, readonly)
-    skeleton = PrecomputedSkeletonSource(meta, cache, config, readonly)
+    mesh_cache = cache
+    if 'mesh' in meta.info:
+      mesh_cache = cachecrt(meta.join(cache.cloudpath, meta.info['mesh']))
+
+    mesh = PrecomputedMeshSource(meta, mesh_cache, config, readonly)
+
+    skel_cache = cache
+    if 'skeletons' in meta.info:
+      skel_cache = cachecrt(meta.join(cache.cloudpath, meta.info['skeletons']))
+
+    skeleton = PrecomputedSkeletonSource(meta, skel_cache, config, readonly)
 
     return CloudVolumePrecomputed(
       meta, cache, config, 
