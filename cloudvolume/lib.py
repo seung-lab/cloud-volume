@@ -733,8 +733,9 @@ class Bbox(object):
     return tmp.astype(int)
 
   def __itruediv__(self, operand):
-    self.minpt /= operand
-    self.maxpt /= operand
+    res = self.__truediv__(operand)
+    self.minpt[:] = res.minpt[:]
+    self.maxpt[:] = res.maxpt[:]
     return self
 
   def __truediv__(self, operand):

@@ -82,6 +82,27 @@ def test_bbox_intersect():
   assert not Bbox.intersects(box, Bbox( (-30,-30,-30), (-40,-40,-40) ))
   assert not Bbox.intersects(box, Bbox( (10, 0, 0), (20, 10, 10) ))
 
+def test_bbox_division():
+  bbox = Bbox( (1,1,1), (10, 10, 10), dtype=np.float32 )
+  bbox2 = bbox.clone()
+
+  bbox /= 3.0
+  bbx3 = bbox2 / 3.0
+
+  point333 = np.float32(1) / np.float32(3)
+
+  assert np.all( np.abs(bbx3.minpt - point333) < 1e-6 )
+  assert np.all( bbx3.maxpt == np.float32(3) + point333 )
+  assert bbox == bbx3
+
+  bbox = Bbox( (1,1,1), (10, 10, 10), dtype=np.float32 )
+
+  x = bbox.minpt 
+  bbox /= 3.0 
+  assert np.all(x == point333)
+
+
+
 def test_bbox_intersection():
   bbx1 = Bbox( (0,0,0), (10,10,10) )
   bbx2 = Bbox( (5,5,5), (15,15,15) )
