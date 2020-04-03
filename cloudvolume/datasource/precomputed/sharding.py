@@ -188,13 +188,17 @@ class ShardReader(object):
     self.shard_index_cache = pylru.lrucache(shard_index_cache_size)
     self.minishard_index_cache = pylru.lrucache(minishard_index_cache_size)
 
-  def get_index(self, label, shard_number, path=""):
-    filename = str(shard_number)
-    index_path = self.meta.join(path, filename + '.shard')
-    alias_path = self.meta.join(path, filename + '.index')
+  def compute_shard_location(self, label):
+    shard_loc = self.spec.compute_shard_location(label)
+    filename = str(shard_loc.shard_number) + '.shard'
+    return (filename, shard_loc.minishard_number)
 
-    if shard_number in self.shard_index_cache:
-      return self.shard_index_cache[shard_number]
+  def get_index(self, filename, path=""):
+    index_path = self.meta.join(path, filename)
+    alias_path = self.meta.join(path, filename.replace('.shard', '.index'))
+
+    if filename in self.shard_index_cache:
+      return self.shard_index_cache[filename]
 
     index_length = self.spec.index_length()
 
@@ -212,10 +216,10 @@ class ShardReader(object):
     
     index = np.frombuffer(binary, dtype=np.uint64)
     index = index.reshape( (index.size // 2, 2), order='C' )
-    self.shard_index_cache[shard_number] = index
+    self.shard_index_cache[filename] = index
     return index
 
-  def get_minishard_index(self, index, shard_no, minishard_no, path=""):
+  def get_minishard_index(self, index, filename, minishard_no, path=""):
     index_offset = self.spec.index_length()
     bytes_start, bytes_end = index[minishard_no]
 
@@ -226,8 +230,6 @@ class ShardReader(object):
     bytes_start += index_offset
     bytes_end += index_offset
     bytes_start, bytes_end = int(bytes_start), int(bytes_end)
-
-    filename = shard_no + ".shard"
 
     full_path = self.meta.join(self.meta.cloudpath, path)
 
@@ -254,18 +256,18 @@ class ShardReader(object):
     return minishard_index 
 
   def get_data(self, label, path=""):
-    shard_loc = self.spec.compute_shard_location(label)
+    filename, minishard_number = self.compute_shard_location(label)
     
     if self.cache.enabled:
       cached = self.cache.get_single(self.meta.join(path, str(label)), progress=False)
       if cached is not None:
         return cached
 
-    index = self.get_index(label, shard_loc.shard_number, path)
-    
+    index = self.get_index(filename, path)
+
     minishard_index = self.get_minishard_index(
-      index, shard_loc.shard_number, 
-      shard_loc.minishard_number, path
+      index, filename, 
+      minishard_number, path
     )
 
     if minishard_index is None:
@@ -283,7 +285,6 @@ class ShardReader(object):
     offset = int(offset + index_offset)
        
     full_path = self.meta.join(self.meta.cloudpath, path)
-    filename = shard_loc.shard_number + ".shard"
 
     with SimpleStorage(full_path) as stor:
       binary = stor.get_file(filename, start=offset, end=int(offset + size))
