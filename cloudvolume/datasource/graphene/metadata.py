@@ -159,8 +159,8 @@ class GrapheneMetadata(PrecomputedMetadata):
 
     mask = uint64(0)
     for _ in range(segid_bits):
-      mask |= uint64(1)
       mask = mask << uint64(1)
+      mask |= uint64(1)
 
     return label & mask
 
@@ -190,7 +190,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     return 64 - self.n_bits_for_layer_id - 3 * ct
 
   def decode_level(self, label):
-    return (uint64(label) & uint64(0xff00000000000000)) >> uint64(64 - self.n_bits_for_layer_id)
+    return uint64(label) >> uint64(64 - self.n_bits_for_layer_id)
 
   def decode_chunk_id(self, label):
     label = uint64(label)
@@ -207,8 +207,8 @@ class GrapheneMetadata(PrecomputedMetadata):
 
     mask = uint64(0x0000000000000000)
     for _ in range(ct):
-      mask |= uint64(1)
       mask = mask << uint64(1)
+      mask |= uint64(1)
 
     segid_bits = 64 - self.n_bits_for_layer_id - 3 * ct
 
