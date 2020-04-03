@@ -255,6 +255,32 @@ class ShardReader(object):
     self.minishard_index_cache[cache_key] = minishard_index
     return minishard_index 
 
+  def exists(self, label, path=""):
+    filename, minishard_number = self.compute_shard_location(label)
+    
+    filepath = self.meta.join(path, filename)
+
+    if self.cache.enabled:
+      cached = self.cache.has(self.meta.join(path, str(label)), progress=False)
+      if cached is not None:
+        return filepath
+
+    index = self.get_index(filename, path)
+
+    minishard_index = self.get_minishard_index(
+      index, filename, 
+      minishard_number, path
+    )
+
+    if minishard_index is None:
+      return None
+
+    idx = np.where(minishard_index[:,0] == label)[0]
+    if len(idx) == 0:
+      return None
+    else:
+      return filepath
+
   def get_data(self, label, path=""):
     filename, minishard_number = self.compute_shard_location(label)
     
