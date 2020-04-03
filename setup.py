@@ -21,7 +21,10 @@ setuptools.setup(
   # Environment Marker Examples:
   # https://www.python.org/dev/peps/pep-0496/
   extras_require={
-    "boss": "intern>=0.9.11",
+    "boss": [
+      "intern>=0.9.11",
+      "blosc==1.8.3",
+    ],
     ':sys_platform!="win32"': [
       "posix_ipc==1.0.4",
       "psutil==5.4.3",
