@@ -208,10 +208,11 @@ class ShardReader(object):
       compress=False
     )
 
-    if len(binary) != index_length:
+    if binary is None or len(binary) != index_length:
+      binary_bytes = 0 if binary is None else len(binary)
       raise SpecViolation(
-        filename + ".shard was an incorrect length ({}) for this specification ({}).".format(
-          len(binary), index_length
+        filename + " was an incorrect length ({}) for this specification ({}).".format(
+          binary_bytes, index_length
         ))
     
     index = np.frombuffer(binary, dtype=np.uint64)
