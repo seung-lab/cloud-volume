@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from . import mmh3
 from ... import compression
-from ...lib import jsonify
+from ...lib import jsonify, toiter
 from ...exceptions import SpecViolation
 from ...storage import SimpleStorage
 
@@ -256,31 +256,46 @@ class ShardReader(object):
     self.minishard_index_cache[cache_key] = minishard_index
     return minishard_index 
 
-  def exists(self, label, path=""):
-    filename, minishard_number = self.compute_shard_location(label)
-    
-    filepath = self.meta.join(path, filename)
+  def exists(self, labels, path=""):
+    return_one = False
 
-    if self.cache.enabled:
-      cached = self.cache.has(self.meta.join(path, str(label)), progress=False)
-      if cached is not None:
-        return filepath
+    try:
+      iter(labels)
+    except TypeError:
+      return_one = True
 
-    index = self.get_index(filename, path)
+    results = {}
+    for label in set(toiter(labels)):
+      filename, minishard_number = self.compute_shard_location(label)
+      
+      filepath = self.meta.join(path, filename)
 
-    minishard_index = self.get_minishard_index(
-      index, filename, 
-      minishard_number, path
-    )
+      if self.cache.enabled:
+        cached = self.cache.has(self.meta.join(path, str(label)), progress=False)
+        if cached is not None:
+          results[label] = filepath
+          continue
 
-    if minishard_index is None:
-      return None
+      index = self.get_index(filename, path)
 
-    idx = np.where(minishard_index[:,0] == label)[0]
-    if len(idx) == 0:
-      return None
-    else:
-      return filepath
+      minishard_index = self.get_minishard_index(
+        index, filename, 
+        minishard_number, path
+      )
+
+      if minishard_index is None:
+        results[label] = None
+        continue
+
+      idx = np.where(minishard_index[:,0] == label)[0]
+      if len(idx) == 0:
+        results[label] = None
+      else:
+        results[label] = filepath
+
+    if return_one:
+      return results[label]
+    return results
 
   def get_data(self, label, path=""):
     filename, minishard_number = self.compute_shard_location(label)
