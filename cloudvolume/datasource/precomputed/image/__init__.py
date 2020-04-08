@@ -189,11 +189,11 @@ class PrecomputedImageSource(ImageSourceInterface):
     )
     realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
 
-    cloudpaths = list(chunknames(
+    cloudpaths = chunknames(
       realized_bbox, self.meta.bounds(mip), 
       self.meta.key(mip), self.meta.chunk_size(mip),
       protocol=self.meta.path.protocol
-    ))
+    )
 
     with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
       existence_report = storage.files_exist(cloudpaths)
@@ -216,11 +216,11 @@ class PrecomputedImageSource(ImageSourceInterface):
         bbox, realized_bbox
       ))
 
-    cloudpaths = list(chunknames(
+    cloudpaths = chunknames(
       realized_bbox, self.meta.bounds(mip),
       self.meta.key(mip), self.meta.chunk_size(mip),
       protocol=self.meta.path.protocol
-    ))
+    )
 
     with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
       storage.delete_files(cloudpaths)
