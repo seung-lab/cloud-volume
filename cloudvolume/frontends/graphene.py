@@ -263,6 +263,26 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(roots, dtype=self.meta.dtype)
 
+  def get_range_read(self, chunk_id, timestamp=None):
+    if isinstance(timestamp, str):
+      timestamp = dateutil.parser.parse(timestamp) # returns datetime
+    if isinstance(timestamp, datetime): # NB. do not change to elif
+      timestamp = datetime.timestamp(timestamp)
+
+    if not self.meta.supports_api('v1'):
+      raise exceptions.UnsupportedGrapheneAPIVersionError(
+        "{} is not a supported API version for range read requests. Currently, only version 1.0 is supported: ".format(self.meta.api_version) \
+      )
+
+    version = GrapheneApiVersion('v1')
+    path = version.path(self.meta.server_path)
+    url = posixpath.join(self.meta.base_path, path, "range_read", chunk_id)
+
+    response = requests.post(url, params={}, headers=self.meta.auth_header)
+    response.raise_for_status()
+
+    return np.frombuffer(response.content, dtype=np.uint64)
+
   def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
     args = {}
     if timestamp is not None:

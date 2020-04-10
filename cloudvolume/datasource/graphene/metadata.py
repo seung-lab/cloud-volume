@@ -147,6 +147,11 @@ class GrapheneMetadata(PrecomputedMetadata):
     return data_dir
 
   @property
+  def n_bits_for_layer_id(self):
+    graph_object = self.info['graph']
+    return int(graph_object.get('n_bits_for_layer_id', 8))
+
+  @property
   def fan_out(self):
     """Number of chunks agglomerated into a new chunk per a level increase in the graph."""
     graph_object = self.info['graph']
