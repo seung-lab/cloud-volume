@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import os
+import pickle
 import posixpath
 import re
 import requests
@@ -276,12 +277,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
-    url = posixpath.join(self.meta.base_path, path, "range_read", chunk_id)
+    url = posixpath.join(self.meta.base_path, path, "range_read", str(chunk_id))
 
-    response = requests.post(url, params={}, headers=self.meta.auth_header)
+    response = requests.get(url, params={}, headers=self.meta.auth_header)
     response.raise_for_status()
 
-    return np.frombuffer(response.content, dtype=np.uint64)
+    return pickle.loads(response.content)
 
   def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
     args = {}
