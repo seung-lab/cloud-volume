@@ -439,6 +439,8 @@ def synthesize_shard_file(spec, label_group, progress=False, presorted=False):
     If presorted is False:
       { label: binary }
   progress: show progress bars
+
+  Returns: binary representing a shard file
   """
   minishardnos = []
   minishard_indicies = []
