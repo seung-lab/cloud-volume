@@ -390,6 +390,10 @@ def synthesize_shard_files(spec, data, progress=False):
   complete and comprehensive shards (no partial shards) 
   return a set of files ready for upload.
 
+  WARNING: This function is only appropriate for Precomputed
+  meshes and skeletons. Use the synthesize_shard_file (singular)
+  function to create arbitrarily named and assigned shard files.
+
   spec: a ShardingSpecification
   data: { label: binary, ... }
 
@@ -421,20 +425,37 @@ def synthesize_shard_files(spec, data, progress=False):
   return shard_files
 
 # NB: This is going to be memory hungry and can be optimized
-def synthesize_shard_file(spec, shardgrp, progress):
+def synthesize_shard_file(spec, label_group, progress=False, presorted=False):
   """
+  Assemble a shard file from a group of labels that all belong in the same shard.
+
+  Assembles the .shard file like:
+  [ shard index; minishards; all minishard indices ]
+
   spec: ShardingSpecification
-  shardgrp: { minishardno: { label: binary, ... }, ... }
+  label_group: 
+    If presorted is True:
+      { minishardno: { label: binary, ... }, ... }
+    If presorted is False:
+      { label: binary }
+  progress: show progress bars
   """
-
-  # Assemble the .shard file like:
-  # [ shard index; minishards; all minishard indices ]
-
   minishardnos = []
   minishard_indicies = []
   minishards = []
 
-  for minishardno, minishardgrp in tqdm(shardgrp.items(), desc="Minishard Indices", disable=(not progress)):
+  if presorted:
+    minishard_mapping = label_group
+  else:
+    minishard_mapping = defaultdict(dict)
+    pbar = tqdm(label_group.items(), disable=(not progress), desc="Assigning Minishards")
+    for label, binary in pbar:
+      loc = spec.compute_shard_location(label)
+      minishard_mapping[loc.minishard_number][label] = binary
+
+  del label_group
+
+  for minishardno, minishardgrp in tqdm(minishard_mapping.items(), desc="Minishard Indices", disable=(not progress)):
     labels = sorted([ int(label) for label in minishardgrp.keys() ])
     if len(labels) == 0:
       continue
@@ -459,6 +480,8 @@ def synthesize_shard_file(spec, shardgrp, progress):
     minishardnos.append(minishardno)
     minishard_indicies.append(minishard_index) 
     minishards.append(minishard)
+
+  del minishard_mapping
 
   cum_minishard_size = 0
   for idx, minishard in zip(minishard_indicies, minishards):
