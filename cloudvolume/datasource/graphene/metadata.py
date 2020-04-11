@@ -146,6 +146,11 @@ class GrapheneMetadata(PrecomputedMetadata):
       data_dir = paths.to_https_protocol(data_dir)
     return data_dir
 
+  @property
+  def fanout(self):
+    """Number of chunks agglomerated into a new chunk per a level increase in the graph."""
+    return 8
+
   def decode_label(self, label):
     level = self.decode_level(label)
     x,y,z = self.decode_chunk_position(label)

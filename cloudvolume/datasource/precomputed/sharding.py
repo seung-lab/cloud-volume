@@ -42,6 +42,9 @@ class ShardingSpecification(object):
 
     self.validate()
 
+  def clone(self):
+    return ShardingSpecification.from_dict(self.to_dict())
+
   def index_length(self):
     return int((2 ** self.minishard_bits) * 16)
 
@@ -59,6 +62,22 @@ class ShardingSpecification(object):
       raise SpecViolation("hash {} must be either 'identity' or 'murmurhash3_x86_128'".format(val))
 
     self._hash = val
+
+  @property
+  def preshift_bits(self):
+    return self._preshift_bits
+  
+  @preshift_bits.setter
+  def preshift_bits(self, val):
+    self._preshift_bits = uint64(val) 
+
+  @property
+  def shard_bits(self):
+    return self._shard_bits
+  
+  @shard_bits.setter
+  def shard_bits(self, val):
+    self._shard_bits = uint64(val) 
 
   @property
   def minishard_bits(self):

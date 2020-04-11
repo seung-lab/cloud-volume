@@ -24,8 +24,11 @@ from .unsharded import GrapheneUnshardedMeshSource
 class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   def __init__(self, *args, **kwargs):
     super(GrapheneShardedMeshSource, self).__init__(self, *args, **kwargs)
-    spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
-    self.reader = GrapheneShardReader(self.meta, self.cache, spec)
+
+    self.readers = {}
+    for level, sharding in self.meta.info['sharding'].items(): # { level: std sharding, ... }
+      spec = ShardingSpecification.from_dict(sharding)
+      self.readers[int(level)] = GrapheneShardReader(self.meta, self.cache, spec)
 
   # 1. determine if the segid is before or after the shard time point
   # 2. assuming it is sharded, fetch the draco encoded file from the
@@ -33,8 +36,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
   def download_segid(self, seg_id, level, bounding_box):
     """See GrapheneUnshardedMeshSource.get for the user facing function."""
+    level = int(level)
+    if level not in self.readers:
+      raise KeyError("There is no shard configuration in the mesh info file for level {}.".format(level))
+
     subdirectory = self.meta.join(self.meta.mesh_path, 'initial', str(level))
-    raw_binary = self.reader.get_data(segid, path=subdirectory)
+    raw_binary = self.reader[level].get_data(segid, path=subdirectory)
 
     if raw_binary is None:
       raise IndexError('No mesh found for segment {}'.format(seg_id))
