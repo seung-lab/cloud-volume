@@ -200,6 +200,16 @@ class ShardReader(object):
     shard_index_cache_size=512,
     minishard_index_cache_size=128,
   ):
+    """
+    Reads standard Precomputed shard files. 
+
+    meta: a PrecomputedMetadata class
+    cache: a CacheService instance
+    spec: a ShardingSpecification instance
+
+    shard_index_cache_size: size of LRU cache for fixed indices 
+    minishard_index_cache_size: size of LRU cache for minishard indices
+    """
     self.meta = meta
     self.cache = cache
     self.spec = spec
@@ -208,11 +218,22 @@ class ShardReader(object):
     self.minishard_index_cache = pylru.lrucache(minishard_index_cache_size)
 
   def compute_shard_location(self, label):
+    """
+    Returns (filename, shard_number) for meshes and skeletons. 
+    Images require a different scheme.
+    """
     shard_loc = self.spec.compute_shard_location(label)
     filename = str(shard_loc.shard_number) + '.shard'
     return (filename, shard_loc.minishard_number)
 
   def get_index(self, filename, path=""):
+    """
+    Retrieves the shard index which is used for 
+    locating the appropriate minishard index.
+
+    Returns: 2^minishard_bits entries of a uint64 
+      array of [[ byte start, byte end ], ... ] 
+    """
     index_path = self.meta.join(path, filename)
     alias_path = self.meta.join(path, filename.replace('.shard', '.index'))
 
@@ -239,7 +260,12 @@ class ShardReader(object):
     self.shard_index_cache[filename] = index
     return index
 
-  def get_minishard_index(self, index, filename, minishard_no, path=""):
+  def get_minishard_index(self, filename, index, minishard_no, path=""):
+    """
+    Retrieves the minishard index for a given minishard number.
+
+    Returns: uint64 Nx3 array with multiple rows of [segid, byte start, byte end]
+    """
     index_offset = self.spec.index_length()
     bytes_start, bytes_end = index[minishard_no]
 
@@ -298,7 +324,7 @@ class ShardReader(object):
       index = self.get_index(filename, path)
 
       minishard_index = self.get_minishard_index(
-        index, filename, 
+        filename, index, 
         minishard_number, path
       )
 
@@ -327,7 +353,7 @@ class ShardReader(object):
     index = self.get_index(filename, path)
 
     minishard_index = self.get_minishard_index(
-      index, filename, 
+      filename, index, 
       minishard_number, path
     )
 
@@ -390,12 +416,17 @@ def synthesize_shard_files(spec, data, progress=False):
 
   for shardno, shardgrp in pbar:
     filename = str(shardno) + '.shard'
-    shard_files[filename] = _synthesize_shard_file(spec, shardgrp, progress=(progress > 1))
+    shard_files[filename] = synthesize_shard_file(spec, shardgrp, progress=(progress > 1))
 
   return shard_files
 
 # NB: This is going to be memory hungry and can be optimized
-def _synthesize_shard_file(spec, shardgrp, progress):
+def synthesize_shard_file(spec, shardgrp, progress):
+  """
+  spec: ShardingSpecification
+  shardgrp: { minishardno: { label: binary, ... }, ... }
+  """
+
   # Assemble the .shard file like:
   # [ shard index; minishards; all minishard indices ]
 
