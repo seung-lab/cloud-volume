@@ -16,7 +16,7 @@ TEST_DATASET_NAME = "testvol"
 PRECOMPUTED_MESH_TEST_DATASET_NAME = "meshvol_precompute"
 DRACO_MESH_TEST_DATASET_NAME = "meshvol_draco"
 PCG_LOCATION = "https://www.dynamicannotationframework.com/"
-TEST_SEG_ID = 648518346349515986
+TEST_SEG_ID = 144115188084020434
 
 @pytest.fixture()
 def cv_graphene_mesh_precomputed(requests_mock):
