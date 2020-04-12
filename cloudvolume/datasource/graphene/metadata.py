@@ -205,6 +205,39 @@ class GrapheneMetadata(PrecomputedMetadata):
     label = label & uint64(0x00ffffffffffffff)
     return label >> uint64(segid_bits)
 
+  def encode_label(self, layer, x, y, z, segid):
+    """
+    Create a graphene label from the specified values.
+
+    Another way to use this:
+
+    glabel = GrapheneLabel(2,1,1,1,777)
+    meta.encode_label(*glabel)
+    """
+    layer_offset = uint64(64 - self.n_bits_for_layer_id)
+    bits_per_dim = uint64(self.spatial_bit_count(layer))
+    x_offset = uint64(layer_offset - bits_per_dim)
+    y_offset = uint64(x_offset - bits_per_dim)
+    z_offset = uint64(y_offset - bits_per_dim)
+
+    if not (
+      x < 2 ** bits_per_dim and y < 2 ** bits_per_dim and z < 2 ** bits_per_dim
+    ):
+      raise ValueError(
+        "Chunk coordinate is out of range for "
+        "this graph on layer %d with %d bits/dim. "
+        "[%d, %d, %d]; max = %d."
+        % (layer, bits_per_dim, x, y, z, 2 ** bits_per_dim)
+      )
+
+    layer = uint64(layer)
+    x, y, z = uint64(x), uint64(y), uint64(z)
+    segid = uint64(segid)
+
+    return uint64(
+      layer << layer_offset | x << x_offset | y << y_offset | z << z_offset
+    )
+
   def spatial_bit_masks(self, level):
     ct = self.spatial_bit_count(level)
 
