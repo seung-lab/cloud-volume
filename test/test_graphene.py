@@ -308,7 +308,7 @@ def test_decode_segid(cv_graphene_mesh_draco):
 
   label = int(level + x + y + z + segid, 2)
   decoded = cv_graphene_mesh_draco.meta.decode_label(label)
-  print(decoded)
+  
   assert decoded.level == 5
   assert decoded.x == 1
   assert decoded.y == 2

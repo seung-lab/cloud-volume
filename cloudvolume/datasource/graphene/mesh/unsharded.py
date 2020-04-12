@@ -11,7 +11,7 @@ import requests
 import numpy as np
 from tqdm import tqdm
 
-from ....lib import red, toiter, Bbox, Vec
+from ....lib import red, toiter, Bbox, Vec, jsonify
 from ....mesh import Mesh
 from .... import paths
 from ....storage import Storage, GreenStorage
@@ -36,7 +36,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     if level is not None:
       res = requests.get(
         url,
-        data=json.dumps({ "start_layer": level }),
+        data=jsonify({ "start_layer": level }),
         params=query_d,
         headers=self.meta.meta.auth_header
       )
