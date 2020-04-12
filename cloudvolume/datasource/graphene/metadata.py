@@ -153,14 +153,14 @@ class GrapheneMetadata(PrecomputedMetadata):
     return int(graph_object.get('fan_out', 2))
 
   def decode_label(self, label):
-    level = self.decode_level(label)
+    level = self.decode_layer_id(label)
     x,y,z = self.decode_chunk_position(label)
     segid = self.decode_segid(label)
     return GrapheneLabel(level, x, y, z, segid)
 
   def decode_segid(self, label):
     label = uint64(label)
-    level = self.decode_level(label)
+    level = self.decode_layer_id(label)
     segid_bits = self.segid_bits(level)
 
     mask = uint64(2 ** segid_bits) - uint64(1)
@@ -169,14 +169,14 @@ class GrapheneMetadata(PrecomputedMetadata):
 
   def decode_chunk_id(self, label):
     label = uint64(label)
-    level = self.decode_level(label)
+    level = self.decode_layer_id(label)
     ct = self.spatial_bit_count(level)
     label = label & uint64(0x00ffffffffffffff)
     return label >> self.segid_bits(level) 
 
   def decode_chunk_position(self, label):
     label = uint64(label)
-    level = self.decode_level(label)
+    level = self.decode_layer_id(label)
     ct = self.spatial_bit_count(level)
     label = label & uint64(0x00ffffffffffffff)
     masks = self.spatial_bit_masks(level)
@@ -192,13 +192,13 @@ class GrapheneMetadata(PrecomputedMetadata):
     ct = self.spatial_bit_count(level)
     return 64 - self.n_bits_for_layer_id - 3 * ct
 
-  def decode_level(self, label):
+  def decode_layer_id(self, label):
     return uint64(label) >> uint64(64 - self.n_bits_for_layer_id)
 
   def decode_chunk_id(self, label):
     label = uint64(label)
 
-    level = self.decode_level(label)
+    level = self.decode_layer_id(label)
     ct = self.spatial_bit_count(level)
 
     segid_bits = self.segid_bits(level)
