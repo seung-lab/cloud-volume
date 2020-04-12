@@ -315,6 +315,10 @@ def test_decode_segid(cv_graphene_mesh_draco):
   assert decoded.z == 3
   assert decoded.segid == 10
 
+  encoded = cv_graphene_mesh_draco.meta.encode_label(*decoded)
+  assert decoded == cv_graphene_mesh_draco.meta.decode_label(encoded)
+
+
 @pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
 def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
 

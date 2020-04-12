@@ -214,6 +214,9 @@ class GrapheneMetadata(PrecomputedMetadata):
     glabel = GrapheneLabel(2,1,1,1,777)
     meta.encode_label(*glabel)
     """
+    if layer > self.n_layers:
+      raise ValueError("Provided layer %d is greater than the number of layers in the dataset: %d" % layer, self.n_layers)
+
     layer_offset = uint64(64 - self.n_bits_for_layer_id)
     bits_per_dim = uint64(self.spatial_bit_count(layer))
     x_offset = uint64(layer_offset - bits_per_dim)
@@ -230,12 +233,18 @@ class GrapheneMetadata(PrecomputedMetadata):
         % (layer, bits_per_dim, x, y, z, 2 ** bits_per_dim)
       )
 
+    if segid >= 2 ** self.segid_bits(layer):
+      raise ValueError(
+        "segid {} provided is out of range. It must be less than {}".format(
+          segid, 2 ** self.segid_bits(layer)
+      ))
+
     layer = uint64(layer)
     x, y, z = uint64(x), uint64(y), uint64(z)
     segid = uint64(segid)
 
     return uint64(
-      layer << layer_offset | x << x_offset | y << y_offset | z << z_offset
+      layer << layer_offset | x << x_offset | y << y_offset | z << z_offset | segid
     )
 
   def spatial_bit_masks(self, level):
