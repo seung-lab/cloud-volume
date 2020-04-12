@@ -160,6 +160,24 @@ class ShardingSpecification(object):
     """
     return synthesize_shard_files(self, data, progress)
 
+  def synthesize_shard(self, labels, progress=False, presorted=False):
+    """
+    Assemble a shard file from a group of labels that all belong in the same shard.
+
+    Assembles the .shard file like:
+    [ shard index; minishards; all minishard indices ]
+
+    label_group: 
+      If presorted is True:
+        { minishardno: { label: binary, ... }, ... }
+      If presorted is False:
+        { label: binary }
+    progress: show progress bars
+
+    Returns: binary representing a shard file 
+    """
+    return synthesize_shard_file(self, labels, progress, presorted)
+
   def validate(self):
     if self.type not in ('neuroglancer_uint64_sharded_v1',):
       raise SpecViolation(
@@ -438,7 +456,7 @@ def synthesize_shard_files(spec, data, progress=False):
 
   for shardno, shardgrp in pbar:
     filename = str(shardno) + '.shard'
-    shard_files[filename] = synthesize_shard_file(spec, shardgrp, progress=(progress > 1))
+    shard_files[filename] = synthesize_shard_file(spec, shardgrp, progress=(progress > 1), presorted=True)
 
   return shard_files
 
