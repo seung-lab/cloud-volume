@@ -235,6 +235,9 @@ class ShardReader(object):
     self.shard_index_cache = pylru.lrucache(shard_index_cache_size)
     self.minishard_index_cache = pylru.lrucache(minishard_index_cache_size)
 
+  def get_filename(self, label):
+    return self.compute_shard_location(label)[0]
+
   def compute_shard_location(self, label):
     """
     Returns (filename, shard_number) for meshes and skeletons. 
