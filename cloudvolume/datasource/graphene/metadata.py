@@ -147,9 +147,10 @@ class GrapheneMetadata(PrecomputedMetadata):
     return data_dir
 
   @property
-  def fanout(self):
+  def fan_out(self):
     """Number of chunks agglomerated into a new chunk per a level increase in the graph."""
-    return 8
+    graph_object = self.info['graph']
+    return int(graph_object.get('fan_out', 2))
 
   def decode_label(self, label):
     level = self.decode_level(label)
