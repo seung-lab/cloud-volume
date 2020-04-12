@@ -34,9 +34,9 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   # 2. assuming it is sharded, fetch the draco encoded file from the
   #    correct level
 
-  def download_segid(self, seg_id, level, bounding_box):
+  def download_segid(self, seg_id, bounding_box):
     """See GrapheneUnshardedMeshSource.get for the user facing function."""
-    level = int(level)
+    level = self.meta.meta.decode_layer_id(seg_id)
     if level not in self.readers:
       raise KeyError("There is no shard configuration in the mesh info file for level {}.".format(level))
 

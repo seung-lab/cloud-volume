@@ -47,7 +47,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     return json.loads(res.content.decode('utf8'))["fragments"]
 
-  def download_segid(self, seg_id, level, bounding_box):
+  def download_segid(self, seg_id, bounding_box):
+    level = self.meta.meta.decode_layer_id(seg_id)
     fragment_filenames = self._get_fragment_filenames(
       seg_id, level=level, bbox=bounding_box
     )
@@ -80,8 +81,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
   def get(
       self, segids, 
       remove_duplicate_vertices=False, 
-      fuse=False, level=2, 
-      bounding_box=None
+      fuse=False, bounding_box=None
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
@@ -94,7 +94,6 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     Optional:
       remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
       fuse: bool, merge all downloaded meshes into a single mesh
-      level: int, level of mesh to return. None to return highest available (default 2) 
       bounding_box: Bbox, bounding box to restrict mesh download to
     
     Returns: Mesh object if fused, else { segid: Mesh, ... }
@@ -107,7 +106,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     meshes = []
     for seg_id in tqdm(segids, disable=(not self.config.progress), desc="Downloading Meshes"):
-      mesh, is_draco = self.download_segid(seg_id, level, bounding_box)
+      level = meta.decode_layer_id(seg_id)
+      mesh, is_draco = self.download_segid(seg_id, bounding_box)
       resolution = meta.resolution(self.config.mip)
       if meta.chunks_start_at_voxel_offset:
         offset = meta.voxel_offset(self.config.mip)
