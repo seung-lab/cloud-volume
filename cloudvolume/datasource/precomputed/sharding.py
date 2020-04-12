@@ -301,7 +301,21 @@ class ShardReader(object):
     self.minishard_index_cache[cache_key] = minishard_index
     return minishard_index 
 
-  def exists(self, labels, path=""):
+  def exists(self, labels, path="", return_byte_range=False):
+    """
+    Checks a shard's minishard index for whether a file exists.
+
+    If return_byte_range = False:
+      OUTPUT = SHARD_FILEPATH or None if not exists
+    Else:
+      OUTPUT = [ SHARD_FILEPATH or None, byte_start, num_bytes ]
+
+    Returns:
+      If labels is not an iterable:
+        return OUTPUT
+      Else:
+        return { label_1: OUTPUT, label_2: OUTPUT, ... }
+    """
     return_one = False
 
     try:
@@ -336,7 +350,11 @@ class ShardReader(object):
       if len(idx) == 0:
         results[label] = None
       else:
-        results[label] = filepath
+        if return_byte_range:
+          _, offset, size = minishard_index[idx,:]
+          results[label] = [ filepath, offset, size ]
+        else:
+          results[label] = filepath
 
     if return_one:
       return results[label]
