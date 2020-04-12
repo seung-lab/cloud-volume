@@ -162,11 +162,8 @@ class GrapheneMetadata(PrecomputedMetadata):
     level = self.decode_level(label)
     segid_bits = self.segid_bits(level)
 
-    mask = uint64(0)
-    for _ in range(segid_bits):
-      mask = mask << uint64(1)
-      mask |= uint64(1)
-
+    mask = uint64(2 ** segid_bits) - uint64(1)
+    
     return label & mask
 
   def decode_chunk_id(self, label):
@@ -210,11 +207,7 @@ class GrapheneMetadata(PrecomputedMetadata):
   def spatial_bit_masks(self, level):
     ct = self.spatial_bit_count(level)
 
-    mask = uint64(0x0000000000000000)
-    for _ in range(ct):
-      mask = mask << uint64(1)
-      mask |= uint64(1)
-
+    mask = uint64(2 ** ct) - uint64(1)
     segid_bits = 64 - self.n_bits_for_layer_id - 3 * ct
 
     return [
