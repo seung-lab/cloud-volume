@@ -264,7 +264,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(roots, dtype=self.meta.dtype)
 
-  def get_range_read(self, chunk_id, timestamp=None):
+  def get_seg_ids_in_chunk(self, chunk_id, timestamp=None):
     if isinstance(timestamp, str):
       timestamp = dateutil.parser.parse(timestamp) # returns datetime
     if isinstance(timestamp, datetime): # NB. do not change to elif
@@ -277,7 +277,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
-    url = posixpath.join(self.meta.base_path, path, "range_read", str(chunk_id))
+    url = posixpath.join(self.meta.base_path, path, "range_read_binary", str(chunk_id))
 
     response = requests.get(url, params={}, headers=self.meta.auth_header)
     response.raise_for_status()
