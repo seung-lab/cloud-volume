@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from . import mmh3
 from ... import compression
-from ...lib import jsonify
+from ...lib import jsonify, toiter
 from ...exceptions import SpecViolation
 from ...storage import SimpleStorage
 
@@ -42,6 +42,9 @@ class ShardingSpecification(object):
 
     self.validate()
 
+  def clone(self):
+    return ShardingSpecification.from_dict(self.to_dict())
+
   def index_length(self):
     return int((2 ** self.minishard_bits) * 16)
 
@@ -59,6 +62,22 @@ class ShardingSpecification(object):
       raise SpecViolation("hash {} must be either 'identity' or 'murmurhash3_x86_128'".format(val))
 
     self._hash = val
+
+  @property
+  def preshift_bits(self):
+    return self._preshift_bits
+  
+  @preshift_bits.setter
+  def preshift_bits(self, val):
+    self._preshift_bits = uint64(val) 
+
+  @property
+  def shard_bits(self):
+    return self._shard_bits
+  
+  @shard_bits.setter
+  def shard_bits(self, val):
+    self._shard_bits = uint64(val) 
 
   @property
   def minishard_bits(self):
@@ -141,6 +160,24 @@ class ShardingSpecification(object):
     """
     return synthesize_shard_files(self, data, progress)
 
+  def synthesize_shard(self, labels, progress=False, presorted=False):
+    """
+    Assemble a shard file from a group of labels that all belong in the same shard.
+
+    Assembles the .shard file like:
+    [ shard index; minishards; all minishard indices ]
+
+    label_group: 
+      If presorted is True:
+        { minishardno: { label: binary, ... }, ... }
+      If presorted is False:
+        { label: binary }
+    progress: show progress bars
+
+    Returns: binary representing a shard file 
+    """
+    return synthesize_shard_file(self, labels, progress, presorted)
+
   def validate(self):
     if self.type not in ('neuroglancer_uint64_sharded_v1',):
       raise SpecViolation(
@@ -181,6 +218,16 @@ class ShardReader(object):
     shard_index_cache_size=512,
     minishard_index_cache_size=128,
   ):
+    """
+    Reads standard Precomputed shard files. 
+
+    meta: a PrecomputedMetadata class
+    cache: a CacheService instance
+    spec: a ShardingSpecification instance
+
+    shard_index_cache_size: size of LRU cache for fixed indices 
+    minishard_index_cache_size: size of LRU cache for minishard indices
+    """
     self.meta = meta
     self.cache = cache
     self.spec = spec
@@ -188,13 +235,31 @@ class ShardReader(object):
     self.shard_index_cache = pylru.lrucache(shard_index_cache_size)
     self.minishard_index_cache = pylru.lrucache(minishard_index_cache_size)
 
-  def get_index(self, label, shard_number, path=""):
-    filename = str(shard_number)
-    index_path = self.meta.join(path, filename + '.shard')
-    alias_path = self.meta.join(path, filename + '.index')
+  def get_filename(self, label):
+    return self.compute_shard_location(label)[0]
 
-    if shard_number in self.shard_index_cache:
-      return self.shard_index_cache[shard_number]
+  def compute_shard_location(self, label):
+    """
+    Returns (filename, shard_number) for meshes and skeletons. 
+    Images require a different scheme.
+    """
+    shard_loc = self.spec.compute_shard_location(label)
+    filename = str(shard_loc.shard_number) + '.shard'
+    return (filename, shard_loc.minishard_number)
+
+  def get_index(self, filename, path=""):
+    """
+    Retrieves the shard index which is used for 
+    locating the appropriate minishard index.
+
+    Returns: 2^minishard_bits entries of a uint64 
+      array of [[ byte start, byte end ], ... ] 
+    """
+    index_path = self.meta.join(path, filename)
+    alias_path = self.meta.join(path, filename.replace('.shard', '.index'))
+
+    if filename in self.shard_index_cache:
+      return self.shard_index_cache[filename]
 
     index_length = self.spec.index_length()
 
@@ -204,18 +269,24 @@ class ShardReader(object):
       compress=False
     )
 
-    if len(binary) != index_length:
+    if binary is None or len(binary) != index_length:
+      binary_bytes = 0 if binary is None else len(binary)
       raise SpecViolation(
-        filename + ".shard was an incorrect length ({}) for this specification ({}).".format(
-          len(binary), index_length
+        filename + " was an incorrect length ({}) for this specification ({}).".format(
+          binary_bytes, index_length
         ))
     
     index = np.frombuffer(binary, dtype=np.uint64)
     index = index.reshape( (index.size // 2, 2), order='C' )
-    self.shard_index_cache[shard_number] = index
+    self.shard_index_cache[filename] = index
     return index
 
-  def get_minishard_index(self, index, shard_no, minishard_no, path=""):
+  def get_minishard_index(self, filename, index, minishard_no, path=""):
+    """
+    Retrieves the minishard index for a given minishard number.
+
+    Returns: uint64 Nx3 array with multiple rows of [segid, byte start, byte end]
+    """
     index_offset = self.spec.index_length()
     bytes_start, bytes_end = index[minishard_no]
 
@@ -226,8 +297,6 @@ class ShardReader(object):
     bytes_start += index_offset
     bytes_end += index_offset
     bytes_start, bytes_end = int(bytes_start), int(bytes_end)
-
-    filename = shard_no + ".shard"
 
     full_path = self.meta.join(self.meta.cloudpath, path)
 
@@ -253,19 +322,78 @@ class ShardReader(object):
     self.minishard_index_cache[cache_key] = minishard_index
     return minishard_index 
 
+  def exists(self, labels, path="", return_byte_range=False):
+    """
+    Checks a shard's minishard index for whether a file exists.
+
+    If return_byte_range = False:
+      OUTPUT = SHARD_FILEPATH or None if not exists
+    Else:
+      OUTPUT = [ SHARD_FILEPATH or None, byte_start, num_bytes ]
+
+    Returns:
+      If labels is not an iterable:
+        return OUTPUT
+      Else:
+        return { label_1: OUTPUT, label_2: OUTPUT, ... }
+    """
+    return_one = False
+
+    try:
+      iter(labels)
+    except TypeError:
+      return_one = True
+
+    results = {}
+    for label in set(toiter(labels)):
+      filename, minishard_number = self.compute_shard_location(label)
+      
+      filepath = self.meta.join(path, filename)
+
+      if self.cache.enabled:
+        cached = self.cache.has(self.meta.join(path, str(label)), progress=False)
+        if cached is not None:
+          results[label] = filepath
+          continue
+
+      index = self.get_index(filename, path)
+
+      minishard_index = self.get_minishard_index(
+        filename, index, 
+        minishard_number, path
+      )
+
+      if minishard_index is None:
+        results[label] = None
+        continue
+
+      idx = np.where(minishard_index[:,0] == label)[0]
+      if len(idx) == 0:
+        results[label] = None
+      else:
+        if return_byte_range:
+          _, offset, size = minishard_index[idx,:]
+          results[label] = [ filepath, offset, size ]
+        else:
+          results[label] = filepath
+
+    if return_one:
+      return results[label]
+    return results
+
   def get_data(self, label, path=""):
-    shard_loc = self.spec.compute_shard_location(label)
+    filename, minishard_number = self.compute_shard_location(label)
     
     if self.cache.enabled:
       cached = self.cache.get_single(self.meta.join(path, str(label)), progress=False)
       if cached is not None:
         return cached
 
-    index = self.get_index(label, shard_loc.shard_number, path)
-    
+    index = self.get_index(filename, path)
+
     minishard_index = self.get_minishard_index(
-      index, shard_loc.shard_number, 
-      shard_loc.minishard_number, path
+      filename, index, 
+      minishard_number, path
     )
 
     if minishard_index is None:
@@ -283,7 +411,6 @@ class ShardReader(object):
     offset = int(offset + index_offset)
        
     full_path = self.meta.join(self.meta.cloudpath, path)
-    filename = shard_loc.shard_number + ".shard"
 
     with SimpleStorage(full_path) as stor:
       binary = stor.get_file(filename, start=offset, end=int(offset + size))
@@ -301,6 +428,10 @@ def synthesize_shard_files(spec, data, progress=False):
   From a set of data guaranteed to constitute one or more
   complete and comprehensive shards (no partial shards) 
   return a set of files ready for upload.
+
+  WARNING: This function is only appropriate for Precomputed
+  meshes and skeletons. Use the synthesize_shard_file (singular)
+  function to create arbitrarily named and assigned shard files.
 
   spec: a ShardingSpecification
   data: { label: binary, ... }
@@ -328,20 +459,44 @@ def synthesize_shard_files(spec, data, progress=False):
 
   for shardno, shardgrp in pbar:
     filename = str(shardno) + '.shard'
-    shard_files[filename] = _synthesize_shard_file(spec, shardgrp, progress=(progress > 1))
+    shard_files[filename] = synthesize_shard_file(spec, shardgrp, progress=(progress > 1), presorted=True)
 
   return shard_files
 
 # NB: This is going to be memory hungry and can be optimized
-def _synthesize_shard_file(spec, shardgrp, progress):
-  # Assemble the .shard file like:
-  # [ shard index; minishards; all minishard indices ]
+def synthesize_shard_file(spec, label_group, progress=False, presorted=False):
+  """
+  Assemble a shard file from a group of labels that all belong in the same shard.
 
+  Assembles the .shard file like:
+  [ shard index; minishards; all minishard indices ]
+
+  spec: ShardingSpecification
+  label_group: 
+    If presorted is True:
+      { minishardno: { label: binary, ... }, ... }
+    If presorted is False:
+      { label: binary }
+  progress: show progress bars
+
+  Returns: binary representing a shard file
+  """
   minishardnos = []
   minishard_indicies = []
   minishards = []
 
-  for minishardno, minishardgrp in tqdm(shardgrp.items(), desc="Minishard Indices", disable=(not progress)):
+  if presorted:
+    minishard_mapping = label_group
+  else:
+    minishard_mapping = defaultdict(dict)
+    pbar = tqdm(label_group.items(), disable=(not progress), desc="Assigning Minishards")
+    for label, binary in pbar:
+      loc = spec.compute_shard_location(label)
+      minishard_mapping[loc.minishard_number][label] = binary
+
+  del label_group
+
+  for minishardno, minishardgrp in tqdm(minishard_mapping.items(), desc="Minishard Indices", disable=(not progress)):
     labels = sorted([ int(label) for label in minishardgrp.keys() ])
     if len(labels) == 0:
       continue
@@ -366,6 +521,8 @@ def _synthesize_shard_file(spec, shardgrp, progress):
     minishardnos.append(minishardno)
     minishard_indicies.append(minishard_index) 
     minishards.append(minishard)
+
+  del minishard_mapping
 
   cum_minishard_size = 0
   for idx, minishard in zip(minishard_indicies, minishards):

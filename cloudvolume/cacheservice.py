@@ -103,6 +103,10 @@ class CacheService(object):
     else:
       return mip_size(self.config.mip)
 
+  def has(self, filename):
+    with SimpleStorage('file://' + self.path) as stor:
+      return stor.exists(filename)
+
   def list(self, mip=None):
     mip = self.config.mip if mip is None else mip
 

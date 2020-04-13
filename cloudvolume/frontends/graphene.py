@@ -203,7 +203,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     
     Returns: (int) layer number
     """
-    return int(int(node_or_chunk_id) >> (64 - self.meta.n_bits_for_layer_id))
+    return int(self.meta.decode_layer_id(node_or_chunk_id))
 
   def get_root(self, segid, *args, **kwargs):
     """Deprecated. Get a single root id for a single segid."""

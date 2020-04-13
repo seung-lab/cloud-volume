@@ -11,15 +11,15 @@ import requests
 import numpy as np
 from tqdm import tqdm
 
-from ...lib import red, toiter, Bbox, Vec
-from ...mesh import Mesh
-from ... import paths
-from ...storage import Storage, GreenStorage
+from ....lib import red, toiter, Bbox, Vec, jsonify
+from ....mesh import Mesh
+from .... import paths
+from ....storage import Storage, GreenStorage
 
-from ..precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, PrecomputedMeshMetadata
+from ...precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, PrecomputedMeshMetadata
 
 
-class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
+class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
   def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
     # TODO: add lod to endpoint
@@ -31,27 +31,57 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
       bbox = Bbox.create(bbox)
       query_d['bounds'] = bbox.to_filename()
 
-    url = "%s/%s:%s" % (self.meta.manifest_endpoint, seg_id, lod)
+    url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, seg_id, lod)
     
     if level is not None:
       res = requests.get(
         url,
-        data=json.dumps({ "start_layer": level }),
+        data=jsonify({ "start_layer": level }),
         params=query_d,
-        headers=self.meta.auth_header
+        headers=self.meta.meta.auth_header
       )
     else:
-      res = requests.get(url, params=query_d, headers=self.meta.auth_header)
+      res = requests.get(url, params=query_d, headers=self.meta.meta.auth_header)
 
     res.raise_for_status()
 
     return json.loads(res.content.decode('utf8'))["fragments"]
 
+  def download_segid(self, seg_id, bounding_box):
+    level = self.meta.meta.decode_layer_id(seg_id)
+    fragment_filenames = self._get_fragment_filenames(
+      seg_id, level=level, bbox=bounding_box
+    )
+    fragments = self._get_mesh_fragments(fragment_filenames)
+    fragments = sorted(fragments, key=lambda frag: frag[0])  # make decoding deterministic
+
+    fragiter = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
+    is_draco = False
+    for i, (filename, frag) in enumerate(fragiter):
+      mesh = None
+      
+      if frag is not None:
+        try:
+          # Easier to ask forgiveness than permission
+          mesh = Mesh.from_draco(frag)
+          is_draco = True
+        except DracoPy.FileTypeException:
+          mesh = Mesh.from_precomputed(frag)
+          
+      fragments[i] = mesh
+    
+    fragments = [ f for f in fragments if f is not None ] 
+    if len(fragments) == 0:
+      raise IndexError('No mesh fragments found for segment {}'.format(seg_id))
+
+    mesh = Mesh.concatenate(*fragments)
+    mesh.segid = seg_id
+    return mesh, is_draco
+
   def get(
       self, segids, 
       remove_duplicate_vertices=False, 
-      fuse=False, level=2, 
-      bounding_box=None
+      fuse=False, bounding_box=None
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
@@ -64,7 +94,6 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
     Optional:
       remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
       fuse: bool, merge all downloaded meshes into a single mesh
-      level: int, level of mesh to return. None to return highest available (default 2) 
       bounding_box: Bbox, bounding box to restrict mesh download to
     
     Returns: Mesh object if fused, else { segid: Mesh, ... }
@@ -73,38 +102,15 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     segids = list(set([ int(segid) for segid in toiter(segids) ]))
 
+    meta = self.meta.meta
+
     meshes = []
     for seg_id in tqdm(segids, disable=(not self.config.progress), desc="Downloading Meshes"):
-      fragment_filenames = self._get_fragment_filenames(
-        seg_id, level=level, bbox=bounding_box
-      )
-      fragments = self._get_mesh_fragments(fragment_filenames)
-      fragments = sorted(fragments, key=lambda frag: frag[0])  # make decoding deterministic
-
-      fragiter = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
-      is_draco = False
-      for i, (filename, frag) in enumerate(fragiter):
-        mesh = None
-        
-        if frag is not None:
-          try:
-            # Easier to ask forgiveness than permission
-            mesh = Mesh.from_draco(frag)
-            is_draco = True
-          except DracoPy.FileTypeException:
-            mesh = Mesh.from_precomputed(frag)
-            
-        fragments[i] = mesh
-      
-      fragments = [ f for f in fragments if f is not None ] 
-      if len(fragments) == 0:
-        raise IndexError('No mesh fragments found for segment {}'.format(seg_id))
-
-      mesh = Mesh.concatenate(*fragments)
-      mesh.segid = seg_id
-      resolution = self.meta.resolution(self.config.mip)
-      if self.meta.chunks_start_at_voxel_offset:
-        offset = self.meta.voxel_offset(self.config.mip)
+      level = meta.decode_layer_id(seg_id)
+      mesh, is_draco = self.download_segid(seg_id, bounding_box)
+      resolution = meta.resolution(self.config.mip)
+      if meta.chunks_start_at_voxel_offset:
+        offset = meta.voxel_offset(self.config.mip)
       else:
         offset = Vec(0,0,0)
 
@@ -113,9 +119,9 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
       elif is_draco:
         if level == 2:
           # Deduplicate at quantized lvl2 chunk borders
-          draco_grid_size = self.meta.get_draco_grid_size(level)
+          draco_grid_size = meta.get_draco_grid_size(level)
           mesh = mesh.deduplicate_chunk_boundaries(
-            self.meta.mesh_chunk_size * resolution,
+            meta.mesh_chunk_size * resolution,
             offset=offset * resolution,
             is_draco=True,
             draco_grid_size=draco_grid_size,
@@ -127,7 +133,7 @@ class GrapheneMeshSource(UnshardedLegacyPrecomputedMeshSource):
           print('Warning: deduplication not currently supported for this layer\'s variable layered draco meshes')
       else:
         mesh = mesh.deduplicate_chunk_boundaries(
-            self.meta.mesh_chunk_size * resolution,
+            meta.mesh_chunk_size * resolution,
             offset=offset * resolution,
             is_draco=False,
           )
