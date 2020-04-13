@@ -265,6 +265,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return np.array(roots, dtype=self.meta.dtype)
 
   def get_seg_ids_in_chunk(self, chunk_id, timestamp=None):
+    """
+    Get all of the segments in a lvl 2 chunk,
+    as well as their associated supervoxels.
+
+    chunk_id: np.uint64 lvl 2 chunk id
+    timestamp: get the segments from this date and time
+    """
     if isinstance(timestamp, str):
       timestamp = dateutil.parser.parse(timestamp) # returns datetime
     if isinstance(timestamp, datetime): # NB. do not change to elif
