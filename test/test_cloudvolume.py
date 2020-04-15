@@ -9,7 +9,7 @@ import shutil
 import sys
 
 from cloudvolume import exceptions
-from cloudvolume.exceptions import AlignmentError
+from cloudvolume.exceptions import AlignmentError, ReadOnlyException
 from cloudvolume import CloudVolume, chunks
 from cloudvolume.lib import Bbox, Vec, yellow, mkdir
 import cloudvolume.sharedmemory as shm
@@ -1339,3 +1339,54 @@ def test_compression_methods(compress_method):
 
   assert vol.compress == compress_method
   assert np.array_equal(image_test, image)
+
+def test_mip_locking():
+  delete_layer()
+  cv, _ = create_layer(size=(1024, 1024, 2, 1), offset=(0,0,0))
+
+  cv.meta.lock_mips(0)
+  cv.meta.lock_mips([0])
+
+  try:
+    cv[:,:,:] = 0
+    assert False 
+  except ReadOnlyException:
+    pass 
+
+  cv.meta.unlock_mips(0)
+  cv.meta.unlock_mips([0])
+
+  cv[:,:,:] = 0
+
+  try:
+    cv.meta.lock_mips(1)
+    assert False 
+  except ValueError:
+    pass 
+
+  try:
+    cv.meta.unlock_mips(1)
+    assert False 
+  except ValueError:
+    pass 
+
+  cv.add_scale((2,2,1))
+  cv.commit_info()
+  cv.mip = 1 
+  cv[:] = 1
+
+  cv.meta.lock_mips([0,1])
+
+  try:
+    cv[:,:,:] = 1
+    assert False 
+  except ReadOnlyException:
+    pass 
+
+  cv.mip = 0
+
+  try:
+    cv[:,:,:] = 1
+    assert False 
+  except ReadOnlyException:
+    pass 
