@@ -125,3 +125,11 @@ class SpecViolation(Exception):
 class SpatialIndexGapError(Exception):
   """Part of the spatial index was not found. A complete result set cannot be fetched."""
   pass
+
+class WriteLockAcquisitionError(Exception):
+  """Unable to obtain a lock on this data layer element."""
+  pass
+
+class WriteLockReleaseError(Exception):
+  """Unable to release a lock on this data layer element."""
+  pass

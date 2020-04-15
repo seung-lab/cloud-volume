@@ -146,10 +146,14 @@ class PrecomputedMetadata(object):
     
     return info
 
-  def refresh_info(self, max_redirects=10):
+  def refresh_info(self, max_redirects=10, force_fetch=False):
     """
     Refresh the current info file from the cache (if enabled) 
     or primary storage (e.g. the cloud) if not cached.
+
+    max_redirects: number of times to allow redirection. set to 0 to
+      force getting the origin info file loaded.
+    force_fetch: bypass the cache for reading, but allow writing
 
     Raises:
       cloudvolume.exceptions.InfoUnavailableError when the info file 
@@ -163,7 +167,7 @@ class PrecomputedMetadata(object):
 
     Returns: dict
     """
-    if self.cache and self.cache.enabled:
+    if self.cache and self.cache.enabled and not force_fetch:
       info = self.cache.get_json('info')
       if info:
         self.info = info
@@ -659,3 +663,50 @@ Hops:
       info['scales'].append(newscale)
 
     return newscale
+
+  def lock_mips(self, mips):
+    """
+    Establishes a write lock on the specified mip levels.
+    The lock is written to the cloud info file.
+    """
+    mips = lib.toiter(mips)
+    if max(mips) > max(self.available_mips):
+      raise ValueError("Cannot lock a mip level that doesn't exist. Highest mip: {} Got: {}".format(
+        max(self.available_mips), mips
+      ))
+
+    try:
+      self.refresh_info(force_fetch=True)
+
+      for mip in mips:
+        self.info['scales'][mip]['locked'] = True
+
+      self.commit_info()
+    except Exception as err:
+      msg = lib.red("Unable to acquire write lock on mips {}!".format(list(mips)))
+      raise exceptions.WriteLockAcquisitionError(msg)
+
+  def unlock_mips(self, mips):
+    """
+    Releases a write lock on the specified mip levels.
+    The lock is written to the cloud info file.
+    """
+    mips = lib.toiter(mips)
+    if max(mips) > max(self.available_mips):
+      raise ValueError("Cannot unlock a mip level that doesn't exist. Highest mip: {} Got: {}".format(
+        max(self.available_mips), mips
+      ))
+
+    try:
+      self.refresh_info(force_fetch=True)
+
+      for mip in mips:
+        self.info['scales'][mip]['locked'] = False
+
+      self.commit_info()
+    except Exception as err:
+      msg = lib.yellow("Unable to release lock on mips {}".format(list(mips)))
+      raise exceptions.WriteLockReleaseError(msg)
+
+  def locked_mips(self):
+    return set([ i for i, scale in enumerate(self.info['scales']) if scale.get('locked', False) ])
