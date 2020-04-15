@@ -126,10 +126,6 @@ class SpatialIndexGapError(Exception):
   """Part of the spatial index was not found. A complete result set cannot be fetched."""
   pass
 
-class WriteLockViolationError(Exception):
-  """Cannot write or delete files in a volume that are marked as write locked. Please consult the info file."""
-  pass
-
 class WriteLockAcquisitionError(Exception):
   """Unable to obtain a lock on this data layer element."""
   pass

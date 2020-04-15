@@ -46,13 +46,6 @@ def upload(
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
 
-  if mip in meta.locked_mips():
-    raise WriteLockViolationError(
-      "MIP {} is currently write locked. If this should not be the case, run vol.meta.unlock_mip({}).".format(
-        mip, mip
-      )
-    )
-
   if not np.issubdtype(image.dtype, np.dtype(meta.dtype).type):
     raise ValueError("""
       The uploaded image data type must match the volume data type. 

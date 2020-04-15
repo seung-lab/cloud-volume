@@ -147,6 +147,13 @@ class PrecomputedImageSource(ImageSourceInterface):
       use_shared_memory=False, use_file=False      
     ):
 
+    if mip in self.meta.locked_mips():
+      raise exceptions.ReadOnlyException(
+        "MIP {} is currently write locked. If this should not be the case, run vol.meta.unlock_mip({}).".format(
+          mip, mip
+        )
+      )
+
     offset = Vec(*offset)
     bbox = Bbox( offset, offset + Vec(*image.shape[:3]) )
 
@@ -203,6 +210,13 @@ class PrecomputedImageSource(ImageSourceInterface):
   def delete(self, bbox, mip=None):
     if mip is None:
       mip = self.config.mip
+
+    if mip in self.meta.locked_mips():
+      raise exceptions.ReadOnlyException(
+        "MIP {} is currently write locked. If this should not be the case, run vol.meta.unlock_mip({}).".format(
+          mip, mip
+        )
+      )
 
     bbox = Bbox.create(bbox, self.meta.bounds(mip), bounded=True)
     realized_bbox = bbox.expand_to_chunk_size(
