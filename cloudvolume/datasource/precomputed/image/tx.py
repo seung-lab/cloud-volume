@@ -6,7 +6,7 @@ from six.moves import range
 from tqdm import tqdm
 
 from cloudvolume import lib, chunks
-from cloudvolume.exceptions import AlignmentError
+from cloudvolume.exceptions import AlignmentError, WriteLockViolationError
 from cloudvolume.lib import ( 
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2
@@ -45,6 +45,13 @@ def upload(
     green=False, fill_missing=False
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
+
+  if mip in meta.locked_mips():
+    raise WriteLockViolationError(
+      "MIP {} is currently write locked. If this should not be the case, run vol.meta.unlock_mip({}).".format(
+        mip, mip
+      )
+    )
 
   if not np.issubdtype(image.dtype, np.dtype(meta.dtype).type):
     raise ValueError("""

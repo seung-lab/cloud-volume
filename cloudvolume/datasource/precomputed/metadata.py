@@ -709,4 +709,4 @@ Hops:
       raise exceptions.WriteLockReleaseError(msg) from err
 
   def locked_mips(self):
-    return set([ i for i, scale in enumerate(self.info['scale']) if scale.get('locked', False) ])
+    return set([ i for i, scale in enumerate(self.info['scales']) if scale.get('locked', False) ])
