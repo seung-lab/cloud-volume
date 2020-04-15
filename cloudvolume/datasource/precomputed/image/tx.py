@@ -6,7 +6,7 @@ from six.moves import range
 from tqdm import tqdm
 
 from cloudvolume import lib, chunks
-from cloudvolume.exceptions import AlignmentError, WriteLockViolationError
+from cloudvolume.exceptions import AlignmentError
 from cloudvolume.lib import ( 
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2
