@@ -284,11 +284,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     layer_id = self.meta.decode_layer_id(chunk_id)
     if layer_id != 2:
-      raise ValueError("This function only accepts layer 2 chunk IDs. Got {}".format(self.meta.decode_label(chunk_id)))
+      raise ValueError("This function only accepts Layer 2 chunk IDs. Got {}".format(self.meta.decode_label(chunk_id)))
 
     segid = self.meta.decode_segid(chunk_id)
     if segid != 0:
-      raise ValueError("Chunk IDs have zeroed segid. Got: {}".format(self.meta.decode_label(segid)))
+      raise ValueError("Chunk IDs have a zeroed segid field. Got: {}".format(self.meta.decode_label(segid)))
 
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
