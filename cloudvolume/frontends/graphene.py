@@ -282,6 +282,14 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         "{} is not a supported API version for range read requests. Currently, only version 1.0 is supported: ".format(self.meta.api_version) \
       )
 
+    layer_id = self.meta.decode_layer_id(chunk_id)
+    if layer_id != 2:
+      raise ValueError("This function only accepts layer 2 chunk IDs. Got {}".format(self.meta.decode_label(chunk_id)))
+
+    segid = self.meta.decode_segid(chunk_id)
+    if segid != 0:
+      raise ValueError("Chunk IDs have zeroed segid. Got: {}".format(self.meta.decode_label(segid)))
+
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
     url = posixpath.join(self.meta.base_path, path, "range_read_binary", str(chunk_id))
