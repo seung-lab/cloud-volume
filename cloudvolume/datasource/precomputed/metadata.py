@@ -684,7 +684,7 @@ Hops:
       self.commit_info()
     except Exception as err:
       msg = lib.red("Unable to acquire write lock on mips {}!".format(list(mips)))
-      raise exceptions.WriteLockAcquisitionError(msg) from err
+      raise exceptions.WriteLockAcquisitionError(msg)
 
   def unlock_mips(self, mips):
     """
@@ -706,7 +706,7 @@ Hops:
       self.commit_info(info)
     except Exception as err:
       msg = lib.yellow("Unable to release lock on mips {}".format(list(mips)))
-      raise exceptions.WriteLockReleaseError(msg) from err
+      raise exceptions.WriteLockReleaseError(msg)
 
   def locked_mips(self):
     return set([ i for i, scale in enumerate(self.info['scales']) if scale.get('locked', False) ])
