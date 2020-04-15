@@ -168,6 +168,15 @@ class GrapheneMetadata(PrecomputedMetadata):
     return label & mask
 
   def decode_chunk_id(self, label):
+    """The chunk id is a graphene label with the segid portion zeroed out."""
+    label = uint64(label)
+    level = self.decode_layer_id(label)
+    bits = self.segid_bits(level)
+    mask = uint64(2 ** bits) - uint64(1)
+    return label & ~mask
+
+  def decode_chunk_position_number(self, label):
+    """Returns the chunk position X,Y,Z as a packed uint64."""
     label = uint64(label)
     level = self.decode_layer_id(label)
     ct = self.spatial_bit_count(level)
@@ -175,6 +184,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     return label >> self.segid_bits(level) 
 
   def decode_chunk_position(self, label):
+    """Returns the chunk position as a tuple (X,Y,Z)"""
     label = uint64(label)
     level = self.decode_layer_id(label)
     ct = self.spatial_bit_count(level)
