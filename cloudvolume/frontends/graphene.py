@@ -269,7 +269,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     Get all of the segments in a lvl 2 chunk,
     as well as their associated supervoxels.
 
-    chunk_id: np.uint64 lvl 2 chunk id
+    chunk_id: np.uint64 lvl 2 chunk id (ie. an L2 label with a zeroed segid component)
     timestamp: get the segments from this date and time
     """
     if isinstance(timestamp, str):
