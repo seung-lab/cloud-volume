@@ -703,7 +703,7 @@ Hops:
       for mip in mips:
         self.info['scales'][mip]['locked'] = False
 
-      self.commit_info(info)
+      self.commit_info()
     except Exception as err:
       msg = lib.yellow("Unable to release lock on mips {}".format(list(mips)))
       raise exceptions.WriteLockReleaseError(msg)
