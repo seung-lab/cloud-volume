@@ -288,7 +288,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     segid = self.meta.decode_segid(chunk_id)
     if segid != 0:
-      raise ValueError("Chunk IDs have a zeroed segid field. Got: {}".format(self.meta.decode_label(segid)))
+      raise ValueError("Chunk IDs have a zeroed segid field. Got: {}".format(self.meta.decode_label(chunk_id)))
 
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
