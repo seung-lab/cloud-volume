@@ -292,7 +292,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
-    url = posixpath.join(self.meta.base_path, path, "range_read_binary", str(chunk_id))
+    url = posixpath.join(self.meta.base_path, path, "l2_chunk_children_binary", str(chunk_id))
 
     response = requests.get(url, params={}, headers=self.meta.auth_header)
     response.raise_for_status()
