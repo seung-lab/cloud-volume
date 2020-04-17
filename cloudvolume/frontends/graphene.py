@@ -264,7 +264,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(roots, dtype=self.meta.dtype)
 
-  def get_seg_ids_in_chunk(self, chunk_id, timestamp=None):
+  def get_chunk_labels(self, chunk_id, timestamp=None):
     """
     Get all of the segments in a lvl 2 chunk,
     as well as their associated supervoxels.
@@ -286,10 +286,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if layer_id != 2:
       raise ValueError("This function only accepts Layer 2 chunk IDs. Got {}".format(self.meta.decode_label(chunk_id)))
 
-    segid = self.meta.decode_segid(chunk_id)
-    if segid != 0:
-      raise ValueError("Chunk IDs have a zeroed segid field. Got: {}".format(self.meta.decode_label(chunk_id)))
-
+    chunk_id = self.meta.decode_chunk_id(chunk_id)
+    
     version = GrapheneApiVersion('v1')
     path = version.path(self.meta.server_path)
     url = posixpath.join(self.meta.base_path, path, "l2_chunk_children_binary", str(chunk_id))
