@@ -461,11 +461,9 @@ class ShardReader(object):
     index = self.get_index(filename, path)
     all_minishard_nos = list(range(len(index)))
     minishard_indicies = self.get_minishard_indices(filename, index, all_minishard_nos, path)
-    print(minishard_indicies)
     minishard_indicies = [  
       msi for msi in minishard_indicies.values() if msi is not None
     ]
-    print(minishard_indicies)
     labels = np.concatenate([  
       msi[:,0] for msi in minishard_indicies
     ])
