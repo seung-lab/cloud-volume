@@ -1,6 +1,7 @@
 import six
 from six.moves import queue as Queue
 from collections import defaultdict
+import itertools
 import json
 import os.path
 import posixpath
@@ -36,9 +37,9 @@ def get_interface_class(protocol):
 
 def default_byte_iterator(starts, ends):
   if starts is None:
-    starts = ( None for _ in iter(lambda: 0, 1) ) # infinite None generator
+    starts = itertools.repeat(None)
   if ends is None:
-    ends = ( None for _ in iter(lambda: 0, 1) ) # infinite None generator
+    ends = itertools.repeat(None)
   return iter(starts), iter(ends)
 
 class StorageBase(object):
