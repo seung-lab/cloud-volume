@@ -13,7 +13,7 @@ from . import mmh3
 from ... import compression
 from ...lib import jsonify, toiter
 from ...exceptions import SpecViolation
-from ...storage import SimpleStorage
+from ...storage import SimpleStorage, Storage
 
 ShardLocation = namedtuple('ShardLocation', 
   ('shard_number', 'minishard_number', 'remainder')
@@ -282,45 +282,79 @@ class ShardReader(object):
     return index
 
   def get_minishard_index(self, filename, index, minishard_no, path=""):
+    res = self.get_minishard_indices(filename, index, minishard_no, path)
+    return res[minishard_no]
+
+  def get_minishard_indices(self, filename, index, minishard_nos, path=""):
     """
     Retrieves the minishard index for a given minishard number.
 
     Returns: uint64 Nx3 array with multiple rows of [segid, byte start, byte end]
     """
+    minishard_nos = toiter(minishard_nos)
     index_offset = self.spec.index_length()
-    bytes_start, bytes_end = index[minishard_no]
 
-    # most typically: [0,0] for an incomplete shard
-    if bytes_start == bytes_end:
-      return None
+    fufilled_requests = {}
 
-    bytes_start += index_offset
-    bytes_end += index_offset
-    bytes_start, bytes_end = int(bytes_start), int(bytes_end)
+    byte_ranges = {}
+    for msn in minishard_nos:
+      bytes_start, bytes_end = index[msn]
+
+      # most typically: [0,0] for an incomplete shard
+      if bytes_start == bytes_end:
+        fufilled_requests[msn] = None
+        continue
+
+      bytes_start += index_offset
+      bytes_end += index_offset
+      bytes_start, bytes_end = int(bytes_start), int(bytes_end)
+      byte_ranges[msn] = (bytes_start, bytes_end)
 
     full_path = self.meta.join(self.meta.cloudpath, path)
 
-    cache_key = (filename, bytes_start, bytes_end)
-    if cache_key in self.minishard_index_cache:
-      return self.minishard_index_cache[cache_key]
+    pending_requests = []
+    for msn, (bytes_start, bytes_end) in byte_ranges.items():
+      cache_key = (filename, bytes_start, bytes_end)
+      if cache_key in self.minishard_index_cache:
+        fufilled_requests[msn] = self.minishard_index_cache[cache_key]
+      else:
+        pending_requests.append((bytes_start, bytes_end))
 
-    with SimpleStorage(full_path) as stor:
-      minishard_index = stor.get_file(filename, start=bytes_start, end=bytes_end)
+    StorageClass = SimpleStorage if len(pending_requests) == 1 else Storage
 
-    if self.spec.minishard_index_encoding != 'raw':
-      minishard_index = compression.decompress(
-        minishard_index, encoding=self.spec.minishard_index_encoding, filename=filename
-      )
+    with StorageClass(full_path) as stor:
+      filenames = ( filename for _ in pending_requests )
+      starts = ( start for (start, end) in pending_requests )
+      ends = ( end for (start, end) in pending_requests )
+      results = stor.get_files(filenames, starts, ends)
+  
+    del pending_requests
 
-    minishard_index = np.copy(np.frombuffer(minishard_index, dtype=np.uint64))
-    minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' ).T
+    def decode_minishard_index(minishard_index):
+      if self.spec.minishard_index_encoding != 'raw':
+        minishard_index = compression.decompress(
+          minishard_index, encoding=self.spec.minishard_index_encoding, filename=filename
+        )
 
-    for i in range(1, minishard_index.shape[0]):
-      minishard_index[i, 0] += minishard_index[i-1, 0]
-      minishard_index[i, 1] += minishard_index[i-1, 1] + minishard_index[i-1, 2]
+      minishard_index = np.copy(np.frombuffer(minishard_index, dtype=np.uint64))
+      minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' ).T
 
-    self.minishard_index_cache[cache_key] = minishard_index
-    return minishard_index 
+      for i in range(1, minishard_index.shape[0]):
+        minishard_index[i, 0] += minishard_index[i-1, 0]
+        minishard_index[i, 1] += minishard_index[i-1, 1] + minishard_index[i-1, 2]
+
+      return minishard_index 
+
+    byte_ranges = { v: k for k, v in byte_ranges.items() }
+    for res in results:
+      start, end = res['byte_range']
+      msn = byte_ranges[(start, end)]
+      cache_key = (filename, start, end)
+      minishard_index = decode_minishard_index(res['content'])
+      self.minishard_index_cache[cache_key] = minishard_index
+      fufilled_requests[msn] = minishard_index
+
+    return fufilled_requests
 
   def exists(self, labels, path="", return_byte_range=False):
     """
@@ -422,6 +456,20 @@ class ShardReader(object):
       self.cache.put_single(self.meta.join(path, str(label)), binary, progress=False)
 
     return binary
+
+  def list_labels(self, filename, path=""):
+    index = self.get_index(filename, path)
+    all_minishard_nos = list(range(len(index)))
+    minishard_indicies = self.get_minishard_indices(filename, index, all_minishard_nos, path)
+    print(minishard_indicies)
+    minishard_indicies = [  
+      msi for msi in minishard_indicies.values() if msi is not None
+    ]
+    print(minishard_indicies)
+    labels = np.concatenate([  
+      msi[:,0] for msi in minishard_indicies
+    ])
+    return np.sort(labels)
 
 def synthesize_shard_files(spec, data, progress=False):
   """
