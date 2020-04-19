@@ -6,7 +6,6 @@ import json
 import struct
 
 import numpy as np
-import pylru
 from tqdm import tqdm
 
 from . import mmh3
