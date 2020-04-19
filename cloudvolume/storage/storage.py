@@ -1,6 +1,7 @@
 import six
 from six.moves import queue as Queue
 from collections import defaultdict
+import itertools
 import json
 import os.path
 import posixpath
@@ -33,6 +34,13 @@ def get_interface_class(protocol):
     return HttpInterface
   else:
     raise UnsupportedProtocolError(str(self._path))
+
+def default_byte_iterator(starts, ends):
+  if starts is None:
+    starts = itertools.repeat(None)
+  if ends is None:
+    ends = itertools.repeat(None)
+  return iter(starts), iter(ends)
 
 class StorageBase(object):
   """Abastract base class of Storage with some implementation details."""
@@ -87,7 +95,7 @@ class StorageBase(object):
   def get_file(self, file_path):
     raise NotImplementedError()
 
-  def get_files(self, file_paths):
+  def get_files(self, file_paths, starts=None, ends=None):
     raise NotImplementedError()
 
   def delete_file(self, file_path):
@@ -164,19 +172,28 @@ class SimpleStorage(StorageBase):
     content = compression.decompress(content, encoding, filename=file_path)
     return content
 
-  def get_files(self, file_paths):
+  def get_files(self, file_paths, starts=None, ends=None):
+    starts, ends = default_byte_iterator(starts, ends)
+
+    iterator = tqdm(
+      zip(file_paths, starts, ends),
+      disable=(not self.progress), 
+      desc="Downloading"
+    )
+
     results = []
-    for path in tqdm(file_paths, disable=(not self.progress), desc="Downloading"):
+    for path, start, end in iterator:
       error = None 
 
       try:
-        content = self.get_file(path)
+        content = self.get_file(path, start, end)
       except Exception as err:
         error = err 
         content = None 
 
       results.append({
         'filename': path,
+        'byte_range': (start, end),
         'content': content,
         'error': error,
       })
@@ -282,19 +299,21 @@ class GreenStorage(StorageBase):
       content, encoding = conn.get_file(file_path, start=start, end=end)
     return compression.decompress(content, encoding, filename=file_path)
 
-  def get_files(self, file_paths):
+  def get_files(self, file_paths, starts=None, ends=None):
     """
     Returns: [ 
       { "filename": ..., "content": bytes, "error": exception or None }, 
       ... 
     ]
     """
-    def getfn(path):
+    starts, ends = default_byte_iterator(starts, ends)
+
+    def getfn(path, start, end):
       result = error = None 
 
       conn = self.get_connection()
       try:
-        result = conn.get_file(path)
+        result = conn.get_file(path, start=start, end=end)
       except Exception as err:
         error = err
         # important to print immediately because 
@@ -309,12 +328,16 @@ class GreenStorage(StorageBase):
 
       return {
         "filename": path,
+        "byte_range": (start, end),
         "content": content,
         "error": error,
       }
 
     return schedule_green_jobs(  
-      fns=( partial(getfn, path) for path in file_paths ),
+      fns=( 
+        partial(getfn, path, start, end) 
+        for path, start, end in zip(file_paths, starts, ends) 
+      ),
       progress=('Downloading' if self.progress else None),
       concurrency=self.concurrency,
       total=len(file_paths),
@@ -547,18 +570,18 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
     content = compression.decompress(content, encoding, filename=file_path)
     return content
 
-  def get_files(self, file_paths):
+  def get_files(self, file_paths, starts=None, ends=None):
     """
     returns a list of files faster by using threads
     """
-
     results = []
+    starts, ends = default_byte_iterator(starts, ends)
 
-    def get_file_thunk(path, interface):
+    def get_file_thunk(path, start, end, interface):
       result = error = None 
 
       try:
-        result = interface.get_file(path)
+        result = interface.get_file(path, start=start, end=end)
       except Exception as err:
         error = err
         # important to print immediately because 
@@ -570,15 +593,16 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
 
       results.append({
         "filename": path,
+        "byte_range": (start, end),
         "content": content,
         "error": error,
       })
 
-    for path in file_paths:
+    for path, start, end in zip(file_paths, starts, ends):
       if len(self._threads):
-        self.put(partial(get_file_thunk, path))
+        self.put(partial(get_file_thunk, path, start, end))
       else:
-        get_file_thunk(path, self._interface)
+        get_file_thunk(path, start, end, self._interface)
 
     desc = 'Downloading' if self.progress else None
     self.wait(desc)

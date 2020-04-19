@@ -708,6 +708,14 @@ def test_sharded():
         sk.id = 1
         assert sk == skel
 
+      labels = []
+      for fname in files.keys():
+        lbls = cv.skeleton.reader.list_labels(fname)
+        labels += list(lbls)
+      
+      labels.sort()
+      assert labels == list(range(10))
+
   shutil.rmtree('/tmp/removeme/skeletons')
 
 

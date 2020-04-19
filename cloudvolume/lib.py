@@ -47,11 +47,15 @@ class NumpyEncoder(json.JSONEncoder):
             return float(obj)
         return json.JSONEncoder.default(self, obj)
 
-def toiter(obj):
+def toiter(obj, is_iter=False):
   try:
     iter(obj)
+    if is_iter:
+      return obj, True
     return obj 
   except TypeError:
+    if is_iter:
+      return [ obj ], False
     return [ obj ]
 
 def jsonify(obj, **kwargs):
