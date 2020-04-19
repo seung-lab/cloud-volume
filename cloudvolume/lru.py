@@ -1,4 +1,4 @@
-class DoubleyLinkedListIterator(object):
+class DoublyLinkedListIterator(object):
   def __init__(self, node, reverse=False):
     self.node = ListNode(None, node, node)
     self.reverse = reverse
@@ -13,7 +13,7 @@ class DoubleyLinkedListIterator(object):
         return self.node
     raise StopIteration()
   def __reversed__(self):
-    return DoubleyLinkedListIterator(self.node, not self.reverse)
+    return DoublyLinkedListIterator(self.node, not self.reverse)
 
 class ListNode(object):
   def __init__(self, val, next, prev):
@@ -22,10 +22,10 @@ class ListNode(object):
     self.prev = prev 
 
   def __iter__(self):
-    return DoubleyLinkedListIterator(self)
+    return DoublyLinkedListIterator(self)
 
   def __reversed__(self):
-    return DoubleyLinkedListIterator(self, reverse=True)
+    return DoublyLinkedListIterator(self, reverse=True)
 
   def __str__(self):
     return "ListNode({},{},{})".format(
@@ -37,7 +37,7 @@ class ListNode(object):
   def clone(self):
     return ListNode(self.val, self.next, self.prev)
 
-class DoubleyLinkedList(object):
+class DoublyLinkedList(object):
   def __init__(self):
     self.head = None
     self.tail = None
@@ -47,7 +47,7 @@ class DoubleyLinkedList(object):
   def create(cls, lst):
     lst = iter(lst)
 
-    dll = DoubleyLinkedList()
+    dll = DoublyLinkedList()
     for val in lst:
       dll.append(val)
 
@@ -57,10 +57,10 @@ class DoubleyLinkedList(object):
     return self.size
 
   def __iter__(self):
-    return DoubleyLinkedListIterator(self.head)
+    return DoublyLinkedListIterator(self.head)
 
   def __reversed__(self):
-    return DoubleyLinkedListIterator(self.tail, reverse=True)
+    return DoublyLinkedListIterator(self.tail, reverse=True)
 
   def tolist(self):
     return [ x.val for x in self ]
@@ -162,7 +162,7 @@ class DoubleyLinkedList(object):
 class LRU(object):
   def __init__(self, size=100):
     self.size = size
-    self.queue = DoubleyLinkedList()
+    self.queue = DoublyLinkedList()
     self.hash = {}
 
   def __len__(self):
@@ -173,7 +173,7 @@ class LRU(object):
       raise ValueError("The LRU limit must be a positive number. Got: " + str(new_size))
 
     if new_size == 0:
-      self.queue = DoubleyLinkedList()
+      self.queue = DoublyLinkedList()
       self.hash = {}
       return
 
