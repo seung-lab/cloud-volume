@@ -602,7 +602,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
       if len(self._threads):
         self.put(partial(get_file_thunk, path, start, end))
       else:
-        get_file_thunk(path, self._interface, start, end)
+        get_file_thunk(path, start, end, self._interface)
 
     desc = 'Downloading' if self.progress else None
     self.wait(desc)
