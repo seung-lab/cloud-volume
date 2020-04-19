@@ -13,7 +13,6 @@ numpy>=1.13.3
 python-jsonschema-objects>=0.3.3
 Pillow>=4.2.1
 protobuf>=3.3.0
-pylru
 python-dateutil
 requests>=2.22.0
 six>=1.10.0
