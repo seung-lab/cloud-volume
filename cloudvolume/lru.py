@@ -2,6 +2,8 @@ class DoublyLinkedListIterator(object):
   def __init__(self, node, reverse=False):
     self.node = ListNode(None, node, node)
     self.reverse = reverse
+  def next(self):
+    return self.__next__()
   def __next__(self):
     if self.reverse:
       if self.node.prev is not None:
