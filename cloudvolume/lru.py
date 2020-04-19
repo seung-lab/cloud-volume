@@ -185,6 +185,9 @@ class LRU(object):
       (key,val) = self.queue.delete_tail()
       del self.hash[key]
 
+  def __contains__(self, key):
+    return key in self.hash
+
   def __getitem__(self, key):
     if key not in self.hash:
       raise KeyError("{} not in cache.".format(key))

@@ -12,6 +12,7 @@ from tqdm import tqdm
 from . import mmh3
 from ... import compression
 from ...lib import jsonify, toiter
+from ...lru import LRU
 from ...exceptions import SpecViolation
 from ...storage import SimpleStorage
 
@@ -232,8 +233,8 @@ class ShardReader(object):
     self.cache = cache
     self.spec = spec
 
-    self.shard_index_cache = pylru.lrucache(shard_index_cache_size)
-    self.minishard_index_cache = pylru.lrucache(minishard_index_cache_size)
+    self.shard_index_cache = LRU(shard_index_cache_size)
+    self.minishard_index_cache = LRU(minishard_index_cache_size)
 
   def get_filename(self, label):
     return self.compute_shard_location(label)[0]
