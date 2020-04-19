@@ -577,7 +577,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
     results = []
     starts, ends = default_byte_iterator(starts, ends)
 
-    def get_file_thunk(path, interface, start, end):
+    def get_file_thunk(path, start, end, interface):
       result = error = None 
 
       try:
