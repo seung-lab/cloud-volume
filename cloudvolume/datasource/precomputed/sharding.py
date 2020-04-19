@@ -458,6 +458,11 @@ class ShardReader(object):
     return binary
 
   def list_labels(self, filename, path=""):
+    """
+    List all the labels in the index of a given shard file.
+
+    Returns: np.uint64 array
+    """
     index = self.get_index(filename, path)
     all_minishard_nos = list(range(len(index)))
     minishard_indicies = self.get_minishard_indices(filename, index, all_minishard_nos, path)
