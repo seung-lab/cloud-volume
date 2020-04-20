@@ -170,13 +170,16 @@ class LRU(object):
   def __len__(self):
     return self.queue.size
 
+  def clear(self):
+    self.queue = DoublyLinkedList()
+    self.hash = {}
+
   def resize(self, new_size):
     if new_size < 0:
       raise ValueError("The LRU limit must be a positive number. Got: " + str(new_size))
 
     if new_size == 0:
-      self.queue = DoublyLinkedList()
-      self.hash = {}
+      self.clear()
       return
 
     if new_size >= self.size:
@@ -200,6 +203,9 @@ class LRU(object):
     return node.val[1]
 
   def __setitem__(self, key, val):
+    if self.size == 0:
+      return
+
     pair = (key,val)
     if key in self.hash:
       node = self.hash[key]
