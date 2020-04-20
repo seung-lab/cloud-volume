@@ -22,8 +22,8 @@ from ...precomputed.sharding import ShardingSpecification
 from .unsharded import GrapheneUnshardedMeshSource
 
 class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
-  def __init__(self, *args, **kwargs):
-    super(GrapheneShardedMeshSource, self).__init__(self, *args, **kwargs)
+  def __init__(self, mesh_meta, cache, config, readonly):
+    super(GrapheneShardedMeshSource, self).__init__(self, mesh_meta, cache, config, readonly)
 
     self.readers = {}
     for level, sharding in self.meta.info['sharding'].items(): # { level: std sharding, ... }
