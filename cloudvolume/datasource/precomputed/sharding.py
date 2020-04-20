@@ -12,7 +12,7 @@ from . import mmh3
 from ... import compression
 from ...lib import jsonify, toiter
 from ...lru import LRU
-from ...exceptions import SpecViolation
+from ...exceptions import SpecViolation, EmptyFileException
 from ...storage import SimpleStorage, Storage
 
 ShardLocation = namedtuple('ShardLocation', 
@@ -269,11 +269,12 @@ class ShardReader(object):
       compress=False
     )
 
-    if binary is None or len(binary) != index_length:
-      binary_bytes = 0 if binary is None else len(binary)
+    if binary is None or len(binary) == 0:
+      raise EmptyFileException(filename + " was zero bytes.")
+    elif len(binary) != index_length:
       raise SpecViolation(
         filename + " was an incorrect length ({}) for this specification ({}).".format(
-          binary_bytes, index_length
+          len(binary), index_length
         ))
     
     index = np.frombuffer(binary, dtype=np.uint64)

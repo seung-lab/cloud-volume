@@ -7,7 +7,7 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
-from ....exceptions import EmptyVolumeException
+from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, check_bounds, 
@@ -62,12 +62,18 @@ def download_sharded(
 
   for gridpoint in gpts:
     zcurve_code = compressed_morton_code(gridpoint, grid_size)
-    chunkdata = reader.get_data(zcurve_code, meta.key(mip))
-
     cutout_bbox = Bbox(
       bounds.minpt + gridpoint * chunk_size,
       min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
     )
+
+    try:
+      chunkdata = reader.get_data(zcurve_code, meta.key(mip))
+    except EmptyFileException:
+      if fill_missing:
+        chunkdata = None
+      else:
+        raise EmptyVolumeException(cutout_bbox)
 
     img3d = decode(
       meta, cutout_bbox, 
