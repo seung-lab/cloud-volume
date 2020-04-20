@@ -33,6 +33,10 @@ class EmptyVolumeException(Exception):
   """Raised upon finding a missing chunk."""
   pass
 
+class EmptyFileException(Exception):
+  """File was zero bytes."""
+  pass
+
 class EmptyRequestException(ValueError):
   """
   Requesting uploading or downloading 
