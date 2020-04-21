@@ -181,7 +181,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     level = self.decode_layer_id(label)
     ct = self.spatial_bit_count(level)
     label = label & uint64(0x00ffffffffffffff)
-    return label >> self.segid_bits(level) 
+    return label >> uint64(self.segid_bits(level))
 
   def decode_chunk_position(self, label):
     """Returns the chunk position as a tuple (X,Y,Z)"""
@@ -200,20 +200,10 @@ class GrapheneMetadata(PrecomputedMetadata):
 
   def segid_bits(self, level):
     ct = self.spatial_bit_count(level)
-    return 64 - self.n_bits_for_layer_id - 3 * ct
+    return uint64(64 - self.n_bits_for_layer_id - 3 * ct)
 
   def decode_layer_id(self, label):
     return uint64(label) >> uint64(64 - self.n_bits_for_layer_id)
-
-  def decode_chunk_id(self, label):
-    label = uint64(label)
-
-    level = self.decode_layer_id(label)
-    ct = self.spatial_bit_count(level)
-
-    segid_bits = self.segid_bits(level)
-    label = label & uint64(0x00ffffffffffffff)
-    return label >> uint64(segid_bits)
 
   def encode_label(self, layer, x, y, z, segid):
     """
@@ -291,6 +281,11 @@ class GrapheneMetadata(PrecomputedMetadata):
   @property
   def graph_chunk_size(self):
     return self.info['graph']['chunk_size']
+
+  @property
+  def uses_new_draco_bin_size(self):
+    graph_object = self.info['graph']
+    return int(graph_object.get('uses_new_draco_bin_size', False))
   
   @property
   def mesh_chunk_size(self):
@@ -341,6 +336,11 @@ class GrapheneMetadata(PrecomputedMetadata):
     if self.mesh_metadata and 'max_meshed_layer' in self.mesh_metadata:
       return self.mesh_metadata["max_meshed_layer"]
     return None
+
+  @property
+  def watershed_mip(self):
+    """mip level of the base segmentation that all chunk graph operations remap."""
+    return self.info["graph"]["cv_mip"]
 
   def get_draco_grid_size(self, level):
     """
