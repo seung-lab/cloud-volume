@@ -89,6 +89,7 @@ class PrecomputedMeshMetadata(object):
 
   def default_info(self):
     return {
+      '@type': 'neuroglancer_legacy_mesh',
       'spatial_index': None, # { 'chunk_size': physical units }
     }
 

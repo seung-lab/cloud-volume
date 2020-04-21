@@ -23,7 +23,7 @@ from .unsharded import GrapheneUnshardedMeshSource
 
 class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   def __init__(self, mesh_meta, cache, config, readonly):
-    super(GrapheneShardedMeshSource, self).__init__(self, mesh_meta, cache, config, readonly)
+    super(GrapheneShardedMeshSource, self).__init__(mesh_meta, cache, config, readonly)
 
     self.readers = {}
     for level, sharding in self.meta.info['sharding'].items(): # { level: std sharding, ... }
