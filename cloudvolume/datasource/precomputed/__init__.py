@@ -16,7 +16,7 @@ def create_precomputed(
     compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0, 
     green_threads=False, use_https=False,
-    max_redirects=10
+    max_redirects=10, mesh_dir=None, skel_dir=None
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
@@ -41,6 +41,11 @@ def create_precomputed(
       info=info, provenance=provenance,
       max_redirects=max_redirects
     )
+
+    if mesh_dir:
+      meta.info['mesh'] = str(mesh_dir)
+    if skel_dir:
+      meta.info['skeletons'] = str(skel_dir)
 
     readonly = bool(meta.redirected_from)
 
