@@ -372,7 +372,7 @@ CloudVolume(cloudpath,
      compress=None, non_aligned_writes=False, parallel=1,
      delete_black_uploads=False, background_color=0,
      green_threads=False, use_https=False,
-     max_redirects=10)
+     max_redirects=10, mesh_dir=None, skel_dir=None)
 ```
 
 * mip - Which mip level to access
@@ -395,6 +395,8 @@ CloudVolume(cloudpath,
 * green_threads - True/False. If True, use the gevent cooperative threading library instead of preemptive threads. This requires monkey patching your program which may be undesirable. However, for certain workloads this can be a significant performance improvement on multi-core devices.
 * use_https - True/False. If True, use the same read-only access urls that neuroglancer does that may be cached vs the secured read/write strongly consistent API. Use this when you do not have credentials.
 * max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).
+* mesh_dir - str. If specified, override the mesh directory specified in the info file.
+* skel_dir - str. If specified, override the skeletons directory specified in the info file.
 
 ### CloudVolume Methods
 
