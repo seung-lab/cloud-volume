@@ -59,7 +59,7 @@ class CloudVolume(object):
     compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
-    max_redirects=10
+    max_redirects=10, mesh_dir=None, skel_dir=None
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -165,6 +165,8 @@ class CloudVolume(object):
       max_redirects: (int) if > 0, allow up to this many redirects via info file 'redirect'
           data fields. If <= 0, allow no redirections and access the current info file directly
           without raising an error.
+      mesh_dir: (str) if not None, override the info['mesh'] key before pulling the
+        mesh info file.
       mip: (int or iterable) Which level of downsampling to read and write from.
           0 is the highest resolution. You can also specify the voxel resolution
           like mip=[6,6,30] which will search for the appropriate mip level.
@@ -183,6 +185,8 @@ class CloudVolume(object):
           Defaults to True in interactive python, False in script execution mode.
       provenance: (string, dict) In lieu of fetching a provenance 
           file, use this one. 
+      skel_dir: (str) if not None, override the info['skeletons'] key before 
+        pulling the skeleton info file.
       use_https: (bool) maps gs:// and s3:// to their respective https paths. The 
         https paths hit a cached, read-only version of the data and may be faster.
     """

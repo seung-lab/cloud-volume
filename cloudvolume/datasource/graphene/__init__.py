@@ -16,7 +16,7 @@ def create_graphene(
     compress=None, parallel=1,
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
-    **kwargs
+    mesh_dir=None, skel_dir=None, **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
     
@@ -30,17 +30,29 @@ def create_graphene(
       parallel=parallel,
       progress=progress,
     )
-    cache = CacheService(
-      cloudpath=(cache if type(cache) == str else cloudpath),
-      enabled=bool(cache),
-      config=config,
-      compress=compress_cache,
-    )
 
+    def mkcache(cloudpath):
+      return CacheService(
+        cloudpath=(cache if type(cache) == str else cloudpath),
+        enabled=bool(cache),
+        config=config,
+        compress=compress_cache,
+      )
     meta = GrapheneMetadata(
-      cloudpath, cache=cache,
+      cloudpath, cache=mkcache(cloudpath),
       info=info, provenance=provenance, use_https=use_https
     )
+    # Resetting the cache is necessary because
+    # graphene retrieves a data_dir from the info file
+    # that reflects the real cache location.
+    cache = mkcache(meta.cloudpath) 
+    meta.cache = cache
+    cache.meta = meta
+
+    if mesh_dir:
+      meta.info['mesh'] = str(mesh_dir)
+    if skel_dir:
+      meta.info['skeletons'] = str(skel_dir)
 
     image = PrecomputedImageSource(
       config, meta, cache,
