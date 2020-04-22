@@ -407,7 +407,7 @@ class ShardReader(object):
         results[label] = None
       else:
         if return_byte_range:
-          _, offset, size = minishard_index[idx,:]
+          _, offset, size = minishard_index[idx,:][0]
           results[label] = [ filepath, offset, size ]
         else:
           results[label] = filepath

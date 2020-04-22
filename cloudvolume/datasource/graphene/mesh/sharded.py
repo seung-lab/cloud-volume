@@ -41,7 +41,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       raise KeyError("There is no shard configuration in the mesh info file for level {}.".format(level))
 
     subdirectory = self.meta.join(self.meta.mesh_path, 'initial', str(level))
-    raw_binary = self.reader[level].get_data(segid, path=subdirectory)
+    raw_binary = self.readers[level].get_data(segid, path=subdirectory)
 
     if raw_binary is None:
       raise IndexError('No mesh found for segment {}'.format(seg_id))
