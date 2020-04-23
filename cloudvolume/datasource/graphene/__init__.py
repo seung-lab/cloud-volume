@@ -69,7 +69,7 @@ def create_graphene(
 
     return CloudVolumeGraphene(
       meta, cache, config, 
-      image, mesh, 
+      image, mesh, skeleton,
       mip=mip
     )
 
