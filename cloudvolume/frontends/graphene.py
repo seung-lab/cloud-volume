@@ -264,7 +264,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(roots, dtype=self.meta.dtype)
 
-  def get_chunk_labels(self, chunk_id, timestamp=None):
+  def get_l2_chunk_mappings(self, chunk_id, timestamp=None):
     """
     Get all of the segments in a lvl 2 chunk,
     as well as their associated supervoxels.
