@@ -24,6 +24,22 @@ from .precomputed import CloudVolumePrecomputed
 def warn(text):
   print(colorize('yellow', text))
 
+def to_unix_time(timestamp):
+  """
+  Accepts integer UNIX timestamps, ISO 8601 datetime strings,
+  and Python datetime objects and returns them as the equivalent
+  UNIX timestamp or None if timestamp is None.
+  """
+  if isinstance(timestamp, str):
+    timestamp = dateutil.parser.parse(timestamp) # returns datetime
+  if isinstance(timestamp, datetime): # NB. do not change to elif
+    timestamp = datetime.timestamp(timestamp)
+
+  if not isinstance(timestamp, int) and timestamp is not None:
+    raise ValueError("Not able to convert {} to UNIX time.".format(timestamp))
+
+  return timestamp
+
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   @property
@@ -240,10 +256,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     except ValueError:
       pass
 
-    if isinstance(timestamp, str):
-      timestamp = dateutil.parser.parse(timestamp) # returns datetime
-    if isinstance(timestamp, datetime): # NB. do not change to elif
-      timestamp = datetime.timestamp(timestamp)
+    timestamp = to_unix_time(timestamp)
 
     if stop_layer is not None:
       stop_layer = int(stop_layer)
@@ -264,18 +277,28 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(roots, dtype=self.meta.dtype)
 
-  def get_l2_chunk_mappings(self, chunk_id, timestamp=None):
+  def get_chunk_mappings(self, chunk_id, timestamp=None):
     """
-    Get all of the segments in a lvl 2 chunk,
-    as well as their associated supervoxels.
+    Get the mapping of segments in a chunk at a given chunk graph layer 
+    to their L1 watershed components.
 
-    chunk_id: np.uint64 lvl 2 chunk id (ie. an L2 label with a zeroed segid component)
-    timestamp: get the segments from this date and time
+    NOTE: Only L2 chunks are supported at this time.
+
+    Required:
+      chunk_id: uint64 chunk id (ie. an graphene label with a zeroed segid component)
+        NOTE: This function actually accepts any graphene label and automatically converts
+        it to a chunk ID before querying the graph server by zeroing out its segid component.
+    Optional:
+      timestamp: query the state of the graph server at the time point specified
+        by a UNIX timestamp, ISO 8601 datetime string, or a python datetime object.
+
+    Returns: {  
+      chunk_label: [ watershed labels ],
+      ... e.g. ...
+      173729460028178433: [79450023430979610, 79450023431072298, ... ]
+    }
     """
-    if isinstance(timestamp, str):
-      timestamp = dateutil.parser.parse(timestamp) # returns datetime
-    if isinstance(timestamp, datetime): # NB. do not change to elif
-      timestamp = datetime.timestamp(timestamp)
+    timestamp = to_unix_time(timestamp)
 
     if not self.meta.supports_api('v1'):
       raise exceptions.UnsupportedGrapheneAPIVersionError(
@@ -284,7 +307,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     layer_id = self.meta.decode_layer_id(chunk_id)
     if layer_id != 2:
-      raise ValueError("This function only accepts Layer 2 chunk IDs. Got {}".format(self.meta.decode_label(chunk_id)))
+      raise ValueError("This function currently only accepts Layer 2 chunk IDs. Got {}".format(self.meta.decode_label(chunk_id)))
 
     chunk_id = self.meta.decode_chunk_id(chunk_id)
     
