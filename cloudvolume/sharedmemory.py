@@ -103,21 +103,25 @@ def allocate_shm_file(filename, nbytes, dbytes, readonly):
         os.ftruncate(f.fileno(), nbytes)
     elif size < nbytes:
       # too small? just remake it below
-      # if we were being more efficient
-      # we could just append zeros
       os.unlink(filename) 
 
   exists = os.path.exists(filename)
 
   if not exists:
-    blocksize = 1024 * 1024 * 10 * dbytes
-    steps = int(math.ceil(float(nbytes) / float(blocksize)))
-    total = 0
+    # Previously we were writing out real files full of zeros, 
+    # but a) that takes forever and b) modern OSes support sparse
+    # files (i.e. gigabytes of zeros that take up only a few real bytes).
+    #
+    # The following should take advantage of this functionality and be faster.
+    # It should work on Python 2.7 Unix, and Python 3.5+ on Unix and Windows.
+    #
+    # References:
+    #   https://stackoverflow.com/questions/8816059/create-file-of-particular-size-in-python
+    #   https://docs.python.org/3/library/os.html#os.ftruncate
+    #   https://docs.python.org/2/library/os.html#os.ftruncate
+    #
     with open(filename, 'wb') as f:
-      for i in range(0, steps):
-        write_bytes = min(blocksize, nbytes - total)
-        f.write(b'\x00' * write_bytes)
-        total += blocksize  
+      os.ftruncate(f.fileno(), nbytes)
 
 def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
   """Create a shared memory numpy array. Requires /dev/shm to exist."""
