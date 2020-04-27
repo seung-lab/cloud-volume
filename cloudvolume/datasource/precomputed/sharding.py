@@ -409,7 +409,7 @@ class ShardReader(object):
         if return_byte_range:
           _, offset, size = minishard_index[idx,:][0]
           index_offset = self.spec.index_length()
-          results[label] = [ filepath, offset + index_offset, size ]
+          results[label] = [ filepath, int(offset + index_offset), int(size) ]
         else:
           results[label] = filepath
 
