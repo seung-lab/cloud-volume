@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 import json
 import os
@@ -315,10 +316,20 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     path = version.path(self.meta.server_path)
     url = posixpath.join(self.meta.base_path, path, "l2_chunk_children_binary", str(chunk_id))
 
-    response = requests.get(url, params={}, headers=self.meta.auth_header)
+    params = {'as_array': True}
+    if timestamp is not None:
+      params['timestamp'] = timestamp
+
+    response = requests.get(url, params=params, headers=self.meta.auth_header)
     response.raise_for_status()
 
-    return pickle.loads(response.content)
+    chunk_array = np.frombuffer(response.content, dtype=np.uint64)
+    chunk_mappings = defaultdict(list)
+
+    for i in range(0, len(chunk_array), 2):
+      chunk_mappings[chunk_array[i]].append(chunk_array[i+1])
+
+    return chunk_mappings
 
   def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
     args = {}
