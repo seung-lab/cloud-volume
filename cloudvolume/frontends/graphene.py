@@ -1,6 +1,8 @@
+from collections import defaultdict
 from datetime import datetime
 import json
 import os
+import pickle
 import posixpath
 import re
 import requests
@@ -22,6 +24,22 @@ from .precomputed import CloudVolumePrecomputed
 
 def warn(text):
   print(colorize('yellow', text))
+
+def to_unix_time(timestamp):
+  """
+  Accepts integer UNIX timestamps, ISO 8601 datetime strings,
+  and Python datetime objects and returns them as the equivalent
+  UNIX timestamp or None if timestamp is None.
+  """
+  if isinstance(timestamp, str):
+    timestamp = dateutil.parser.parse(timestamp) # returns datetime
+  if isinstance(timestamp, datetime): # NB. do not change to elif
+    timestamp = datetime.timestamp(timestamp)
+
+  if not isinstance(timestamp, int) and timestamp is not None:
+    raise ValueError("Not able to convert {} to UNIX time.".format(timestamp))
+
+  return timestamp
 
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
@@ -239,10 +257,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     except ValueError:
       pass
 
-    if isinstance(timestamp, str):
-      timestamp = dateutil.parser.parse(timestamp) # returns datetime
-    if isinstance(timestamp, datetime): # NB. do not change to elif
-      timestamp = datetime.timestamp(timestamp)
+    timestamp = to_unix_time(timestamp)
 
     if stop_layer is not None:
       stop_layer = int(stop_layer)
@@ -262,6 +277,59 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       )
 
     return np.array(roots, dtype=self.meta.dtype)
+
+  def get_chunk_mappings(self, chunk_id, timestamp=None):
+    """
+    Get the mapping of segments in a chunk at a given chunk graph layer 
+    to their L1 watershed components.
+
+    NOTE: Only L2 chunks are supported at this time.
+
+    Required:
+      chunk_id: uint64 chunk id (ie. an graphene label with a zeroed segid component)
+        NOTE: This function actually accepts any graphene label and automatically converts
+        it to a chunk ID before querying the graph server by zeroing out its segid component.
+    Optional:
+      timestamp: query the state of the graph server at the time point specified
+        by a UNIX timestamp, ISO 8601 datetime string, or a python datetime object.
+
+    Returns: {  
+      chunk_label: [ watershed labels ],
+      ... e.g. ...
+      173729460028178433: [79450023430979610, 79450023431072298, ... ]
+    }
+    """
+    timestamp = to_unix_time(timestamp)
+
+    if not self.meta.supports_api('v1'):
+      raise exceptions.UnsupportedGrapheneAPIVersionError(
+        "{} is not a supported API version for range read requests. Currently, only version 1.0 is supported: ".format(self.meta.api_version) \
+      )
+
+    layer_id = self.meta.decode_layer_id(chunk_id)
+    if layer_id != 2:
+      raise ValueError("This function currently only accepts Layer 2 chunk IDs. Got {}".format(self.meta.decode_label(chunk_id)))
+
+    chunk_id = self.meta.decode_chunk_id(chunk_id)
+    
+    version = GrapheneApiVersion('v1')
+    path = version.path(self.meta.server_path)
+    url = posixpath.join(self.meta.base_path, path, "l2_chunk_children_binary", str(chunk_id))
+
+    params = {'as_array': True}
+    if timestamp is not None:
+      params['timestamp'] = timestamp
+
+    response = requests.get(url, params=params, headers=self.meta.auth_header)
+    response.raise_for_status()
+
+    chunk_array = np.frombuffer(response.content, dtype=np.uint64)
+    chunk_mappings = defaultdict(list)
+
+    for i in range(0, len(chunk_array), 2):
+      chunk_mappings[chunk_array[i]].append(chunk_array[i+1])
+
+    return chunk_mappings
 
   def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
     args = {}
