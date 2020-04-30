@@ -273,12 +273,12 @@ class ShardReader(object):
     self.shard_index_cache[filename] = index
     return index
 
-  def decode_index(self, binary):
+  def decode_index(self, binary, filename='Shard'):
     if binary is None or len(binary) == 0:
       raise EmptyFileException(filename + " was zero bytes.")
     elif len(binary) != self.spec.index_length():
       raise SpecViolation(
-        filename + " was an incorrect length ({}) for this specification ({}).".format(
+        filename + ": shard index was an incorrect length ({}) for this specification ({}).".format(
           len(binary), self.spec.index_length()
         ))
     
@@ -430,9 +430,13 @@ class ShardReader(object):
     
     shattered = {}
     for start, end in index:
-      msi = self.decode_minishard_index(shard[start:end+1])
+      start, end = int(start), int(end)
+      if start == end:
+        continue
+
+      msi = self.decode_minishard_index(shard[start:end])
       for label, offset, size in msi:
-        shattered[label] = shard[offset:offset+size+1]
+        shattered[label] = shard[offset:offset+size]
 
     return shattered
 
