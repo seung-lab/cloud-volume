@@ -441,7 +441,7 @@
 
         if (vol.segments) {
           elems.selected_segments.text( 
-            Object.keys(vol.segments).filter( (segid) => vol.segments[segid] ).join(', ') 
+            vol.selected().join(', ') 
           );
         }
 
@@ -449,6 +449,10 @@
       }
 
       function display_value (val) {
+        if (vol.is_segmentation) {
+          val = vol.renumbering[val];
+        }
+
         if (PARAMETERS.is_floating) {
           return val.toFixed(4);
         }

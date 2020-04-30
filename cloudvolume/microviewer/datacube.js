@@ -27,7 +27,6 @@ class MonoVolume {
     let assignments = {};
     let last;
 
-
     if (cube.length) {
       last = cube[0];
       assignments[cube[0]] = 0;
@@ -221,10 +220,76 @@ class SegmentationVolume extends MonoVolume {
   constructor (datacube) {
     super(datacube, true);
     this.segments = {};
+    this.renumbering = new Uint32Array(1);
+  }
+
+  selected () {
+    let _this = this;
+    return Object.keys(_this.segments)
+      .filter( (segid) => _this.segments[segid] )
+      .map( (segid) => _this.renumbering[segid] );
+  }
+
+  get(x,y,z) {
+    return this.renumbering[this.channel.get(x,y,z)];
   }
 
   clearSelected () {
     this.segments = {};
+  }
+
+  load (url, progressfn) {
+    const _this = this;
+    return super.load(url, progressfn)
+      .then(function () { 
+        _this.renumbering = _this.renumber(_this.channel.cube);
+        _this.initializeColorAssignments(_this.channel.cube);
+      });
+  }
+
+  renumber (cube) {
+    let assignments = new Map();
+    
+    let last_label = 0;
+    let last_relabel = 0;
+    let next_label = 1;
+
+    if (cube.length) {
+      last_label = cube[0];
+      last_relabel = next_label;
+      assignments.set(cube[0], next_label);
+      next_label++;
+    }
+
+    let cur_label = 0;
+    for (let i = cube.length - 1; i >= 0; i--) {
+      if (cube[i] == last_label) {
+        cube[i] = last_relabel;
+        continue;
+      }
+
+      cur_label = assignments.get(cube[i]);
+      last_label = cube[i];
+
+      if (cur_label) {
+        cube[i] = cur_label;
+        last_relabel = cur_label;
+      }
+      else {
+        assignments.set(cube[i], next_label);
+        cube[i] = next_label;
+        last_relabel = next_label;
+        next_label++;
+      }
+    }
+
+    let ArrayType = this.channel.arrayType();
+    let renumbering = new ArrayType(next_label);
+    for (let [label, remap] of assignments) {
+      renumbering[remap] = label;
+    }
+
+    return renumbering;
   }
 
   renderSegmentationSlice(ctx, axis, slice) {
@@ -257,11 +322,17 @@ class SegmentationVolume extends MonoVolume {
     let segments = this.segments;
     let show_all = Object.keys(segments).length === 0;
 
+    let ArrayType = this.channel.arrayType();
+    let segarray = new Uint8Array(this.renumbering.length);
+    Object.keys(segments).forEach((label) => {
+      segarray[label] = 1;
+    });
+
     // We sometimes disable the hover highlight to get more performance
     if (hover_enabled) { 
       for (let i = pixels32.length - 1; i >= 0; i--) {
         if (seg_slice[i]) {
-          if (show_all | segments[seg_slice[i]] | seg_slice[i] === hover_id) {
+          if (show_all | segarray[seg_slice[i]] | seg_slice[i] === hover_id) {
             pixels32[i] = color_assignments[seg_slice[i]];
             pixels32[i] += (seg_slice[i] === hover_id) * brightener;
           }
@@ -360,6 +431,12 @@ class HyperVolume extends MonoVolume {
 
     this.segments = {};
     this.alpha = 0.5;
+  }
+
+  selected () {
+    let _this = this;
+    return Object.keys(_this.segments)
+      .filter( (segid) => _this.segments[segid] );
   }
 
   loaded () {
