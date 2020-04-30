@@ -217,6 +217,127 @@ class MonoVolume {
   }
 }
 
+class SegmentationVolume extends MonoVolume {
+  constructor (datacube) {
+    super(datacube, true);
+    this.segments = {};
+  }
+
+  clearSelected () {
+    this.segments = {};
+  }
+
+  renderSegmentationSlice(ctx, axis, slice) {
+    let _this = this;
+
+    const hover_id = this.hover_id;
+    const cache = this.cache;
+
+    const size = this.channel.faceDimensions(axis);
+    const hover_enabled = (size[0] * size[1]) < 1024 * 1024 * 2;
+
+    if (cache.valid
+      && cache.pixels
+      && cache.axis === axis 
+      && cache.slice === slice
+      && (!hover_enabled || (cache.segid === hover_id))) {
+
+      ctx.putImageData(cache.pixels, 0, 0);
+      return;
+    }
+
+    let seg_slice = this.channel.slice(axis, slice, /*copy=*/false);
+
+    let pixels = ctx.getImageData(0, 0, size[0], size[1]);
+    let pixels32 = new Uint32Array(pixels.data.buffer);
+
+    const color_assignments = this.assigned_colors;
+    const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
+
+    let segments = this.segments;
+    let show_all = Object.keys(segments).length === 0;
+
+    // We sometimes disable the hover highlight to get more performance
+    if (hover_enabled) { 
+      for (let i = pixels32.length - 1; i >= 0; i--) {
+        if (seg_slice[i]) {
+          if (show_all | segments[seg_slice[i]] | seg_slice[i] === hover_id) {
+            pixels32[i] = color_assignments[seg_slice[i]];
+            pixels32[i] += (seg_slice[i] === hover_id) * brightener;
+          }
+        }
+      }
+    }
+    else { 
+      for (let i = pixels32.length - 1; i >= 0; i--) {
+        if (seg_slice[i] && (show_all | segments[seg_slice[i]])) {
+          pixels32[i] = color_assignments[seg_slice[i]];
+        }
+      }      
+    }
+
+    ctx.putImageData(pixels, 0, 0);
+
+    cache.axis = axis;
+    cache.slice = slice;
+    cache.segid = hover_id;
+    cache.pixels = pixels;
+    cache.valid = true;
+
+    return this;
+  }
+
+  /* toggleSegment
+   *
+   * Given an axis, slice index, and normalized x and y cursor coordinates
+   * ([0, 1]), 0,0 being the top left, select the segment under the mouse.
+   *
+   * Required:
+   *   [0] axis: 'x', 'y', or 'z'
+   *   [1] slice: 0 - 255
+   *   [2] normx: 0...1
+   *   [3] normy: 0...1
+   *
+   * Return: segid
+   */
+  toggleSegment (axis, slice, normx, normy) {
+    let _this = this;
+    let x,y,z;
+
+    let sizex = _this.channel.size.x,
+      sizey = _this.channel.size.y,
+      sizez = _this.channel.size.z;
+
+    if (axis === 'x') {
+      x = slice,
+      y = normx * sizey,
+      z = normy * sizez;
+    }
+    else if (axis === 'y') {
+      x = normx * sizex,
+      y = slice,
+      z = normy * sizez;
+    }
+    else if (axis === 'z') {
+      x = normx * sizex,
+      y = normy * sizey,
+      z = slice;
+    }
+
+    x = Math.round(x);
+    y = Math.round(y);
+    z = Math.round(z);
+
+    let segid = _this.channel.get(x, y, z);
+    
+    if (segid > 0) {
+      _this.segments[segid] = !_this.segments[segid];
+    }
+
+    return segid;
+  }
+}
+
 /* Volume
  *
  * Represents a 3D bounding box in the data set's global coordinate space.

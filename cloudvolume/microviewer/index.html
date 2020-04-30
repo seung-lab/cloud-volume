@@ -80,7 +80,13 @@
 
         let datacube = create_datacube(data.data_types[0], data.data_bytes, SIZE);
 
-        window.vol = new MonoVolume(datacube, (data.layer_type === 'segmentation'));
+        if (data.layer_type === 'segmentation') {
+          window.vol = new SegmentationVolume(datacube, true);
+        }
+        else {
+          window.vol = new MonoVolume(datacube, false);
+        }
+
         let vol = window.vol;
 
         vol.load('/channel', function (ratio) {
@@ -109,6 +115,18 @@
 
           render(); 
         });
+
+        if (vol.is_segmentation) {
+          $(channel).on('click', function (evt) {
+            var x = evt.offsetX / $(this).innerWidth(), 
+              y = evt.offsetY / $(this).innerHeight();
+
+            x = clamp(x, 0, 1);
+            y = clamp(y, 0, 1);  
+            
+            vol.toggleSegment(AXIS, SLICE[AXIS], x, y);        
+          });
+        }
       }
 
       function setup_hyper_volume (data) {
@@ -322,7 +340,9 @@
 
           if (PARAMETERS.layer_type === 'image') {
             $('#instructions .segmentation').hide();
-          }PARAMETERS.cloudpath[0].split('/')
+          }
+
+          PARAMETERS.cloudpath[0].split('/')
         }
 
         let hyper = (PARAMETERS.viewtype === 'hyper') ? 'Hyper ' : '';
@@ -471,8 +491,8 @@
         <li class="hyperview">+/- increase, decrease opacity</li>
       </ul>
 
-      <p class="hyperview">SELECTED SEGMENTS</p>
-      <div class="hyperview" id="selected_segments"></div>
+      <p class="segmentation">SELECTED SEGMENTS</p>
+      <div class="segmentation" id="selected_segments"></div>
     </div>
     
     <canvas id="channel" width="256" height="256"></canvas>
