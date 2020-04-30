@@ -116,7 +116,7 @@
           render(); 
         });
 
-        if (vol.is_segmentation) {
+        if (vol.has_segmentation) {
           $(channel).on('click', function (evt) {
             var x = evt.offsetX / $(this).innerWidth(), 
               y = evt.offsetY / $(this).innerHeight();
@@ -248,8 +248,11 @@
 
             if (vol.segmentation) {
               CLICK.pxvalue.push(
-                vol.segmentation.get(CLICK.x, CLICK.y, CLICK.z)
+                vol.renumbering[vol.segmentation.get(CLICK.x, CLICK.y, CLICK.z)]
               );
+            }
+            else if (vol.has_segmentation) {
+              CLICK.pxvalue[0] = vol.renumbering[CLICK.pxvalue[0]];
             }
             
             render();
@@ -371,17 +374,21 @@
       }
 
       function update_pxvalue () {
-          PXVALUE = [ vol.channel.get(SLICE.x, SLICE.y, SLICE.z) ];
+        PXVALUE = [];
 
-          vol.hover_id = null;
-          if (vol.is_segmentation) {
-            vol.hover_id = PXVALUE[0];
-          }
-
-          if (vol.segmentation) {
-            vol.hover_id = vol.segmentation.get(SLICE.x, SLICE.y, SLICE.z);
-            PXVALUE.push(vol.hover_id);
-          }
+        vol.hover_id = null;
+        if (vol.segmentation) {
+          PXVALUE.push( vol.channel.get(SLICE.x, SLICE.y, SLICE.z) );
+          vol.hover_id = vol.segmentation.get(SLICE.x, SLICE.y, SLICE.z);
+          PXVALUE.push( vol.renumbering[vol.hover_id] );
+        }
+        else if (vol.has_segmentation) {
+          vol.hover_id =  vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+          PXVALUE.push( vol.renumbering[vol.hover_id] );
+        }
+        else {
+          PXVALUE.push( vol.channel.get(SLICE.x, SLICE.y, SLICE.z) );
+        }
       }
 
       function render () {
@@ -449,10 +456,6 @@
       }
 
       function display_value (val) {
-        if (vol.is_segmentation) {
-          val = vol.renumbering[val];
-        }
-
         if (PARAMETERS.is_floating) {
           return val.toFixed(4);
         }
