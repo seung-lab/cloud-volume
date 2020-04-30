@@ -71,7 +71,7 @@ def hyperview(
   ):
 
   img = to3d(img)
-  segmentation = to3d(segmentation)
+  segmentation = emulate_eight_uint64(to3d(segmentation))
 
   assert np.all(img.shape[:3] == segmentation.shape[:3])
 
