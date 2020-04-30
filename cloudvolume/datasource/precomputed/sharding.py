@@ -269,18 +269,41 @@ class ShardReader(object):
       compress=False
     )
 
+    index = self.decode_index(binary)
+    self.shard_index_cache[filename] = index
+    return index
+
+  def decode_index(self, binary):
     if binary is None or len(binary) == 0:
       raise EmptyFileException(filename + " was zero bytes.")
-    elif len(binary) != index_length:
+    elif len(binary) != self.spec.index_length():
       raise SpecViolation(
         filename + " was an incorrect length ({}) for this specification ({}).".format(
-          len(binary), index_length
+          len(binary), self.spec.index_length()
         ))
     
     index = np.frombuffer(binary, dtype=np.uint64)
     index = index.reshape( (index.size // 2, 2), order='C' )
-    self.shard_index_cache[filename] = index
-    return index
+    return index + self.spec.index_length()
+
+  def decode_minishard_index(self, minishard_index, filename=''):
+    """Returns [[label, offset, size], ... ] where offset and size are in bytes."""
+
+    if self.spec.minishard_index_encoding != 'raw':
+      minishard_index = compression.decompress(
+        minishard_index, encoding=self.spec.minishard_index_encoding, filename=filename
+      )
+
+    minishard_index = np.copy(np.frombuffer(minishard_index, dtype=np.uint64))
+    minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' ).T
+
+    for i in range(1, minishard_index.shape[0]):
+      minishard_index[i, 0] += minishard_index[i-1, 0]
+      minishard_index[i, 1] += minishard_index[i-1, 1] + minishard_index[i-1, 2]
+
+    minishard_index[:,1] += self.spec.index_length()
+
+    return minishard_index 
 
   def get_minishard_index(self, filename, index, minishard_no, path=""):
     res = self.get_minishard_indices(filename, index, minishard_no, path)
@@ -293,7 +316,6 @@ class ShardReader(object):
     Returns: uint64 Nx3 array with multiple rows of [segid, byte start, byte end]
     """
     minishard_nos = toiter(minishard_nos)
-    index_offset = self.spec.index_length()
 
     fufilled_requests = {}
 
@@ -306,8 +328,6 @@ class ShardReader(object):
         fufilled_requests[msn] = None
         continue
 
-      bytes_start += index_offset
-      bytes_end += index_offset
       bytes_start, bytes_end = int(bytes_start), int(bytes_end)
       byte_ranges[msn] = (bytes_start, bytes_end)
 
@@ -331,27 +351,12 @@ class ShardReader(object):
   
     del pending_requests
 
-    def decode_minishard_index(minishard_index):
-      if self.spec.minishard_index_encoding != 'raw':
-        minishard_index = compression.decompress(
-          minishard_index, encoding=self.spec.minishard_index_encoding, filename=filename
-        )
-
-      minishard_index = np.copy(np.frombuffer(minishard_index, dtype=np.uint64))
-      minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' ).T
-
-      for i in range(1, minishard_index.shape[0]):
-        minishard_index[i, 0] += minishard_index[i-1, 0]
-        minishard_index[i, 1] += minishard_index[i-1, 1] + minishard_index[i-1, 2]
-
-      return minishard_index 
-
     byte_ranges = { v: k for k, v in byte_ranges.items() }
     for res in results:
       start, end = res['byte_range']
       msn = byte_ranges[(start, end)]
       cache_key = (filename, start, end)
-      minishard_index = decode_minishard_index(res['content'])
+      minishard_index = self.decode_minishard_index(res['content'], filename)
       self.minishard_index_cache[cache_key] = minishard_index
       fufilled_requests[msn] = minishard_index
 
@@ -408,14 +413,28 @@ class ShardReader(object):
       else:
         if return_byte_range:
           _, offset, size = minishard_index[idx,:][0]
-          index_offset = self.spec.index_length()
-          results[label] = [ filepath, int(offset + index_offset), int(size) ]
+          results[label] = [ filepath, int(offset), int(size) ]
         else:
           results[label] = filepath
 
     if return_one:
       return results[label]
     return results
+
+  def disassemble_shard(self, shard):
+    """
+    Given an entire shard as a bytestring, convert 
+    it into a dict of { label: byte content }.
+    """
+    index = self.decode_index(shard[:self.spec.index_length()])
+    
+    shattered = {}
+    for start, end in index:
+      msi = self.decode_minishard_index(shard[start:end+1])
+      for label, offset, size in msi:
+        shattered[label] = shard[offset:offset+size+1]
+
+    return shattered
 
   def get_data(self, label, path=""):
     filename, minishard_number = self.compute_shard_location(label)
@@ -442,10 +461,7 @@ class ShardReader(object):
       idx = idx[0]
 
     _, offset, size = minishard_index[idx,:]
-
-    index_offset = self.spec.index_length()
-    offset = int(offset + index_offset)
-       
+    offset, size = int(offset), int(size)
     full_path = self.meta.join(self.meta.cloudpath, path)
 
     with SimpleStorage(full_path) as stor:
