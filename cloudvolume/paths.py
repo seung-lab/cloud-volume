@@ -173,5 +173,5 @@ def extract(cloudpath, windows=None, disable_toabs=False):
 def to_https_protocol(cloudpath):
   cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
   cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
-  cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
+  cloudpath = cloudpath.replace("matrix://", "http://s3-hpcrc.rc.princeton.edu/", 1)
   return cloudpath
