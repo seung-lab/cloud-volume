@@ -114,10 +114,6 @@ class MonoVolume {
       _this.channel.normalized = false;
       _this.cache.valid = false;
 
-      if (_this.is_segmentation) {
-        _this.initializeColorAssignments(_this.channel.cube);
-      }
-
       return _this.channel;
     });
   }
