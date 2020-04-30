@@ -459,11 +459,17 @@ class ShardReader(object):
 
     return binary
 
-  def list_labels(self, filename, path=""):
+  def list_labels(self, filename, path="", size=False):
     """
     List all the labels in the index of a given shard file.
 
-    Returns: np.uint64 array
+    size: (bool) if True, list the size in bytes of each label
+
+    Returns: 
+      if not size:
+        np.uint64 array of labels 
+      else:
+        [ (label, size in bytes), ... ] in descending order of size
     """
     index = self.get_index(filename, path)
     all_minishard_nos = list(range(len(index)))
@@ -471,10 +477,18 @@ class ShardReader(object):
     minishard_indicies = [  
       msi for msi in minishard_indicies.values() if msi is not None
     ]
-    labels = np.concatenate([  
-      msi[:,0] for msi in minishard_indicies
-    ])
-    return np.sort(labels)
+    if not size:
+      labels = np.concatenate([  
+        msi[:,0] for msi in minishard_indicies
+      ])
+      return np.sort(labels)
+    else:
+      labels = np.concatenate([  
+        msi[:,:]
+        for msi in minishard_indicies
+      ])
+      labels = [ (row[0], row[2]) for row in labels[:] ]
+      return sorted(labels, key=lambda x: x[1], reverse=True)
 
 def synthesize_shard_files(spec, data, progress=False):
   """
