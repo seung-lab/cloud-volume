@@ -7,6 +7,7 @@ from six.moves import urllib
 
 import numpy as np
 
+from ...lib import Vec
 from ... import exceptions
 from ... import paths
 from ...secrets import chunkedgraph_credentials
@@ -196,7 +197,30 @@ class GrapheneMetadata(PrecomputedMetadata):
     y = (label & masks[1]) >> uint64(segid_bits + 1 * ct)
     z = (label & masks[2]) >> uint64(segid_bits + 0 * ct)
 
-    return (x,y,z)
+    return Vec(x,y,z)
+
+  def point_to_chunk_position(self, pt, mip=None):
+    """
+    Convert a point into the chunk position.
+
+    pt: x,y,z triple
+    mip: 
+      if None, pt is in physical coordinates
+      else pt is in the coordinates of the indicated mip level
+
+    Returns: Vec(chunk_x,chunk_y,chunk_z)
+    """
+    pt = Vec(*pt, dtype=np.float)
+
+    if mip is not None:
+      pt *= self.resolution(mip)
+
+    pt /= self.resolution(self.watershed_mip)
+
+    if self.chunks_start_at_voxel_offset:
+      pt -= self.voxel_offset(self.watershed_mip)
+
+    return (pt // self.graph_chunk_size).astype(np.int32)
 
   def segid_bits(self, level):
     ct = self.spatial_bit_count(level)
