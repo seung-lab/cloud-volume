@@ -427,7 +427,6 @@ class ShardReader(object):
     it into a dict of { label: byte content }.
     """
     index = self.decode_index(shard[:self.spec.index_length()])
-    
     shattered = {}
     for start, end in index:
       start, end = int(start), int(end)
@@ -436,7 +435,13 @@ class ShardReader(object):
 
       msi = self.decode_minishard_index(shard[start:end])
       for label, offset, size in msi:
-        shattered[label] = shard[offset:offset+size]
+        offset, size = int(offset), int(size)
+        binary = shard[offset:offset+size]
+        
+        if self.spec.data_encoding != 'raw':
+          binary = compression.decompress(binary, encoding=self.spec.data_encoding)
+        
+        shattered[label] = binary
 
     return shattered
 
