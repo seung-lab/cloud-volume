@@ -3,8 +3,11 @@ import os
 from .metadata import PrecomputedMeshMetadata
 from .unsharded import UnshardedLegacyPrecomputedMeshSource
 
+
 from ..metadata import PrecomputedMetadata
 from ....cacheservice import CacheService
+from ....exceptions import UnsupportedFormatError
+from ....lib import red
 from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
@@ -12,8 +15,9 @@ class PrecomputedMeshSource(object):
   def __new__(cls, meta, cache, config, readonly=False):
     mesh_meta = PrecomputedMeshMetadata(meta, cache)
 
-    # if mesh_meta.is_sharded():
-    #   return ShardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly) 
+    if mesh_meta.is_sharded():
+      raise UnsupportedFormatError(red("This mesh volume is sharded. Mesh shard support is coming but is not available yet."))
+      # return ShardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly) 
 
     return UnshardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly)
 
