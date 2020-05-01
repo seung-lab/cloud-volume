@@ -1,9 +1,8 @@
 class MonoVolume {
-  constructor (channel, is_segmentation=false) {
+  constructor (channel) {
     this.channel = channel;
     this.colors = this.createColors();
     this.assigned_colors = {};
-    this.is_segmentation = is_segmentation;
     this.hover_id = null;
 
     this.cache = {
@@ -13,6 +12,10 @@ class MonoVolume {
       slice: null,
       pixels: null,
     };
+  }
+
+  get(x,y,z) {
+    return this.channel.get(x,y,z);
   }
 
   loaded () {
@@ -26,7 +29,6 @@ class MonoVolume {
   initializeColorAssignments (cube) {
     let assignments = {};
     let last;
-
 
     if (cube.length) {
       last = cube[0];
@@ -115,19 +117,11 @@ class MonoVolume {
       _this.channel.normalized = false;
       _this.cache.valid = false;
 
-      if (_this.is_segmentation) {
-        _this.initializeColorAssignments(_this.channel.cube);
-      }
-
       return _this.channel;
     });
   }
 
   render (ctx, axis, slice) {
-    if (this.is_segmentation) {
-      return this.renderSegmentationSlice(ctx, axis, slice);
-    }
-
     if (this.channel.bytes === 1) {
       return this.renderChannelSlice(ctx, axis, slice);
     }
@@ -160,8 +154,41 @@ class MonoVolume {
     this.channel.renderImageSlice(ctx, axis, slice);
     return this;
   }
+}
 
-  renderSegmentationSlice(ctx, axis, slice) {
+class SegmentationVolume extends MonoVolume {
+  constructor (datacube) {
+    super(datacube);
+    this.segments = {};
+    this.renumbering = new datacube.cube.constructor(1);
+    this.has_segmentation = true;
+  }
+
+  selected () {
+    let _this = this;
+    return Object.keys(_this.segments)
+      .filter( (segid) => _this.segments[segid] )
+      .map( (segid) => _this.renumbering[segid] );
+  }
+
+  get(x,y,z) {
+    return this.renumbering[this.channel.get(x,y,z)];
+  }
+
+  clearSelected () {
+    this.segments = {};
+  }
+
+  load (url, progressfn) {
+    const _this = this;
+    return super.load(url, progressfn)
+      .then(function () { 
+        _this.renumbering = renumber(_this.channel.cube);
+        _this.initializeColorAssignments(_this.channel.cube);
+      });
+  }
+
+  render(ctx, axis, slice) {
     let _this = this;
 
     const hover_id = this.hover_id;
@@ -188,18 +215,29 @@ class MonoVolume {
     const color_assignments = this.assigned_colors;
     const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
 
+    let segments = this.segments;
+    let show_all = Object.keys(segments).length === 0;
+
+    let ArrayType = this.channel.arrayType();
+    let segarray = new Uint8Array(this.renumbering.length);
+    Object.keys(segments).forEach((label) => {
+      segarray[label] = 1;
+    });
+
     // We sometimes disable the hover highlight to get more performance
     if (hover_enabled) { 
       for (let i = pixels32.length - 1; i >= 0; i--) {
         if (seg_slice[i]) {
-          pixels32[i] = color_assignments[seg_slice[i]];
-          pixels32[i] += (seg_slice[i] === hover_id) * brightener;
+          if (show_all | segarray[seg_slice[i]] | seg_slice[i] === hover_id) {
+            pixels32[i] = color_assignments[seg_slice[i]];
+            pixels32[i] += (seg_slice[i] === hover_id) * brightener;
+          }
         }
       }
     }
     else { 
       for (let i = pixels32.length - 1; i >= 0; i--) {
-        if (seg_slice[i]) {
+        if (seg_slice[i] && (show_all | segments[seg_slice[i]])) {
           pixels32[i] = color_assignments[seg_slice[i]];
         }
       }      
@@ -214,6 +252,56 @@ class MonoVolume {
     cache.valid = true;
 
     return this;
+  }
+
+  /* toggleSegment
+   *
+   * Given an axis, slice index, and normalized x and y cursor coordinates
+   * ([0, 1]), 0,0 being the top left, select the segment under the mouse.
+   *
+   * Required:
+   *   [0] axis: 'x', 'y', or 'z'
+   *   [1] slice: 0 - 255
+   *   [2] normx: 0...1
+   *   [3] normy: 0...1
+   *
+   * Return: segid
+   */
+  toggleSegment (axis, slice, normx, normy) {
+    let _this = this;
+    let x,y,z;
+
+    let sizex = _this.channel.size.x,
+      sizey = _this.channel.size.y,
+      sizez = _this.channel.size.z;
+
+    if (axis === 'x') {
+      x = slice,
+      y = normx * sizey,
+      z = normy * sizez;
+    }
+    else if (axis === 'y') {
+      x = normx * sizex,
+      y = slice,
+      z = normy * sizez;
+    }
+    else if (axis === 'z') {
+      x = normx * sizex,
+      y = normy * sizey,
+      z = slice;
+    }
+
+    x = Math.round(x);
+    y = Math.round(y);
+    z = Math.round(z);
+
+    let segid = _this.channel.get(x, y, z);
+    
+    if (segid > 0) {
+      _this.segments[segid] = !_this.segments[segid];
+    }
+
+    return segid;
   }
 }
 
@@ -233,12 +321,29 @@ class MonoVolume {
  */
 class HyperVolume extends MonoVolume {
   constructor (channel, segmentation) {
-    super(channel, false);
+    super(channel);
     this.channel = channel; // a data cube
     this.segmentation = segmentation; // a segmentation cube
 
+    this.renumbering = new segmentation.cube.constructor(1);
+    this.has_segmentation = true;
+
     this.segments = {};
     this.alpha = 0.5;
+  }
+
+  selected () {
+    let _this = this;
+    return Object.keys(_this.segments)
+      .filter( (segid) => _this.segments[segid] )
+      .map( (segid) => _this.renumbering[segid] );
+  }
+
+  get(x,y,z) {
+    return [
+      this.channel.get(x,y,z),
+      this.renumbering[this.segmentation.get(x,y,z)],
+     ]
   }
 
   loaded () {
@@ -292,6 +397,7 @@ class HyperVolume extends MonoVolume {
         _this.segmentation.normalized = false;
         _this.cache.valid = false;
 
+        _this.renumbering = renumber(_this.segmentation.cube);
         _this.initializeColorAssignments(_this.segmentation.cube);
 
         return _this.segmentation;
@@ -331,7 +437,11 @@ class HyperVolume extends MonoVolume {
     masks = Uint32Array.of(masks.r, masks.g, masks.b);
     const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
     const hover_id = this.hover_id;
-    const selected_segments = _this.segments;
+
+    let selected_segments = new Uint8Array(this.renumbering.length);
+    Object.keys(_this.segments).forEach((label) => {
+      selected_segments[label] = 1;
+    });
 
     let pxdata = pixels.data;
 
@@ -1189,7 +1299,49 @@ function binary_get (url, progressfn) {
   });
 }
 
+function renumber (cube) {
+  let assignments = new Map();
+  
+  let last_label = 0;
+  let last_relabel = 0;
+  let next_label = 1;
 
+  if (cube.length) {
+    last_label = cube[0];
+    last_relabel = next_label;
+    assignments.set(cube[0], next_label);
+    next_label++;
+  }
+
+  let cur_label = 0;
+  for (let i = cube.length - 1; i >= 0; i--) {
+    if (cube[i] == last_label) {
+      cube[i] = last_relabel;
+      continue;
+    }
+
+    cur_label = assignments.get(cube[i]);
+    last_label = cube[i];
+
+    if (cur_label) {
+      cube[i] = cur_label;
+      last_relabel = cur_label;
+    }
+    else {
+      assignments.set(cube[i], next_label);
+      cube[i] = next_label;
+      last_relabel = next_label;
+      next_label++;
+    }
+  }
+
+  let renumbering = new cube.constructor(next_label);
+  for (let [label, remap] of assignments) {
+    renumbering[remap] = label;
+  }
+
+  return renumbering;
+}
 
 
 

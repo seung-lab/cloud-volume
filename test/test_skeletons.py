@@ -716,6 +716,11 @@ def test_sharded():
       labels.sort()
       assert labels == list(range(10))
 
+      for filename, shard in files.items():
+        decoded_skels = cv.skeleton.reader.disassemble_shard(shard)
+        for label, binary in decoded_skels.items():
+          Skeleton.from_precomputed(binary)
+
   shutil.rmtree('/tmp/removeme/skeletons')
 
 
