@@ -396,7 +396,11 @@ class ShardReader(object):
           results[label] = filepath
           continue
 
-      index = self.get_index(filename, path)
+      try:
+        index = self.get_index(filename, path)
+      except EmptyFileException:
+        results[label] = None
+        continue
 
       minishard_index = self.get_minishard_index(
         filename, index, 
