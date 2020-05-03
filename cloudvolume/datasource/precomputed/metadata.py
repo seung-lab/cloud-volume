@@ -619,7 +619,7 @@ Hops:
     # e.g. {"encoding": "raw", "chunk_sizes": [[64, 64, 64]], "key": "4_4_40", 
     # "resolution": [4, 4, 40], "voxel_offset": [0, 0, 0], 
     # "size": [2048, 2048, 256]}
-    fullres = info['scales'][0]
+    fullres = info['scales'][-1]
 
     # If the voxel_offset is not divisible by the ratio,
     # zooming out will slightly shift the data.
