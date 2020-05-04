@@ -2,6 +2,7 @@ import os
 
 from .metadata import PrecomputedMeshMetadata
 from .unsharded import UnshardedLegacyPrecomputedMeshSource
+from .sharded import ShardedMultiLevelPrecomputedMeshSource
 
 
 from ..metadata import PrecomputedMetadata
@@ -16,8 +17,12 @@ class PrecomputedMeshSource(object):
     mesh_meta = PrecomputedMeshMetadata(meta, cache)
 
     if mesh_meta.is_sharded():
-      raise UnsupportedFormatError(red("This mesh volume is sharded. Mesh shard support is coming but is not available yet."))
-      # return ShardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly) 
+      if mesh_meta.info['sharding']['@type'] == 'neuroglancer_uint64_sharded_v1':
+        return ShardedMultiLevelPrecomputedMeshSource(mesh_meta, cache, config, readonly) 
+      else:
+        # @type = neuroglancer_legacy_mesh 
+        raise UnsupportedFormatError(red("This mesh volume is sharded. Legacy sharding is not available yet."))
+        # return ShardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly)
 
     return UnshardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly)
 
