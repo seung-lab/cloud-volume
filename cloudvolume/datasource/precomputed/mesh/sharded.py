@@ -1,6 +1,7 @@
 import numpy as np
 
 from ..sharding import ShardingSpecification, ShardReader
+from ....storage import SimpleStorage
 from ....mesh import Mesh
 from ....lib import red
 
@@ -28,16 +29,35 @@ class ShardedMultiLevelPrecomputedMeshSource:
 
         results = []
         for segid in segids:
-            binary = self.reader.get_data(segid, self.meta.mesh_path)
-            print("Binary length: %d" % len(binary))
+            # Read the manifest (with a tweak to sharding.py to get the offset)
+            binary, shard_file_offset = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
             manifest = MultiLevelPrecomputedMeshManifest(binary)
-            print(manifest)
 
-            print(manifest.lod_scales)
-            print(manifest.fragment_positions)
+            #print(manifest)
+            #print(manifest.lod_scales)
+            #print(manifest.fragment_positions)
             print(manifest.fragment_offsets)
 
+            # Read the data for all LODs
+            fragment_sizes = [ np.sum(lod) for lod in manifest.fragment_offsets ]
+            total_fragment_size = np.sum(fragment_sizes)
+            # Kludge to hijack sharding.py to read the data
+            shard_file_name = self.reader.get_filename(segid)
+            full_path = self.reader.meta.join(self.reader.meta.cloudpath, self.path)
+            with SimpleStorage(full_path) as stor:
+                binary = stor.get_file(shard_file_name,
+                                    start=shard_file_offset - total_fragment_size,
+                                    end=shard_file_offset)
+            print("Read %d bytes" % len(binary))
+            for lod in range(manifest.num_lods):
+                print("Extracting LOD %d" % lod)
+                lod_binary = binary[int(np.sum(fragment_sizes[0:lod])) : int(np.sum(fragment_sizes[0:lod+1]))]
+                print("LOD data size is: ", len(lod_binary))
+
             results.append([])
+
+
+
         if list_return:
             return results
         else:
@@ -46,11 +66,12 @@ class ShardedMultiLevelPrecomputedMeshSource:
 class MultiLevelPrecomputedMeshManifest:
     # Parse the multi-resolution mesh manifest file format:
     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md#multi-resolution-mesh-format
+    # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/multiscale.ts
 
     def __init__(self, binary):
         self._binary = binary
 
-        # num_loads is at the 7th word
+        # num_loads is the 7th word
         num_lods = int.from_bytes(self._binary[24:28], byteorder='little', signed=False)
 
         header_dt = np.dtype([('chunk_shape', np.float32, (3,)),
@@ -63,11 +84,8 @@ class MultiLevelPrecomputedMeshManifest:
         self._header = np.frombuffer(self._binary[0:header_dt.itemsize], dtype=header_dt)
 
         frag_pos_dt = np.dtype([
-            ('%d' % level, np.uint32, (count, 3))
-            for level, count in zip(
-                range(num_lods),
-                np.nditer(self.num_fragments_per_lod)
-            )
+            ('', np.uint32, (count, 3))
+            for count in np.nditer(self.num_fragments_per_lod)
         ])
 
         self._fragment_positions = np.frombuffer(
@@ -75,11 +93,8 @@ class MultiLevelPrecomputedMeshManifest:
             dtype=frag_pos_dt)
 
         frag_off_dt = np.dtype([
-            ('%d' % level, np.uint32, (count,))
-            for level, count in zip(
-                range(num_lods),
-                np.nditer(self.num_fragments_per_lod)
-            )
+            ('', np.uint32, (count,))
+            for count in np.nditer(self.num_fragments_per_lod)
         ])
 
         self._fragment_offsets = np.frombuffer(
@@ -97,7 +112,7 @@ class MultiLevelPrecomputedMeshManifest:
 
     @property
     def num_lods(self):
-        return self._header['num_lods']
+        return int(self._header['num_lods'])
 
     @property
     def lod_scales(self):
@@ -113,8 +128,12 @@ class MultiLevelPrecomputedMeshManifest:
 
     @property
     def fragment_positions(self):
-        return self._fragment_positions
+        return [ self._fragment_positions[field] for field in self._fragment_positions.dtype.names ]
 
     @property
     def fragment_offsets(self):
-        return self._fragment_offsets
+        return [ self._fragment_offsets[field] for field in self._fragment_offsets.dtype.names ]
+
+    @property
+    def length(self):
+        return len(self._binary)

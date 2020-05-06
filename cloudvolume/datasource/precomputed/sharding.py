@@ -449,7 +449,7 @@ class ShardReader(object):
 
     return shattered
 
-  def get_data(self, label, path=""):
+  def get_data(self, label, path="", return_offset=False):
     filename, minishard_number = self.compute_shard_location(label)
     
     if self.cache.enabled:
@@ -486,7 +486,11 @@ class ShardReader(object):
     if self.cache.enabled:
       self.cache.put_single(self.meta.join(path, str(label)), binary, progress=False)
 
-    return binary
+    if return_offset:
+      # TODO: Refactor. This is a kludge to help find the meshes.
+      return (binary, offset)
+    else:
+      return binary
 
   def list_labels(self, filename, path="", size=False):
     """
