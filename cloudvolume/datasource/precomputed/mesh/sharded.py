@@ -15,13 +15,18 @@ class ShardedMultiLevelPrecomputedMeshSource:
         spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
         self.reader = ShardReader(meta, cache, spec)
 
-        print(spec)
+        self.vertex_quantization_bits = self.meta.info['vertex_quantization_bits']
+        self.lod_scale_multiplier = self.meta.info['lod_scale_multiplier']
 
     @property
     def path(self):
         return self.meta.mesh_path
     
     def get(self, segids):
+        """Fetch meshes at all levels of details.
+
+        Returns: A list of mesh fragments for each level of detail for each segment.
+        """
         list_return = True
         if type(segids) in (int, float):
             list_return = False
@@ -57,7 +62,20 @@ class ShardedMultiLevelPrecomputedMeshSource:
                                             int(np.sum(manifest.fragment_offsets[lod][0:frag+1]))
                                             ] 
                     mesh = Mesh.from_draco(frag_binary)
+
+                    # Treat the draco results as integers
+                    # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/draco/neuroglancer_draco.cc
+                    mesh.vertices = mesh.vertices.view(dtype=np.int32)
+                    
+                    # FIXME: We need to move coordinates into the right space
+                    # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md#multi-resolution-mesh-fragment-data-file-format
+                    
+                    #mesh.vertices = manifest.grid_origin + (manifest.fragment_positions[lod][frag] + mesh.vertices) / (2.0 ** self.vertex_quantization_bits - 1) * (2**lod)
+                    #mesh.vertices = (mesh.vertices - manifest.fragment_positions[lod][frag]) * (2.0 ** self.vertex_quantization_bits - 1) / (2**lod) - manifest.grid_origin 
+
                     lod_meshes.append(mesh)
+
+                # TODO: Fuse meshes before return?
                 meshes.append(lod_meshes)
 
             results.append(meshes)
@@ -86,7 +104,6 @@ class MultiLevelPrecomputedMeshManifest:
                         ('num_fragments_per_lod', np.uint32, (num_lods,))
                         ])
         self._header = np.frombuffer(self._binary[0:header_dt.itemsize], dtype=header_dt)
-
         offset = header_dt.itemsize
 
         self._fragment_positions = []
@@ -95,7 +112,7 @@ class MultiLevelPrecomputedMeshManifest:
             # Read fragment positions
             pos_size = 4 * 3 * self.num_fragments_per_lod[lod]
             self._fragment_positions.append(
-                np.frombuffer(self._binary[offset:offset + pos_size], dtype=np.uint32)
+                np.frombuffer(self._binary[offset:offset + pos_size], dtype=np.uint32).reshape((self.num_fragments_per_lod[lod],3))
             )
             offset += pos_size
 
@@ -144,3 +161,4 @@ class MultiLevelPrecomputedMeshManifest:
     @property
     def length(self):
         return len(self._binary)
+
