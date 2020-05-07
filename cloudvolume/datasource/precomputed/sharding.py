@@ -3,6 +3,7 @@ from __future__ import print_function
 from collections import namedtuple, defaultdict
 import copy
 import json
+import os.path
 import struct
 
 import numpy as np
@@ -273,6 +274,38 @@ class ShardReader(object):
     self.shard_index_cache[filename] = index
     return index
 
+  def get_indices(self, filenames, path=""):
+    filenames = toiter(filenames)
+    filenames = [ self.meta.join(path, fname) for fname in filenames ]
+
+    fufilled = { 
+      fname: self.shard_index_cache[fname] \
+      for fname in filenames \
+      if fname in self.shard_index_cache  
+    }
+    requests = []
+    for fname in filenames:
+      if fname in fufilled:
+        continue
+      requests.append({
+        'path': fname, 
+        'local_alias': fname + '.index', 
+        'start': 0, 
+        'end': self.spec.index_length(),
+      })
+
+    binaries = self.cache.download_as(requests)
+    for fname, content in binaries.items():
+      try:
+        index = self.decode_index(content, fname)
+        self.shard_index_cache[fname] = index
+        fufilled[fname] = index
+      except EmptyFileException:
+        self.shard_index_cache[fname] = None
+        fufilled[fname] = None
+
+    return fufilled
+
   def decode_index(self, binary, filename='Shard'):
     if binary is None or len(binary) == 0:
       raise EmptyFileException(filename + " was zero bytes.")
@@ -384,42 +417,43 @@ class ShardReader(object):
     except TypeError:
       return_one = True
 
+    to_labels = {}
+    to_all_labels = defaultdict(list)
+    filename_to_minishard_num = defaultdict(list)
+
     results = {}
     for label in set(toiter(labels)):
       filename, minishard_number = self.compute_shard_location(label)
-      
-      filepath = self.meta.join(path, filename)
+      to_labels[(filename, minishard_number)] = label
+      to_all_labels[filename].append(label)
+      filename_to_minishard_num[filename].append(minishard_number)
 
-      if self.cache.enabled:
-        cached = self.cache.has(self.meta.join(path, str(label)), progress=False)
-        if cached is not None:
-          results[label] = filepath
+    indices = self.get_indices(to_all_labels.keys(), path)
+
+    for filepath, index in tqdm(indices.items()):
+      filename = os.path.basename(filepath)
+      if index is None:
+        for label in to_all_labels[filename]:
+          results[label] = None
+        continue
+
+      minishards = self.get_minishard_indices(filename, index, filename_to_minishard_num[filename], path)
+      for mini_no, msi in minishards.items():
+        label = to_labels[(filename, mini_no)]
+
+        if msi is None:
+          results[label] = None
           continue
 
-      try:
-        index = self.get_index(filename, path)
-      except EmptyFileException:
-        results[label] = None
-        continue
-
-      minishard_index = self.get_minishard_index(
-        filename, index, 
-        minishard_number, path
-      )
-
-      if minishard_index is None:
-        results[label] = None
-        continue
-
-      idx = np.where(minishard_index[:,0] == label)[0]
-      if len(idx) == 0:
-        results[label] = None
-      else:
-        if return_byte_range:
-          _, offset, size = minishard_index[idx,:][0]
-          results[label] = [ filepath, int(offset), int(size) ]
+        idx = np.where(msi[:,0] == label)[0]
+        if len(idx) == 0:
+          results[label] = None
         else:
-          results[label] = filepath
+          if return_byte_range:
+            _, offset, size = msi[idx,:][0]
+            results[label] = [ filepath, int(offset), int(size) ]
+          else:
+            results[label] = filepath
 
     if return_one:
       return results[label]

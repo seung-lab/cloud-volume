@@ -1,7 +1,10 @@
+from functools import partial
 import json
 import os
 import posixpath
 import shutil
+
+from . import scheduler
 
 from .provenance import DataLayerProvenance
 from .storage import SimpleStorage, Storage, GreenStorage
@@ -374,6 +377,35 @@ class CacheService(object):
       self.put([ (local_alias, filedata) ], compress=compress)
 
     return filedata
+
+  def download_as(self, requests, compress=None, progress=None):
+    """
+    requests: [{
+      'path': ...,
+      'alias': ...,
+      'start': ...,
+      'end': ...,
+    }]
+    """
+    if len(requests) == 0:
+      return {}
+
+    progress = progress if progress is not None else self.config.progress
+
+    def dlsa(req):
+      content = self.download_single_as(**req)
+      return (req['path'], content)
+
+    fns = ( partial(dlsa, req) for req in requests )
+
+    results = scheduler.schedule_jobs(
+      fns=fns,
+      progress=progress, 
+      total=len(requests), 
+      green=self.config.green
+    )
+
+    return { fname: content for fname, content in results }
 
   def download(self, paths, compress=None, progress=None):
     """

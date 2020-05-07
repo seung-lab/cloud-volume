@@ -9,14 +9,27 @@ def schedule_threaded_jobs(
     progress=None, total=None
   ):
 
-  def wrap(fn):
-    def wrapped(iface):
-      return fn()
-    return wrapped
+  if total is None:
+    try:
+      total = len(fns)
+    except TypeError: # generators don't have len
+      pass
+
+  pbar = tqdm(total=total, desc=progress, disable=(not progress))
+  results = []
+  
+  def updatefn(fn):
+    def realupdatefn(iface):
+      res = fn()
+      pbar.update(1)
+      results.append(res)
+    return realupdatefn
 
   with ThreadedQueue(n_threads=concurrency, progress=progress) as tq:
     for fn in fns:
-      tq.put(wrap(fn))
+      tq.put(updatefn(fn))
+
+  return results
 
 def schedule_green_jobs(
     fns, concurrency=DEFAULT_THREADS, 
