@@ -1,5 +1,6 @@
 import numpy as np
 
+
 from ..sharding import ShardingSpecification, ShardReader
 from ....storage import SimpleStorage
 from ....mesh import Mesh
@@ -17,6 +18,10 @@ class ShardedMultiLevelPrecomputedMeshSource:
 
         self.vertex_quantization_bits = self.meta.info['vertex_quantization_bits']
         self.lod_scale_multiplier = self.meta.info['lod_scale_multiplier']
+        self.transform = np.array(self.meta.info['transform'] + [0,0,0,1]).reshape(4,4)
+    
+        if np.any(self.transform * np.array([[0,1,1,1],[1,0,1,1],[1,1,0,1],[1,1,1,0]])):
+            raise ValueError(red("Non-scale homogeneous transforms are not implemented"))
 
     @property
     def path(self):
@@ -26,6 +31,9 @@ class ShardedMultiLevelPrecomputedMeshSource:
         """Fetch meshes at all levels of details.
 
         Returns: A list of mesh fragments for each level of detail for each segment.
+
+        Reference:
+            https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
         """
         list_return = True
         if type(segids) in (int, float):
@@ -63,16 +71,15 @@ class ShardedMultiLevelPrecomputedMeshSource:
                                             ] 
                     mesh = Mesh.from_draco(frag_binary)
 
-                    # Treat the draco results as integers
+                    # Conversion references:
                     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/draco/neuroglancer_draco.cc
+                    # Treat the draco results as integers in the range [0, 2**vertex_quantization_bits)
                     mesh.vertices = mesh.vertices.view(dtype=np.int32)
-                    
-                    # FIXME: We need to move coordinates into the right space
-                    # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md#multi-resolution-mesh-fragment-data-file-format
-                    
-                    #mesh.vertices = manifest.grid_origin + (manifest.fragment_positions[lod][frag] + mesh.vertices) / (2.0 ** self.vertex_quantization_bits - 1) * (2**lod)
-                    #mesh.vertices = (mesh.vertices - manifest.fragment_positions[lod][frag]) * (2.0 ** self.vertex_quantization_bits - 1) / (2**lod) - manifest.grid_origin 
-
+                    # Convert to range [0,1)
+                    mesh.vertices = mesh.vertices / (2.0 ** self.vertex_quantization_bits - 1)
+                    # Add coordinates for the fragment
+                    mesh.vertices = manifest.grid_origin + manifest.chunk_shape*(manifest.fragment_positions[lod][frag] + mesh.vertices) * (2**lod)
+                    mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
                     lod_meshes.append(mesh)
 
                 # TODO: Fuse meshes before return?
