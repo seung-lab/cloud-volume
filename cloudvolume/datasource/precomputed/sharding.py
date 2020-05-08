@@ -353,6 +353,10 @@ class ShardReader(object):
       filename, index, minishard_nos, path
     )
 
+    msn_map = {}
+    for msn, start, end in pending_requests:
+      msn_map[(start, end)] = msn
+
     StorageClass = SimpleStorage if len(pending_requests) == 1 else Storage
     full_path = self.meta.join(self.meta.cloudpath, path)
     with StorageClass(full_path) as stor:
@@ -363,10 +367,9 @@ class ShardReader(object):
   
     del pending_requests
 
-    byte_ranges = { v: k for k, v in byte_ranges.items() }
     for res in results:
       start, end = res['byte_range']
-      msn = byte_ranges[(start, end)]
+      msn = msn_map[(start, end)]
       cache_key = (filename, start, end)
       minishard_index = self.decode_minishard_index(res['content'], filename)
       self.minishard_index_cache[cache_key] = minishard_index
