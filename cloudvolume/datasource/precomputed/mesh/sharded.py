@@ -79,7 +79,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
                     mesh.vertices = mesh.vertices / (2.0 ** self.vertex_quantization_bits - 1)
                     # Add coordinates for the fragment
                     mesh.vertices = manifest.grid_origin + manifest.chunk_shape*(manifest.fragment_positions[lod][frag] + mesh.vertices) * (2**lod)
-                    mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
+                    #mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
                     lod_meshes.append(mesh)
 
                 # TODO: Fuse meshes before return?
