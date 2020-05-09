@@ -100,6 +100,11 @@ class DoublyLinkedList(object):
   def delete(self, node):
     nxt, prev = node.next, node.prev
 
+    if self.head == node:
+      self.head = nxt
+    if self.tail == node:
+      self.tail = prev
+
     if prev is not None:
       prev.next = nxt
 
@@ -133,11 +138,12 @@ class DoublyLinkedList(object):
       self.head = ListNode(val, None, None)
       self.tail = self.head
     elif self.head is None:
-      self.head = ListNode(val, self.tail, None)
+      self.head = ListNode(val, next=self.tail, prev=None)
       self.tail.prev = self.head
     else:
-      self.head = ListNode(val, self.head, None)
-      self.head.next.prev = self.head
+      prev_head = self.head
+      self.head = ListNode(val, next=prev_head, prev=None)
+      prev_head.prev = self.head
 
     self.size += 1
 
@@ -170,6 +176,15 @@ class LRU(object):
   def __len__(self):
     return self.queue.size
 
+  def keys(self):
+    return self.hash.keys()
+
+  def values(self):
+    return ( node.val for val in self.queue )
+
+  def items(self):
+    return ( (key, node.val) for key, node in self.hash.items() )
+
   def clear(self):
     self.queue = DoublyLinkedList()
     self.hash = {}
@@ -190,19 +205,26 @@ class LRU(object):
       (key,val) = self.queue.delete_tail()
       del self.hash[key]
 
-  def __contains__(self, key):
-    return key in self.hash
-
-  def __getitem__(self, key):
+  def delete(self, key):
     if key not in self.hash:
       raise KeyError("{} not in cache.".format(key))
+
+    node = self.hash[key]
+    self.queue.delete(node)
+    del self.hash[key]
+
+  def get(self, key, default=None):
+    if key not in self.hash:
+      if default is None:
+        raise KeyError("{} not in cache.".format(key))
+      return default
 
     node = self.hash[key]
     self.queue.promote_to_head(node)
 
     return node.val[1]
 
-  def __setitem__(self, key, val):
+  def set(self, key, val):
     if self.size == 0:
       return
 
@@ -218,7 +240,19 @@ class LRU(object):
 
     while len(self.queue) > self.size:
       (tkey,tval) = self.queue.delete_tail()
-      del self.hash[tkey]      
+      del self.hash[tkey]     
+
+  def __contains__(self, key):
+    return key in self.hash
+
+  def __getitem__(self, key):
+    return self.get(key)
+
+  def __setitem__(self, key, val):
+    return self.set(key, val)
+
+  def __delitem__(self, key):
+    return self.delete(key)
 
   def __str__(self):
     return str(self.queue)
