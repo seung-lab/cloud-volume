@@ -524,6 +524,7 @@ class CacheService(object):
     StorageClass = self.pick_storage_class(files)
 
     save_location = 'file://' + self.path
+    progress = 'to Cache' if progress else None
     with StorageClass(save_location, progress=progress) as stor:
       stor.put_files(
         [ (name, content) for name, content in files ],
