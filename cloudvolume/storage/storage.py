@@ -7,12 +7,13 @@ import os.path
 import posixpath
 import re
 from functools import partial
+import types
 
 from tqdm import tqdm
 
 from cloudvolume import compression
 from cloudvolume.exceptions import UnsupportedProtocolError
-from cloudvolume.lib import mkdir, scatter, jsonify
+from cloudvolume.lib import mkdir, scatter, jsonify, duplicates
 from cloudvolume.threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from cloudvolume.scheduler import schedule_green_jobs
 
@@ -379,6 +380,11 @@ class GreenStorage(StorageBase):
           cache_control=cache_control,
         )
 
+    if not isinstance(gen, types.GeneratorType):
+      dupes = duplicates([ path for path, content in files ])
+      if dupes:
+        raise ValueError("Cannot write the same file multiple times in one pass. This causes a race condition. Files: " + ", ".join(dupes))
+
     fns = ( partial(uploadfn, path, content) for path, content in files )
 
     if block:
@@ -531,8 +537,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
     def base_uploadfn(path, content, interface):
       interface.put_file(path, content, content_type, compress, cache_control=cache_control)
 
-    seen = set()
-
+    seen = set() 
     for path, content in files:
       if path in seen:
         raise ValueError("Cannot write the same file multiple times in one pass. This causes a race condition. File: " + path)
