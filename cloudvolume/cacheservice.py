@@ -380,6 +380,8 @@ class CacheService(object):
 
   def download_as(self, requests, compress=None, progress=None):
     """
+    Works with byte ranges.
+
     requests: [{
       'path': ...,
       'local_alias': ...,
@@ -396,7 +398,7 @@ class CacheService(object):
     aliases = [ req['local_alias'] for req in requests ]
     alias_tuples = { req['local_alias']: (req['path'], req['start'], req['end']) for req in requests }
     alias_to_path = { req['local_alias']: req['path'] for req in requests }
-    path_to_alias = { req['path']: req['local_alias'] for req in requests }
+    path_to_alias = { v:k for k,v in alias_tuples.items() }
 
     if None in alias_to_path:
       del alias_to_path[None]
@@ -437,7 +439,8 @@ class CacheService(object):
     if self.enabled:
       self.put(
         [ 
-          (path_to_alias[filename], content) for (filename, start, end), content in remote_fragments.items() \
+          (path_to_alias[file_bytes_tuple], content) \
+          for file_bytes_tuple, content in remote_fragments.items() \
           if content is not None 
         ],
         compress=compress,
