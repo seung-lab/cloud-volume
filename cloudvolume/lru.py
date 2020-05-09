@@ -205,6 +205,14 @@ class LRU(object):
       (key,val) = self.queue.delete_tail()
       del self.hash[key]
 
+  def delete(self, key):
+    if key not in self.hash:
+      raise KeyError("{} not in cache.".format(key))
+
+    node = self.hash[key]
+    self.queue.delete(node)
+    del self.hash[key]
+
   def get(self, key, default=None):
     if key not in self.hash:
       if default is None:
@@ -242,6 +250,9 @@ class LRU(object):
 
   def __setitem__(self, key, val):
     return self.set(key, val)
+
+  def __delitem__(self, key):
+    return self.delete(key)
 
   def __str__(self):
     return str(self.queue)
