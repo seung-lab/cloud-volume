@@ -274,7 +274,7 @@ class ShardReader(object):
     self.shard_index_cache[filename] = index
     return index
 
-  def get_indices(self, filenames, path=""):
+  def get_indices(self, filenames, path="", progress=None):
     filenames = toiter(filenames)
     filenames = [ self.meta.join(path, fname) for fname in filenames ]
 
@@ -294,7 +294,7 @@ class ShardReader(object):
         'end': self.spec.index_length(),
       })
 
-    binaries = self.cache.download_as(requests)
+    binaries = self.cache.download_as(requests, progress=progress)
     for fname, content in binaries.items():
       try:
         index = self.decode_index(content, fname)
@@ -356,7 +356,7 @@ class ShardReader(object):
     res = self.get_minishard_indices_for_files(( (filename, index, minishard_nos), ), path)
     return res[filename]
 
-  def get_minishard_indices_for_files(self, requests, path=""):
+  def get_minishard_indices_for_files(self, requests, path="", progress=None):
     """
     Fetches the specified minishard indices for all the specified files
     at once. This is required to get high performance as opposed to fetching
@@ -397,7 +397,7 @@ class ShardReader(object):
 
     StorageClass = SimpleStorage if len(msn_map) == 1 else Storage
     full_path = self.meta.join(self.meta.cloudpath, path)
-    with StorageClass(full_path) as stor:
+    with StorageClass(full_path, progress=progress) as stor:
       results = stor.get_files(filenames, starts, ends)
   
     for result in results:
@@ -447,7 +447,7 @@ class ShardReader(object):
 
     return (fufilled_requests, pending_requests)
 
-  def exists(self, labels, path="", return_byte_range=False):
+  def exists(self, labels, path="", return_byte_range=False, progress=None):
     """
     Checks a shard's minishard index for whether a file exists.
 
@@ -479,12 +479,12 @@ class ShardReader(object):
       to_all_labels[filename].append(label)
       filename_to_minishard_num[filename].append(minishard_number)
 
-    indices = self.get_indices(to_all_labels.keys(), path)
+    indices = self.get_indices(to_all_labels.keys(), path, progress=progress)
 
     all_minishards = self.get_minishard_indices_for_files([ 
       (basename(filepath), index, filename_to_minishard_num[basename(filepath)]) \
       for filepath, index in indices.items()
-    ], path)
+    ], path, progress=progress)
 
     results = {}
     for filename, file_minishards in all_minishards.items():
