@@ -483,7 +483,7 @@ class ShardReader(object):
 
     all_minishards = self.get_minishard_indices_for_files([ 
       (basename(filepath), index, filename_to_minishard_num[basename(filepath)]) \
-      for filepath, index in tqdm(indices.items())
+      for filepath, index in indices.items()
     ], path)
 
     results = {}
