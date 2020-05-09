@@ -412,6 +412,10 @@ class ShardReader(object):
     return fufilled_by_filename
 
   def compute_minishard_index_requests(self, filename, index, minishard_nos, path=""):
+    """
+    Helper method for get_minishard_indices_for_files. 
+    Computes which requests must be made over the network vs can be fufilled from LRU cache.
+    """
     minishard_nos = toiter(minishard_nos)
 
     if index is None:
