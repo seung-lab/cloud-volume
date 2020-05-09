@@ -393,7 +393,7 @@ class ShardReader(object):
 
         download_requests.append({
           'path': filepath,
-          'local_alias': '{}-{}.msi'.format(filename, msn),
+          'local_alias': '{}-{}.msi'.format(filepath, msn),
           'start': start,
           'end': end,
         })
