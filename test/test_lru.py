@@ -1,4 +1,9 @@
+import pytest
+
 from cloudvolume.lru import LRU
+
+import time
+import random
 
 def test_lru():
   lru = LRU(5)
@@ -34,3 +39,25 @@ def test_lru():
   assert lru.queue.tolist() == [ 
     (0,0), (4,4), (3,3), (2,2), (1,1)
   ]
+
+def test_lru_chaos():
+  lru = LRU(10)
+
+  seed = time.time()
+  print("seed", seed)
+
+  random.seed(seed)
+  for i in range(150):
+    rand = random.randint(-5000, 5000)
+    lru[rand] = random.randint(-5000, 5000)
+
+    if rand % 17 == 0:
+      keys = lru.keys()
+      key = random.choice(list(keys))
+      lru[key]
+
+
+
+
+
+

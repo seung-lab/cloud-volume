@@ -1,7 +1,10 @@
+from functools import partial
 import json
 import os
 import posixpath
 import shutil
+
+from . import scheduler
 
 from .provenance import DataLayerProvenance
 from .storage import SimpleStorage, Storage, GreenStorage
@@ -375,6 +378,78 @@ class CacheService(object):
 
     return filedata
 
+  def download_as(self, requests, compress=None, progress=None):
+    """
+    Works with byte ranges.
+
+    requests: [{
+      'path': ...,
+      'local_alias': ...,
+      'start': ...,
+      'end': ...,
+    }]
+    """
+    # import pdb; pdb.set_trace()
+    if len(requests) == 0:
+      return {}
+
+    progress = progress if progress is not None else self.config.progress
+
+    aliases = [ req['local_alias'] for req in requests ]
+    alias_tuples = { req['local_alias']: (req['path'], req['start'], req['end']) for req in requests }
+    alias_to_path = { req['local_alias']: req['path'] for req in requests }
+    path_to_alias = { v:k for k,v in alias_tuples.items() }
+
+    if None in alias_to_path:
+      del alias_to_path[None]
+      del alias_tuples[None]
+
+    locs = self.compute_data_locations(aliases)
+
+    fragments = {}
+    if self.enabled:
+      fragments = self.get(locs['local'], progress=progress)
+      keys = list(fragments.keys())
+      for key in keys:
+        return_key = (alias_to_path[key], alias_tuples[key][1], alias_tuples[key][2])
+        fragments[return_key] = fragments[key]
+        del fragments[key]
+      for alias in locs['local']:
+        del alias_tuples[alias]
+
+    remote_path_tuples = list(alias_tuples.values())
+
+    remote_paths = ( path for path, start, end in remote_path_tuples )
+    starts = ( start for path, start, end in remote_path_tuples )
+    ends = ( end for path, start, end in remote_path_tuples )
+
+    StorageClass = self.pick_storage_class(remote_path_tuples)
+    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
+      remote_fragments = stor.get_files(remote_paths, starts=starts, ends=ends)
+
+    for frag in remote_fragments:
+      if frag['error'] is not None:
+        raise frag['error']
+
+    remote_fragments = { 
+      (res['filename'], res['byte_range'][0], res['byte_range'][1]): res['content'] \
+      for res in remote_fragments 
+    }
+
+    if self.enabled:
+      self.put(
+        [ 
+          (path_to_alias[file_bytes_tuple], content) \
+          for file_bytes_tuple, content in remote_fragments.items() \
+          if content is not None 
+        ],
+        compress=compress,
+        progress=progress
+      )
+
+    fragments.update(remote_fragments)
+    return fragments
+
   def download(self, paths, compress=None, progress=None):
     """
     Download the provided paths, but grab them from cache first
@@ -452,6 +527,7 @@ class CacheService(object):
     StorageClass = self.pick_storage_class(files)
 
     save_location = 'file://' + self.path
+    progress = 'to Cache' if progress else None
     with StorageClass(save_location, progress=progress) as stor:
       stor.put_files(
         [ (name, content) for name, content in files ],

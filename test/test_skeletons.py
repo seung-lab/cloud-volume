@@ -721,6 +721,21 @@ def test_sharded():
         for label, binary in decoded_skels.items():
           Skeleton.from_precomputed(binary)
 
+      exists = cv.skeleton.reader.exists(list(range(11)))
+      assert exists == {
+        0: '0.shard', 
+        1: '0.shard', 
+        2: '0.shard', 
+        3: '0.shard', 
+        4: '0.shard', 
+        5: '0.shard', 
+        6: '0.shard', 
+        7: '0.shard', 
+        8: '1.shard', 
+        9: '1.shard',
+        10: None,
+      }
+
   shutil.rmtree('/tmp/removeme/skeletons')
 
 
