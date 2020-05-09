@@ -382,30 +382,70 @@ class CacheService(object):
     """
     requests: [{
       'path': ...,
-      'alias': ...,
+      'local_alias': ...,
       'start': ...,
       'end': ...,
     }]
     """
+    # import pdb; pdb.set_trace()
     if len(requests) == 0:
       return {}
 
     progress = progress if progress is not None else self.config.progress
 
-    def dlsa(req):
-      content = self.download_single_as(**req)
-      return (req['path'], content)
+    aliases = [ req['local_alias'] for req in requests ]
+    alias_tuples = { req['local_alias']: (req['path'], req['start'], req['end']) for req in requests }
+    alias_to_path = { req['local_alias']: req['path'] for req in requests }
+    path_to_alias = { req['path']: req['local_alias'] for req in requests }
 
-    fns = ( partial(dlsa, req) for req in requests )
+    if None in alias_to_path:
+      del alias_to_path[None]
+      del alias_tuples[None]
 
-    results = scheduler.schedule_jobs(
-      fns=fns,
-      progress=progress, 
-      total=len(requests), 
-      green=self.config.green
-    )
+    locs = self.compute_data_locations(aliases)
 
-    return { fname: content for fname, content in results }
+    fragments = {}
+    if self.enabled:
+      fragments = self.get(locs['local'], progress=progress)
+      keys = list(fragments.keys())
+      for key in keys:
+        return_key = (alias_to_path[key], alias_tuples[key][1], alias_tuples[key][2])
+        fragments[return_key] = fragments[key]
+        del fragments[key]
+      for alias in locs['local']:
+        del alias_tuples[alias]
+
+    remote_path_tuples = list(alias_tuples.values())
+
+    remote_paths = ( path for path, start, end in remote_path_tuples )
+    starts = ( start for path, start, end in remote_path_tuples )
+    ends = ( end for path, start, end in remote_path_tuples )
+
+    StorageClass = self.pick_storage_class(remote_path_tuples)
+    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
+      remote_fragments = stor.get_files(remote_paths, starts=starts, ends=ends)
+
+    for frag in remote_fragments:
+      if frag['error'] is not None:
+        raise frag['error']
+
+    remote_fragments = { 
+      (res['filename'], res['byte_range'][0], res['byte_range'][1]): res['content'] \
+      for res in remote_fragments 
+    }
+
+    if self.enabled:
+      self.put(
+        [ 
+          (path_to_alias[filename], content) for (filename, start, end), content in remote_fragments.items() \
+          if content is not None 
+        ],
+        compress=compress,
+        progress=progress
+      )
+
+    fragments.update(remote_fragments)
+    return fragments
 
   def download(self, paths, compress=None, progress=None):
     """

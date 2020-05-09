@@ -294,9 +294,9 @@ class ShardReader(object):
         'end': self.spec.index_length(),
       })
 
-    progress = 'Downloading Shard Indices' if progress else False
+    progress = 'Shard Indices' if progress else False
     binaries = self.cache.download_as(requests, progress=progress)
-    for fname, content in binaries.items():
+    for (fname, start, end), content in binaries.items():
       try:
         index = self.decode_index(content, fname)
         self.shard_index_cache[fname] = index
@@ -377,13 +377,10 @@ class ShardReader(object):
       filename_2: ...
     }
     """
-    filenames = []
-    starts = []
-    ends = []
-
     fufilled_by_filename = defaultdict(dict)
     msn_map = {}
 
+    download_requests = []
     for filename, index, minishard_nos in requests:
       fufilled_requests, pending_requests = self.compute_minishard_index_requests(
         filename, index, minishard_nos, path
@@ -392,22 +389,23 @@ class ShardReader(object):
       for msn, start, end in pending_requests:
         msn_map[(filename, start, end)] = msn
 
-      filenames += [ filename for _ in pending_requests ]
-      starts += [ start for (msn, start, end) in pending_requests ]
-      ends += [ end for (msn, start, end) in pending_requests ]
+        filepath = self.meta.join(path, filename)
 
-    StorageClass = SimpleStorage if len(msn_map) == 1 else Storage
-    full_path = self.meta.join(self.meta.cloudpath, path)
+        download_requests.append({
+          'path': filepath,
+          'local_alias': '{}-{}.msi'.format(filename, msn),
+          'start': start,
+          'end': end,
+        })
+
     progress = 'Minishard Indices' if progress else False
-    with StorageClass(full_path, progress=progress) as stor:
-      results = stor.get_files(filenames, starts, ends)
+    results = self.cache.download_as(download_requests, progress=progress)
   
-    for result in results:
-      filename = result['filename']
-      start, end = result['byte_range']
+    for (filename, start, end), content in results.items():
+      filename = basename(filename)
       cache_key = (filename, start, end)
       msn = msn_map[cache_key]
-      minishard_index = self.decode_minishard_index(result['content'], filename)
+      minishard_index = self.decode_minishard_index(content, filename)
       self.minishard_index_cache[cache_key] = minishard_index
       fufilled_by_filename[filename][msn] = minishard_index
 
