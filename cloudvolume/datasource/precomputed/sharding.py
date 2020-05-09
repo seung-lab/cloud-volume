@@ -3,7 +3,7 @@ from __future__ import print_function
 from collections import namedtuple, defaultdict
 import copy
 import json
-import os.path
+from os.path import basename
 import struct
 
 import numpy as np
@@ -339,45 +339,43 @@ class ShardReader(object):
     return minishard_index 
 
   def get_minishard_index(self, filename, index, minishard_no, path=""):
-    res = self.get_minishard_indices(filename, index, minishard_no, path)
-    return res[minishard_no]
-
-  def get_minishard_indices(self, filename, index, minishard_nos, path=""):
     """
     Retrieves the minishard index for a given minishard number.
 
     Returns: uint64 Nx3 array with multiple rows of [segid, byte start, byte end]
     """
-    minishard_nos = toiter(minishard_nos)
-    fufilled_requests, pending_requests = self.compute_minishard_index_requests(
-      filename, index, minishard_nos, path
-    )
+    res = self.get_minishard_indices(filename, index, minishard_no, path)
+    return res[minishard_no]
 
-    msn_map = {}
-    for msn, start, end in pending_requests:
-      msn_map[(start, end)] = msn
+  def get_minishard_indices(self, filename, index, minishard_nos, path=""):
+    """
+    Retrieves the minishard indices for a set of minishard numbers.
 
-    StorageClass = SimpleStorage if len(pending_requests) == 1 else Storage
-    full_path = self.meta.join(self.meta.cloudpath, path)
-    with StorageClass(full_path) as stor:
-      filenames = ( filename for _ in pending_requests )
-      starts = ( start for (msn, start, end) in pending_requests )
-      ends = ( end for (msn, start, end) in pending_requests )
-      results = stor.get_files(filenames, starts, ends)
-  
-    del pending_requests
+    Returns: { minishard_no: uint64 Nx3 array of [segid, byte start, byte end], ... }
+    """
+    res = self.get_minishard_indices_for_files(( (filename, index, minishard_nos), ), path)
+    return res[filename]
 
-    for res in results:
-      start, end = res['byte_range']
-      msn = msn_map[(start, end)]
-      cache_key = (filename, start, end)
-      minishard_index = self.decode_minishard_index(res['content'], filename)
-      self.minishard_index_cache[cache_key] = minishard_index
-      fufilled_requests[msn] = minishard_index
+  def get_minishard_indices_for_files(self, requests, path=""):
+    """
+    Fetches the specified minishard indices for all the specified files
+    at once. This is required to get high performance as opposed to fetching
+    the all minishard indices for a single file.
 
-    return fufilled_requests
+    requests: iterable of tuples
+      [  (filename, index, minishard_numbers), ... ]
 
-  def get_minishard_indices_parallel(self, requests, path=""):
+    Returns: map of filename -> minishard numbers -> minishard indices
+
+    e.g. 
+    {
+      filename_1: {
+          0: uint64 Nx3 array of [segid, byte start, byte end],
+          1: ...,
+      }
+      filename_2: ...
+    }
+    """
     filenames = []
     starts = []
     ends = []
@@ -479,8 +477,8 @@ class ShardReader(object):
 
     indices = self.get_indices(to_all_labels.keys(), path)
 
-    all_minishards = self.get_minishard_indices_parallel([ 
-      (os.path.basename(filepath), index, filename_to_minishard_num[os.path.basename(filepath)]) \
+    all_minishards = self.get_minishard_indices_for_files([ 
+      (basename(filepath), index, filename_to_minishard_num[basename(filepath)]) \
       for filepath, index in tqdm(indices.items())
     ], path)
 
