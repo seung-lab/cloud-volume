@@ -205,10 +205,7 @@ class LRU(object):
       (key,val) = self.queue.delete_tail()
       del self.hash[key]
 
-  def __contains__(self, key):
-    return key in self.hash
-
-  def __getitem__(self, key):
+  def get(self, key):
     if key not in self.hash:
       raise KeyError("{} not in cache.".format(key))
 
@@ -217,7 +214,7 @@ class LRU(object):
 
     return node.val[1]
 
-  def __setitem__(self, key, val):
+  def set(self, key, val):
     if self.size == 0:
       return
 
@@ -233,7 +230,16 @@ class LRU(object):
 
     while len(self.queue) > self.size:
       (tkey,tval) = self.queue.delete_tail()
-      del self.hash[tkey]      
+      del self.hash[tkey]     
+
+  def __contains__(self, key):
+    return key in self.hash
+
+  def __getitem__(self, key):
+    return self.get(key)
+
+  def __setitem__(self, key, val):
+    return self.set(key, val)
 
   def __str__(self):
     return str(self.queue)
