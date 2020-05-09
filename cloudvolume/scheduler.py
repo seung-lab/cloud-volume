@@ -25,7 +25,7 @@ def schedule_threaded_jobs(
       results.append(res)
     return realupdatefn
 
-  with ThreadedQueue(n_threads=concurrency, progress=progress) as tq:
+  with ThreadedQueue(n_threads=concurrency) as tq:
     for fn in fns:
       tq.put(updatefn(fn))
 

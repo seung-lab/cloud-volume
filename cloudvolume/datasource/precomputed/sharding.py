@@ -294,6 +294,7 @@ class ShardReader(object):
         'end': self.spec.index_length(),
       })
 
+    progress = 'Downloading Shard Indices' if progress else False
     binaries = self.cache.download_as(requests, progress=progress)
     for fname, content in binaries.items():
       try:
@@ -397,6 +398,7 @@ class ShardReader(object):
 
     StorageClass = SimpleStorage if len(msn_map) == 1 else Storage
     full_path = self.meta.join(self.meta.cloudpath, path)
+    progress = 'Minishard Indices' if progress else False
     with StorageClass(full_path, progress=progress) as stor:
       results = stor.get_files(filenames, starts, ends)
   

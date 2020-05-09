@@ -55,6 +55,12 @@ class StorageBase(object):
   def layer_path(self):
     return self._layer_path
 
+  def progress_description(self, prefix):
+    if isinstance(self.progress, str):
+      return prefix + ' ' + self.progress
+    else:
+      return prefix if self.progress else None
+
   def get_connection(self):
     return self._interface_cls(self._path)
 
@@ -144,7 +150,8 @@ class SimpleStorage(StorageBase):
     Required:
       files: [ (filepath, content), .... ]
     """
-    for path, content in tqdm(files, disable=(not self.progress), desc="Uploading"):
+    desc = self.progress_description('Uploading')
+    for path, content in tqdm(files, disable=(not self.progress), desc=desc):
       content = compression.compress(content, method=compress, compress_level=compress_level)
       self._interface.put_file(path, content, content_type, compress, cache_control=cache_control)
     return self
@@ -178,7 +185,7 @@ class SimpleStorage(StorageBase):
     iterator = tqdm(
       zip(file_paths, starts, ends),
       disable=(not self.progress), 
-      desc="Downloading"
+      desc=self.progress_description("Downloading")
     )
 
     results = []
@@ -281,9 +288,10 @@ class GreenStorage(StorageBase):
       with self.get_connection() as conn:
         results.update(conn.files_exist(paths))
     
+    desc = self.progress_description('Existence Testing')
     schedule_green_jobs(  
       fns=( partial(exist_thunk, paths) for paths in scatter(file_paths, self.concurrency) ),
-      progress=('Existence Testing' if self.progress else None),
+      progress=(desc if self.progress else None),
       concurrency=self.concurrency,
       total=len(file_paths),
     )
@@ -333,12 +341,14 @@ class GreenStorage(StorageBase):
         "error": error,
       }
 
+    desc = self.progress_description('Downloading')
+
     return schedule_green_jobs(  
       fns=( 
         partial(getfn, path, start, end) 
         for path, start, end in zip(file_paths, starts, ends) 
       ),
-      progress=('Downloading' if self.progress else None),
+      progress=(desc if self.progress else None),
       concurrency=self.concurrency,
       total=len(file_paths),
     )
@@ -372,9 +382,10 @@ class GreenStorage(StorageBase):
     fns = ( partial(uploadfn, path, content) for path, content in files )
 
     if block:
+      desc = desc = self.progress_description('Uploading')
       schedule_green_jobs(
         fns=fns,
-        progress=('Uploading' if self.progress else None),
+        progress=(desc if self.progress else None),
         concurrency=self.concurrency,
         total=len(files),
       )
@@ -405,9 +416,11 @@ class GreenStorage(StorageBase):
       with self.get_connection() as conn:
         conn.delete_file(path)
 
+    desc = self.progress_description('Deleting')
+
     schedule_green_jobs(
       fns=( partial(thunk_delete, path) for path in file_paths ),
-      progress=('Deleting' if self.progress else None),
+      progress=(desc if self.progress else None),
       concurrency=self.concurrency,
       total=len(file_paths),
     )
@@ -528,7 +541,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
         uploadfn(self._interface)
 
     if block:
-      desc = 'Uploading' if self.progress else None
+      desc = self.progress_description('Uploading')
       self.wait(desc)
 
     return self
@@ -556,7 +569,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
     else:
       exist_thunk(file_paths, self._interface)
 
-    desc = 'Existence Testing' if self.progress else None
+    desc = self.progress_description('Existence Testing')
     self.wait(desc)
 
     return results
@@ -604,7 +617,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
       else:
         get_file_thunk(path, start, end, self._interface)
 
-    desc = 'Downloading' if self.progress else None
+    desc = self.progress_description('Downloading')
     self.wait(desc)
 
     return results
@@ -632,7 +645,7 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
       else:
         thunk_delete(path, self._interface)
 
-    desc = 'Deleting' if self.progress else None
+    desc = self.progress_description('Deleting')
     self.wait(desc)
 
     return self
