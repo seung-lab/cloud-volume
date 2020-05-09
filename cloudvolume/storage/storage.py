@@ -531,7 +531,13 @@ class ThreadedStorage(StorageBase, ThreadedQueue):
     def base_uploadfn(path, content, interface):
       interface.put_file(path, content, content_type, compress, cache_control=cache_control)
 
+    seen = set()
+
     for path, content in files:
+      if path in seen:
+        raise ValueError("Cannot write the same file multiple times in one pass. This causes a race condition. File: " + path)
+      seen.add(path)
+
       content = compression.compress(content, method=compress, compress_level=compress_level)
       uploadfn = partial(base_uploadfn, path, content)
 
