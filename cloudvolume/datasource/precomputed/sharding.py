@@ -397,7 +397,7 @@ class ShardReader(object):
 
     StorageClass = SimpleStorage if len(msn_map) == 1 else Storage
     full_path = self.meta.join(self.meta.cloudpath, path)
-    with StorageClass(full_path, progress=True) as stor:
+    with StorageClass(full_path) as stor:
       results = stor.get_files(filenames, starts, ends)
   
     for result in results:
