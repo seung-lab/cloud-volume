@@ -58,6 +58,15 @@ def toiter(obj, is_iter=False):
       return [ obj ], False
     return [ obj ]
 
+def duplicates(lst):
+  dupes = []
+  seen = set()
+  for elem in lst:
+    if elem in seen:
+      dupes.append(elem)
+    seen.add(elem)
+  return set(dupes)
+
 def jsonify(obj, **kwargs):
   return json.dumps(obj, cls=NumpyEncoder, **kwargs)
 

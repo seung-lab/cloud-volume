@@ -3,6 +3,7 @@ from __future__ import print_function
 from collections import namedtuple, defaultdict
 import copy
 import json
+from os.path import basename
 import struct
 
 import numpy as np
@@ -273,6 +274,39 @@ class ShardReader(object):
     self.shard_index_cache[filename] = index
     return index
 
+  def get_indices(self, filenames, path="", progress=None):
+    filenames = toiter(filenames)
+    filenames = [ self.meta.join(path, fname) for fname in filenames ]
+
+    fufilled = { 
+      fname: self.shard_index_cache[fname] \
+      for fname in filenames \
+      if fname in self.shard_index_cache  
+    }
+    requests = []
+    for fname in filenames:
+      if fname in fufilled:
+        continue
+      requests.append({
+        'path': fname, 
+        'local_alias': fname + '.index', 
+        'start': 0, 
+        'end': self.spec.index_length(),
+      })
+
+    progress = 'Shard Indices' if progress else False
+    binaries = self.cache.download_as(requests, progress=progress)
+    for (fname, start, end), content in binaries.items():
+      try:
+        index = self.decode_index(content, fname)
+        self.shard_index_cache[fname] = index
+        fufilled[fname] = index
+      except EmptyFileException:
+        self.shard_index_cache[fname] = None
+        fufilled[fname] = None
+
+    return fufilled
+
   def decode_index(self, binary, filename='Shard'):
     if binary is None or len(binary) == 0:
       raise EmptyFileException(filename + " was zero bytes.")
@@ -306,16 +340,86 @@ class ShardReader(object):
     return minishard_index 
 
   def get_minishard_index(self, filename, index, minishard_no, path=""):
-    res = self.get_minishard_indices(filename, index, minishard_no, path)
-    return res[minishard_no]
-
-  def get_minishard_indices(self, filename, index, minishard_nos, path=""):
     """
     Retrieves the minishard index for a given minishard number.
 
     Returns: uint64 Nx3 array with multiple rows of [segid, byte start, byte end]
     """
+    res = self.get_minishard_indices(filename, index, minishard_no, path)
+    return res[minishard_no]
+
+  def get_minishard_indices(self, filename, index, minishard_nos, path=""):
+    """
+    Retrieves the minishard indices for a set of minishard numbers.
+
+    Returns: { minishard_no: uint64 Nx3 array of [segid, byte start, byte end], ... }
+    """
+    res = self.get_minishard_indices_for_files(( (filename, index, minishard_nos), ), path)
+    return res[filename]
+
+  def get_minishard_indices_for_files(self, requests, path="", progress=None):
+    """
+    Fetches the specified minishard indices for all the specified files
+    at once. This is required to get high performance as opposed to fetching
+    the all minishard indices for a single file.
+
+    requests: iterable of tuples
+      [  (filename, index, minishard_numbers), ... ]
+
+    Returns: map of filename -> minishard numbers -> minishard indices
+
+    e.g. 
+    {
+      filename_1: {
+          0: uint64 Nx3 array of [segid, byte start, byte end],
+          1: ...,
+      }
+      filename_2: ...
+    }
+    """
+    fufilled_by_filename = defaultdict(dict)
+    msn_map = {}
+
+    download_requests = []
+    for filename, index, minishard_nos in requests:
+      fufilled_requests, pending_requests = self.compute_minishard_index_requests(
+        filename, index, minishard_nos, path
+      ) 
+      fufilled_by_filename[filename] = fufilled_requests
+      for msn, start, end in pending_requests:
+        msn_map[(filename, start, end)] = msn
+
+        filepath = self.meta.join(path, filename)
+
+        download_requests.append({
+          'path': filepath,
+          'local_alias': '{}-{}.msi'.format(filepath, msn),
+          'start': start,
+          'end': end,
+        })
+
+    progress = 'Minishard Indices' if progress else False
+    results = self.cache.download_as(download_requests, progress=progress)
+  
+    for (filename, start, end), content in results.items():
+      filename = basename(filename)
+      cache_key = (filename, start, end)
+      msn = msn_map[cache_key]
+      minishard_index = self.decode_minishard_index(content, filename)
+      self.minishard_index_cache[cache_key] = minishard_index
+      fufilled_by_filename[filename][msn] = minishard_index
+
+    return fufilled_by_filename
+
+  def compute_minishard_index_requests(self, filename, index, minishard_nos, path=""):
+    """
+    Helper method for get_minishard_indices_for_files. 
+    Computes which requests must be made over the network vs can be fufilled from LRU cache.
+    """
     minishard_nos = toiter(minishard_nos)
+
+    if index is None:
+      return ({ msn: None for msn in minishard_nos }, [])
 
     fufilled_requests = {}
 
@@ -339,30 +443,11 @@ class ShardReader(object):
       if cache_key in self.minishard_index_cache:
         fufilled_requests[msn] = self.minishard_index_cache[cache_key]
       else:
-        pending_requests.append((bytes_start, bytes_end))
+        pending_requests.append((msn, bytes_start, bytes_end))
 
-    StorageClass = SimpleStorage if len(pending_requests) == 1 else Storage
+    return (fufilled_requests, pending_requests)
 
-    with StorageClass(full_path) as stor:
-      filenames = ( filename for _ in pending_requests )
-      starts = ( start for (start, end) in pending_requests )
-      ends = ( end for (start, end) in pending_requests )
-      results = stor.get_files(filenames, starts, ends)
-  
-    del pending_requests
-
-    byte_ranges = { v: k for k, v in byte_ranges.items() }
-    for res in results:
-      start, end = res['byte_range']
-      msn = byte_ranges[(start, end)]
-      cache_key = (filename, start, end)
-      minishard_index = self.decode_minishard_index(res['content'], filename)
-      self.minishard_index_cache[cache_key] = minishard_index
-      fufilled_requests[msn] = minishard_index
-
-    return fufilled_requests
-
-  def exists(self, labels, path="", return_byte_range=False):
+  def exists(self, labels, path="", return_byte_range=False, progress=None):
     """
     Checks a shard's minishard index for whether a file exists.
 
@@ -384,45 +469,46 @@ class ShardReader(object):
     except TypeError:
       return_one = True
 
-    results = {}
+    to_labels = defaultdict(list)
+    to_all_labels = defaultdict(list)
+    filename_to_minishard_num = defaultdict(list)
+
     for label in set(toiter(labels)):
       filename, minishard_number = self.compute_shard_location(label)
-      
+      to_labels[(filename, minishard_number)].append(label)
+      to_all_labels[filename].append(label)
+      filename_to_minishard_num[filename].append(minishard_number)
+
+    indices = self.get_indices(to_all_labels.keys(), path, progress=progress)
+
+    all_minishards = self.get_minishard_indices_for_files([ 
+      (basename(filepath), index, filename_to_minishard_num[basename(filepath)]) \
+      for filepath, index in indices.items()
+    ], path, progress=progress)
+
+    results = {}
+    for filename, file_minishards in all_minishards.items():
       filepath = self.meta.join(path, filename)
+      for mini_no, msi in file_minishards.items():
+        labels = to_labels[(filename, mini_no)]
 
-      if self.cache.enabled:
-        cached = self.cache.has(self.meta.join(path, str(label)), progress=False)
-        if cached is not None:
-          results[label] = filepath
-          continue
+        for label in labels:
+          if msi is None:
+            results[label] = None
+            continue
 
-      try:
-        index = self.get_index(filename, path)
-      except EmptyFileException:
-        results[label] = None
-        continue
-
-      minishard_index = self.get_minishard_index(
-        filename, index, 
-        minishard_number, path
-      )
-
-      if minishard_index is None:
-        results[label] = None
-        continue
-
-      idx = np.where(minishard_index[:,0] == label)[0]
-      if len(idx) == 0:
-        results[label] = None
-      else:
-        if return_byte_range:
-          _, offset, size = minishard_index[idx,:][0]
-          results[label] = [ filepath, int(offset), int(size) ]
-        else:
-          results[label] = filepath
+          idx = np.where(msi[:,0] == label)[0]
+          if len(idx) == 0:
+            results[label] = None
+          else:
+            if return_byte_range:
+              _, offset, size = msi[idx,:][0]
+              results[label] = [ filepath, int(offset), int(size) ]
+            else:
+              results[label] = filepath
 
     if return_one:
-      return results[label]
+      return next(results.values())
     return results
 
   def disassemble_shard(self, shard):
