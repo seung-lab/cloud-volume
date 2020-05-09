@@ -179,6 +179,12 @@ class LRU(object):
   def keys(self):
     return self.hash.keys()
 
+  def values(self):
+    return ( node.val for val in self.queue )
+
+  def items(self):
+    return ( (key, node.val) for key, node in self.hash.items() )
+
   def clear(self):
     self.queue = DoublyLinkedList()
     self.hash = {}
