@@ -100,6 +100,11 @@ class DoublyLinkedList(object):
   def delete(self, node):
     nxt, prev = node.next, node.prev
 
+    if self.head == node:
+      self.head = nxt
+    if self.tail == node:
+      self.tail = prev
+
     if prev is not None:
       prev.next = nxt
 
@@ -133,11 +138,12 @@ class DoublyLinkedList(object):
       self.head = ListNode(val, None, None)
       self.tail = self.head
     elif self.head is None:
-      self.head = ListNode(val, self.tail, None)
+      self.head = ListNode(val, next=self.tail, prev=None)
       self.tail.prev = self.head
     else:
-      self.head = ListNode(val, self.head, None)
-      self.head.next.prev = self.head
+      prev_head = self.head
+      self.head = ListNode(val, next=prev_head, prev=None)
+      prev_head.prev = self.head
 
     self.size += 1
 
@@ -169,6 +175,9 @@ class LRU(object):
 
   def __len__(self):
     return self.queue.size
+
+  def keys(self):
+    return self.hash.keys()
 
   def clear(self):
     self.queue = DoublyLinkedList()
