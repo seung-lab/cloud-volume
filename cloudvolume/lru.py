@@ -205,9 +205,11 @@ class LRU(object):
       (key,val) = self.queue.delete_tail()
       del self.hash[key]
 
-  def get(self, key):
+  def get(self, key, default=None):
     if key not in self.hash:
-      raise KeyError("{} not in cache.".format(key))
+      if default is None:
+        raise KeyError("{} not in cache.".format(key))
+      return default
 
     node = self.hash[key]
     self.queue.promote_to_head(node)
