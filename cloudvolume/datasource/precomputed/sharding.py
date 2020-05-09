@@ -467,13 +467,13 @@ class ShardReader(object):
     except TypeError:
       return_one = True
 
-    to_labels = {}
+    to_labels = defaultdict(list)
     to_all_labels = defaultdict(list)
     filename_to_minishard_num = defaultdict(list)
 
     for label in set(toiter(labels)):
       filename, minishard_number = self.compute_shard_location(label)
-      to_labels[(filename, minishard_number)] = label
+      to_labels[(filename, minishard_number)].append(label)
       to_all_labels[filename].append(label)
       filename_to_minishard_num[filename].append(minishard_number)
 
@@ -488,21 +488,22 @@ class ShardReader(object):
     for filename, file_minishards in all_minishards.items():
       filepath = self.meta.join(path, filename)
       for mini_no, msi in file_minishards.items():
-        label = to_labels[(filename, mini_no)]
+        labels = to_labels[(filename, mini_no)]
 
-        if msi is None:
-          results[label] = None
-          continue
+        for label in labels:
+          if msi is None:
+            results[label] = None
+            continue
 
-        idx = np.where(msi[:,0] == label)[0]
-        if len(idx) == 0:
-          results[label] = None
-        else:
-          if return_byte_range:
-            _, offset, size = msi[idx,:][0]
-            results[label] = [ filepath, int(offset), int(size) ]
+          idx = np.where(msi[:,0] == label)[0]
+          if len(idx) == 0:
+            results[label] = None
           else:
-            results[label] = filepath
+            if return_byte_range:
+              _, offset, size = msi[idx,:][0]
+              results[label] = [ filepath, int(offset), int(size) ]
+            else:
+              results[label] = filepath
 
     if return_one:
       return next(results.values())
