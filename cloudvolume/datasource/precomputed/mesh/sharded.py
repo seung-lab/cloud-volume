@@ -26,17 +26,27 @@ class ShardedMultiLevelPrecomputedMeshSource:
     def path(self):
         return self.meta.mesh_path
     
-    def get(self, segids):
+    def get(self, segids, lods=None):
         """Fetch meshes at all levels of details.
 
-        Returns: A list of mesh fragments for each level of detail for each segment.
+        Parameters:
+        segids : int or [int ..]
+            Scalar or list of integer segment IDs.
+        lods : int, [int, ..] or None
+            Level of detail(s) to retrieve.  0 is highest level of detail.
+            None will fetch meshes at all levels.
+
+        Returns:
+        [Mesh, ..] or [[Mesh, ..], ..]
+            A list of meshes for each ssegment ID is returned.
+            An additional layer is added when multiple lods are requested.
 
         Reference:
             https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
         """
-        list_return = True
+        seg_list_return = True
         if type(segids) in (int, float):
-            list_return = False
+            seg_list_return = False
             segids = [ int(segids) ]
 
         results = []
@@ -45,6 +55,16 @@ class ShardedMultiLevelPrecomputedMeshSource:
             binary, shard_file_offset = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
             manifest = MultiLevelPrecomputedMeshManifest(binary)
 
+            single_lod_return = False
+            if isinstance(lods, int):
+                single_lod_return = True
+                lods = [lods]
+            elif lods == None:
+                lods = list(range(manifest.num_lods))
+
+            if any(lod >= manifest.num_lods for lod in lods):
+                raise ValueError(red("LOD value out of range (%d > %d)" % (max(lods), manifest.num_lods)))
+
             # Read the data for all LODs
             fragment_sizes = [ np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets ]
             total_fragment_size = np.sum(fragment_sizes)
@@ -52,16 +72,13 @@ class ShardedMultiLevelPrecomputedMeshSource:
             # Kludge to hijack sharding.py to read the data
             shard_file_name = self.reader.get_filename(segid)
             full_path = self.reader.meta.join(self.reader.meta.cloudpath, self.path)
-            with SimpleStorage(full_path) as stor:
-                binary = stor.get_file(shard_file_name,
-                                    start=shard_file_offset - total_fragment_size,
-                                    end=shard_file_offset)
+            stor =  SimpleStorage(full_path)
 
             meshes = []
-            for lod in range(manifest.num_lods):
-                lod_binary = binary[int(np.sum(fragment_sizes[0:lod])) :
-                                    int(np.sum(fragment_sizes[0:lod+1]))
-                                   ]
+            for lod in lods:
+                lod_binary = stor.get_file(shard_file_name,
+                        start=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
+                        end=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]))
                 lod_meshes = []
                 for frag in range(manifest.fragment_offsets[lod].shape[0]):
                     frag_binary = lod_binary[
@@ -96,7 +113,9 @@ class ShardedMultiLevelPrecomputedMeshSource:
 
             results.append(meshes)
 
-        if list_return:
+        if single_lod_return:
+            results = results[0]
+        if seg_list_return:
             return results
         else:
             return results[0]
@@ -126,11 +145,6 @@ class MultiLevelPrecomputedMeshManifest:
         self._fragment_offsets = []
         for lod in range(num_lods):
             # Read fragment positions
-            # Note from Jeremy:
-            # [[0, 0, 4],[5, 9, 9]] ->  [0, 4, 9] and [0, 5, 9]
-            # The fragment_positions should be interpreted as a [3, num_fragments] C-order array,
-            # so in this case the coordinates are:  [0, 4, 9] and [0, 5, 9].
-
             pos_size =  3 * 4 * self.num_fragments_per_lod[lod]
             self._fragment_positions.append(
                 np.frombuffer(self._binary[offset:offset + pos_size], dtype=np.uint32).reshape((3,self.num_fragments_per_lod[lod]))
