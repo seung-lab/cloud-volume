@@ -415,7 +415,7 @@ class ShardReader(object):
     minishard_nos = toiter(minishard_nos)
 
     if index is None:
-      return { msn: None for msn in minishard_nos }
+      return ({ msn: None for msn in minishard_nos }, [])
 
     fufilled_requests = {}
 
