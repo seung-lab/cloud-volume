@@ -1,6 +1,5 @@
 import numpy as np
 
-
 from ..sharding import ShardingSpecification, ShardReader
 from ....storage import SimpleStorage
 from ....mesh import Mesh
@@ -68,18 +67,28 @@ class ShardedMultiLevelPrecomputedMeshSource:
                     frag_binary = lod_binary[
                                             int(np.sum(manifest.fragment_offsets[lod][0:frag])) :
                                             int(np.sum(manifest.fragment_offsets[lod][0:frag+1]))
-                                            ] 
+                                            ]
+                    if len(frag_binary) == 0:
+                        # According to @JBMS, empty fragments are used in cases where a child fragment exists,
+                        # but its parent does not have a corresponding fragment, a possible byproduct of running
+                        # marching cubes and mesh simplification independently for each level of detail.
+                        continue
                     mesh = Mesh.from_draco(frag_binary)
 
                     # Conversion references:
                     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/draco/neuroglancer_draco.cc
-                    # Treat the draco results as integers in the range [0, 2**vertex_quantization_bits)
+                    # Treat the draco result as integers in the range [0, 2**vertex_quantization_bits)
                     mesh.vertices = mesh.vertices.view(dtype=np.int32)
-                    # Convert to range [0,1)
-                    mesh.vertices = mesh.vertices / (2.0 ** self.vertex_quantization_bits - 1)
-                    # Add coordinates for the fragment
-                    mesh.vertices = manifest.grid_origin + manifest.chunk_shape*(manifest.fragment_positions[lod][frag] + mesh.vertices) * (2**lod)
-                    #mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
+                    
+                    # Convert from "stored model" space to "model" space
+                    mesh.vertices = manifest.grid_origin + manifest.vertex_offsets[lod] + \
+                                    manifest.chunk_shape * (2 ** lod) * \
+                                    (manifest.fragment_positions[lod][:,frag] + \
+                                    (mesh.vertices / (2.0 ** self.vertex_quantization_bits - 1)))
+
+                    # Scale to native (nm) space
+                    mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
+                    
                     lod_meshes.append(mesh)
 
                 # TODO: Fuse meshes before return?
@@ -117,14 +126,19 @@ class MultiLevelPrecomputedMeshManifest:
         self._fragment_offsets = []
         for lod in range(num_lods):
             # Read fragment positions
-            pos_size = 4 * 3 * self.num_fragments_per_lod[lod]
+            # Note from Jeremy:
+            # [[0, 0, 4],[5, 9, 9]] ->  [0, 4, 9] and [0, 5, 9]
+            # The fragment_positions should be interpreted as a [3, num_fragments] C-order array,
+            # so in this case the coordinates are:  [0, 4, 9] and [0, 5, 9].
+
+            pos_size =  3 * 4 * self.num_fragments_per_lod[lod]
             self._fragment_positions.append(
-                np.frombuffer(self._binary[offset:offset + pos_size], dtype=np.uint32).reshape((self.num_fragments_per_lod[lod],3))
+                np.frombuffer(self._binary[offset:offset + pos_size], dtype=np.uint32).reshape((3,self.num_fragments_per_lod[lod]))
             )
             offset += pos_size
 
             # Read fragment sizes
-            off_size = 4*self.num_fragments_per_lod[lod]
+            off_size = 4 * self.num_fragments_per_lod[lod]
             self._fragment_offsets.append(
                 np.frombuffer(self._binary[offset:offset + off_size], dtype=np.uint32)
             )
