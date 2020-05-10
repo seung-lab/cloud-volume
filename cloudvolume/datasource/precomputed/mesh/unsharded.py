@@ -77,19 +77,29 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     fragments = sorted(fragments, key=lambda frag: frag[0]) # make decoding deterministic
     return fragments
 
-  def _check_missing_manifests(self, segids):
-    """Check if there are any missing mesh manifests prior to downloading."""
+  def exists(self, segids, progress=None):
+    """
+    Checks if the mesh exists.
+
+    Returns: { label: path or None, ... }
+    """
     manifest_paths = [ self.manifest_path(segid) for segid in segids ]
-    with Storage(self.meta.cloudpath, progress=self.config.progress) as stor:
+    StorageClass = GreenStorage if self.config.green else Storage
+
+    progress = progress if progress is not None else self.config.progress
+
+    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
       exists = stor.files_exist(manifest_paths)
 
-    dne = []
-    for path, there in exists.items():
-      if not there:
-        (segid,) = re.search(r'(\d+):0$', path).groups()
-        dne.append(segid)
-    return dne
+    segid_regexp = re.compile(r'(\d+):0$')
 
+    output = {}
+    for path, there in exists.items():
+      (segid,) = re.search(segid_regexp, path).groups()
+      output[segid] = path if there else None
+  
+    return output
+  
   def get(
       self, segids, 
       remove_duplicate_vertices=True, 
@@ -112,7 +122,8 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
     segids = toiter(segids)
-    dne = self._check_missing_manifests(segids)
+    dne = self.exists(segids)
+    dne = [ label for label, path in dne.items() if path is None ]
 
     if dne:
       missing = ', '.join([ str(segid) for segid in dne ])
