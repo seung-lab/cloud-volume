@@ -48,18 +48,10 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     """
     labels = toiter(labels)
 
-    layers = defaultdict(list)
-    for label in labels:
-      layer = self.meta.meta.decode_layer_id(label)
-      layers[layer].append(label)
-
-    checks = []
-    for layer, layer_labels in layers.items():
-      checks += [
-        self.meta.join('dynamic', str(label)) \
-        for label in layer_labels
-      ]
-
+    checks = [
+      self.meta.join('dynamic', str(label)) for label in labels
+    ]
+    
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path) 
     StorageClass = GreenStorage if self.config.green else Storage
 
