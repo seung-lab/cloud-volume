@@ -15,12 +15,34 @@ from ....lib import red, toiter, Bbox, Vec, jsonify
 from ....mesh import Mesh
 from .... import paths
 from ....storage import Storage, GreenStorage
+from ....scheduler import schedule_jobs
 
 from ...precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, PrecomputedMeshMetadata
 
 
 class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
+  def exists(self, labels, progress=None):
+    labels = toiter(labels)
+    query_d = {
+      'verify': True,
+    }
+
+    def query(segid):
+      lod = 0
+      url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, segid, lod)
+      res = requests.get(url, params=query_d, headers=self.meta.meta.auth_header)
+      return (segid, res.status_code in (200, 302))
+
+    progress = progress if progress is not None else self.config.progress
+    results = schedule_jobs(
+      fns=( query(segid) for segid in labels ),
+      progress=progress,
+      green=self.config.green,
+    )
+
+    return { segid: exists for segid, exists in results }
+    
   def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
     # TODO: add lod to endpoint
     query_d = {
