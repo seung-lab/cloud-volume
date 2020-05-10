@@ -1,9 +1,12 @@
+from collections import defaultdict
+
 import numpy as np
 
 from ..sharding import ShardingSpecification, ShardReader
 from ....storage import SimpleStorage
 from ....mesh import Mesh
-from ....lib import red
+from ....lib import yellow, red, toiter
+from .... import exceptions
 
 class ShardedMultiLevelPrecomputedMeshSource:
     def __init__(self, meta, cache, config, readonly=False):
@@ -20,7 +23,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
         self.transform = np.array(self.meta.info['transform'] + [0,0,0,1]).reshape(4,4)
     
         if np.any(self.transform * np.array([[0,1,1,1],[1,0,1,1],[1,1,0,1],[1,1,1,0]])):
-            raise ValueError(red("Non-scale homogeneous transforms are not implemented"))
+            raise exceptions.MeshDecodeError(red("Non-scale homogeneous transforms are not implemented"))
 
     @property
     def path(self):
@@ -30,40 +33,43 @@ class ShardedMultiLevelPrecomputedMeshSource:
         """Fetch meshes at all levels of details.
 
         Parameters:
-        segids : int or [int ..]
-            Scalar or list of integer segment IDs.
+        segids: (iterable or int) segids to render
+
         lods : int, [int, ..] or None
             Level of detail(s) to retrieve.  0 is highest level of detail.
             None will fetch meshes at all levels.
 
         Returns:
-        [Mesh, ..] or [[Mesh, ..], ..]
-            A list of meshes for each ssegment ID is returned.
-            An additional layer is added when multiple lods are requested.
+        { segid: {lod: { Mesh, ... } } }
 
         Reference:
             https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
         """
-        seg_list_return = True
-        if type(segids) in (int, float):
-            seg_list_return = False
-            segids = [ int(segids) ]
 
-        results = []
+        segids = toiter(segids)
+
+        # decode all the fragments
+        meshdata = defaultdict(list)
         for segid in segids:
             # Read the manifest (with a tweak to sharding.py to get the offset)
-            binary, shard_file_offset = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
-            manifest = MultiLevelPrecomputedMeshManifest(binary)
+            result = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
+            if result == None:
+                raise exceptions.MeshDecodeError(red(
+                    'Manifest not found for segment {}.'.format(segid)
+                ))
+            binary, shard_file_offset = result
+            manifest = MultiLevelPrecomputedMeshManifest(binary, segment_id=segid)
 
-            single_lod_return = False
-            if isinstance(lods, int):
-                single_lod_return = True
-                lods = [lods]
-            elif lods == None:
+            meshdata[segid] = defaultdict(list)
+
+            if lods == None:
                 lods = list(range(manifest.num_lods))
+            lods = toiter(lods)
 
             if any(lod >= manifest.num_lods for lod in lods):
-                raise ValueError(red("LOD value out of range (%d > %d)" % (max(lods), manifest.num_lods)))
+                raise exceptions.MeshDecodeError(red(
+                    'LOD value out of range ({} > {}) for segment {}.'.format(max(lods), manifest.num_lods, segid)
+                ))
 
             # Read the data for all LODs
             fragment_sizes = [ np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets ]
@@ -74,7 +80,6 @@ class ShardedMultiLevelPrecomputedMeshSource:
             full_path = self.reader.meta.join(self.reader.meta.cloudpath, self.path)
             stor =  SimpleStorage(full_path)
 
-            meshes = []
             for lod in lods:
                 lod_binary = stor.get_file(shard_file_name,
                         start=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
@@ -106,26 +111,17 @@ class ShardedMultiLevelPrecomputedMeshSource:
                     # Scale to native (nm) space
                     mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
                     
-                    lod_meshes.append(mesh)
+                    meshdata[segid][lod].append(mesh)
 
-                # TODO: Fuse meshes before return?
-                meshes.append(lod_meshes)
-
-            results.append(meshes)
-
-        if single_lod_return:
-            results = results[0]
-        if seg_list_return:
-            return results
-        else:
-            return results[0]
+        return meshdata
 
 class MultiLevelPrecomputedMeshManifest:
     # Parse the multi-resolution mesh manifest file format:
     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/multiscale.ts
 
-    def __init__(self, binary):
+    def __init__(self, binary, segment_id):
+        self._segment = segment_id
         self._binary = binary
 
         # num_loads is the 7th word
@@ -159,7 +155,10 @@ class MultiLevelPrecomputedMeshManifest:
             offset += off_size
 
         # Make sure we read the entire manifest
-        assert(offset == len(binary))
+        if offset != len(binary):
+            raise exceptions.MeshDecodeError(red(
+                'Error decoding mesh manifest for segment {}'.format(segment_id)
+            ))
 
     @property
     def chunk_shape(self):
