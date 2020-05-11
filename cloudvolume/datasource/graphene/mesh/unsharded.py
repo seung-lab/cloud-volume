@@ -23,6 +23,11 @@ from ...precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, Precompute
 class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
   def exists(self, labels, progress=None):
+    """
+    Checks for dynamic mesh existence.
+  
+    Returns: { label: boolean, ... }
+    """
     labels = toiter(labels)
     query_d = {
       'verify': True,
