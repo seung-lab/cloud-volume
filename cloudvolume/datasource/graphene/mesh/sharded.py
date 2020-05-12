@@ -30,9 +30,87 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       spec = ShardingSpecification.from_dict(sharding)
       self.readers[int(level)] = GrapheneShardReader(self.meta, self.cache, spec)
 
+  def initial_path(self, level):
+    return self.meta.join(self.meta.mesh_path, 'initial', str(level))
+
+  def dynamic_path(self, level):
+    return self.meta.join(self.meta.mesh_path, 'dynamic')
+
   # 1. determine if the segid is before or after the shard time point
   # 2. assuming it is sharded, fetch the draco encoded file from the
   #    correct level
+
+  def dynamic_exists(self, labels, progress=None):
+    """
+    Checks for dynamic mesh existence.
+  
+    Returns: { label: path or None, ... }
+    """
+    labels = toiter(labels)
+
+    checks = [
+      self.meta.join('dynamic', str(label)) for label in labels
+    ]
+    
+    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path) 
+    StorageClass = GreenStorage if self.config.green else Storage
+
+    with StorageClass(cloudpath, progress=progress) as stor:
+      results = stor.files_exist(checks)
+
+    output = {}
+    for filepath, exists in results.items():
+      label = int(os.path.basename(filepath))
+      output[label] = filepath if exists else None
+
+    return output
+
+  def initial_exists(self, labels, return_byte_range=False, progress=None):
+    """
+    Checks for initial mesh existence.
+  
+    Returns: 
+      If return_byte_range:
+        { label: [ path, byte offset, byte size ] or None, ... }
+      Else:
+        { label: path or None, ... }
+    """
+    labels = toiter(labels)
+
+    layers = defaultdict(list)
+    for label in labels:
+      layer = self.meta.meta.decode_layer_id(label)
+      layers[layer].append(label)
+
+    all_results = {}
+    for layer, layer_labels in layers.items():
+      path = self.initial_path(layer)
+      results = self.readers[int(layer)].exists(
+        layer_labels, 
+        path=path, 
+        return_byte_range=return_byte_range, 
+        progress=progress
+      )
+      all_results.update(results)
+
+    return all_results
+
+  def exists(self, labels, progress=None):
+    """
+    Checks dynamic then initial meshes for existence.
+
+    Returns: { label: path or None, ... }
+    """
+    labels = toiter(labels)
+    labels = set(labels)
+
+    dynamic_labels = self.dynamic_exists(labels, progress)
+    remainder_labels = set([ label for label, path in dynamic_labels.items() if path ])
+
+    initial_labels = self.initial_exists(remainder_labels, progress=progress, return_byte_range=False)
+
+    dynamic_labels.update(initial_labels)
+    return dynamic_labels
 
   def download_segid(self, seg_id, bounding_box):    
     """See GrapheneUnshardedMeshSource.get for the user facing function."""

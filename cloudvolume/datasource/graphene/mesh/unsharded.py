@@ -15,12 +15,36 @@ from ....lib import red, toiter, Bbox, Vec, jsonify
 from ....mesh import Mesh
 from .... import paths
 from ....storage import Storage, GreenStorage
+from ....scheduler import schedule_jobs
 
 from ...precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, PrecomputedMeshMetadata
 
 
 class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
+  def compute_filename(self, label):
+    layer_id = self.meta.meta.decode_layer_id(label)
+    chunk_block_shape = 2 * Vec(*self.meta.meta.mesh_chunk_size)
+    start = self.meta.meta.decode_chunk_position(label)
+    start *= chunk_block_shape
+    bbx = Bbox(start, start + chunk_block_shape)
+    return "{}:0:{}".format(label, bbx.to_filename())
+
+  def exists(self, labels, progress=None):
+    """
+    Checks for dynamic mesh existence.
+  
+    Returns: { label: boolean, ... }
+    """
+    labels = toiter(labels)
+    filenames = [
+      self.compute_filename(label) for label in labels
+    ]
+
+    cloudpath = self.meta.join(self.meta.cloudpath, self.meta.mesh_path)
+    with Storage(cloudpath) as stor:
+      return stor.files_exist(filenames)
+    
   def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
     # TODO: add lod to endpoint
     query_d = {
