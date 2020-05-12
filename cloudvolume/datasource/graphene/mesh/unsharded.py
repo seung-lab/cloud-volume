@@ -22,6 +22,14 @@ from ...precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, Precompute
 
 class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
+  def compute_filename(self, label):
+    layer_id = self.meta.meta.decode_layer_id(label)
+    chunk_block_shape = 2 * Vec(*self.meta.meta.mesh_chunk_size)
+    start = self.meta.meta.decode_chunk_position(label)
+    start *= chunk_block_shape
+    bbx = Bbox(start, start + chunk_block_shape)
+    return "{}:0:{}".format(label, bbx.to_filename())
+
   def exists(self, labels, progress=None):
     """
     Checks for dynamic mesh existence.
@@ -29,24 +37,13 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     Returns: { label: boolean, ... }
     """
     labels = toiter(labels)
-    query_d = {
-      'verify': True,
-    }
+    filenames = [
+      self.compute_filename(label) for label in labels
+    ]
 
-    def query(segid):
-      lod = 0
-      url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, segid, lod)
-      res = requests.get(url, params=query_d, headers=self.meta.meta.auth_header)
-      return (segid, res.status_code in (200, 302))
-
-    progress = progress if progress is not None else self.config.progress
-    results = schedule_jobs(
-      fns=( query(segid) for segid in labels ),
-      progress=progress,
-      green=self.config.green,
-    )
-
-    return { segid: exists for segid, exists in results }
+    cloudpath = self.meta.join(self.meta.cloudpath, self.meta.mesh_path)
+    with Storage(cloudpath) as stor:
+      return stor.files_exist(filenames)
     
   def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
     # TODO: add lod to endpoint
