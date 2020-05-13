@@ -29,7 +29,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
     def path(self):
         return self.meta.mesh_path
     
-    def get(self, segids, lods=None):
+    def get(self, segids, lods=None, fuse=False):
         """Fetch meshes at all levels of details.
 
         Parameters:
@@ -40,7 +40,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
             None will fetch meshes at all levels.
 
         Returns:
-        { segid: {lod: { Mesh, ... } } }
+        { lod: { segid: { Mesh, ... } } }
 
         Reference:
             https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
@@ -49,7 +49,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
         segids = toiter(segids)
 
         # decode all the fragments
-        meshdata = defaultdict(list)
+        meshdata = defaultdict(lambda: defaultdict(list))
         for segid in segids:
             # Read the manifest (with a tweak to sharding.py to get the offset)
             result = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
@@ -59,8 +59,6 @@ class ShardedMultiLevelPrecomputedMeshSource:
                 ))
             binary, shard_file_offset = result
             manifest = MultiLevelPrecomputedMeshManifest(binary, segment_id=segid)
-
-            meshdata[segid] = defaultdict(list)
 
             if lods == None:
                 lods = list(range(manifest.num_lods))
@@ -111,7 +109,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
                     # Scale to native (nm) space
                     mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
                     
-                    meshdata[segid][lod].append(mesh)
+                    meshdata[lod][segid].append(mesh)
 
         return meshdata
 
