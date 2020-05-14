@@ -44,8 +44,11 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     cloudpath = self.meta.join(self.meta.cloudpath, self.meta.mesh_path)
     with Storage(cloudpath) as stor:
       return stor.files_exist(filenames)
-    
-  def _get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None):
+
+  def get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None, bypass=False):
+    if bypass:
+      return [ self.compute_filename(seg_id) ]
+
     # TODO: add lod to endpoint
     query_d = {
       'verify': True,
@@ -56,7 +59,6 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       query_d['bounds'] = bbox.to_filename()
 
     url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, seg_id, lod)
-    
     if level is not None:
       res = requests.get(
         url,
@@ -71,10 +73,12 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     return json.loads(res.content.decode('utf8'))["fragments"]
 
-  def download_segid(self, seg_id, bounding_box):
+  def download_segid(self, seg_id, bounding_box, bypass):
+    import DracoPy
+
     level = self.meta.meta.decode_layer_id(seg_id)
-    fragment_filenames = self._get_fragment_filenames(
-      seg_id, level=level, bbox=bounding_box
+    fragment_filenames = self.get_fragment_filenames(
+      seg_id, level=level, bbox=bounding_box, bypass=bypass
     )
     fragments = self._get_mesh_fragments(fragment_filenames)
     fragments = sorted(fragments, key=lambda frag: frag[0])  # make decoding deterministic
@@ -105,7 +109,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
   def get(
       self, segids, 
       remove_duplicate_vertices=False, 
-      fuse=False, bounding_box=None
+      fuse=False, bounding_box=None,
+      bypass=False
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
@@ -119,11 +124,13 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
       fuse: bool, merge all downloaded meshes into a single mesh
       bounding_box: Bbox, bounding box to restrict mesh download to
+      bypass: bypass requesting the manifest and attempt to get the 
+        segids from storage directly by testing the dynamic and then the initial mesh. 
+        This is an exceptional usage of this tool and should be applied only with 
+        an understanding of what that entails.
     
     Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
-    import DracoPy
-
     segids = list(set([ int(segid) for segid in toiter(segids) ]))
 
     meta = self.meta.meta
@@ -131,7 +138,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     meshes = []
     for seg_id in tqdm(segids, disable=(not self.config.progress), desc="Downloading Meshes"):
       level = meta.decode_layer_id(seg_id)
-      mesh, is_draco = self.download_segid(seg_id, bounding_box)
+      mesh, is_draco = self.download_segid(seg_id, bounding_box, bypass)
       resolution = meta.resolution(self.config.mip)
       if meta.chunks_start_at_voxel_offset:
         offset = meta.voxel_offset(self.config.mip)
