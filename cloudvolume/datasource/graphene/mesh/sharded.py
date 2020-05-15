@@ -14,7 +14,7 @@ from tqdm import tqdm
 from ....lib import red, toiter, Bbox, Vec
 from ....mesh import Mesh
 from .... import paths
-from ....storage import Storage, GreenStorage
+from ....storage import SimpleStorage, Storage, GreenStorage
 
 from ..sharding import GrapheneShardReader
 from ...precomputed.sharding import ShardingSpecification
@@ -33,7 +33,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   def initial_path(self, level):
     return self.meta.join(self.meta.mesh_path, 'initial', str(level))
 
-  def dynamic_path(self, level):
+  def dynamic_path(self):
     return self.meta.join(self.meta.mesh_path, 'dynamic')
 
   # 1. determine if the segid is before or after the shard time point
@@ -48,7 +48,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     """
     labels = toiter(labels)
 
-    checks = [ str(label) + ':0' for label in labels ]
+    checks = [ self.compute_filename(label) for label in labels ]
     
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'dynamic') 
     StorageClass = GreenStorage if self.config.green else Storage
@@ -114,33 +114,119 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     dynamic_labels.update(initial_labels)
     return dynamic_labels
 
-  def download_segid(self, seg_id, bounding_box):    
-    """See GrapheneUnshardedMeshSource.get for the user facing function."""
-    import DracoPy
-    
-    level = self.meta.meta.decode_layer_id(seg_id)
-    if level not in self.readers:
-      raise KeyError("There is no shard configuration in the mesh info file for level {}.".format(level))
+  def parse_manifest_filenames(self, filenames):
+    lists = defaultdict(list)
+    initial_regexp = re.compile(r'~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
 
-    subdirectory = self.meta.join(self.meta.mesh_path, 'initial', str(level))
-    raw_binary = self.readers[level].get_data(seg_id, path=subdirectory)
+    for filename in filenames:
+      if not filename:
+        continue
+
+      # eg. ~2/344239114-0.shard:224659:442 
+      # tilde means initial, missing tilde means dynamic
+      initial = filename[0] == '~'
+
+      if initial:
+        (layer_id, parsed_filename, byte_start, size) = re.search(
+          initial_regexp, filename
+        ).groups()
+        lists['initial'].append((layer_id, parsed_filename, int(byte_start), int(size)))
+      else:
+        lists['dynamic'].append(filename)
+        
+    return lists
+
+  def get_meshes_via_manifest_byte_offsets(self, seg_id, bounding_box):
+    """    
+    The manifest for sharded is a bit strange in that exists(..., return_byte_offset=True)
+    is being called on the server side. To avoid duplicative delay by recomputing the offset
+    locations, the manifest breaks encapsulation by returning the shard filename and byte
+    offsets. This breaks enapsulation of the shard fetching logic rather severely but 
+    it is probably worth it.
+    """
+    level = self.meta.meta.decode_layer_id(seg_id)
+    dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
+    StorageClass = GreenStorage if self.config.green else Storage
+
+    filenames = self.get_fragment_filenames(seg_id, level=level, bbox=bounding_box)
+    lists = self.parse_manifest_filenames(filenames)
+
+    files = []
+    if lists['dynamic']:
+      with StorageClass(dynamic_cloudpath) as stor:
+        files = stor.get_files(lists['dynamic'])
+
+    meshes = [ 
+      f['content'] for f in files 
+    ]
+
+    filenames = []
+    starts = []
+    ends = []
+    for layer_id, filename, byte_start, size in lists['initial']:
+      filenames.append(self.meta.join(layer_id, filename))
+      starts.append(byte_start)
+      ends.append(byte_start + size)
+
+    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
+
+    raw_binaries = []
+    
+    with StorageClass(cloudpath) as stor:
+      initial_meshes = stor.get_files(filenames, starts, ends)
+
+    meshes += initial_meshes
+
+    return [ Mesh.from_draco(mesh['content']) for mesh in meshes ]
+
+  def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
+    level = self.meta.meta.decode_layer_id(seg_id)
+    labels = self.get_fragment_labels(seg_id, level=level, bbox=bounding_box)
+    return [ 
+      self.get_mesh_on_bypass(label) 
+      for label in tqdm(labels, disable=(not self.config.progress), desc="Mesh Fragments") 
+    ]
+
+  def get_meshes_via_manifest(self, seg_id, bounding_box, use_byte_offsets):
+    if use_byte_offsets:
+      return self.get_meshes_via_manifest_byte_offsets(seg_id, bounding_box)
+    return self.get_meshes_via_manifest_labels(seg_id, bounding_box)
+
+  def get_mesh_on_bypass(self, seg_id):
+    """
+    Attempt to fetch a mesh directly from storage without going through
+    the chunk graph server. This capability should only be used in special
+    circumstances.
+    """
+    level = self.meta.meta.decode_layer_id(seg_id)
+    dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
+    raw_binary = SimpleStorage(dynamic_cloudpath).get_file(
+      self.compute_filename(seg_id)
+    )
+
+    if raw_binary is None:
+      subdirectory = self.meta.join(self.meta.mesh_path, 'initial', str(level))
+      raw_binary = self.readers[level].get_data(seg_id, path=subdirectory)
 
     if raw_binary is None:
       raise IndexError('No mesh found for segment {}'.format(seg_id))
 
-    is_draco = False
-    mesh = None
+    return Mesh.from_draco(raw_binary)
 
-    try:
-      # Easier to ask forgiveness than permission
-      mesh = Mesh.from_draco(raw_binary)
-      is_draco = True
-    except DracoPy.FileTypeException:
-      mesh = Mesh.from_precomputed(raw_binary)
-    
+  def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=True):    
+    """See GrapheneUnshardedMeshSource.get for the user facing function."""
+    level = self.meta.meta.decode_layer_id(seg_id)
+    if level not in self.readers:
+      raise KeyError("There is no shard configuration in the mesh info file for level {}.".format(level))
+
+    if bypass:
+      mesh = self.get_mesh_on_bypass(seg_id)
+    else:
+      meshes = self.get_meshes_via_manifest(seg_id, bounding_box, use_byte_offsets=use_byte_offsets)
+      mesh = Mesh.concatenate(*meshes)
+
     if mesh is None:
       raise IndexError('No mesh found for segment {}'.format(seg_id))
 
     mesh.segid = seg_id
-    return mesh, is_draco
-
+    return mesh, True
