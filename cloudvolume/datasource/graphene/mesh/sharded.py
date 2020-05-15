@@ -48,17 +48,18 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     """
     labels = toiter(labels)
 
-    checks = [ str(label) for label in labels ]
+    checks = [ self.compute_filename(label) for label in labels ]
     
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'dynamic') 
     StorageClass = GreenStorage if self.config.green else Storage
+    progress = progress if progress is not None else self.config.progress
 
     with StorageClass(cloudpath, progress=progress) as stor:
       results = stor.files_exist(checks)
 
     output = {}
     for filepath, exists in results.items():
-      label = int(os.path.basename(filepath))
+      label = int(os.path.basename(filepath)[:-2]) # strip :0
       output[label] = filepath if exists else None
 
     return output
@@ -74,9 +75,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
         { label: path or None, ... }
     """
     labels = toiter(labels)
+    progress = progress if progress is not None else self.config.progress
 
     layers = defaultdict(list)
     for label in labels:
+      if label == 0:
+        continue
       layer = self.meta.meta.decode_layer_id(label)
       layers[layer].append(label)
 
