@@ -45,20 +45,33 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     with Storage(cloudpath) as stor:
       return stor.files_exist(filenames)
 
-  def get_fragment_filenames(self, seg_id, lod=0, level=2, bbox=None, bypass=False):
+  def get_fragment_labels(self, segid, lod=0, level=2, bbox=None, bypass=False):
     if bypass:
-      return [ self.compute_filename(seg_id) ]
+      return [ segid ]
 
+    manifest = self.fetch_manifest(segid, lod, level, bbox, return_segids=True)
+    return manifest["seg_ids"]
+
+  def get_fragment_filenames(self, segid, lod=0, level=2, bbox=None, bypass=False):
+    if bypass:
+      return [ self.compute_filename(segid) ]
+
+    manifest = self.fetch_manifest(segid, lod, level, bbox)
+    return manifest["fragments"]
+
+  def fetch_manifest(self, segid, lod=0, level=2, bbox=None, return_segids=False):
     # TODO: add lod to endpoint
     query_d = {
       'verify': True,
     }
+    if return_segids:
+      query_d['return_seg_ids'] = 1
 
     if bbox is not None:
       bbox = Bbox.create(bbox)
       query_d['bounds'] = bbox.to_filename()
 
-    url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, seg_id, lod)
+    url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, segid, lod)
     if level is not None:
       res = requests.get(
         url,
@@ -71,9 +84,22 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     res.raise_for_status()
 
-    return json.loads(res.content.decode('utf8'))["fragments"]
+    return json.loads(res.content.decode('utf8'))
 
-  def download_segid(self, seg_id, bounding_box, bypass):
+  def download_segid(self, seg_id, bounding_box, bypass, use_byte_offsets=True):
+    """
+    Download a mesh for a single segment ID.
+
+    seg_id: Download the mesh for this segid.
+    bounding_box: Limit the query for child meshes to this bounding box.
+    bypass: Don't fetch the manifest, precompute the filename instead. Use this
+      only when you know the actual mesh labels in advance.
+    use_byte_offsets: Applicable only for the sharded format. Reuse the byte_offsets
+      into the sharded format that the server precalculated to accelerate download.
+      A time when you might want to switch this off is when you're working on a new
+      meshing job with different sharding parameters but are keeping the existing 
+      meshes for visualization while it runs.
+    """
     import DracoPy
 
     level = self.meta.meta.decode_layer_id(seg_id)
@@ -110,7 +136,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       self, segids, 
       remove_duplicate_vertices=False, 
       fuse=False, bounding_box=None,
-      bypass=False
+      bypass=False, use_byte_offsets=True
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
@@ -128,6 +154,9 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
         segids from storage directly by testing the dynamic and then the initial mesh. 
         This is an exceptional usage of this tool and should be applied only with 
         an understanding of what that entails.
+      use_byte_offsets: For sharded volumes, we can use the output of 
+        exists(..., return_byte_offsets) that the server already did in order
+        to skip having to query the sharded format again.
     
     Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
@@ -138,7 +167,9 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     meshes = []
     for seg_id in tqdm(segids, disable=(not self.config.progress), desc="Downloading Meshes"):
       level = meta.decode_layer_id(seg_id)
-      mesh, is_draco = self.download_segid(seg_id, bounding_box, bypass)
+      mesh, is_draco = self.download_segid(
+        seg_id, bounding_box, bypass, use_byte_offsets
+      )
       resolution = meta.resolution(self.config.mip)
       if meta.chunks_start_at_voxel_offset:
         offset = meta.voxel_offset(self.config.mip)
