@@ -210,6 +210,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       return img
 
     labels = fastremap.unique(img)
+    if labels.size and labels[0] == 0:
+      labels = labels[1:]
+
     roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
     mapping = { segid: root for segid, root in zip(labels, roots) }
     return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=True)
