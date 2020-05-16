@@ -25,10 +25,34 @@ class ShardedMultiLevelPrecomputedMeshSource:
         if np.any(self.transform * np.array([[0,1,1,1],[1,0,1,1],[1,1,0,1],[1,1,1,0]])):
             raise exceptions.MeshDecodeError(red("Non-scale homogeneous transforms are not implemented"))
 
+
     @property
     def path(self):
         return self.meta.mesh_path
+
+
+    def exists(self, segids, progress=None):
+        """
+        Checks if the mesh exists
+
+        Returns: { MultiLevelPrecomputedMeshManifest or None }
+        """
+        return [ self.get_manifest(segid) for segid in segids ]
+
+
+    def get_manifest(self, segid):
+        """Retrieve the manifest for a single segment.
+
+        Returns:
+            { MultiLevelPrecomputedMeshManifest or None }
+        """
+        result = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
+        if result == None:
+            return None
+        binary, shard_file_offset = result
+        return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=shard_file_offset)
     
+
     def get(self, segids, lods=None, fuse=False):
         """Fetch meshes at all levels of details.
 
@@ -53,13 +77,12 @@ class ShardedMultiLevelPrecomputedMeshSource:
         for segid in segids:
             # Read the manifest (with a tweak to sharding.py to get the offset)
             result = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
-            if result == None:
+            manifest = self.get_manifest(segid)
+            if manifest == None:
                 raise exceptions.MeshDecodeError(red(
                     'Manifest not found for segment {}.'.format(segid)
                 ))
-            binary, shard_file_offset = result
-            manifest = MultiLevelPrecomputedMeshManifest(binary, segment_id=segid)
-
+            shard_file_offset = manifest.offset
             if lods == None:
                 lods = list(range(manifest.num_lods))
             lods = toiter(lods)
@@ -118,9 +141,10 @@ class MultiLevelPrecomputedMeshManifest:
     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/multiscale.ts
 
-    def __init__(self, binary, segment_id):
+    def __init__(self, binary, segment_id, offset):
         self._segment = segment_id
         self._binary = binary
+        self._offset = offset
 
         # num_loads is the 7th word
         num_lods = int.from_bytes(self._binary[6*4:7*4], byteorder='little', signed=False)
@@ -194,3 +218,7 @@ class MultiLevelPrecomputedMeshManifest:
     def length(self):
         return len(self._binary)
 
+    @property
+    def offset(self):
+        """Manifest offset within the shard file. Used as a base when calculating fragment offsets."""
+        return self._offset
