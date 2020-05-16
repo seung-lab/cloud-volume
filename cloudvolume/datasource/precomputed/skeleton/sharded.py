@@ -23,7 +23,7 @@ class ShardedPrecomputedSkeletonSource(object):
 
   @property
   def path(self):
-    return self.meta.path 
+    return self.meta.skeleton_path
 
   def get(self, segids):
     list_return = True

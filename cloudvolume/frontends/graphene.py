@@ -161,6 +161,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
 
+    if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
+      raise ValueError("Stop layer {} must be 1 <= stop_layer <= {} or None.".format(stop_layer, self.meta.n_layers))
+
     if mip is None:
       mip = self.mip
 
@@ -203,9 +206,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   
   def agglomerate_cutout(self, img, timestamp=None, stop_layer=None):
     """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
-    if np.all(img == self.image.background_color):
+    if np.all(img == self.image.background_color) or stop_layer == 1:
       return img
+
     labels = fastremap.unique(img)
+    if labels.size and labels[0] == 0:
+      labels = labels[1:]
+
     roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
     mapping = { segid: root for segid, root in zip(labels, roots) }
     return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=True)
