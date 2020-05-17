@@ -53,18 +53,22 @@ class ShardedMultiLevelPrecomputedMeshSource:
         return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=shard_file_offset)
     
 
-    def get(self, segids, lods=None, fuse=False):
+    def get(self, segids, lods=None, concat=True):
         """Fetch meshes at all levels of details.
 
         Parameters:
         segids: (iterable or int) segids to render
 
-        lods : int, [int, ..] or None
+        lods: int, [int, ..] or None
             Level of detail(s) to retrieve.  0 is highest level of detail.
             None will fetch meshes at all levels.
 
+        Optional:
+          concat: bool, concatenate fragments (per segment per lod)
+
         Returns:
-        { lod: { segid: { Mesh, ... } } }
+        { lod: { segid: { Mesh } } }
+        ... or if concatenate=False: { lod: { segid: { Mesh, ... } } }
 
         Reference:
             https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
@@ -133,6 +137,11 @@ class ShardedMultiLevelPrecomputedMeshSource:
                     mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
                     
                     meshdata[lod][segid].append(mesh)
+
+        if concat:
+            for lod in meshdata:
+                for segid in meshdata[lod]:
+                    meshdata[lod][segid] = Mesh.concatenate(*meshdata[lod][segid])
 
         return meshdata
 
