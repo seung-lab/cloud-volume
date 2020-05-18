@@ -532,8 +532,22 @@ class ShardReader(object):
 
     return shattered
 
-  def get_data(self, label, path=""):
-    """Fetches data from shards."""
+  def get_data(self, label, path="", progress=None):
+    """Fetches data from shards.
+
+    label: one or more segment ids
+    path: subdirectory path
+    progress: display progress bars
+
+    Return: 
+      if label is a scalar:
+        a byte string
+      else: (label is an iterable)
+        {
+          label_1: byte string,
+          ....
+        }
+    """
     label, return_multiple = toiter(label, is_iter=True)
     label = set(( int(l) for l in label))
 
@@ -541,7 +555,7 @@ class ShardReader(object):
     if self.cache.enabled:
       results = self.cache.get([ 
         self.meta.join(path, str(lbl)) for lbl in label
-      ], progress=False)
+      ], progress=progress)
 
     for cloudpath, content in results.items():
       if content is None:
@@ -549,7 +563,7 @@ class ShardReader(object):
 
 
     # { label: [ filename, byte start, num_bytes ] }
-    exists = self.exists(label, path, return_byte_range=True)
+    exists = self.exists(label, path, return_byte_range=True, progress=progress)
     key_label = { (basename(v[0]), v[1], v[2]): k for k,v in exists.items() }
 
     filenames = ( basename(ext[0]) for ext in exists.values() )
@@ -564,7 +578,7 @@ class ShardReader(object):
     elif len(exists) == 1:
       StorageClass = SimpleStorage
 
-    with StorageClass(full_path) as stor:
+    with StorageClass(full_path, progress=progress) as stor:
       remote_files = stor.get_files(filenames, starts=starts, ends=ends)
 
     binaries = {}
@@ -578,7 +592,7 @@ class ShardReader(object):
     del remote_files
 
     if self.spec.data_encoding != 'raw':
-      for filepath, binary in binaries.items():
+      for filepath, binary in tqdm(binaries.items(), desc="Decompressing", disable=(not progress)):
         if binary is None:
           continue
         binaries[filepath] = compression.decompress(
@@ -588,7 +602,7 @@ class ShardReader(object):
     if self.cache.enabled:
       self.cache.put([ 
         (filepath, binary) for filepath, binary in binaries.items()
-      ], progress=False)
+      ], progress=progress)
 
     results.update(binaries)
 
