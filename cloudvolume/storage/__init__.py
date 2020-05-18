@@ -24,7 +24,7 @@ from .storage_interfaces import reset_connection_pools
 # For backwards compatibility
 # Storage = ThreadedStorage 
 
-class Storage():
+class Storage(object):
   def __new__(kls, *args, **kwargs):
     green = False
     if 'green' in kwargs:
