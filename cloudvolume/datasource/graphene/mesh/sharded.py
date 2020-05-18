@@ -203,14 +203,16 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     with StorageClass(dynamic_cloudpath, progress=self.config.progress) as stor:
       raw_binaries = stor.get_files(filenames)
 
-    label_regexp = re.compile(r'(\d+):0:[\d_-]+$')
+    # extract the label ID from the mesh manifest.
+    # e.g. 387463568301300850:0:24576-25088_17920-18432_2048-3072
+    label_regexp = re.compile(r'(\d+):\d:[\d_-]+$')
 
     output = {}
     remaining = []
     for res in raw_binaries:
       if res['error']:
         raise res['error']
-      
+
       (label,) = re.search(label_regexp, res['filename']).groups()
       label = int(label)
 
