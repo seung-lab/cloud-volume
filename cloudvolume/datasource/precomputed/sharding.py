@@ -258,33 +258,28 @@ class ShardReader(object):
     Returns: 2^minishard_bits entries of a uint64 
       array of [[ byte start, byte end ], ... ] 
     """
-    index_path = self.meta.join(path, filename)
-    alias_path = self.meta.join(path, filename.replace('.shard', '.index'))
-
-    if filename in self.shard_index_cache:
-      return self.shard_index_cache[filename]
-
-    index_length = self.spec.index_length()
-
-    binary = self.cache.download_single_as(
-      index_path, alias_path,
-      start=0, end=index_length,
-      compress=False
-    )
-
-    index = self.decode_index(binary)
-    self.shard_index_cache[filename] = index
-    return index
+    indices = self.get_indices([ filename ], path, progress=False)
+    return list(indices.values())[0]
 
   def get_indices(self, filenames, path="", progress=None):
+    """
+    For all given files, retrieves the shard index which 
+    is used for locating the appropriate minishard indices.
+
+    Returns: { 
+      path_to_/filename.shard: 2^minishard_bits entries of a uint64 
+            array of [[ byte start, byte end ], ... ],
+      ...
+    } 
+    """
     filenames = toiter(filenames)
     filenames = [ self.meta.join(path, fname) for fname in filenames ]
-
     fufilled = { 
       fname: self.shard_index_cache[fname] \
       for fname in filenames \
       if fname in self.shard_index_cache  
     }
+
     requests = []
     for fname in filenames:
       if fname in fufilled:
