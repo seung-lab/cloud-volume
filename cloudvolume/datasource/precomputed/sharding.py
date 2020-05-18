@@ -510,7 +510,7 @@ class ShardReader(object):
               results[label] = filepath
 
     if return_one:
-      return next(results.values())
+      return next(list(results.values()))
     return results
 
   def disassemble_shard(self, shard):
@@ -555,22 +555,25 @@ class ShardReader(object):
 
     # { label: [ filename, byte start, num_bytes ] }
     exists = self.exists(label, path, return_byte_range=True)
-    key_label = { tuple(v): k for k,v in exists.items() }
-    print(exists)
-    filenames = ( ext[0] for ext in exists.values() )
+    key_label = { (basename(v[0]), v[1], v[2]): k for k,v in exists.items() }
+
+    filenames = ( basename(ext[0]) for ext in exists.values() )
     starts = ( int(ext[1]) for ext in exists.values() )
     ends = ( int(ext[1]) + int(ext[2]) for ext in exists.values() )
 
     full_path = self.meta.join(self.meta.cloudpath, path)
-    with Storage(full_path, green=self.green) as stor:
+
+    StorageClass = Storage
+    if self.green:
+      StorageClass = GreenStorage
+    elif len(exists) == 1:
+      StorageClass = SimpleStorage
+
+    with StorageClass(full_path) as stor:
       remote_files = stor.get_files(filenames, starts=starts, ends=ends)
 
-    # import pdb; pdb.set_trace()
-
-    print(key_label)
     binaries = {}
     for res in remote_files:
-      print(res)
       if res['error']:
         raise res['error']
       start, end = res['byte_range']
@@ -578,8 +581,6 @@ class ShardReader(object):
       lbl = key_label[key]
       binaries[lbl] = res['content']
     del remote_files
-
-    print(binaries)
 
     if self.spec.data_encoding != 'raw':
       for filepath, binary in binaries.items():
