@@ -54,22 +54,21 @@ def download_sharded(
 
   renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
-  gpts = tqdm(
-    list(gridpoints(full_bbox, bounds, chunk_size)),
-    disable=(not progress), 
-    desc='Downloading'
-  )
+  gpts = list(gridpoints(full_bbox, bounds, chunk_size))
 
+  code_map = {}
   for gridpoint in gpts:
     zcurve_code = compressed_morton_code(gridpoint, grid_size)
     cutout_bbox = Bbox(
       bounds.minpt + gridpoint * chunk_size,
       min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
     )
+    code_map[zcurve_code] = cutout_bbox
 
-    try:
-      chunkdata = reader.get_data(zcurve_code, meta.key(mip))
-    except EmptyFileException:
+  all_chunkdata = reader.get_data(list(code_map.keys()), meta.key(mip), progress=progress)
+  for zcode, chunkdata in all_chunkdata.items():
+    cutout_bbox = code_map[zcode]
+    if chunkdata is None:
       if fill_missing:
         chunkdata = None
       else:

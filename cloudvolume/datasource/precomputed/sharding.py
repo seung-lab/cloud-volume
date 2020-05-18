@@ -259,7 +259,10 @@ class ShardReader(object):
       array of [[ byte start, byte end ], ... ] 
     """
     indices = self.get_indices([ filename ], path, progress=False)
-    return list(indices.values())[0]
+    index = list(indices.values())[0]
+    if index is None:
+      raise EmptyFileException(filename + " was zero bytes.")
+    return index
 
   def get_indices(self, filenames, path="", progress=None):
     """

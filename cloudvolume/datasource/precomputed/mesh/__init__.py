@@ -16,7 +16,7 @@ class PrecomputedMeshSource(object):
     mesh_meta = PrecomputedMeshMetadata(meta, cache)
 
     if mesh_meta.is_sharded():
-      raise UnsupportedFormatError(red("This mesh volume is sharded. Mesh shard support is coming but is not available yet."))
+      print(red("This mesh volume is sharded. Mesh shard support is coming but is not available yet."))
       # return ShardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly) 
 
     return UnshardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly)
