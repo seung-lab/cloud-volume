@@ -182,36 +182,57 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
     level = self.meta.meta.decode_layer_id(seg_id)
     labels = self.get_fragment_labels(seg_id, level=level, bbox=bounding_box)
-    return [ 
-      self.get_mesh_on_bypass(label) 
-      for label in tqdm(labels, disable=(not self.config.progress), desc="Mesh Fragments") 
-    ]
+    meshes = self.get_meshes_on_bypass(labels)
+    return list(meshes.values())
 
   def get_meshes_via_manifest(self, seg_id, bounding_box, use_byte_offsets):
     if use_byte_offsets:
       return self.get_meshes_via_manifest_byte_offsets(seg_id, bounding_box)
     return self.get_meshes_via_manifest_labels(seg_id, bounding_box)
 
-  def get_mesh_on_bypass(self, seg_id):
+  def get_meshes_on_bypass(self, segids):
     """
     Attempt to fetch a mesh directly from storage without going through
     the chunk graph server. This capability should only be used in special
     circumstances.
     """
-    level = self.meta.meta.decode_layer_id(seg_id)
+    segids = toiter(segids)
+    StorageClass = GreenStorage if self.config.green else Storage
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
-    raw_binary = SimpleStorage(dynamic_cloudpath).get_file(
-      self.compute_filename(seg_id)
-    )
+    filenames = [ self.compute_filename(segid) for segid in segids ]
+    with StorageClass(dynamic_cloudpath, progress=self.config.progress) as stor:
+      raw_binaries = stor.get_files(filenames)
 
-    if raw_binary is None:
-      subdirectory = self.meta.join(self.meta.mesh_path, 'initial', str(level))
-      raw_binary = self.readers[level].get_data(seg_id, path=subdirectory)
+    label_regexp = re.compile(r'(\d+):0:[\d_-]+$')
 
-    if raw_binary is None:
-      raise IndexError('No mesh found for segment {}'.format(seg_id))
+    output = {}
+    remaining = []
+    for res in raw_binaries:
+      if res['error']:
+        raise res['error']
+      
+      (label,) = re.search(label_regexp, res['filename']).groups()
+      label = int(label)
 
-    return Mesh.from_draco(raw_binary)
+      if res['content'] is None:
+        remaining.append(label)
+      else:
+        output[label] = res['content']
+
+    layers = defaultdict(list)
+    for segid in remaining:
+      layer_id = self.meta.meta.decode_layer_id(segid)
+      layers[layer_id].append(segid)
+
+    for layer_id, labels in layers.items():
+      subdirectory = self.meta.join(self.meta.mesh_path, 'initial', str(layer_id))
+      initial_output = self.readers[layer_id].get_data(labels, path=subdirectory, progress=self.config.progress)
+      for label, raw_binary in initial_output.items():
+        if raw_binary is None:
+          raise IndexError('No mesh found for segment {}'.format(label))
+      output.update(initial_output)
+
+    return { label: Mesh.from_draco(raw_binary) for label, raw_binary in output.items() }
 
   def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=True):    
     """See GrapheneUnshardedMeshSource.get for the user facing function."""
@@ -220,7 +241,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       raise KeyError("There is no shard configuration in the mesh info file for level {}.".format(level))
 
     if bypass:
-      mesh = self.get_mesh_on_bypass(seg_id)
+      mesh = self.get_meshes_on_bypass(seg_id)[seg_id]
     else:
       meshes = self.get_meshes_via_manifest(seg_id, bounding_box, use_byte_offsets=use_byte_offsets)
       mesh = Mesh.concatenate(*meshes)
