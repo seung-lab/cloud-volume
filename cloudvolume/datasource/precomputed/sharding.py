@@ -14,7 +14,7 @@ from ... import compression
 from ...lib import jsonify, toiter
 from ...lru import LRU
 from ...exceptions import SpecViolation, EmptyFileException
-from ...storage import SimpleStorage, Storage
+from ...storage import SimpleStorage, GreenStorage, Storage
 
 ShardLocation = namedtuple('ShardLocation', 
   ('shard_number', 'minishard_number', 'remainder')
@@ -218,6 +218,7 @@ class ShardReader(object):
     self, meta, cache, spec,
     shard_index_cache_size=512,
     minishard_index_cache_size=128,
+    green=False
   ):
     """
     Reads standard Precomputed shard files. 
@@ -232,6 +233,7 @@ class ShardReader(object):
     self.meta = meta
     self.cache = cache
     self.spec = spec
+    self.green = green
 
     self.shard_index_cache = LRU(shard_index_cache_size)
     self.minishard_index_cache = LRU(minishard_index_cache_size)
@@ -536,43 +538,67 @@ class ShardReader(object):
     return shattered
 
   def get_data(self, label, path=""):
-    filename, minishard_number = self.compute_shard_location(label)
-    
+    """Fetches data from shards."""
+    label, return_multiple = toiter(label, is_iter=True)
+    label = set(( int(l) for l in label))
+
+    results = {}
     if self.cache.enabled:
-      cached = self.cache.get_single(self.meta.join(path, str(label)), progress=False)
-      if cached is not None:
-        return cached
+      results = self.cache.get([ 
+        self.meta.join(path, str(lbl)) for lbl in label
+      ], progress=False)
 
-    index = self.get_index(filename, path)
+    for cloudpath, content in results.items():
+      if content is None:
+        label.remove(int(basename(cloudpath)))
 
-    minishard_index = self.get_minishard_index(
-      filename, index, 
-      minishard_number, path
-    )
 
-    if minishard_index is None:
-      return None
+    # { label: [ filename, byte start, num_bytes ] }
+    exists = self.exists(label, path, return_byte_range=True)
+    key_label = { tuple(v): k for k,v in exists.items() }
+    print(exists)
+    filenames = ( ext[0] for ext in exists.values() )
+    starts = ( int(ext[1]) for ext in exists.values() )
+    ends = ( int(ext[1]) + int(ext[2]) for ext in exists.values() )
 
-    idx = np.where(minishard_index[:,0] == label)[0]
-    if len(idx) == 0:
-      return None
-    else:
-      idx = idx[0]
-
-    _, offset, size = minishard_index[idx,:]
-    offset, size = int(offset), int(size)
     full_path = self.meta.join(self.meta.cloudpath, path)
+    with Storage(full_path, green=self.green) as stor:
+      remote_files = stor.get_files(filenames, starts=starts, ends=ends)
 
-    with SimpleStorage(full_path) as stor:
-      binary = stor.get_file(filename, start=offset, end=int(offset + size))
+    # import pdb; pdb.set_trace()
+
+    print(key_label)
+    binaries = {}
+    for res in remote_files:
+      print(res)
+      if res['error']:
+        raise res['error']
+      start, end = res['byte_range']
+      key = (res['filename'], start, end - start)
+      lbl = key_label[key]
+      binaries[lbl] = res['content']
+    del remote_files
+
+    print(binaries)
 
     if self.spec.data_encoding != 'raw':
-      binary = compression.decompress(binary, encoding=self.spec.data_encoding, filename=filename)
+      for filepath, binary in binaries.items():
+        if binary is None:
+          continue
+        binaries[filepath] = compression.decompress(
+          binary, encoding=self.spec.data_encoding, filename=filepath
+        )
       
     if self.cache.enabled:
-      self.cache.put_single(self.meta.join(path, str(label)), binary, progress=False)
+      self.cache.put([ 
+        (filepath, binary) for filepath, binary in binaries.items()
+      ], progress=False)
 
-    return binary
+    results.update(binaries)
+
+    if return_multiple:
+      return results
+    return next(iter(results.values()))
 
   def list_labels(self, filename, path="", size=False):
     """
