@@ -504,9 +504,7 @@ class CacheService(object):
     
     StorageClass = self.pick_storage_class(cloudpaths)
     with StorageClass('file://' + self.path, progress=progress) as stor:
-      results = stor.get_files(
-        [ filepath for filepath in cloudpaths ]
-      )
+      results = stor.get_files(list(cloudpaths))
 
     return { res['filename']: res['content'] for res in results }
 
@@ -515,6 +513,7 @@ class CacheService(object):
     return self.put([ (path, content) ], *args, **kwargs)
 
   def put(self, files, progress=None, compress=None, compress_level=None):
+    """files: [ (filename, content) ]"""
     if progress is None:
       progress = self.config.progress
 

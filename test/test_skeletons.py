@@ -710,7 +710,7 @@ def test_sharded():
 
       labels = []
       for fname in files.keys():
-        lbls = cv.skeleton.reader.list_labels(fname)
+        lbls = cv.skeleton.reader.list_labels(fname, path='skeletons')
         labels += list(lbls)
       
       labels.sort()
@@ -721,18 +721,18 @@ def test_sharded():
         for label, binary in decoded_skels.items():
           Skeleton.from_precomputed(binary)
 
-      exists = cv.skeleton.reader.exists(list(range(11)))
+      exists = cv.skeleton.reader.exists(list(range(11)), path='skeletons')
       assert exists == {
-        0: '0.shard', 
-        1: '0.shard', 
-        2: '0.shard', 
-        3: '0.shard', 
-        4: '0.shard', 
-        5: '0.shard', 
-        6: '0.shard', 
-        7: '0.shard', 
-        8: '1.shard', 
-        9: '1.shard',
+        0: 'skeletons/0.shard', 
+        1: 'skeletons/0.shard', 
+        2: 'skeletons/0.shard', 
+        3: 'skeletons/0.shard', 
+        4: 'skeletons/0.shard', 
+        5: 'skeletons/0.shard', 
+        6: 'skeletons/0.shard', 
+        7: 'skeletons/0.shard', 
+        8: 'skeletons/1.shard', 
+        9: 'skeletons/1.shard',
         10: None,
       }
 
