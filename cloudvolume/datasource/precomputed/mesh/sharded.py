@@ -53,22 +53,21 @@ class ShardedMultiLevelPrecomputedMeshSource:
         return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=shard_file_offset)
     
 
-    def get(self, segids, lods=None, concat=True):
+    def get(self, segids, lod=0, concat=True):
         """Fetch meshes at all levels of details.
 
         Parameters:
         segids: (iterable or int) segids to render
 
-        lods: int, [int, ..] or None
-            Level of detail(s) to retrieve.  0 is highest level of detail.
-            None will fetch meshes at all levels.
+        lod: int, default 0
+            Level of detail to retrieve.  0 is highest level of detail.
 
         Optional:
           concat: bool, concatenate fragments (per segment per lod)
 
         Returns:
-        { lod: { segid: { Mesh } } }
-        ... or if concatenate=False: { lod: { segid: { Mesh, ... } } }
+        { segid: { Mesh } }
+        ... or if concatenate=False: { segid: { Mesh, ... } }
 
         Reference:
             https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
@@ -77,7 +76,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
         segids = toiter(segids)
 
         # decode all the fragments
-        meshdata = defaultdict(lambda: defaultdict(list))
+        meshdata = defaultdict(list)
         for segid in segids:
             # Read the manifest (with a tweak to sharding.py to get the offset)
             result = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
@@ -87,11 +86,8 @@ class ShardedMultiLevelPrecomputedMeshSource:
                     'Manifest not found for segment {}.'.format(segid)
                 ))
             shard_file_offset = manifest.offset
-            if lods == None:
-                lods = list(range(manifest.num_lods))
-            lods = toiter(lods)
 
-            if any(lod >= manifest.num_lods for lod in lods):
+            if lod >= manifest.num_lods:
                 raise exceptions.MeshDecodeError(red(
                     'LOD value out of range ({} > {}) for segment {}.'.format(max(lods), manifest.num_lods, segid)
                 ))
@@ -105,43 +101,41 @@ class ShardedMultiLevelPrecomputedMeshSource:
             full_path = self.reader.meta.join(self.reader.meta.cloudpath, self.path)
             stor =  SimpleStorage(full_path)
 
-            for lod in lods:
-                lod_binary = stor.get_file(shard_file_name,
-                        start=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
-                        end=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]))
-                lod_meshes = []
-                for frag in range(manifest.fragment_offsets[lod].shape[0]):
-                    frag_binary = lod_binary[
-                                            int(np.sum(manifest.fragment_offsets[lod][0:frag])) :
-                                            int(np.sum(manifest.fragment_offsets[lod][0:frag+1]))
-                                            ]
-                    if len(frag_binary) == 0:
-                        # According to @JBMS, empty fragments are used in cases where a child fragment exists,
-                        # but its parent does not have a corresponding fragment, a possible byproduct of running
-                        # marching cubes and mesh simplification independently for each level of detail.
-                        continue
-                    mesh = Mesh.from_draco(frag_binary)
+            lod_binary = stor.get_file(shard_file_name,
+                    start=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
+                    end=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]))
 
-                    # Conversion references:
-                    # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/draco/neuroglancer_draco.cc
-                    # Treat the draco result as integers in the range [0, 2**vertex_quantization_bits)
-                    mesh.vertices = mesh.vertices.view(dtype=np.int32)
-                    
-                    # Convert from "stored model" space to "model" space
-                    mesh.vertices = manifest.grid_origin + manifest.vertex_offsets[lod] + \
-                                    manifest.chunk_shape * (2 ** lod) * \
-                                    (manifest.fragment_positions[lod][:,frag] + \
-                                    (mesh.vertices / (2.0 ** self.vertex_quantization_bits - 1)))
+            for frag in range(manifest.fragment_offsets[lod].shape[0]):
+                frag_binary = lod_binary[
+                                        int(np.sum(manifest.fragment_offsets[lod][0:frag])) :
+                                        int(np.sum(manifest.fragment_offsets[lod][0:frag+1]))
+                                        ]
+                if len(frag_binary) == 0:
+                    # According to @JBMS, empty fragments are used in cases where a child fragment exists,
+                    # but its parent does not have a corresponding fragment, a possible byproduct of running
+                    # marching cubes and mesh simplification independently for each level of detail.
+                    continue
+                mesh = Mesh.from_draco(frag_binary)
 
-                    # Scale to native (nm) space
-                    mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
-                    
-                    meshdata[lod][segid].append(mesh)
+                # Conversion references:
+                # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/draco/neuroglancer_draco.cc
+                # Treat the draco result as integers in the range [0, 2**vertex_quantization_bits)
+                mesh.vertices = mesh.vertices.view(dtype=np.int32)
+                
+                # Convert from "stored model" space to "model" space
+                mesh.vertices = manifest.grid_origin + manifest.vertex_offsets[lod] + \
+                                manifest.chunk_shape * (2 ** lod) * \
+                                (manifest.fragment_positions[lod][:,frag] + \
+                                (mesh.vertices / (2.0 ** self.vertex_quantization_bits - 1)))
+
+                # Scale to native (nm) space
+                mesh.vertices =  mesh.vertices * (self.transform[0,0], self.transform[1,1], self.transform[2,2])
+                
+                meshdata[segid].append(mesh)
 
         if concat:
-            for lod in meshdata:
-                for segid in meshdata[lod]:
-                    meshdata[lod][segid] = Mesh.concatenate(*meshdata[lod][segid])
+            for segid in meshdata:
+                meshdata[segid] = Mesh.concatenate(*meshdata[segid])
 
         return meshdata
 
