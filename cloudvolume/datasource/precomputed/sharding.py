@@ -567,6 +567,11 @@ class ShardReader(object):
 
     # { label: [ filename, byte start, num_bytes ] }
     exists = self.exists(label, path, return_byte_range=True, progress=progress)
+    for k in list(exists.keys()):
+      if exists[k] is None:
+        results[k] = None
+        del exists[k]
+
     key_label = { (basename(v[0]), v[1], v[2]): k for k,v in exists.items() }
 
     filenames = ( basename(ext[0]) for ext in exists.values() )
