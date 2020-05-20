@@ -199,7 +199,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
           # stitch and deduplicate draco meshes at variable
           # levels (see github issue #299)
           print('Warning: deduplication not currently supported for this layer\'s variable layered draco meshes')
-      elif not deduplicate_chunk_boundaries:
+      elif deduplicate_chunk_boundaries:
         mesh = mesh.deduplicate_chunk_boundaries(
             meta.mesh_chunk_size * resolution,
             offset=offset * resolution,
