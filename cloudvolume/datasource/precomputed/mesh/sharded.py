@@ -40,20 +40,20 @@ class ShardedMultiLevelPrecomputedMeshSource:
         return [ self.get_manifest(segid) for segid in segids ]
 
 
-    def get_manifest(self, segid):
+    def get_manifest(self, segid, progress=None):
         """Retrieve the manifest for a single segment.
 
         Returns:
             { MultiLevelPrecomputedMeshManifest or None }
         """
-        result = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
-        if result == None:
+        shard_filepath, byte_start, num_bytes  = tuple(self.reader.exists(segid, self.meta.mesh_path, return_byte_range=True))
+        binary = self.reader.get_data(segid, self.meta.mesh_path)
+        if binary == None:
             return None
-        binary, shard_file_offset = result
-        return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=shard_file_offset)
+        return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=byte_start)
     
 
-    def get(self, segids, lod=0, concat=True):
+    def get(self, segids, lod=0, concat=True, progress=None):
         """Fetch meshes at all levels of details.
 
         Parameters:
@@ -79,7 +79,6 @@ class ShardedMultiLevelPrecomputedMeshSource:
         meshdata = defaultdict(list)
         for segid in segids:
             # Read the manifest (with a tweak to sharding.py to get the offset)
-            result = self.reader.get_data(segid, self.meta.mesh_path, return_offset=True)
             manifest = self.get_manifest(segid)
             if manifest == None:
                 raise exceptions.MeshDecodeError(red(

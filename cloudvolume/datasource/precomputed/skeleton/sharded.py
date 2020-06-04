@@ -1,6 +1,7 @@
 from ..sharding import ShardingSpecification, ShardReader
 from ....skeleton import Skeleton
 from ..spatial_index import CachedSpatialIndex
+from ....exceptions import EmptyFileException
 
 class ShardedPrecomputedSkeletonSource(object):
   def __init__(self, meta, cache, config, readonly=False):
@@ -36,8 +37,18 @@ class ShardedPrecomputedSkeletonSource(object):
     #   compress = True
 
     results = []
+    binaries = self.reader.get_data(
+      segids, self.meta.skeleton_path, 
+      progress=self.config.progress
+    )
+
     for segid in segids:
-      binary = self.reader.get_data(segid, self.meta.skeleton_path)
+      binary = binaries[segid]
+      del binaries[segid]
+
+      if binary is None:
+        raise EmptyFileException("segid {} is missing.".format(segid))
+
       skeleton = Skeleton.from_precomputed(
         binary, segid=segid, 
         vertex_attributes=self.meta.info['vertex_attributes']

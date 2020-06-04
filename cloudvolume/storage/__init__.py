@@ -22,5 +22,14 @@ from .storage import (
 from .storage_interfaces import reset_connection_pools
 
 # For backwards compatibility
-Storage = ThreadedStorage 
 
+class Storage(object):
+  def __new__(kls, *args, **kwargs):
+    green = False
+    if 'green' in kwargs:
+      green = bool(kwargs['green'])
+      del kwargs['green']
+
+    if green:
+      return GreenStorage(*args, **kwargs)
+    return ThreadedStorage(*args, **kwargs)

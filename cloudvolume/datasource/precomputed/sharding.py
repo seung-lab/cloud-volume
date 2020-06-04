@@ -14,7 +14,7 @@ from ... import compression
 from ...lib import jsonify, toiter
 from ...lru import LRU
 from ...exceptions import SpecViolation, EmptyFileException
-from ...storage import SimpleStorage, Storage
+from ...storage import SimpleStorage, GreenStorage, Storage
 
 ShardLocation = namedtuple('ShardLocation', 
   ('shard_number', 'minishard_number', 'remainder')
@@ -218,6 +218,7 @@ class ShardReader(object):
     self, meta, cache, spec,
     shard_index_cache_size=512,
     minishard_index_cache_size=128,
+    green=False
   ):
     """
     Reads standard Precomputed shard files. 
@@ -232,6 +233,7 @@ class ShardReader(object):
     self.meta = meta
     self.cache = cache
     self.spec = spec
+    self.green = green
 
     self.shard_index_cache = LRU(shard_index_cache_size)
     self.minishard_index_cache = LRU(minishard_index_cache_size)
@@ -256,33 +258,31 @@ class ShardReader(object):
     Returns: 2^minishard_bits entries of a uint64 
       array of [[ byte start, byte end ], ... ] 
     """
-    index_path = self.meta.join(path, filename)
-    alias_path = self.meta.join(path, filename.replace('.shard', '.index'))
-
-    if filename in self.shard_index_cache:
-      return self.shard_index_cache[filename]
-
-    index_length = self.spec.index_length()
-
-    binary = self.cache.download_single_as(
-      index_path, alias_path,
-      start=0, end=index_length,
-      compress=False
-    )
-
-    index = self.decode_index(binary)
-    self.shard_index_cache[filename] = index
+    indices = self.get_indices([ filename ], path, progress=False)
+    index = list(indices.values())[0]
+    if index is None:
+      raise EmptyFileException(filename + " was zero bytes.")
     return index
 
   def get_indices(self, filenames, path="", progress=None):
+    """
+    For all given files, retrieves the shard index which 
+    is used for locating the appropriate minishard indices.
+
+    Returns: { 
+      path_to_/filename.shard: 2^minishard_bits entries of a uint64 
+            array of [[ byte start, byte end ], ... ],
+      ...
+    } 
+    """
     filenames = toiter(filenames)
     filenames = [ self.meta.join(path, fname) for fname in filenames ]
-
     fufilled = { 
       fname: self.shard_index_cache[fname] \
       for fname in filenames \
       if fname in self.shard_index_cache  
     }
+
     requests = []
     for fname in filenames:
       if fname in fufilled:
@@ -508,7 +508,7 @@ class ShardReader(object):
               results[label] = filepath
 
     if return_one:
-      return next(results.values())
+      return(list(results.values())[0])
     return results
 
   def disassemble_shard(self, shard):
@@ -535,48 +535,88 @@ class ShardReader(object):
 
     return shattered
 
-  def get_data(self, label, path="", return_offset=False):
-    filename, minishard_number = self.compute_shard_location(label)
-    
+  def get_data(self, label, path="", progress=None):
+    """Fetches data from shards.
+
+    label: one or more segment ids
+    path: subdirectory path
+    progress: display progress bars
+
+    Return: 
+      if label is a scalar:
+        a byte string
+      else: (label is an iterable)
+        {
+          label_1: byte string,
+          ....
+        }
+    """
+    label, return_multiple = toiter(label, is_iter=True)
+    label = set(( int(l) for l in label))
+
+    results = {}
     if self.cache.enabled:
-      cached = self.cache.get_single(self.meta.join(path, str(label)), progress=False)
-      if cached is not None:
-        return cached
+      results = self.cache.get([ 
+        self.meta.join(path, str(lbl)) for lbl in label
+      ], progress=progress)
 
-    index = self.get_index(filename, path)
+    for cloudpath, content in results.items():
+      if content is None:
+        label.remove(int(basename(cloudpath)))
 
-    minishard_index = self.get_minishard_index(
-      filename, index, 
-      minishard_number, path
-    )
 
-    if minishard_index is None:
-      return None
+    # { label: [ filename, byte start, num_bytes ] }
+    exists = self.exists(label, path, return_byte_range=True, progress=progress)
+    for k in list(exists.keys()):
+      if exists[k] is None:
+        results[k] = None
+        del exists[k]
 
-    idx = np.where(minishard_index[:,0] == label)[0]
-    if len(idx) == 0:
-      return None
-    else:
-      idx = idx[0]
+    key_label = { (basename(v[0]), v[1], v[2]): k for k,v in exists.items() }
 
-    _, offset, size = minishard_index[idx,:]
-    offset, size = int(offset), int(size)
+    filenames = ( basename(ext[0]) for ext in exists.values() )
+    starts = ( int(ext[1]) for ext in exists.values() )
+    ends = ( int(ext[1]) + int(ext[2]) for ext in exists.values() )
+
     full_path = self.meta.join(self.meta.cloudpath, path)
 
-    with SimpleStorage(full_path) as stor:
-      binary = stor.get_file(filename, start=offset, end=int(offset + size))
+    StorageClass = Storage
+    if self.green:
+      StorageClass = GreenStorage
+    elif len(exists) == 1:
+      StorageClass = SimpleStorage
+
+    with StorageClass(full_path, progress=progress) as stor:
+      remote_files = stor.get_files(filenames, starts=starts, ends=ends)
+
+    binaries = {}
+    for res in remote_files:
+      if res['error']:
+        raise res['error']
+      start, end = res['byte_range']
+      key = (res['filename'], start, end - start)
+      lbl = key_label[key]
+      binaries[lbl] = res['content']
+    del remote_files
 
     if self.spec.data_encoding != 'raw':
-      binary = compression.decompress(binary, encoding=self.spec.data_encoding, filename=filename)
+      for filepath, binary in tqdm(binaries.items(), desc="Decompressing", disable=(not progress)):
+        if binary is None:
+          continue
+        binaries[filepath] = compression.decompress(
+          binary, encoding=self.spec.data_encoding, filename=filepath
+        )
       
     if self.cache.enabled:
-      self.cache.put_single(self.meta.join(path, str(label)), binary, progress=False)
+      self.cache.put([ 
+        (filepath, binary) for filepath, binary in binaries.items()
+      ], progress=progress)
 
-    if return_offset:
-      # TODO: Refactor. This is a kludge to help find the meshes.
-      return (binary, offset)
-    else:
-      return binary
+    results.update(binaries)
+
+    if return_multiple:
+      return results
+    return next(iter(results.values()))
 
   def list_labels(self, filename, path="", size=False):
     """
