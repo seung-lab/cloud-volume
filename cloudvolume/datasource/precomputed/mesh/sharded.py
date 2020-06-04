@@ -84,7 +84,6 @@ class ShardedMultiLevelPrecomputedMeshSource:
                 raise exceptions.MeshDecodeError(red(
                     'Manifest not found for segment {}.'.format(segid)
                 ))
-            shard_file_offset = manifest.offset
 
             if lod >= manifest.num_lods:
                 raise exceptions.MeshDecodeError(red(
@@ -96,11 +95,11 @@ class ShardedMultiLevelPrecomputedMeshSource:
             total_fragment_size = np.sum(fragment_sizes)
 
             full_path = self.reader.meta.join(self.reader.meta.cloudpath)
-            stor =  SimpleStorage(full_path)
+            stor = SimpleStorage(full_path)
 
             lod_binary = stor.get_file(manifest.shard_filepath,
-                    start=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
-                    end=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]))
+                    start=(manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
+                    end=(manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]))
 
             for frag in range(manifest.fragment_offsets[lod].shape[0]):
                 frag_binary = lod_binary[
