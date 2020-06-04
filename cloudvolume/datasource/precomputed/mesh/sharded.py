@@ -50,7 +50,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
         binary = self.reader.get_data(segid, self.meta.mesh_path)
         if binary == None:
             return None
-        return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=byte_start)
+        return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=byte_start, shard_filepath=shard_filepath)
     
 
     def get(self, segids, lod=0, concat=True, progress=None):
@@ -95,12 +95,10 @@ class ShardedMultiLevelPrecomputedMeshSource:
             fragment_sizes = [ np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets ]
             total_fragment_size = np.sum(fragment_sizes)
 
-            # Kludge to hijack sharding.py to read the data
-            shard_file_name = self.reader.get_filename(segid)
-            full_path = self.reader.meta.join(self.reader.meta.cloudpath, self.path)
+            full_path = self.reader.meta.join(self.reader.meta.cloudpath)
             stor =  SimpleStorage(full_path)
 
-            lod_binary = stor.get_file(shard_file_name,
+            lod_binary = stor.get_file(manifest.shard_filepath,
                     start=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
                     end=(shard_file_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]))
 
@@ -143,10 +141,11 @@ class MultiLevelPrecomputedMeshManifest:
     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
     # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/multiscale.ts
 
-    def __init__(self, binary, segment_id, offset):
+    def __init__(self, binary, segment_id, offset, shard_filepath=None):
         self._segment = segment_id
         self._binary = binary
         self._offset = offset
+        self._shard_filepath = shard_filepath
 
         # num_loads is the 7th word
         num_lods = int.from_bytes(self._binary[6*4:7*4], byteorder='little', signed=False)
@@ -224,3 +223,7 @@ class MultiLevelPrecomputedMeshManifest:
     def offset(self):
         """Manifest offset within the shard file. Used as a base when calculating fragment offsets."""
         return self._offset
+
+    @property
+    def shard_filepath(self):
+        return self._shard_filepath
