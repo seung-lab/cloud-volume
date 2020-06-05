@@ -99,6 +99,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       A time when you might want to switch this off is when you're working on a new
       meshing job with different sharding parameters but are keeping the existing 
       meshes for visualization while it runs.
+    allow_missing: If set to True, return None if segid missing. If set to False, throw
+      an error.
     """
     import DracoPy
 
@@ -136,7 +138,9 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       self, segids, 
       remove_duplicate_vertices=False, 
       fuse=False, bounding_box=None,
-      bypass=False, use_byte_offsets=True
+      bypass=False, use_byte_offsets=True,
+      deduplicate_chunk_boundaries=True,
+      allow_missing=False,
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
@@ -157,6 +161,11 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       use_byte_offsets: For sharded volumes, we can use the output of 
         exists(..., return_byte_offsets) that the server already did in order
         to skip having to query the sharded format again.
+      deduplicate_chunk_boundaries: Our meshing is done in chunks and creates duplicate vertices
+        at the boundaries of chunks. This parameter will automatically deduplicate these if set
+        to True. Superceded by remove_duplicate_vertices.
+      allow_missing: If set to True, missing segids will be ignored. If set to False, an error
+        is thrown.
     
     Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
@@ -167,9 +176,17 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     meshes = []
     for seg_id in tqdm(segids, disable=(not self.config.progress), desc="Downloading Meshes"):
       level = meta.decode_layer_id(seg_id)
-      mesh, is_draco = self.download_segid(
-        seg_id, bounding_box, bypass, use_byte_offsets
-      )
+      if allow_missing:
+        try:
+          mesh, is_draco = self.download_segid(
+            seg_id, bounding_box, bypass, use_byte_offsets
+          )
+        except IndexError:
+          continue
+      else:
+        mesh, is_draco = self.download_segid(
+          seg_id, bounding_box, bypass, use_byte_offsets
+        )
       resolution = meta.resolution(self.config.mip)
       if meta.chunks_start_at_voxel_offset:
         offset = meta.voxel_offset(self.config.mip)
@@ -179,7 +196,9 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       if remove_duplicate_vertices:
         mesh = mesh.consolidate()
       elif is_draco:
-        if level == 2:
+        if not deduplicate_chunk_boundaries:
+          pass
+        elif level == 2:
           # Deduplicate at quantized lvl2 chunk borders
           draco_grid_size = meta.get_draco_grid_size(level)
           mesh = mesh.deduplicate_chunk_boundaries(
@@ -193,7 +212,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
           # stitch and deduplicate draco meshes at variable
           # levels (see github issue #299)
           print('Warning: deduplication not currently supported for this layer\'s variable layered draco meshes')
-      else:
+      elif deduplicate_chunk_boundaries:
         mesh = mesh.deduplicate_chunk_boundaries(
             meta.mesh_chunk_size * resolution,
             offset=offset * resolution,
