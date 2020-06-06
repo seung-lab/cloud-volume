@@ -496,9 +496,28 @@ Hops:
     """e.g. 'uint8'"""
     return self.info['data_type']
 
-  def encoding(self, mip):
-    """e.g. 'raw' or 'jpeg'"""
-    return self.info['scales'][mip]['encoding']
+  def encoding(self, mip, encoding=None):
+    """
+    If encoding is provided, set the encoding for this
+    mip level. If the encoding is not provided, this is
+    a getter.
+
+    Typical values: 'raw', 'jpeg', 'compressed_segmentation'
+
+    Returns encoding for the mip level either way.
+    """
+    if encoding is None:
+      return self.info['scales'][mip]['encoding']
+
+    encoding = encoding.lower()
+    scale = self.scale(mip)
+    scale['encoding'] = encoding
+    if (encoding == 'compressed_segmentation' \
+      and 'compressed_segmentation_block_size' not in scale):
+
+      scale['compressed_segmentation_block_size'] = (8,8,8)
+
+    return encoding
 
   def compressed_segmentation_block_size(self, mip):
     if 'compressed_segmentation_block_size' in self.info['scales'][mip]:
@@ -599,6 +618,10 @@ Hops:
     """Used for manually resetting downsamples if something messed up."""
     self.info['scales'] = self.info['scales'][0:1]
 
+  def add_resolution(self, res, encodig=None, chunk_size=None, info=None):
+    factor = Vec(res, dtype=np.float32) // self.meta.resolution(0)
+    return self.add_scale(factor, encoding, chunk_size, info)
+
   def add_scale(self, factor, encoding=None, chunk_size=None, info=None):
     """
     Generate a new downsample scale to for the info file and return an updated dictionary.
@@ -627,7 +650,7 @@ Hops:
     #    the mip 1 will have an offset of 5
     #    the mip 2 will have an offset of 2 instead of 2.5 
     #        meaning that it will be half a pixel to the left
-    if not chunk_size:
+    if chunk_size is None:
       chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
 
     if encoding is None:
