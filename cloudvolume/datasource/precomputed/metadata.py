@@ -627,7 +627,7 @@ Hops:
     #    the mip 1 will have an offset of 5
     #    the mip 2 will have an offset of 2 instead of 2.5 
     #        meaning that it will be half a pixel to the left
-    if not chunk_size:
+    if chunk_size is None:
       chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
 
     if encoding is None:
