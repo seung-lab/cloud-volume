@@ -58,7 +58,11 @@ class ShardedMultiLevelPrecomputedMeshSource:
         Returns:
             { MultiLevelPrecomputedMeshManifest or None }
         """
-        shard_filepath, byte_start, num_bytes  = tuple(self.reader.exists(segid, self.meta.mesh_path, return_byte_range=True))
+        manifest_info = self.reader.exists(segid, self.meta.mesh_path, return_byte_range=True)
+        if manifest_info is None:
+            # Manifest not found
+            return None
+        shard_filepath, byte_start, num_bytes  = tuple(manifest_info)
         binary = self.reader.get_data(segid, self.meta.mesh_path)
         if binary == None:
             return None
