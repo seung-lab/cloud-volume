@@ -496,9 +496,28 @@ Hops:
     """e.g. 'uint8'"""
     return self.info['data_type']
 
-  def encoding(self, mip):
-    """e.g. 'raw' or 'jpeg'"""
-    return self.info['scales'][mip]['encoding']
+  def encoding(self, mip, encoding=None):
+    """
+    If encoding is provided, set the encoding for this
+    mip level. If the encoding is not provided, this is
+    a getter.
+
+    Typical values: 'raw', 'jpeg', 'compressed_segmentation'
+
+    Returns encoding for the mip level either way.
+    """
+    if encoding is None:
+      return self.info['scales'][mip]['encoding']
+
+    encoding = encoding.lower()
+    scale = self.scale(mip)
+    scale['encoding'] = encoding
+    if (encoding == 'compressed_segmentation' \
+      and 'compressed_segmentation_block_size' not in scale):
+
+      scale['compressed_segmentation_block_size'] = (8,8,8)
+
+    return encoding
 
   def compressed_segmentation_block_size(self, mip):
     if 'compressed_segmentation_block_size' in self.info['scales'][mip]:
