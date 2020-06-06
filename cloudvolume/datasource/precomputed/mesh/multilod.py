@@ -8,6 +8,18 @@ from ....mesh import Mesh
 from ....lib import yellow, red, toiter
 from .... import exceptions
 
+class UnshardedMultiLevelPrecomputedMeshSource(object):
+    def __init__(self):
+        pass
+
+    # Error on any use
+    def __getattr__(self, name):
+      def method(*args, **kwargs):
+          raise exceptions.UnsupportedFormatError(
+            red("Meshes of type %s are not yet supported." % self.__class__.__name__))
+      return method
+
+
 class ShardedMultiLevelPrecomputedMeshSource:
     def __init__(self, meta, cache, config, readonly=False):
         self.meta = meta
