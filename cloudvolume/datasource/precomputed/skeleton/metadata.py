@@ -13,8 +13,10 @@ class PrecomputedSkeletonMetadata(object):
 
     if info:
       self.info = info
-    else:
+    elif 'skeletons' in self.meta.info and self.meta.info['skeletons']:
       self.info = self.fetch_info()
+    else:
+      self.info = self.default_info()
 
   @property
   def spatial_index(self):
