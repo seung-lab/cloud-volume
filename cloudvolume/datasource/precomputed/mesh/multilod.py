@@ -47,7 +47,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
         """
         Checks if the mesh exists
 
-        Returns: { MultiLevelPrecomputedMeshManifest or None }
+        Returns: { MultiLevelPrecomputedMeshManifest or None, ... }
         """
         return [ self.get_manifest(segid) for segid in segids ]
 
