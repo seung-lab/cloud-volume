@@ -46,7 +46,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.5, 3.6, and 3.7 (we've noticed it's faster on Python 3). We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
+Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.5, 3.6, 3.7, and 3.8 (we've noticed it's faster on Python 3). We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
 
 Note that Python 2.7 does not currently support the DracoPy library, and therefore does not support the `graphene://` format.
 
@@ -57,6 +57,8 @@ pip install cloud-volume # standard installation
 ```
 
 CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/fpzip) and [`compressed_segmentation`](https://github.com/seung-lab/compressedseg), which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
+
+**Windows Note:** If you get errors related to a missing C++ compiler, this blog post might help you: https://www.scivision.dev/python-windows-visual-c-14-required/
 
 #### Optional Dependencies
 
