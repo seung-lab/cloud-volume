@@ -24,8 +24,8 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 ## Highlights
 
-- Random access to petavoxel Neuroglancer images, meshes\*, and skeletons.
-- Nearly all output is immediately visualizable using Neuroglancer.\*\*
+- Random access to petavoxel Neuroglancer images, meshes, and skeletons.
+- Nearly all output is immediately visualizable using Neuroglancer.\*
 - Reads graph server backed proofreading volumes (via `graphene://`).
 - Serverless (except `graphene://`) and multi-cloud.
 
@@ -42,8 +42,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 - Only 3 dimensions + RBG channels currently supported for images.
 - No data versioning.
 
-\* Except the new mutli-res format for now.
-\*\* fpzip compressed data, used for 32-bit per pixel vectors, is not currently visualizable.
+\* fpzip compressed data, used for 32-bit per pixel vectors, is not currently visualizable.
 
 ## Setup
 
@@ -544,4 +543,4 @@ Python 2.7's [End of Life date](https://pythonclock.org/) is January, 1 2020. Cl
 
 Thank you to everyone that has contributed past or current to CloudVolume or the ecosystem it serves. We love you!  
 
-Jeremy Maitin-Shepard created [Neuroglancer](https://github.com/google/neuroglancer) and defined the Precomputed format. Yann Leprince provided a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. Jeremy Maitin-Shepard and Stephen Plaza created C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg). Peter Lindstrom et al. created [the fpzip algorithm](https://computation.llnl.gov/projects/floating-point-compression), and contributed a C++ implementation and advice. Nico Kemnitz adapted our data to fpzip using the "Kempression" protocol (we named it, not him). Dan Bumbarger contributed code and information helpful for getting CloudVolume working on Windows. Fredrik Kihlander's [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) developed murmurhash3 which is necessary for the sharded format. Ben Falk advocated for and did the bulk of the work on brotli compression. Some of the ideas in CloudVolume are based on work by Jingpeng Wu in [BigArrays.jl](https://github.com/seung-lab/BigArrays.jl).  Sven Dorkenwald, Manuel Castro, and Akhilesh Hagaldi contributed advice and code towards implementing the graphene interface. Oluwaseun Ogedengbe contributed documentation for the sharded format. Ignacio Tartavull and William Silversmith wrote the initial version of CloudVolume.
+Jeremy Maitin-Shepard created [Neuroglancer](https://github.com/google/neuroglancer) and defined the Precomputed format. Yann Leprince provided a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. Jeremy Maitin-Shepard and Stephen Plaza created C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg). Peter Lindstrom et al. created [the fpzip algorithm](https://computation.llnl.gov/projects/floating-point-compression), and contributed a C++ implementation and advice. Nico Kemnitz adapted our data to fpzip using the "Kempression" protocol (we named it, not him). Dan Bumbarger contributed code and information helpful for getting CloudVolume working on Windows. Fredrik Kihlander's [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) developed murmurhash3 which is necessary for the sharded format. Ben Falk advocated for and did the bulk of the work on brotli compression. Some of the ideas in CloudVolume are based on work by Jingpeng Wu in [BigArrays.jl](https://github.com/seung-lab/BigArrays.jl).  Sven Dorkenwald, Manuel Castro, and Akhilesh Hagaldi contributed advice and code towards implementing the graphene interface. Oluwaseun Ogedengbe contributed documentation for the sharded format. Eric Perlman wrote the reader for Neuroglancer Multi-LOD meshes. Ignacio Tartavull and William Silversmith wrote the initial version of CloudVolume.
