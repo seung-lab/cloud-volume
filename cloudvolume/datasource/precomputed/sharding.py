@@ -508,7 +508,7 @@ class ShardReader(object):
               results[label] = filepath
 
     if return_one:
-      return next(list(results.values()))
+      return(list(results.values())[0])
     return results
 
   def disassemble_shard(self, shard):
