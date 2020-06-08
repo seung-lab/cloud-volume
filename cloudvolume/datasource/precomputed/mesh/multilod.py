@@ -163,7 +163,7 @@ class MultiLevelPrecomputedMeshManifest:
     self._shard_filepath = shard_filepath
 
     # num_loads is the 7th word
-    num_lods = int.from_bytes(self._binary[6*4:7*4], byteorder='little', signed=False)
+    num_lods = int(np.frombuffer(self._binary[6*4:7*4], dtype=np.uint32)[0])
 
     header_dt = np.dtype([('chunk_shape', np.float32, (3,)),
             ('grid_origin', np.float32, (3,)),

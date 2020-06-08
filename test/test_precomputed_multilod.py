@@ -1,4 +1,5 @@
 import pytest 
+import sys
 
 import cloudvolume
 
@@ -10,6 +11,8 @@ import cloudvolume
 #   /neuroglancer-janelia-flyem-hemibrain/v1.0/segmentation/mesh/193.shard
 #   /neuroglancer-janelia-flyem-hemibrain/v1.0/segmentation/mesh/185.shard 
 
+
+@pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3")
 def test_get_sharded_mesh():
   vol = cloudvolume.CloudVolume('gs://neuroglancer-janelia-flyem-hemibrain/v1.0/segmentation', mip=0, cache=False, use_https=True)
 
