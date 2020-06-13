@@ -38,16 +38,29 @@ COLORS = {
 MACHINE_EPSILON = (7. / 3) - (4. / 3) - 1
 
 class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        return json.JSONEncoder.default(self, obj)
+  def default(self, obj):
+    if isinstance(obj, np.ndarray):
+      return obj.tolist()
+    if isinstance(obj, np.integer):
+      return int(obj)
+    if isinstance(obj, np.floating):
+      return float(obj)
+    return json.JSONEncoder.default(self, obj)
+
+def first(lst):
+  if isinstance(lst, types.GeneratorType):
+    return next(lst)
+  try:
+    return lst[0]
+  except TypeError:
+    return next(iter(lst))
 
 def toiter(obj, is_iter=False):
+  if isinstance(obj, str) or isinstance(obj, dict):
+    if is_iter:
+      return [ obj ], False
+    return [ obj ]
+
   try:
     iter(obj)
     if is_iter:
