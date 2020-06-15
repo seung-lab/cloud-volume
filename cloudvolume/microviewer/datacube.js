@@ -1315,7 +1315,10 @@ function renumber (cube) {
 
   let cur_label = 0;
   for (let i = cube.length - 1; i >= 0; i--) {
-    if (cube[i] == last_label) {
+    if (cube[i] == 0) {
+      continue;
+    }
+    else if (cube[i] == last_label) {
       cube[i] = last_relabel;
       continue;
     }
