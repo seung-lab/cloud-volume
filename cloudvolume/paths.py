@@ -161,8 +161,12 @@ def extract(cloudpath, windows=None, disable_toabs=False):
     no_bucket_basepath = split_char.join(splitties[1:-1])
   elif len(splitties) >= 2:
     dataset, layer = splitties[-2:]
-    no_bucket_basepath = split_char.join(splitties[1:-1])
-    basepath = split_char.join([bucket] + splitties[1:-1])
+    if windows:
+      no_bucket_basepath = split_char.join(splitties[2:-1])
+      basepath = split_char.join([bucket] + splitties[2:-1])
+    else:
+      no_bucket_basepath = split_char.join(splitties[1:-1])
+      basepath = split_char.join([bucket] + splitties[1:-1])
 
   return ExtractedPath(
     fmt, protocol, bucket, 

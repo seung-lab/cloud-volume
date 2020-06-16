@@ -140,3 +140,13 @@ def test_path_extraction():
   assert path.bucket == '/tmp'
   assert path.dataset == 'removeme'
   assert path.layer == 'layer'
+
+
+def test_windows_path_extraction():
+  """ This test is added specifically to make sure
+  that no_bucket_basepath does not contain the bucket,
+  for windows paths. """
+  extract = paths.extract(r'file://C:\wow\this\is\a\cool\path', windows=True, disable_toabs=True)
+  assert extract.protocol == 'file'
+  assert extract.bucket == 'C:\\wow\\'
+  assert 'wow' not in extract.no_bucket_basepath
