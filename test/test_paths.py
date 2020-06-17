@@ -8,20 +8,6 @@ from cloudvolume.exceptions import UnsupportedProtocolError
 from cloudvolume import lib
 
 def test_path_extraction():
-  extract = paths.extract(r'file://C:\wow\this\is\a\cool\path', windows=True, disable_toabs=True)
-  print(extract)
-  assert extract.protocol == 'file'
-  assert extract.bucket == 'C:\\wow\\'
-
-  # on linux the toabs prepends the current path because it
-  # doesn't understand C:\... so we can't test that here.
-  # assert extract.path == 'this\\is\\a\\cool\\path' 
-
-  try:
-    extract = paths.strict_extract(r'file://C:\wow\this\is\a\cool\path', windows=False, disable_toabs=True)
-    assert False 
-  except UnsupportedProtocolError:
-    pass
 
   def shoulderror(url):
     try:
@@ -140,3 +126,23 @@ def test_path_extraction():
   assert path.bucket == '/tmp'
   assert path.dataset == 'removeme'
   assert path.layer == 'layer'
+
+
+def test_windows_path_extraction():
+  extract = paths.extract(r'file://C:\wow\this\is\a\cool\path', windows=True, disable_toabs=True)
+  assert extract.format == 'precomputed'
+  assert extract.protocol == 'file'
+  assert extract.bucket == 'C:\\wow'
+  assert extract.basepath == 'C:\\wow\\this\\is\\a\\cool'
+  assert extract.no_bucket_basepath == 'this\\is\\a\\cool'  
+  assert extract.dataset == 'cool'  
+  assert extract.layer == 'path'  
+
+  extract = paths.extract('file://C:\\wow\\this\\is\\a\\cool\\path\\', windows=True, disable_toabs=True)
+  assert extract.format == 'precomputed'
+  assert extract.protocol == 'file'
+  assert extract.bucket == 'C:\\wow'
+  assert extract.basepath == 'C:\\wow\\this\\is\\a\\cool'
+  assert extract.no_bucket_basepath == 'this\\is\\a\\cool'  
+  assert extract.dataset == 'cool'  
+  assert extract.layer == 'path'  
