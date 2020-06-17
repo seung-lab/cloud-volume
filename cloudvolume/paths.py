@@ -132,8 +132,7 @@ def extract(cloudpath, windows=None, disable_toabs=False):
     abspath = toabs    
 
   fmt, protocol, cloudpath = extract_format_protocol(cloudpath)
-  print("cloudpath:")
-  print(cloudpath)
+
   split_char = '/'
   if protocol == 'file':
     cloudpath = abspath(cloudpath)
@@ -152,7 +151,6 @@ def extract(cloudpath, windows=None, disable_toabs=False):
   if splitcloudpath[-1] == split_char:
     splitcloudpath = splitcloudpath[:-1]
   splitties = splitcloudpath.split(split_char)
-  print(splitties)
   if len(splitties) == 0:
     return ExtractedPath(fmt, protocol, bucket, cloudpath, '', bucket, '')
   elif len(splitties) == 1:
@@ -168,21 +166,7 @@ def extract(cloudpath, windows=None, disable_toabs=False):
     else:
       no_bucket_basepath = split_char.join(splitties[1:-1])
       basepath = split_char.join([bucket] + splitties[1:-1])
-  print("made it here with:")
-  print("fmt:")
-  print(fmt)
-  print("protocol:")
-  print(protocol)
-  print("bucket:")
-  print(bucket)
-  print("basepath:")
-  print(basepath)
-  print("no_bucket_basepath:")
-  print(no_bucket_basepath)
-  print("dataset:")
-  print(dataset)
-  print("layer:")
-  print(layer)
+
   return ExtractedPath(
     fmt, protocol, bucket, 
     basepath, no_bucket_basepath, 
