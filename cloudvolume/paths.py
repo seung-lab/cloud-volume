@@ -117,7 +117,7 @@ def extract(cloudpath, windows=None, disable_toabs=False):
   if len(cloudpath) == 0:
     return ExtractedPath('','','','','','','')
 
-  windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+(?:\\)?)') # for C:\what\a\great\path
+  windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+)')
   bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)/') # posix /what/a/great/path
   
   error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
@@ -131,26 +131,24 @@ def extract(cloudpath, windows=None, disable_toabs=False):
     abspath = toabs    
 
   fmt, protocol, cloudpath = extract_format_protocol(cloudpath)
-  
+
   split_char = '/'
   if protocol == 'file':
     cloudpath = abspath(cloudpath)
     if windows:
       bucket_re = windows_file_re
-    split_char = os.path.sep
+      split_char = '\\'
 
   match = re.match(bucket_re, cloudpath)
   if not match:
     raise error
 
   (bucket,) = match.groups()
-
   splitcloudpath = cloudpath 
   if splitcloudpath[0] == split_char:
     splitcloudpath = splitcloudpath[1:]
   if splitcloudpath[-1] == split_char:
     splitcloudpath = splitcloudpath[:-1]
-
   splitties = splitcloudpath.split(split_char)
   if len(splitties) == 0:
     return ExtractedPath(fmt, protocol, bucket, cloudpath, '', bucket, '')
@@ -161,8 +159,12 @@ def extract(cloudpath, windows=None, disable_toabs=False):
     no_bucket_basepath = split_char.join(splitties[1:-1])
   elif len(splitties) >= 2:
     dataset, layer = splitties[-2:]
-    no_bucket_basepath = split_char.join(splitties[1:-1])
-    basepath = split_char.join([bucket] + splitties[1:-1])
+    if windows:
+      no_bucket_basepath = split_char.join(splitties[2:-1])
+      basepath = split_char.join([bucket] + splitties[2:-1])
+    else:
+      no_bucket_basepath = split_char.join(splitties[1:-1])
+      basepath = split_char.join([bucket] + splitties[1:-1])
 
   return ExtractedPath(
     fmt, protocol, bucket, 
