@@ -137,3 +137,12 @@ def test_windows_path_extraction():
   assert extract.no_bucket_basepath == 'this\\is\\a\\cool'  
   assert extract.dataset == 'cool'  
   assert extract.layer == 'path'  
+
+  extract = paths.extract('file://C:\\wow\\this\\is\\a\\cool\\path\\', windows=True, disable_toabs=True)
+  assert extract.format == 'precomputed'
+  assert extract.protocol == 'file'
+  assert extract.bucket == 'C:\\wow'
+  assert extract.basepath == 'C:\\wow\\this\\is\\a\\cool'
+  assert extract.no_bucket_basepath == 'this\\is\\a\\cool'  
+  assert extract.dataset == 'cool'  
+  assert extract.layer == 'path'  
