@@ -117,7 +117,6 @@ def extract(cloudpath, windows=None, disable_toabs=False):
   if len(cloudpath) == 0:
     return ExtractedPath('','','','','','','')
 
-  # windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+(?:\\)?)') # for C:\what\a\great\path
   windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+)')
   bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)/') # posix /what/a/great/path
   
