@@ -8,23 +8,6 @@ from cloudvolume.exceptions import UnsupportedProtocolError
 from cloudvolume import lib
 
 def test_path_extraction():
-  extract = paths.extract(r'file://C:\wow\this\is\a\cool\path', windows=True, disable_toabs=True)
-  assert extract.fmt == 'precomputed'
-  assert extract.protocol == 'file'
-  assert extract.bucket == 'C:\\wow\\'
-
-  assert extract.no_bucket_basepath == 'this\\is\\a\\cool'  
-
-
-  # on linux the toabs prepends the current path because it
-  # doesn't understand C:\... so we can't test that here.
-  # assert extract.path == 'this\\is\\a\\cool\\path' 
-
-  try:
-    extract = paths.strict_extract(r'file://C:\wow\this\is\a\cool\path', windows=False, disable_toabs=True)
-    assert False 
-  except UnsupportedProtocolError:
-    pass
 
   def shoulderror(url):
     try:
@@ -147,7 +130,6 @@ def test_path_extraction():
 
 def test_windows_path_extraction():
   extract = paths.extract(r'file://C:\wow\this\is\a\cool\path', windows=True, disable_toabs=True)
-  print(extract)
   assert extract.format == 'precomputed'
   assert extract.protocol == 'file'
   assert extract.bucket == 'C:\\wow'
