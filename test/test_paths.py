@@ -9,9 +9,12 @@ from cloudvolume import lib
 
 def test_path_extraction():
   extract = paths.extract(r'file://C:\wow\this\is\a\cool\path', windows=True, disable_toabs=True)
-  print(extract)
+  assert extract.fmt == 'precomputed'
   assert extract.protocol == 'file'
   assert extract.bucket == 'C:\\wow\\'
+
+  assert extract.no_bucket_basepath == 'this\\is\\a\\cool'  
+
 
   # on linux the toabs prepends the current path because it
   # doesn't understand C:\... so we can't test that here.
@@ -143,10 +146,12 @@ def test_path_extraction():
 
 
 def test_windows_path_extraction():
-  """ This test is added specifically to make sure
-  that no_bucket_basepath does not contain the bucket,
-  for windows paths. """
   extract = paths.extract(r'file://C:\wow\this\is\a\cool\path', windows=True, disable_toabs=True)
+  print(extract)
+  assert extract.format == 'precomputed'
   assert extract.protocol == 'file'
-  assert extract.bucket == 'C:\\wow\\'
-  assert 'wow' not in extract.no_bucket_basepath
+  assert extract.bucket == 'C:\\wow'
+  assert extract.basepath == 'C:\\wow\\this\\is\\a\\cool'
+  assert extract.no_bucket_basepath == 'this\\is\\a\\cool'  
+  assert extract.dataset == 'cool'  
+  assert extract.layer == 'path'  
