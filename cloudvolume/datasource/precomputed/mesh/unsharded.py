@@ -192,8 +192,7 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     
     Supported Formats: 'obj', 'ply', 'precomputed'
     """
-    if type(segids) != list:
-      segids = [segids]
+    segids = toiter(segids)
 
     mesh = self.get(segids, fuse=True, remove_duplicate_vertices=True)
 
