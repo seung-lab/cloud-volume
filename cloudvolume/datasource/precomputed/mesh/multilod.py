@@ -103,7 +103,7 @@ class ShardedMultiLevelPrecomputedMeshSource:
 
       if lod < 0 or lod >= manifest.num_lods:
         raise exceptions.MeshDecodeError(red(
-          'LOD value ({}) out of range (0 - {}) for segment {}.'.format(lod, manifest.num_lods, segid)
+          'LOD value ({}) out of range (0 - {}) for segment {}.'.format(lod, manifest.num_lods - 1, segid)
         ))
 
       # Read the data for all LODs
