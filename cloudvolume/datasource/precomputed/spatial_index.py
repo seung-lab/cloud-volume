@@ -4,8 +4,9 @@ import os
 
 import numpy as np
 
+from cloudfiles import CloudFiles
+
 from ...exceptions import SpatialIndexGapError
-from ...storage import Storage, SimpleStorage
 from ... import paths
 from ...lib import Bbox, Vec, xyzrange, min2, toiter
 
@@ -50,8 +51,7 @@ class SpatialIndex(object):
       return posixpath.join(*paths)    
 
   def fetch_index_files(self, index_files):
-    with Storage(self.cloudpath, progress=self.progress) as stor:
-      results = stor.get_files(index_files)
+    results = CloudFiles(self.cloudpath, progress=self.progress).get(index_files)
 
     for res in results:
       if res['error'] is not None:

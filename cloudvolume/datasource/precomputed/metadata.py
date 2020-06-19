@@ -10,9 +10,10 @@ from six import string_types
 from six.moves import range
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles 
+
 from ... import exceptions
 from ...provenance import DatasetProvenance, DataLayerProvenance
-from ...storage import SimpleStorage
 
 from ... import lib
 from ...lib import ( 
@@ -191,8 +192,7 @@ class PrecomputedMetadata(object):
 
     Returns: dict
     """
-    with SimpleStorage(self.cloudpath) as stor:
-      info = stor.get_json('info')
+    info = CloudFiles(self.cloudpath).get_json('info')
 
     if info is None:
       raise exceptions.InfoUnavailableError(
@@ -299,12 +299,13 @@ Hops:
       indent=2, 
       separators=(',', ': ')
     )
-
-    with SimpleStorage(self.cloudpath) as stor:
-      stor.put_file('info', infojson, 
-        content_type='application/json', 
-        cache_control='no-cache'
-      )
+    # use put instead of put_json to preserve formatting
+    cf = CloudFiles(self.cloudpath)
+    cf.put(
+      'info', infojson,
+      cache_control='no-cache',
+      content_type='application/json'
+    )
 
     if self.cache:
       self.cache.maybe_cache_info()
@@ -359,30 +360,30 @@ Hops:
 
     Returns: dict
     """
-    with SimpleStorage(self.cloudpath) as stor:
-      provfile = stor.get_file('provenance')
-      if provfile:
-        provfile = provfile.decode('utf-8')
+    cf = CloudFiles(self.cloudpath)
+    provfile = cf.get('provenance')
+    if provfile:
+      provfile = provfile.decode('utf-8')
 
-        # The json5 decoder is *very* slow
-        # so use the stricter but much faster json 
-        # decoder first, and try it only if it fails.
+      # The json5 decoder is *very* slow
+      # so use the stricter but much faster json 
+      # decoder first, and try it only if it fails.
+      try:
+        provfile = json.loads(provfile)
+      except json.decoder.JSONDecodeError:
         try:
-          provfile = json.loads(provfile)
-        except json.decoder.JSONDecodeError:
-          try:
-            provfile = json5.loads(provfile)
-          except ValueError:
-            raise ValueError(red("""The provenance file could not be JSON decoded. 
-              Please reformat the provenance file before continuing. 
-              Contents: {}""".format(provfile)))
-      else:
-        provfile = {
-          "sources": [],
-          "owners": [],
-          "processing": [],
-          "description": "",
-        }
+          provfile = json5.loads(provfile)
+        except ValueError:
+          raise ValueError(red("""The provenance file could not be JSON decoded. 
+            Please reformat the provenance file before continuing. 
+            Contents: {}""".format(provfile)))
+    else:
+      provfile = {
+        "sources": [],
+        "owners": [],
+        "processing": [],
+        "description": "",
+      }
 
     return self._cast_provenance(provfile)
 
@@ -401,11 +402,14 @@ Hops:
       separators=(',', ': ')
     )
 
-    with SimpleStorage(self.cloudpath) as stor:
-      stor.put_file('provenance', prov, 
-        content_type='application/json',
-        cache_control='no-cache',
-      )
+    # need to use put vs put_json to preserve formatting
+    cf = CloudFiles(self.cloudpath)
+    cf.put(
+      'provenance', prov, 
+      cache_control='no-cache', 
+      content_type='application/json'
+    )
+
     if self.cache:
       self.cache.maybe_cache_provenance()
 

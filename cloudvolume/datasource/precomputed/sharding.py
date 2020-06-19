@@ -9,6 +9,8 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 from . import mmh3
 from ... import compression
 from ...lib import jsonify, toiter

@@ -5,6 +5,8 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles, reset_connection_pools
+
 from cloudvolume import lib, chunks
 from cloudvolume.exceptions import AlignmentError
 from cloudvolume.lib import ( 
@@ -12,8 +14,7 @@ from cloudvolume.lib import (
   Bbox, min2, max2
 )
 from cloudvolume.scheduler import schedule_jobs
-from cloudvolume.storage import Storage, SimpleStorage, reset_connection_pools
-from cloudvolume.threaded_queue import ThreadedQueue, DEFAULT_THREADS
+from cloudvolume.threaded_queue import DEFAULT_THREADS
 from cloudvolume.volumecutout import VolumeCutout
 
 import cloudvolume.sharedmemory as shm
@@ -254,38 +255,34 @@ def threaded_upload_chunks(
   while img.ndim < 4:
     img = img[ ..., np.newaxis ]
 
-  remotestor = lambda: SimpleStorage(meta.cloudpath, progress=progress)
-  localstor = lambda: SimpleStorage('file://' + cache.path, progress=progress)
+  remote = CloudFiles(meta.cloudpath, progress=progress)
+  local = CloudFiles('file://' + cache.path, progress=progress)
 
   def do_upload(imgchunk, cloudpath):
     encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
 
-    with remotestor() as cloudstorage:
-      cloudstorage.put_file(
-        file_path=cloudpath, 
+    remote.put(
+        path=cloudpath, 
         content=encoded,
         content_type=content_type(meta.encoding(mip)), 
         compress=should_compress(meta.encoding(mip), compress, cache),
-        compress_level=compress_level,
+        compression_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
       )
 
     if cache.enabled:
-      with localstor() as cachestorage:
-        cachestorage.put_file(
-          file_path=cloudpath,
+        local.put(
+          path=cloudpath,
           content=encoded, 
           content_type=content_type(meta.encoding(mip)), 
           compress=should_compress(meta.encoding(mip), compress, cache, iscache=True)
         )
 
   def do_delete(cloudpath):
-    with remotestor() as cloudstorage:
-      cloudstorage.delete_file(cloudpath)
+    remote.delete(cloudpath)
     
     if cache.enabled:
-      with localstor() as cachestorage:
-        cachestorage.delete_file(cloudpath)
+      local.delete(cloudpath)
 
   def process(startpt, endpt, spt, ept):
     if np.array_equal(spt, ept):
@@ -316,7 +313,7 @@ def threaded_upload_chunks(
 
   schedule_jobs(
     fns=( partial(process, *vals) for vals in chunk_ranges ), 
-    concurrency=DEFAULT_THREADS, 
+    concurrency=n_threads, 
     progress=('Uploading' if progress else None),
     total=len(chunk_ranges),
     green=green,

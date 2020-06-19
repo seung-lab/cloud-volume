@@ -12,7 +12,8 @@ from six.moves import range
 import numpy as np
 from tqdm import tqdm
 
-from cloudvolume.storage import Storage
+from cloudfiles import CloudFiles
+
 from cloudvolume.lib import Vec, Bbox, mkdir, save_images, yellow
 from cloudvolume.paths import ExtractedPath
 
@@ -35,11 +36,8 @@ def view(cloudpath, hostname="localhost", port=DEFAULT_PORT):
 
 class ViewerServerHandler(BaseHTTPRequestHandler):
   def __init__(self, cloudpath, *args):
-    self.storage = Storage(cloudpath)
+    self.cloudpath = cloudpath
     BaseHTTPRequestHandler.__init__(self, *args)
-
-  def __del__(self):
-    self.storage.kill_threads()
 
   def do_GET(self):  
     if self.path.find('..') != -1:
@@ -47,7 +45,7 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
       raise ValueError("Relative paths are not allowed.")
 
     path = self.path[1:]
-    data = self.storage.get_file(path)
+    data = CloudFiles(self.cloudpath).get(path)
 
     if data is None:
       self.send_error(404, '/' + path + ": Not Found")
