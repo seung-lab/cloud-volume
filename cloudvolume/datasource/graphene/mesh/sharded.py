@@ -19,7 +19,7 @@ from .... import paths
 
 from ..sharding import GrapheneShardReader
 from ...precomputed.sharding import ShardingSpecification
-
+from ....mesh import is_draco_chunk_aligned
 from .unsharded import GrapheneUnshardedMeshSource
 
 class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
@@ -150,11 +150,15 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     lists = self.parse_manifest_filenames(filenames)
 
     files = []
+    levels = []
+
     if lists['dynamic']:
       files = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
-
+      frag_ids = [int(s.split(':')[0]) for s in lists['dynamic']]
+      levels = [self.meta.meta.decode_layer_id(id_) for id_ in frag_ids]
+    
     meshes = [ 
-      f['content'] for f in files 
+      f for f in files 
     ]
 
     fetches = []
@@ -164,6 +168,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
         'start': byte_start,
         'end': byte_start + size,
       })
+      levels.append(int(layer_id))
 
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
     raw_binaries = []
@@ -171,18 +176,49 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     initial_meshes = CloudFiles(cloudpath, green=self.config.green).get(fetches)
     meshes += initial_meshes
 
-    return [ Mesh.from_draco(mesh['content']) for mesh in meshes ]
+    return [ Mesh.from_draco(mesh['content']) for mesh in meshes ], levels
 
   def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
     level = self.meta.meta.decode_layer_id(seg_id)
     labels = self.get_fragment_labels(seg_id, level=level, bbox=bounding_box)
     meshes = self.get_meshes_on_bypass(labels)
-    return list(meshes.values())
+    meshes = list(meshes.values())
+    return meshes, [level for i in range(len(meshes))]
 
   def get_meshes_via_manifest(self, seg_id, bounding_box, use_byte_offsets):
     if use_byte_offsets:
       return self.get_meshes_via_manifest_byte_offsets(seg_id, bounding_box)
     return self.get_meshes_via_manifest_labels(seg_id, bounding_box)
+
+  def get_chunk_aligned_mask(self, meshes, levels):
+    meta = self.meta.meta
+    draco_grid_size=meta.get_draco_grid_size(levels[0])
+    base_resolution = meta.resolution(self.config.mip)
+    lvl2_resolution = meta.resolution(self.meta.mip)
+    if meta.chunks_start_at_voxel_offset:
+      voxel_offset = meta.voxel_offset(self.meta.mip)
+    else:
+      voxel_offset = Vec(0,0,0)
+    offset = voxel_offset * lvl2_resolution
+    lvl_2_size_nm = meta.chunk_size(self.meta.mip) * base_resolution
+
+    chunk_aligned_masks = []
+    for mesh, level in zip(meshes, levels):
+      chunk_size = (lvl_2_size_nm * (2**(level-2))).astype(np.int32)
+      verts = mesh.vertices - offset
+      # find all vertices that are exactly on chunk_size boundaries
+      is_chunk_aligned = is_draco_chunk_aligned(verts, chunk_size,
+                                                draco_grid_size=draco_grid_size)
+      chunk_aligned_masks.append(is_chunk_aligned)
+    
+    return np.concatenate(chunk_aligned_masks)
+
+  def stitch_multi_level_draco_mesh_fragments(self, meshes, levels, segid):
+    chunk_aligned_mask = self.get_chunk_aligned_mask(meshes, levels)
+    mesh = Mesh.concatenate(*meshes)
+    mesh.segid=segid
+
+    return mesh.deduplicate_vertices(chunk_aligned_mask)
 
   def get_meshes_on_bypass(self, segids):
     """
@@ -240,8 +276,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     if bypass:
       mesh = self.get_meshes_on_bypass(seg_id)[seg_id]
     else:
-      meshes = self.get_meshes_via_manifest(seg_id, bounding_box, use_byte_offsets=use_byte_offsets)
-      mesh = Mesh.concatenate(*meshes)
+      meshes, levels = self.get_meshes_via_manifest(seg_id, bounding_box, use_byte_offsets=use_byte_offsets)
+      mesh = self.stitch_multi_level_draco_mesh_fragments(meshes, levels, seg_id)
 
     if mesh is None:
       raise IndexError('No mesh found for segment {}'.format(seg_id))
