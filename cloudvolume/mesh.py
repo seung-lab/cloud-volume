@@ -369,7 +369,7 @@ end_header
     else:
       is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
 
-    return self.deduplicate_vertices(self, is_chunk_aligned)
+    return self.deduplicate_vertices(is_chunk_aligned)
 
   def viewer(self):
     try:
