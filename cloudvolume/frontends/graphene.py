@@ -104,7 +104,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     size2 = size // 2
 
     if coord_resolution is not None:
-      factor = self.meta.resolution(0) / Vec(*coord_resolution)
+      factor = self.meta.resolution(0) / Vec(*coord_resolution, dtype=np.float32)
       pt = Vec(*pt) / factor
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
