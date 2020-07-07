@@ -631,7 +631,7 @@ Hops:
     """Used for manually resetting downsamples if something messed up."""
     self.info['scales'] = self.info['scales'][0:1]
 
-  def add_resolution(self, res, encodig=None, chunk_size=None, info=None):
+  def add_resolution(self, res, encoding=None, chunk_size=None, info=None):
     factor = Vec(res, dtype=np.float32) // self.meta.resolution(0)
     return self.add_scale(factor, encoding, chunk_size, info)
 
