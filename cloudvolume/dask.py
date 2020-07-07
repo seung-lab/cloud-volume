@@ -40,7 +40,7 @@ def to_cloudvolume(arr,
          Boss  : boss://$COLLECTION/$EXPERIMENT/$CHANNEL
          HTTP/S: http(s)://.../$CHANNEL
          matrix: matrix://$BUCKET/$DATASET/$LAYER/
-  resolution: Iterable of ints of length 3
+  resolution: Iterable of floats of length 3
     The x, y, z voxel dimensions in nanometers
   voxel_offset: Iterable of ints of length 3
     The x, y, z beginning of dataset in positive cartesian space.

@@ -39,7 +39,7 @@ class BossMetadata(PrecomputedMetadata):
 
     cf = coord_frame
     resolution = [ cf.x_voxel_size, cf.y_voxel_size, cf.z_voxel_size ]
-    resolution = [ int(round(_)) * unit_factor for _ in resolution ]
+    resolution = [ r * unit_factor for r in resolution ]
 
     bbox = Bbox(
       (cf.x_start, cf.y_start, cf.z_start),

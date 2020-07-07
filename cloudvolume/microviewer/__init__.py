@@ -19,7 +19,7 @@ DEFAULT_PORT = 8080
 
 def getresolution(img, resolution):
   if resolution is not None:
-    return Vec(*resolution)
+    return Vec(*resolution, dtype=np.float32)
   else:
     try:
       return img.resolution

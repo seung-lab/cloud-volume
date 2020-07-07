@@ -1471,3 +1471,14 @@ def test_mip_locking():
     assert False 
   except ReadOnlyException:
     pass 
+
+def test_float_voxelres():
+  delete_layer()
+  cv, _ = create_layer(size=(1024, 1024, 2, 1), offset=(0,0,0))
+  cv.info['scales'][0]['key'] = '0.1_1.9_3.21'
+  cv.info['scales'][0]['resolution'] = [0.1, 1.9, 3.21]
+  cv.commit_info()
+
+  cv.add_scale((3,2,1))
+  assert cv.info['scales'][1]['key'] == '0.3_3.8_3.21'
+  assert cv.info['scales'][1]['resolution'] == [0.3, 3.8, 3.21]

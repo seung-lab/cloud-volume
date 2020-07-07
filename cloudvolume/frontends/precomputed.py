@@ -213,7 +213,7 @@ class CloudVolumePrecomputed(object):
       layer_type: (str) typically "image" or "segmentation"
       data_type: (str) e.g. "uint8", "uint16", "uint32", "float32"
       encoding: (str) "raw" for binaries like numpy arrays, "jpeg"
-      resolution: int (x,y,z), x,y,z voxel dimensions in nanometers
+      resolution: float (x,y,z), x,y,z voxel dimensions in nanometers
       voxel_offset: int (x,y,z), beginning of dataset in positive cartesian space
       volume_size: int (x,y,z), extent of dataset in cartesian space from voxel_offset
     
@@ -635,7 +635,7 @@ class CloudVolumePrecomputed(object):
     size2 = size // 2
 
     if coord_resolution is not None:
-      factor = self.meta.resolution(0) / Vec(*coord_resolution)
+      factor = self.meta.resolution(0) / Vec(*coord_resolution, dtype=np.float32)
       pt = Vec(*pt) / factor
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
