@@ -36,12 +36,13 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     self.readonly = bool(readonly)
 
     self.spatial_index = None
+    dtype = self.meta.meta.resolution(0).dtype
     if self.meta.spatial_index:
       mip = self.meta.mip or 0
       self.spatial_index = CachedSpatialIndex(
         self.cache, self.config,
         cloudpath=self.meta.layerpath, 
-        bounds=self.meta.meta.bounds(mip) * self.meta.meta.resolution(mip),
+        bounds=self.meta.meta.bounds(mip).astype(dtype) * self.meta.meta.resolution(mip),
         chunk_size=self.meta.info['spatial_index']['chunk_size'],
       )
 
