@@ -11,10 +11,11 @@ import requests
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 from ....lib import red, toiter, Bbox, Vec
 from ....mesh import Mesh
 from .... import paths
-from ....storage import SimpleStorage, Storage, GreenStorage
 
 from ..sharding import GrapheneShardReader
 from ...precomputed.sharding import ShardingSpecification
@@ -51,11 +52,9 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     checks = [ self.compute_filename(label) for label in labels ]
     
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'dynamic') 
-    StorageClass = GreenStorage if self.config.green else Storage
     progress = progress if progress is not None else self.config.progress
 
-    with StorageClass(cloudpath, progress=progress) as stor:
-      results = stor.files_exist(checks)
+    results = CloudFiles(cloudpath, progress=progress, green=self.config.green).exists(checks)
 
     output = {}
     for filepath, exists in results.items():
@@ -146,35 +145,30 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     """
     level = self.meta.meta.decode_layer_id(seg_id)
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
-    StorageClass = GreenStorage if self.config.green else Storage
 
     filenames = self.get_fragment_filenames(seg_id, level=level, bbox=bounding_box)
     lists = self.parse_manifest_filenames(filenames)
 
     files = []
     if lists['dynamic']:
-      with StorageClass(dynamic_cloudpath) as stor:
-        files = stor.get_files(lists['dynamic'])
+      files = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
 
     meshes = [ 
       f['content'] for f in files 
     ]
 
-    filenames = []
-    starts = []
-    ends = []
+    fetches = []
     for layer_id, filename, byte_start, size in lists['initial']:
-      filenames.append(self.meta.join(layer_id, filename))
-      starts.append(byte_start)
-      ends.append(byte_start + size)
+      fetches.append({
+        'path': self.meta.join(layer_id, filename),
+        'start': byte_start,
+        'end': byte_start + size,
+      })
 
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
-
     raw_binaries = []
     
-    with StorageClass(cloudpath) as stor:
-      initial_meshes = stor.get_files(filenames, starts, ends)
-
+    initial_meshes = CloudFiles(cloudpath, green=self.config.green).get(fetches)
     meshes += initial_meshes
 
     return [ Mesh.from_draco(mesh['content']) for mesh in meshes ]
@@ -197,11 +191,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     circumstances.
     """
     segids = toiter(segids)
-    StorageClass = GreenStorage if self.config.green else Storage
+    
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
     filenames = [ self.compute_filename(segid) for segid in segids ]
-    with StorageClass(dynamic_cloudpath, progress=self.config.progress) as stor:
-      raw_binaries = stor.get_files(filenames)
+
+    cf = CloudFiles(dynamic_cloudpath, progress=self.config.progress, green=self.config.green)
+    raw_binaries = cf.get(filenames)
 
     # extract the label ID from the mesh manifest.
     # e.g. 387463568301300850:0:24576-25088_17920-18432_2048-3072

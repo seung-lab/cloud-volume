@@ -10,10 +10,11 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 from .... import exceptions
 from ....lib import yellow, red, toiter
 from ....mesh import Mesh
-from ....storage import Storage
 from ..spatial_index import CachedSpatialIndex
 
 SEGIDRE = re.compile(r'\b(\d+):0.*?$')
@@ -84,12 +85,10 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     Returns: { label: path or None, ... }
     """
     manifest_paths = [ self.manifest_path(segid) for segid in segids ]
-    StorageClass = GreenStorage if self.config.green else Storage
-
     progress = progress if progress is not None else self.config.progress
 
-    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
-      exists = stor.files_exist(manifest_paths)
+    cf = CloudFiles(self.meta.cloudpath, progress=progress, green=self.config.green)
+    exists = cf.exists(manifest_paths)
 
     segid_regexp = re.compile(r'(\d+):0$')
 

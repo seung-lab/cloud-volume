@@ -19,7 +19,6 @@ from .exceptions import (
   SkeletonAttributeMixingError
 )
 from .lib import red, Bbox
-from .storage import Storage, SimpleStorage
 
 IDENTITY = np.array([
   [1, 0, 0, 0],

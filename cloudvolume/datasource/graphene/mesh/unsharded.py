@@ -11,10 +11,11 @@ import requests
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 from ....lib import red, toiter, Bbox, Vec, jsonify
 from ....mesh import Mesh
 from .... import paths
-from ....storage import Storage, GreenStorage
 from ....scheduler import schedule_jobs
 
 from ...precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, PrecomputedMeshMetadata
@@ -42,8 +43,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     ]
 
     cloudpath = self.meta.join(self.meta.cloudpath, self.meta.mesh_path)
-    with Storage(cloudpath) as stor:
-      return stor.files_exist(filenames)
+    return CloudFiles(cloudpath).exists(filenames)
 
   def get_fragment_labels(self, segid, lod=0, level=2, bbox=None, bypass=False):
     if bypass:

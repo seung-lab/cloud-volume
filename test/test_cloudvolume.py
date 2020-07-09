@@ -40,15 +40,15 @@ def test_cloud_access():
 
 def test_fill_missing():
   info = CloudVolume.create_new_info(
-  num_channels=1, # Increase this number when we add more tests for RGB
-  layer_type='image', 
-  data_type='uint8', 
-  encoding='raw',
-  resolution=[ 1,1,1 ], 
-  voxel_offset=[0,0,0], 
-  volume_size=[128,128,64],
-  mesh='mesh', 
-  chunk_size=[ 64,64,64 ],
+    num_channels=1, # Increase this number when we add more tests for RGB
+    layer_type='image', 
+    data_type='uint8', 
+    encoding='raw',
+    resolution=[ 1,1,1 ], 
+    voxel_offset=[0,0,0], 
+    volume_size=[128,128,64],
+    mesh='mesh', 
+    chunk_size=[ 64,64,64 ],
   )
 
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, info=info)

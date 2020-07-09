@@ -2,8 +2,9 @@ from collections import defaultdict
 
 import numpy as np
 
+from cloudfiles import CloudFiles
+
 from ..sharding import ShardingSpecification, ShardReader
-from ....storage import SimpleStorage
 from ....mesh import Mesh
 from ....lib import yellow, red, toiter
 from .... import exceptions
@@ -111,11 +112,12 @@ class ShardedMultiLevelPrecomputedMeshSource:
       total_fragment_size = np.sum(fragment_sizes)
 
       full_path = self.reader.meta.join(self.reader.meta.cloudpath)
-      stor = SimpleStorage(full_path)
-
-      lod_binary = stor.get_file(manifest.shard_filepath,
-          start=(manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
-          end=(manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]))
+      
+      lod_binary = CloudFiles(full_path).get({
+        'path': manifest.shard_filepath,
+        'start': (manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
+        'end': (manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]),  
+      })
 
       for frag in range(manifest.fragment_offsets[lod].shape[0]):
         frag_binary = lod_binary[

@@ -7,6 +7,8 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
+from cloudfiles import reset_connection_pools, CloudFiles
+
 from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
@@ -16,7 +18,6 @@ from ....lib import (
 from .... import chunks
 
 from cloudvolume.scheduler import schedule_jobs
-from cloudvolume.storage import SimpleStorage, reset_connection_pools
 from cloudvolume.threaded_queue import DEFAULT_THREADS
 from cloudvolume.volumecutout import VolumeCutout
 
@@ -247,17 +248,15 @@ def download_chunk(
     filename, fill_missing,
     enable_cache, compress_cache
   ):
-  with SimpleStorage(cloudpath) as stor:
-    content = stor.get_file(filename)
+  content = CloudFiles(cloudpath).get(filename)
 
   if enable_cache:
-    with SimpleStorage('file://' + cache.path) as stor:
-      stor.put_file(
-        file_path=filename, 
-        content=(content or b''), 
-        content_type=content_type(meta.encoding(mip)), 
-        compress=compress_cache,
-      )
+    CloudFiles('file://' + cache.path).put(
+      path=filename, 
+      content=(content or b''), 
+      content_type=content_type(meta.encoding(mip)), 
+      compress=compress_cache,
+    )
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
   img3d = decode(meta, filename, content, fill_missing, mip)

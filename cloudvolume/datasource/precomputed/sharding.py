@@ -9,12 +9,13 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 from . import mmh3
 from ... import compression
 from ...lib import jsonify, toiter
 from ...lru import LRU
 from ...exceptions import SpecViolation, EmptyFileException
-from ...storage import SimpleStorage, GreenStorage, Storage
 
 ShardLocation = namedtuple('ShardLocation', 
   ('shard_number', 'minishard_number', 'remainder')
@@ -575,27 +576,20 @@ class ShardReader(object):
 
     key_label = { (basename(v[0]), v[1], v[2]): k for k,v in exists.items() }
 
-    filenames = ( basename(ext[0]) for ext in exists.values() )
-    starts = ( int(ext[1]) for ext in exists.values() )
-    ends = ( int(ext[1]) + int(ext[2]) for ext in exists.values() )
+    files = ( 
+      { 'path': basename(ext[0]), 'start': int(ext[1]), 'end': int(ext[1]) + int(ext[2]) }
+      for ext in exists.values()
+    )
 
     full_path = self.meta.join(self.meta.cloudpath, path)
-
-    StorageClass = Storage
-    if self.green:
-      StorageClass = GreenStorage
-    elif len(exists) == 1:
-      StorageClass = SimpleStorage
-
-    with StorageClass(full_path, progress=progress) as stor:
-      remote_files = stor.get_files(filenames, starts=starts, ends=ends)
+    remote_files = CloudFiles(full_path, progress=progress, green=self.green).get(files)
 
     binaries = {}
     for res in remote_files:
       if res['error']:
         raise res['error']
       start, end = res['byte_range']
-      key = (res['filename'], start, end - start)
+      key = (res['path'], start, end - start)
       lbl = key_label[key]
       binaries[lbl] = res['content']
     del remote_files

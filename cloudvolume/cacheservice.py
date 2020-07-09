@@ -7,7 +7,7 @@ import shutil
 from . import scheduler
 
 from .provenance import DataLayerProvenance
-from .storage import SimpleStorage, Storage, GreenStorage
+from cloudfiles import CloudFiles
 from .storage.storage_interfaces import COMPRESSION_EXTENSIONS
 
 from .lib import (
@@ -107,9 +107,8 @@ class CacheService(object):
       return mip_size(self.config.mip)
 
   def has(self, filename):
-    with SimpleStorage('file://' + self.path) as stor:
-      return stor.exists(filename)
-
+    return CloudFiles('file://' + self.path).exists(filename)
+    
   def list(self, mip=None):
     mip = self.config.mip if mip is None else mip
 
@@ -234,7 +233,6 @@ class CacheService(object):
     cache_info = self.get_json('info')
     if not cache_info:
       return
-
     fresh_info = self.meta.fetch_info()
 
     mismatch_error = ValueError("""
@@ -305,18 +303,17 @@ class CacheService(object):
       """.format(cached_prov.serialize(), fresh_prov.serialize()))
 
   def get_json(self, filename):
-    with SimpleStorage('file://' + self.path) as storage:
-      return storage.get_json(filename)
+    return CloudFiles('file://' + self.path).get_json(filename)
 
   def maybe_cache_info(self):
     if self.enabled:
-      with SimpleStorage('file://' + self.path) as storage:
-        storage.put_file('info', jsonify(self.meta.info), 'application/json')
+      cf = CloudFiles('file://' + self.path)
+      cf.put_json('info', self.meta.info)
 
   def maybe_cache_provenance(self):
     if self.enabled and self.meta.provenance:
-      with SimpleStorage('file://' + self.path) as storage:
-        storage.put_file('provenance', self.meta.provenance.serialize(), 'application/json')
+      cf = CloudFiles('file://' + self.path)
+      cf.put('provenance', self.meta.provenance.serialize().encode('utf8'))
 
   def upload_single(self, filename, content, *args, **kwargs):
     kwargs['progress'] = False
@@ -327,15 +324,14 @@ class CacheService(object):
 
     progress = progress if progress is not None else self.config.progress
 
-    StorageClass = self.pick_storage_class(files)
-    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
-      remote_fragments = stor.put_files(
-        files=files,
-        compress=compress,
-        compress_level=compress_level,
-        cache_control=cache_control,
-        content_type=content_type,
-      )
+    cf = CloudFiles(self.meta.cloudpath, progress=progress)
+    cf.puts( 
+      files, 
+      compress=compress, 
+      compression_level=compress_level, 
+      cache_control=cache_control, 
+      content_type=content_type 
+    )
 
     if self.enabled:
       self.put(files, compress=compress)
@@ -370,8 +366,7 @@ class CacheService(object):
       if locs['local']:
         return self.get_single(local_alias)
 
-    with SimpleStorage(self.meta.cloudpath) as stor:
-      filedata = stor.get_file(path, start=start, end=end)
+    filedata = CloudFiles(self.meta.cloudpath)[path, start:end]
 
     if self.enabled:
       self.put([ (local_alias, filedata) ], compress=compress)
@@ -389,7 +384,6 @@ class CacheService(object):
       'end': ...,
     }]
     """
-    # import pdb; pdb.set_trace()
     if len(requests) == 0:
       return {}
 
@@ -419,20 +413,17 @@ class CacheService(object):
 
     remote_path_tuples = list(alias_tuples.values())
 
-    remote_paths = ( path for path, start, end in remote_path_tuples )
-    starts = ( start for path, start, end in remote_path_tuples )
-    ends = ( end for path, start, end in remote_path_tuples )
-
-    StorageClass = self.pick_storage_class(remote_path_tuples)
-    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
-      remote_fragments = stor.get_files(remote_paths, starts=starts, ends=ends)
+    cf = CloudFiles(self.meta.cloudpath, progress=progress)
+    remote_fragments = cf.get(
+      ( { 'path': p[0], 'start': p[1], 'end': p[2] } for p in remote_path_tuples )
+    )
 
     for frag in remote_fragments:
       if frag['error'] is not None:
         raise frag['error']
 
     remote_fragments = { 
-      (res['filename'], res['byte_range'][0], res['byte_range'][1]): res['content'] \
+      (res['path'], res['byte_range'][0], res['byte_range'][1]): res['content'] \
       for res in remote_fragments 
     }
 
@@ -469,16 +460,15 @@ class CacheService(object):
     if self.enabled:
       fragments = self.get(locs['local'], progress=progress)
 
-    StorageClass = self.pick_storage_class(locs['remote'])
-    with StorageClass(self.meta.cloudpath, progress=progress) as stor:
-      remote_fragments = stor.get_files(locs['remote'])
+    cf = CloudFiles(self.meta.cloudpath, progress=progress)
+    remote_fragments = cf.get(locs['remote'])
 
     for frag in remote_fragments:
       if frag['error'] is not None:
         raise frag['error']
 
     remote_fragments = { 
-      res['filename']: res['content'] \
+      res['path']: res['content'] \
       for res in remote_fragments 
     }
 
@@ -502,11 +492,10 @@ class CacheService(object):
   def get(self, cloudpaths, progress=None):
     progress = self.config.progress if progress is None else progress
     
-    StorageClass = self.pick_storage_class(cloudpaths)
-    with StorageClass('file://' + self.path, progress=progress) as stor:
-      results = stor.get_files(list(cloudpaths))
+    cf = CloudFiles('file://' + self.path, progress=progress)
+    results = cf.get(list(cloudpaths))
 
-    return { res['filename']: res['content'] for res in results }
+    return { res['path']: res['content'] for res in results }
 
   def put_single(self, path, content, *args, **kwargs):
     kwargs['progress'] = False
@@ -523,16 +512,14 @@ class CacheService(object):
     if compress is None:
       compress = self.config.compress
     
-    StorageClass = self.pick_storage_class(files)
-
     save_location = 'file://' + self.path
     progress = 'to Cache' if progress else None
-    with StorageClass(save_location, progress=progress) as stor:
-      stor.put_files(
-        [ (name, content) for name, content in files ],
-        compress=compress,
-        compress_level=compress_level,
-      )
+    cf = CloudFiles(save_location, progress=progress)
+    cf.puts(
+      [ (name, content) for name, content in files ], 
+      compress=compress, 
+      compression_level=compress_level
+    )
 
   def compute_data_locations(self, cloudpaths):
     if not self.enabled:
@@ -569,14 +556,6 @@ class CacheService(object):
 
     return { 'local': already_have, 'remote': download_paths }
 
-  def pick_storage_class(self, cloudpaths):
-    if len(cloudpaths) <= 1:
-      return SimpleStorage
-    elif self.config.green:
-      return GreenStorage
-    else:
-      return Storage
-    
   def __repr__(self):
     return "CacheService(enabled={}, compress={}, path='{}')".format(
       self.enabled, self.compress, self.path
