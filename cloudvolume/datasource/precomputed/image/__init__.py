@@ -13,10 +13,11 @@ import uuid
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
+
 from cloudvolume import lib, exceptions
 from ....lib import Bbox, Vec
 from .... import sharedmemory
-from ....storage import Storage
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
@@ -196,15 +197,13 @@ class PrecomputedImageSource(ImageSourceInterface):
     )
     realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
 
-    cloudpaths = list(chunknames(
+    cloudpaths = chunknames(
       realized_bbox, self.meta.bounds(mip), 
       self.meta.key(mip), self.meta.chunk_size(mip),
       protocol=self.meta.path.protocol
-    ))
+    )
 
-    with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
-      existence_report = storage.files_exist(cloudpaths)
-    return existence_report
+    return CloudFiles(self.meta.cloudpath, progress=self.config.progress).exists(cloudpaths)
 
   @readonlyguard
   def delete(self, bbox, mip=None):
@@ -230,19 +229,18 @@ class PrecomputedImageSource(ImageSourceInterface):
         bbox, realized_bbox
       ))
 
-    cloudpaths = list(chunknames(
+    cloudpaths = lambda: chunknames(
       realized_bbox, self.meta.bounds(mip),
       self.meta.key(mip), self.meta.chunk_size(mip),
       protocol=self.meta.path.protocol
-    ))
+    ) # need to regenerate so that generator isn't used up
 
-    with Storage(self.meta.cloudpath, progress=self.config.progress) as storage:
-      storage.delete_files(cloudpaths)
+    CloudFiles(self.meta.cloudpath, progress=self.config.progress) \
+      .delete(cloudpaths())
 
     if self.cache.enabled:
-      with Storage('file://' + self.cache.path, progress=self.config.progress) as storage:
-        storage.delete_files(cloudpaths)
-
+      CloudFiles('file://' + self.cache.path, progress=self.config.progress) \
+        .delete(cloudpaths())
 
   def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True, compress_level=None):
     """
@@ -321,17 +319,18 @@ class PrecomputedImageSource(ImageSourceInterface):
       total=num_blocks,
     )
 
+    cfsrc = CloudFiles(self.meta.cloudpath)
+    cfdest = CloudFiles(cloudpath)
+
     with pbar:
-      with Storage(self.meta.cloudpath) as src_stor:
-        with Storage(cloudpath) as dest_stor:
-          for _ in range(num_blocks, 0, -1):
-            srcpaths = list(itertools.islice(cloudpaths, step))
-            files = src_stor.get_files(srcpaths)
-            files = [ (f['filename'], f['content']) for f in files ]
-            dest_stor.put_files(
-              files=files, 
-              compress=compress, 
-              compress_level=compress_level,
-              content_type=tx.content_type(destvol),
-            )
-            pbar.update()
+      for _ in range(num_blocks, 0, -1):
+        srcpaths = list(itertools.islice(cloudpaths, step))
+        files = cfsrc.get(srcpaths)
+        files = [ (f['path'], f['content']) for f in files ]
+        cfdest.puts(
+          files, 
+          compress=compress, 
+          compression_level=compress_level,
+          content_type=tx.content_type(destvol),
+        )
+        pbar.update()
