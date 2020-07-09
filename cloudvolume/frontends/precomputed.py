@@ -623,11 +623,11 @@ class CloudVolumePrecomputed(object):
       pt = Vec(*pt) / factor
 
     pt = self.point_to_mip(pt, mip=0, to_mip=mip)
-
-    if all(size == 1):
-      bbox = Bbox(pt, pt + 1).astype(np.int64)
-    else:
-      bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
+    bbox = Bbox(pt - size2, pt + size2).astype(np.int64)
+    for i, sz in enumerate(size):
+      if sz == 1:
+        bbox.minpt[i] = pt[i]
+        bbox.maxpt[i] = pt[i] + 1
 
     if self.autocrop:
       bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
