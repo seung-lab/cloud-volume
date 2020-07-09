@@ -26,8 +26,9 @@ class ShardingSpecification(object):
   def __init__(
     self, type, preshift_bits, 
     hash, minishard_bits, 
-    shard_bits, minishard_index_encoding, 
-    data_encoding
+    shard_bits, 
+    minishard_index_encoding='raw', 
+    data_encoding='raw'
   ):
 
     self.type = type 
