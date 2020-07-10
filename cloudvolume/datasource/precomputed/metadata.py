@@ -668,7 +668,7 @@ Hops:
       u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
-      u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
+      u"voxel_offset": downscale(fullres.get('voxel_offset', (0,0,0)), factor, np.floor),
       u"size": downscale(fullres['size'], factor, np.ceil),
     }
 
