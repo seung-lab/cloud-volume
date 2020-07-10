@@ -37,10 +37,10 @@ def to_unix_time(timestamp):
   if isinstance(timestamp, datetime): # NB. do not change to elif
     timestamp = datetime.timestamp(timestamp)
 
-  if not isinstance(timestamp, float) and timestamp is not None:
+  if not isinstance(timestamp, (int, float, np.integer, np.floating)) and timestamp is not None:
     raise ValueError("Not able to convert {} to UNIX time.".format(timestamp))
 
-  return timestamp
+  return int(timestamp)
 
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
