@@ -87,9 +87,14 @@ class PrecomputedImageSource(ImageSourceInterface):
     If the entry is False, then the data is not there.
     """
     mip = mip if mip is not None else self.config.mip
+    try:
+      self.meta.scales[mip]
+    except IndexError:
+      raise exceptions.ScaleUnavailableError("{} is not available in the info file.".format(mip))
+
     cf = CloudFiles(self.meta.cloudpath)
     key = self.meta.key(mip)
-    return len(first(sip(cf.list(prefix=key), 1))) > 0
+    return len(list(sip(cf.list(prefix=key), 1))) > 0
 
   def download(
       self, bbox, mip, parallel=1, 
