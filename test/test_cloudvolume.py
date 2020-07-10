@@ -326,62 +326,60 @@ def test_autocropped_read():
   assert img.shape == (0,0,0,1)
   assert np.all(img == data[0:0, 0:0, 0:0])    
 
-def test_download_upload_file():
-  for green in (False, True):
-    print("green:", green)
-    delete_layer()
-    cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
-    cv.green_threads = green
+@pytest.mark.parametrize('green', (True, False))
+def test_download_upload_file(green):
+  delete_layer()
+  cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
+  cv.green_threads = green
 
-    mkdir('/tmp/file/')
+  mkdir('/tmp/file/')
 
-    cv.download_to_file('/tmp/file/test', cv.bounds)
-    cv2 = CloudVolume('file:///tmp/file/test2/', info=cv.info)
-    cv2.upload_from_file('/tmp/file/test', cv.bounds)
+  cv.download_to_file('/tmp/file/test', cv.bounds)
+  cv2 = CloudVolume('file:///tmp/file/test2/', info=cv.info)
+  cv2.upload_from_file('/tmp/file/test', cv.bounds)
 
-    assert np.all(cv2[:] == cv[:])
-    shutil.rmtree('/tmp/file/')
+  assert np.all(cv2[:] == cv[:])
+  shutil.rmtree('/tmp/file/')
 
-def test_write():
-  for green in (False, True):
-    print("green:", green)
-    delete_layer()
-    cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
-    cv.green_threads = green
+@pytest.mark.parametrize('green', (True, False))
+def test_write(green):
+  delete_layer()
+  cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
+  cv.green_threads = green
 
-    replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
-    cv[0:50,0:50,0:50] = replacement_data
-    assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+  replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
+  cv[0:50,0:50,0:50] = replacement_data
+  assert np.all(cv[0:50,0:50,0:50] == replacement_data)
 
-    replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
-    cv[0:50,0:50,0:50] = replacement_data
-    assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+  replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
+  cv[0:50,0:50,0:50] = replacement_data
+  assert np.all(cv[0:50,0:50,0:50] == replacement_data)
 
-    replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
-    bbx = Bbox((0,0,0), (50,50,50))
-    cv[bbx] = replacement_data
-    assert np.all(cv[bbx] == replacement_data)
+  replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
+  bbx = Bbox((0,0,0), (50,50,50))
+  cv[bbx] = replacement_data
+  assert np.all(cv[bbx] == replacement_data)
 
-    # out of bounds
-    delete_layer()
-    cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
-    cv.green_threads = green
-    with pytest.raises(ValueError):
-      cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
-    
-    # non-aligned writes
-    delete_layer()
-    cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
-    cv.green_threads = green
-    with pytest.raises(ValueError):
-      cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
+  # out of bounds
+  delete_layer()
+  cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
+  cv.green_threads = green
+  with pytest.raises(ValueError):
+    cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
+  
+  # non-aligned writes
+  delete_layer()
+  cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
+  cv.green_threads = green
+  with pytest.raises(ValueError):
+    cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
-    # test bounds check for short boundary chunk
-    delete_layer()
-    cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
-    cv.green_threads = green
-    cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
-    cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
+  # test bounds check for short boundary chunk
+  delete_layer()
+  cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
+  cv.green_threads = green
+  cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
+  cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
 def test_non_aligned_write():
   delete_layer()
