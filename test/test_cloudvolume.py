@@ -71,6 +71,8 @@ def test_has_data():
 
   assert cv.image.has_data(0) == True
   assert cv.image.has_data(1) == False
+  assert cv.image.has_data([1,1,1]) == True
+  assert cv.image.has_data([2,2,1]) == False
 
   try:
     cv.image.has_data(2)

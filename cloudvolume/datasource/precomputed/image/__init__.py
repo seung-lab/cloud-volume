@@ -87,6 +87,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     If the entry is False, then the data is not there.
     """
     mip = mip if mip is not None else self.config.mip
+    mip = self.meta.to_mip(mip)
     try:
       self.meta.scales[mip]
     except IndexError:
