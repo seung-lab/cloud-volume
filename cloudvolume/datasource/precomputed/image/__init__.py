@@ -342,6 +342,19 @@ class PrecomputedImageSource(ImageSourceInterface):
         pbar.update()
 
   def make_shard(self, img, bbox, mip=None, spec=None):
+    """
+    Convert an image that represents a single complete shard 
+    into a shard file.
+  
+    img: a volumetric numpy array image
+    bbox: the bbox it represents in voxel coordinates
+    mip: if specified, use the sharding specification from 
+      this mip level, otherwise use the sharding spec from
+      the current implicit mip level in config.
+    spec: use the provided specification (overrides mip parameter)
+
+    Returns: (filename, shard_file)
+    """
     mip = mip if mip is not None else self.config.mip
     scale = self.meta.scale(mip)
 
