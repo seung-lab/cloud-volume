@@ -88,11 +88,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     """
     mip = mip if mip is not None else self.config.mip
     mip = self.meta.to_mip(mip)
-    try:
-      self.meta.scales[mip]
-    except IndexError:
-      raise exceptions.ScaleUnavailableError("{} is not available in the info file.".format(mip))
-
+    
     cf = CloudFiles(self.meta.cloudpath)
     key = self.meta.key(mip)
     return len(list(sip(cf.list(prefix=key), 1))) > 0
