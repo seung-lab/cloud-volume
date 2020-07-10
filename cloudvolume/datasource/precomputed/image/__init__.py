@@ -7,7 +7,9 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
+from functools import reduce
 import itertools
+import operator
 import uuid
 
 import numpy as np
@@ -17,11 +19,11 @@ from cloudfiles import CloudFiles
 
 from cloudvolume import lib, exceptions
 from ....lib import Bbox, Vec, sip, first
-from .... import sharedmemory
+from .... import sharedmemory, chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
-from .common import chunknames
+from .common import chunknames, gridpoints, compressed_morton_code
 from . import tx, rx
 
 class PrecomputedImageSource(ImageSourceInterface):
@@ -55,6 +57,10 @@ class PrecomputedImageSource(ImageSourceInterface):
   def unlink_shared_memory(self):
     """Unlink the current shared memory location from the filesystem."""
     return sharedmemory.unlink(self.shared_memory_id)
+
+  def grid_size(self, mip=None):
+    mip = mip if mip is not None else self.config.mip
+    return np.ceil(self.meta.volume_size(mip) / self.meta.chunk_size(mip)).astype(np.int64)
 
   def check_bounded(self, bbox, mip):
     if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
@@ -352,3 +358,55 @@ class PrecomputedImageSource(ImageSourceInterface):
           content_type=tx.content_type(destvol),
         )
         pbar.update()
+
+  def make_shard(self, img, bbox, mip=None, spec=None):
+    mip = mip if mip is not None else self.config.mip
+    scale = self.meta.scale(mip)
+
+    if spec is None:
+      if 'sharding' in scale:
+        spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
+      else:
+        raise ValueError("mip {} does not have a sharding specification.".format(mip))
+
+    if bbox.subvoxel():
+      raise ValueError("Bounding box is too small to make a shard. Got: {}".format(bbox))
+
+    bbox = Bbox.create(bbox, self.meta.bounds(mip), bounded=True)
+    aligned_bbox = bbox.expand_to_chunk_size(
+      self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
+    )
+    aligned_bbox = Bbox.clamp(aligned_bbox, self.meta.bounds(mip))
+
+    if bbox != aligned_bbox:
+      raise exceptions.AlignmentError(
+        "Unable to create shard from a non-chunk aligned bounding box. Requested: {}, Aligned: {}".format(
+        bbox, aligned_bbox
+      ))
+
+    grid_size = self.grid_size(mip)
+    chunk_size = self.meta.chunk_size(mip)
+
+    gpts = lambda: gridpoints(bbox, self.meta.bounds(mip), chunk_size)
+    all_same_shard = reduce(operator.eq,
+      map(spec.get_filename,
+        map(lambda gpt: compressed_morton_code(gpt, grid_size), gpts())
+      )
+    )
+
+    if not all_same_shard:
+      raise exceptions.AlignmentError(
+        "The gridpoints for this image did not all correspond to the same shard. Got: {}".format(bbox)
+      )
+
+    labels = {}
+    for pt in gpts():
+      cutout_bbx = Bbox( pt * chunk_size, (pt+1) * chunk_size )
+      chunk = img[ cutout_bbx.to_slices() ]
+      morton_code = compressed_morton_code(pt, grid_size)
+      labels[morton_code] = chunks.encode(chunk, self.meta.encoding(mip))
+
+    shard_filename = spec.get_filename(first(labels.keys()))
+
+    return (shard_filename, spec.synthesize_shard(labels))
+

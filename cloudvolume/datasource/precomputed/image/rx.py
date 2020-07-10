@@ -55,7 +55,7 @@ def download_sharded(
 
   renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
-  gpts = list(gridpoints(full_bbox, bounds, chunk_size))
+  gpts = gridpoints(full_bbox, bounds, chunk_size)
 
   code_map = {}
   for gridpoint in gpts:
