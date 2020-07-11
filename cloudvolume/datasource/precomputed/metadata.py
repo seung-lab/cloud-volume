@@ -579,6 +579,10 @@ Hops:
     """The subdirectory within the data layer containing the chunks for this mip level"""
     return self.scale(mip)['key']
 
+  @property
+  def keys(self):
+    return [ self.key(mip) for mip in self.available_mips ]
+
   def bounds(self, mip):
     """Returns a 3D spatial bounding box for the dataset with dimensions in voxels."""
     offset = self.voxel_offset(mip)
@@ -664,7 +668,7 @@ Hops:
       u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
       u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
-      u"voxel_offset": downscale(fullres['voxel_offset'], factor, np.floor),
+      u"voxel_offset": downscale(fullres.get('voxel_offset', (0,0,0)), factor, np.floor),
       u"size": downscale(fullres['size'], factor, np.ceil),
     }
 

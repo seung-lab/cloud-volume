@@ -8,6 +8,7 @@ import sys
 import math
 import operator
 import time
+import types
 import random
 import string 
 from itertools import product
@@ -54,6 +55,21 @@ def first(lst):
     return lst[0]
   except TypeError:
     return next(iter(lst))
+
+def sip(iterable, block_size):
+  """Sips a fixed size from the iterable."""
+  ct = 0
+  block = []
+  for x in iterable:
+    ct += 1
+    block.append(x)
+    if ct == block_size:
+      yield block
+      ct = 0
+      block = []
+
+  if len(block) > 0:
+    yield block
 
 def toiter(obj, is_iter=False):
   if isinstance(obj, str) or isinstance(obj, dict):

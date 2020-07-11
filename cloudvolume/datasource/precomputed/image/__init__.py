@@ -20,6 +20,8 @@ from cloudfiles import CloudFiles
 from cloudvolume import lib, exceptions
 from ....lib import Bbox, Vec, first
 from .... import sharedmemory, chunks
+from ....lib import Bbox, Vec, sip, first
+from .... import sharedmemory
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
@@ -80,6 +82,24 @@ class PrecomputedImageSource(ImageSourceInterface):
           mip, self.meta.resolution(mip)
         )
       )
+
+  def has_data(self, mip=None):
+    """
+    Returns whether the specified mip appears to have data 
+    by testing whether the "folder" exists.
+
+    Returns: bool
+  
+    The mip is the index into the returned list. If
+    the entry is True, then the data appears to be there.
+    If the entry is False, then the data is not there.
+    """
+    mip = mip if mip is not None else self.config.mip
+    mip = self.meta.to_mip(mip)
+    
+    cf = CloudFiles(self.meta.cloudpath)
+    key = self.meta.key(mip)
+    return len(list(sip(cf.list(prefix=key), 1))) > 0
 
   def download(
       self, bbox, mip, parallel=1, 
