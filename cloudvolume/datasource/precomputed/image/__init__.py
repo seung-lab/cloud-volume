@@ -191,6 +191,12 @@ class PrecomputedImageSource(ImageSourceInterface):
     if location is None:
       location = self.shared_memory_id
 
+    if self.is_sharded(mip):
+      (filename, shard) = self.make_shard(image, bbox, mip)
+      basepath = self.meta.join(self.meta.cloudpath, self.meta.key(mip))
+      CloudFiles(basepath).put(filename, shard)
+      return
+
     return tx.upload(
       self.meta, self.cache,
       image, offset, mip,
@@ -399,13 +405,14 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     grid_size = self.grid_size(mip)
     chunk_size = self.meta.chunk_size(mip)
+    reader = sharding.ShardReader(self.meta, self.cache, spec)
 
     gpts = lambda: gridpoints(bbox, self.meta.bounds(mip), chunk_size)
-    all_same_shard = reduce(operator.eq,
-      map(spec.get_filename,
+    all_same_shard = bool(reduce(lambda a,b: operator.eq(a,b) and a,
+      map(reader.get_filename,
         map(lambda gpt: compressed_morton_code(gpt, grid_size), gpts())
       )
-    )
+    ))
 
     if not all_same_shard:
       raise exceptions.AlignmentError(
@@ -419,7 +426,11 @@ class PrecomputedImageSource(ImageSourceInterface):
       morton_code = compressed_morton_code(pt, grid_size)
       labels[morton_code] = chunks.encode(chunk, self.meta.encoding(mip))
 
-    shard_filename = spec.get_filename(first(labels.keys()))
+    shard_filename = reader.get_filename(first(labels.keys()))
 
     return (shard_filename, spec.synthesize_shard(labels))
+
+  def is_sharded(self, mip):
+    scale = self.meta.scale(mip)
+    return 'sharding' in scale and scale['sharding'] is not None
 

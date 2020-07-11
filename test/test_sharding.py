@@ -5,6 +5,8 @@ from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SpecViolation
 
 from cloudvolume import Vec
+from cloudvolume import exceptions
+from layer_harness import delete_layer, create_layer
 
 import numpy as np
 
@@ -225,8 +227,30 @@ def test_image_fidelity():
 
   assert N_labels == 144
 
+def test_write_image_shard():
+  delete_layer()
+  cv, data = create_layer(size=(256,256,256,1), offset=(0,0,0))
 
+  spec = {
+    "@type" : "neuroglancer_uint64_sharded_v1",
+    "data_encoding" : "gzip",
+    "hash" : "murmurhash3_x86_128",
+    "minishard_bits" : 1,
+    "minishard_index_encoding" : "raw",
+    "preshift_bits" : 3,
+    "shard_bits" : 0
+  }
+  cv.scale['sharding'] = spec
 
+  cv[:] = data
+  sharded_data = cv[:]
+  assert np.all(data == sharded_data)
 
+  spec['shard_bits'] = 1
+  try:
+    cv[:] = data
+    assert False
+  except exceptions.AlignmentError:
+    pass
 
 
