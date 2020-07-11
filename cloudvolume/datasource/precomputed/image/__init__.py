@@ -18,8 +18,6 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles
 
 from cloudvolume import lib, exceptions
-from ....lib import Bbox, Vec, first
-from .... import sharedmemory, chunks
 from ....lib import Bbox, Vec, sip, first
 from .... import sharedmemory, chunks
 
