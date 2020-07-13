@@ -194,7 +194,11 @@ class PrecomputedImageSource(ImageSourceInterface):
     if self.is_sharded(mip):
       (filename, shard) = self.make_shard(image, bbox, mip)
       basepath = self.meta.join(self.meta.cloudpath, self.meta.key(mip))
-      CloudFiles(basepath).put(filename, shard)
+      CloudFiles(basepath, progress=self.config.progress).put(
+        filename, shard, 
+        compress=self.config.compress, 
+        cache_control=self.config.cdn_cache
+      )
       return
 
     return tx.upload(
