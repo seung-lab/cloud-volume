@@ -424,10 +424,12 @@ class PrecomputedImageSource(ImageSourceInterface):
       )
 
     labels = {}
-    for pt in gpts():
-      cutout_bbx = Bbox( pt * chunk_size, (pt+1) * chunk_size )
+    pt_anchor = next(gpts())
+    for pt_abs in gpts():
+      pt_rel = pt_abs - pt_anchor
+      cutout_bbx = Bbox(pt_rel * chunk_size, (pt_rel + 1) * chunk_size)
       chunk = img[ cutout_bbx.to_slices() ]
-      morton_code = compressed_morton_code(pt, grid_size)
+      morton_code = compressed_morton_code(pt_abs, grid_size)
       labels[morton_code] = chunks.encode(chunk, self.meta.encoding(mip))
 
     shard_filename = reader.get_filename(first(labels.keys()))
