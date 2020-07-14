@@ -1,4 +1,3 @@
-import concurrent.futures
 import copy
 from functools import partial
 import itertools
@@ -30,8 +29,8 @@ def parallel_execution(fn, items, parallel, cleanup_shm=None):
   signal.signal(signal.SIGINT, cleanup)
   signal.signal(signal.SIGTERM, cleanup)
 
-  with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
-    executor.map(fn, items)
+  with mp.get_context('spawn').Pool(processes=parallel) as pool:
+    pool.map(fn, items)
 
   signal.signal(signal.SIGINT, prevsigint)
   signal.signal(signal.SIGTERM, prevsigterm)
