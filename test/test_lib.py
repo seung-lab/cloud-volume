@@ -101,7 +101,15 @@ def test_bbox_division():
   bbox /= 3.0 
   assert np.all(x == point333)
 
+def test_bbox_slicing():
+  bbx_rect = Bbox.from_slices(np.s_[1:10,1:10,1:10])
+  bbx_plane = Bbox.from_slices(np.s_[1:10,10:1,1:10])
 
+  assert bbx_rect == Bbox((1,1,1), (10,10,10))
+  assert bbx_plane == Bbox((1,10,1), (10, 10, 10))
+
+  bbx_plane = Bbox.from_slices(np.s_[1:10,10:1:-1,1:10])
+  assert bbx_plane == Bbox((1,1,1), (10,10,10))
 
 def test_bbox_intersection():
   bbx1 = Bbox( (0,0,0), (10,10,10) )

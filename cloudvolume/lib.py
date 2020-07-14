@@ -405,7 +405,7 @@ class Bbox(object):
 
     return Bbox(
       [ slc.start for slc in slices ],
-      [ slc.stop for slc in slices ]
+      [ (slc.start if slc.stop < slc.start and (slc.step is None or slc.step > 0) else slc.stop) for slc in slices ]
     )
 
   @classmethod
