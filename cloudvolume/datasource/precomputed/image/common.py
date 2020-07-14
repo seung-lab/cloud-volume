@@ -1,3 +1,4 @@
+import concurrent.futures
 import copy
 from functools import partial
 import itertools
@@ -7,6 +8,7 @@ import multiprocessing as mp
 import os
 import posixpath
 import signal
+import sys
 
 import numpy as np
 
@@ -29,8 +31,12 @@ def parallel_execution(fn, items, parallel, cleanup_shm=None):
   signal.signal(signal.SIGINT, cleanup)
   signal.signal(signal.SIGTERM, cleanup)
 
-  with mp.get_context('spawn').Pool(processes=parallel) as pool:
-    pool.map(fn, items)
+  if sys.version_info >= (3,0,0):
+    with mp.get_context('spawn').Pool(processes=parallel) as pool:
+      pool.map(fn, items)
+  else:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
+      executor.map(fn, items)
 
   signal.signal(signal.SIGINT, prevsigint)
   signal.signal(signal.SIGTERM, prevsigterm)
