@@ -522,6 +522,7 @@ class CloudVolumePrecomputed(object):
 
     slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
     steps = Vec(*[ slc.step for slc in slices ])
+    slices = [ slice(slc.start, slc.stop) for slc in slices ]
     channel_slice = slices.pop()
     requested_bbox = Bbox.from_slices(slices)
 
