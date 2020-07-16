@@ -90,7 +90,7 @@ def encode_jpeg(arr):
 
   reshaped = arr.T 
   reshaped = np.moveaxis(reshaped, 0, -1)
-  reshaped = reshaped.reshape(reshaped.shape[0], reshaped.shape[1] * reshaped.shape[2], reshaped.shape[3])
+  reshaped = reshaped.reshape(reshaped.shape[0] * reshaped.shape[1], reshaped.shape[2], reshaped.shape[3])
   if reshaped.shape[2] == 1:
     img = Image.fromarray(reshaped[:,:,0], mode='L')
   elif reshaped.shape[2] == 3:
