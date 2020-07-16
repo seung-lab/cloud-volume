@@ -80,33 +80,45 @@ def test_has_data():
   except exceptions.ScaleUnavailableError:
     pass
 
+def image_equal(arr1, arr2, encoding):
+  assert arr1.shape == arr2.shape
+  if encoding == 'raw':
+    return np.all(arr1 == arr2)
+
+  # jpeg
+  u1 = arr1.flatten().mean()
+  u2 = arr2.flatten().mean()
+  return np.abs(u1 - u2) < 1
+
 @pytest.mark.parametrize('green', (True, False))
-def test_aligned_read(green):
+@pytest.mark.parametrize('encoding', ('raw', 'jpeg'))
+def test_aligned_read(green, encoding):
   delete_layer()
-  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0), encoding=encoding)
   cv.green_threads = green
   # the last dimension is the number of channels
   assert cv[0:50,0:50,0:50].shape == (50,50,50,1)
-  assert np.all(cv[0:50,0:50,0:50] == data)
+  assert image_equal(cv[0:50,0:50,0:50], data, encoding)
   
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0), encoding=encoding)
   cv.green_threads = green
   # the last dimension is the number of channels
   assert cv[0:64,0:64,0:64].shape == (64,64,64,1) 
-  assert np.all(cv[0:64,0:64,0:64] ==  data[:64,:64,:64,:])
+
+  assert image_equal(cv[0:64,0:64,0:64], data[:64,:64,:64,:], encoding)
 
   delete_layer()
-  cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0))
+  cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0), encoding=encoding)
   cv.green_threads = green
   cutout = cv[10:74,20:84,0:64]
   # the last dimension is the number of channels
   assert cutout.shape == (64,64,64,1) 
-  assert np.all(cutout == data[:64,:64,:64,:])
+  assert image_equal(cutout, data[:64,:64,:64,:], encoding)
   # get the second chunk
   cutout2 = cv[74:138,20:84,0:64]
   assert cutout2.shape == (64,64,64,1) 
-  assert np.all(cutout2 == data[64:128,:64,:64,:])
+  assert image_equal(cutout2, data[64:128,:64,:64,:], encoding)
 
   assert cv[25, 25, 25].shape == (1,1,1,1)
 
@@ -342,23 +354,24 @@ def test_download_upload_file(green):
   shutil.rmtree('/tmp/file/')
 
 @pytest.mark.parametrize('green', (True, False))
-def test_write(green):
+@pytest.mark.parametrize('encoding', ('raw', 'jpeg'))
+def test_write(green, encoding):
   delete_layer()
   cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
   cv.green_threads = green
 
   replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
   cv[0:50,0:50,0:50] = replacement_data
-  assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+  assert image_equal(cv[0:50,0:50,0:50], replacement_data, encoding)
 
   replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
   cv[0:50,0:50,0:50] = replacement_data
-  assert np.all(cv[0:50,0:50,0:50] == replacement_data)
+  assert image_equal(cv[0:50,0:50,0:50], replacement_data, encoding)
 
   replacement_data = np.random.randint(255, size=(50,50,50,1), dtype=np.uint8)
   bbx = Bbox((0,0,0), (50,50,50))
   cv[bbx] = replacement_data
-  assert np.all(cv[bbx] == replacement_data)
+  assert image_equal(cv[bbx], replacement_data, encoding)
 
   # out of bounds
   delete_layer()
