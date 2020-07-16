@@ -403,9 +403,13 @@ class Bbox(object):
         slices, bounded=bounded, autocrop=autocrop
       )
 
+    for slc in slices:
+      if slc.step not in (None, 1):
+        raise ValueError("Non-unitary steps are unsupported. Got: " + str(slc.step))
+
     return Bbox(
       [ slc.start for slc in slices ],
-      [ slc.stop for slc in slices ]
+      [ (slc.start if slc.stop < slc.start else slc.stop) for slc in slices ]
     )
 
   @classmethod
