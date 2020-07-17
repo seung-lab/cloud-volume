@@ -181,7 +181,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     while files:
       f = files.pop()
       mesh = Mesh.from_draco(f['content'])
-      key = (f['path'], f['start'], f['end'])
+      start, end = f['byte_range']
+      key = (f['path'], start, end)
       mesh.segid = segid_map[key]
       initial_meshes.append(mesh)    
 
@@ -202,7 +203,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   def get_chunk_aligned_mask(self, meshes):
     meta = self.meta.meta
     draco_grid_size = meta.get_draco_grid_size(
-      self.meta.decode_layer_id(first(meshes).segid)
+      meta.decode_layer_id(first(meshes).segid)
     )
     base_resolution = meta.resolution(self.config.mip)
     lvl2_resolution = meta.resolution(self.meta.mip)
@@ -216,7 +217,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     chunk_aligned_masks = []
     for mesh in meshes:
-      level = self.meta.decode_layer_id(mesh.segid)
+      level = meta.decode_layer_id(mesh.segid)
       chunk_size = (lvl_2_size_nm * (2 ** (level-2))).astype(np.int32)
       verts = mesh.vertices - offset
       # find all vertices that are exactly on chunk_size boundaries
