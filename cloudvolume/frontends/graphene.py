@@ -44,6 +44,14 @@ def to_unix_time(timestamp):
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   @property
+  def agglomerate(self):
+    return self.meta.agglomerate
+  
+  @agglomerate.setter
+  def agglomerate(self, val):
+    self.meta.agglomerate = bool(val)
+
+  @property
   def manifest_endpoint(self):
     return self.meta.manifest_endpoint
 
@@ -222,6 +230,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       slices, mip=self.mip,
       preserve_zeros=True,
       parallel=self.parallel, 
+      agglomerate=self.agglomerate,
     )
 
   def get_chunk_layer(self, node_or_chunk_id):
