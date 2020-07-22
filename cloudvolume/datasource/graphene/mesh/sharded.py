@@ -208,7 +208,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       if res['error']:
         raise res['error']
 
-      (label,) = re.search(label_regexp, res['filename']).groups()
+      (label,) = re.search(label_regexp, res['path']).groups()
       label = int(label)
 
       if res['content'] is None:
