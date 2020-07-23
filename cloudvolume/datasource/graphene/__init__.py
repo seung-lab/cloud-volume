@@ -16,7 +16,8 @@ def create_graphene(
     compress=None, parallel=1,
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
-    mesh_dir=None, skel_dir=None, **kwargs
+    mesh_dir=None, skel_dir=None, agglomerate=False, 
+    **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
     
@@ -40,7 +41,8 @@ def create_graphene(
       )
     meta = GrapheneMetadata(
       cloudpath, cache=mkcache(cloudpath),
-      info=info, provenance=provenance, use_https=use_https
+      info=info, provenance=provenance, 
+      use_https=use_https, agglomerate=agglomerate,
     )
     # Resetting the cache is necessary because
     # graphene retrieves a data_dir from the info file

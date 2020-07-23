@@ -75,10 +75,16 @@ class GrapheneApiVersion():
     )
 
 class GrapheneMetadata(PrecomputedMetadata):
-  def __init__(self, cloudpath, use_https=False, use_auth=True, auth_token=None, *args, **kwargs):
+  def __init__(
+    self, cloudpath, use_https=False, 
+    use_auth=True, auth_token=None, 
+    agglomerate=False,
+    *args, **kwargs
+  ):
     self.server_url = cloudpath.replace('graphene://', '')
     self.server_path = extract_graphene_path(self.server_url)
     self.use_https = use_https
+    self.agglomerate = agglomerate
     self.auth_header = None
     self.spatial_index = None
     if use_auth:
