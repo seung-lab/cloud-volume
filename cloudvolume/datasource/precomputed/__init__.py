@@ -16,7 +16,8 @@ def create_precomputed(
     compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0, 
     green_threads=False, use_https=False,
-    max_redirects=10, mesh_dir=None, skel_dir=None
+    max_redirects=10, mesh_dir=None, skel_dir=None,
+    **kwargs # absorb graphene arguments
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
