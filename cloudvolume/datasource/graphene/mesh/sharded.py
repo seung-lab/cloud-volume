@@ -149,13 +149,9 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     filenames = self.get_fragment_filenames(seg_id, level=level, bbox=bounding_box)
     lists = self.parse_manifest_filenames(filenames)
 
-    files = []
+    meshes = []
     if lists['dynamic']:
-      files = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
-
-    meshes = [ 
-      f['content'] for f in files 
-    ]
+      meshes = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
 
     fetches = []
     for layer_id, filename, byte_start, size in lists['initial']:
@@ -166,7 +162,6 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       })
 
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
-    raw_binaries = []
     
     initial_meshes = CloudFiles(cloudpath, green=self.config.green).get(fetches)
     meshes += initial_meshes
