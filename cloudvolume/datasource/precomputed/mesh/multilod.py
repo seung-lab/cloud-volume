@@ -4,6 +4,7 @@ import numpy as np
 
 from cloudfiles import CloudFiles
 
+from .unsharded import UnshardedLegacyPrecomputedMeshSource
 from ..sharding import ShardingSpecification, ShardReader
 from ....mesh import Mesh
 from ....lib import yellow, red, toiter
@@ -21,12 +22,9 @@ class UnshardedMultiLevelPrecomputedMeshSource(object):
     return method
 
 
-class ShardedMultiLevelPrecomputedMeshSource:
+class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSource):
   def __init__(self, meta, cache, config, readonly=False):
-    self.meta = meta
-    self.cache = cache
-    self.config = config
-    self.readonly = bool(readonly)
+    super(ShardedMultiLevelPrecomputedMeshSource, self).__init__(meta, cache, config, readonly)
 
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
     self.reader = ShardReader(meta, cache, spec)
@@ -38,11 +36,9 @@ class ShardedMultiLevelPrecomputedMeshSource:
     if np.any(self.transform * np.array([[0,1,1,1],[1,0,1,1],[1,1,0,1],[1,1,1,0]])):
       raise exceptions.MeshDecodeError(red("Non-scale homogeneous transforms are not implemented"))
 
-
   @property
   def path(self):
     return self.meta.mesh_path
-
 
   def exists(self, segids, progress=None):
     """
