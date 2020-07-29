@@ -13,7 +13,7 @@ from cloudfiles import CloudFiles
 
 from . import mmh3
 from ... import compression
-from ...lib import jsonify, toiter
+from ...lib import jsonify, toiter, first
 from ...lru import LRU
 from ...exceptions import SpecViolation, EmptyFileException
 
@@ -556,16 +556,21 @@ class ShardReader(object):
     label, return_multiple = toiter(label, is_iter=True)
     label = set(( int(l) for l in label))
 
-    results = {}
+    cached = {}
     if self.cache.enabled:
-      results = self.cache.get([ 
+      cached = self.cache.get([ 
         self.meta.join(path, str(lbl)) for lbl in label
       ], progress=progress)
 
-    for cloudpath, content in results.items():
-      if content is None:
-        label.remove(int(basename(cloudpath)))
+    results = {}
+    for cloudpath, content in cached.items():
+      lbl = int(basename(cloudpath))
+      if content is not None:
+        label.remove(lbl)
+        
+      results[lbl] = cached[cloudpath]
 
+    del cached
 
     # { label: [ filename, byte start, num_bytes ] }
     exists = self.exists(label, path, return_byte_range=True, progress=progress)
@@ -601,17 +606,17 @@ class ShardReader(object):
         binaries[filepath] = compression.decompress(
           binary, encoding=self.spec.data_encoding, filename=filepath
         )
-      
+    
     if self.cache.enabled:
       self.cache.put([ 
-        (filepath, binary) for filepath, binary in binaries.items()
+        (self.meta.join(path, str(filepath)), binary) for filepath, binary in binaries.items()
       ], progress=progress)
 
     results.update(binaries)
 
     if return_multiple:
       return results
-    return next(iter(results.values()))
+    return first(results.values())
 
   def list_labels(self, filename, path="", size=False):
     """
