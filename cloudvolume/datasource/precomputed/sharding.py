@@ -728,8 +728,7 @@ def synthesize_shard_file(spec, label_group, progress=False, presorted=False):
       continue
 
     minishard_index = np.zeros( (3, len(labels)), dtype=np.uint64, order='C')
-    minishard = b''
-    
+    minishard_components = []
     # label and offset are delta encoded
     last_label = 0
     for i, label in enumerate(labels):
@@ -740,10 +739,11 @@ def synthesize_shard_file(spec, label_group, progress=False, presorted=False):
       minishard_index[0, i] = label - last_label
       minishard_index[1, i] = 0 # minishard_index[2, i - 1]
       minishard_index[2, i] = len(binary)
-      minishard += binary
+      minishard_components.append(binary)
       last_label = label
       del minishardgrp[label]
-    
+
+    minishard = b"".join(minishard_components)
     minishardnos.append(minishardno)
     minishard_indicies.append(minishard_index) 
     minishards.append(minishard)
