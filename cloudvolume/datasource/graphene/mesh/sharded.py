@@ -226,7 +226,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     return { label: Mesh.from_draco(raw_binary) for label, raw_binary in output.items() }
 
-  def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=True):    
+  def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=False):    
     """See GrapheneUnshardedMeshSource.get for the user facing function."""
     level = self.meta.meta.decode_layer_id(seg_id)
     if level not in self.readers:
