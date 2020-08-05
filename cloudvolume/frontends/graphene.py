@@ -45,6 +45,14 @@ def to_unix_time(timestamp):
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   @property
+  def agglomerate(self):
+    return self.meta.agglomerate
+  
+  @agglomerate.setter
+  def agglomerate(self, val):
+    self.meta.agglomerate = bool(val)
+
+  @property
   def manifest_endpoint(self):
     return self.meta.manifest_endpoint
 
@@ -111,7 +119,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     self, bbox, mip=None, 
     parallel=None, segids=None,
     preserve_zeros=False,
-    agglomerate=False, timestamp=None,
+    agglomerate=None, timestamp=None,
     stop_layer=None
   ):
     """
@@ -139,7 +147,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         Layer 2: Within-Chunk Agglomeration
         Layer 2+: Between chunk interconnections (skip connections possible)
 
-    if agglomerate is false, these other options come into play:
+    If agglomerate is None, then the cv.meta.agglomerate controls
+    its value.
+
+    If agglomerate is false, these other options come into play:
 
     segids: agglomerate the leaves of these segids from the graph 
       server and label them with the given segid.
@@ -152,6 +163,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     """
     if type(bbox) is Vec:
       bbox = Bbox(bbox, bbox+1)
+
+    agglomerate = agglomerate if agglomerate is not None else self.agglomerate
     
     bbox = Bbox.create(
       bbox, context=self.bounds, 
@@ -223,6 +236,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       slices, mip=self.mip,
       preserve_zeros=True,
       parallel=self.parallel, 
+      agglomerate=self.agglomerate,
     )
 
   def get_chunk_layer(self, node_or_chunk_id):

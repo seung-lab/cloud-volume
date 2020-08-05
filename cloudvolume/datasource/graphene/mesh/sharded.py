@@ -151,7 +151,6 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     lists = self.parse_manifest_filenames(manifest)
 
     files = []
-
     if lists['dynamic']:
       files = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
     
@@ -258,7 +257,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       if res['error']:
         raise res['error']
 
-      (label,) = re.search(label_regexp, res['filename']).groups()
+      (label,) = re.search(label_regexp, res['path']).groups()
       label = int(label)
 
       if res['content'] is None:

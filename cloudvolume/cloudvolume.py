@@ -59,7 +59,8 @@ class CloudVolume(object):
     compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
-    max_redirects=10, mesh_dir=None, skel_dir=None
+    max_redirects=10, mesh_dir=None, skel_dir=None, 
+    agglomerate=False
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -95,6 +96,8 @@ class CloudVolume(object):
              HTTP/S: http(s)://.../$CHANNEL
              matrix: matrix://$BUCKET/$DATASET/$LAYER/
     Optional:
+      agglomerate: (bool, graphene only) sets the default mode for downloading
+        images to agglomerated (True) vs watershed (False).
       autocrop: (bool) If the specified retrieval bounding box exceeds the
           volume bounds, process only the area contained inside the volume. 
           This can be useful way to ensure that you are staying inside the 
