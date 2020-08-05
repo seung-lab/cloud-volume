@@ -17,7 +17,7 @@ def create_graphene(
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
     mesh_dir=None, skel_dir=None, agglomerate=False, 
-    **kwargs
+    secrets=None, **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
     
@@ -30,6 +30,7 @@ def create_graphene(
       mip=mip,
       parallel=parallel,
       progress=progress,
+      secrets=secrets,
     )
 
     def mkcache(cloudpath):

@@ -94,7 +94,7 @@ def download(
     parallel, location, 
     retain, use_shared_memory, 
     use_file, compress, order='F',
-    green=False
+    green=False, secrets=None
   ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
@@ -142,7 +142,7 @@ def download(
       meta, cache, mip, cloudpaths, 
       fn=process, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
-      green=green 
+      green=green, secrets=secrets 
     )
   else:
     handle, renderbuffer = multiprocess_download(
@@ -153,6 +153,7 @@ def download(
       use_shared_memory=(use_file == False),
       order=order,
       green=green,
+      secrets=secrets,
     )
   
   return VolumeCutout.from_volume(
@@ -166,7 +167,7 @@ def multiprocess_download(
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, order,
-    green
+    green, secrets=None
   ):
 
   cloudpaths_by_process = []
@@ -181,7 +182,7 @@ def multiprocess_download(
     requested_bbox, 
     fill_missing, progress,
     location, use_shared_memory,
-    green
+    green, secrets
   )
   parallel_execution(cpd, cloudpaths_by_process, parallel, cleanup_shm=location)
 
@@ -212,7 +213,7 @@ def child_process_download(
     dest_bbox, 
     fill_missing, progress,
     location, use_shared_memory, green,
-    cloudpaths
+    secrets, cloudpaths
   ):
   reset_connection_pools() # otherwise multi-process hangs
 
@@ -237,7 +238,7 @@ def child_process_download(
     meta, cache, mip, cloudpaths,
     fn=process, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache,
-    green=green
+    green=green, secrets=secrets
   )
 
   array_like.close()
@@ -246,9 +247,10 @@ def download_chunk(
     meta, cache, 
     cloudpath, mip,
     filename, fill_missing,
-    enable_cache, compress_cache
+    enable_cache, compress_cache,
+    secrets
   ):
-  content = CloudFiles(cloudpath).get(filename)
+  content = CloudFiles(cloudpath, secrets=secrets).get(filename)
 
   if enable_cache:
     CloudFiles('file://' + cache.path).put(
@@ -265,7 +267,7 @@ def download_chunk(
 def download_chunks_threaded(
     meta, cache, mip, cloudpaths, fn, 
     fill_missing, progress, compress_cache,
-    green=False
+    green=False, secrets=None
   ):
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
@@ -274,7 +276,8 @@ def download_chunks_threaded(
     img3d, bbox = download_chunk(
       meta, cache, cloudpath, mip,
       filename, fill_missing,
-      enable_cache, compress_cache
+      enable_cache, compress_cache,
+      secrets
     )
     fn(img3d, bbox)
 
