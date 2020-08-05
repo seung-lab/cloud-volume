@@ -54,7 +54,10 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'dynamic') 
     progress = progress if progress is not None else self.config.progress
 
-    results = CloudFiles(cloudpath, progress=progress, green=self.config.green).exists(checks)
+    results = CloudFiles(
+      cloudpath, progress=progress, 
+      green=self.config.green, secrets=self.config.secrets
+    ).exists(checks)
 
     output = {}
     for filepath, exists in results.items():
@@ -151,7 +154,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     meshes = []
     if lists['dynamic']:
-      meshes = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
+      meshes = CloudFiles(dynamic_cloudpath, green=self.config.green, secrets=self.config.secrets).get(lists['dynamic'])
 
     fetches = []
     for layer_id, filename, byte_start, size in lists['initial']:
@@ -163,7 +166,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
     
-    initial_meshes = CloudFiles(cloudpath, green=self.config.green).get(fetches)
+    initial_meshes = CloudFiles(cloudpath, green=self.config.green, secrets=self.config.secrets).get(fetches)
     meshes += initial_meshes
 
     return [ Mesh.from_draco(mesh['content']) for mesh in meshes ]
