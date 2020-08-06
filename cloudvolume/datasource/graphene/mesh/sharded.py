@@ -190,9 +190,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
     level = self.meta.meta.decode_layer_id(seg_id)
     labels = self.get_fragment_labels(seg_id, level=level, bbox=bounding_box)
-    meshes = self.get_meshes_on_bypass(labels)
-    meshes = list(meshes.values())
-    return meshes
+    meshes = self.get_meshes_on_bypass(labels, allow_missing=True) # sometimes a tiny label won't get meshed
+    return list(meshes.values())
 
   def get_meshes_via_manifest(self, seg_id, bounding_box, use_byte_offsets):
     if use_byte_offsets:
@@ -233,7 +232,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     mesh.segid = segid
     return mesh.deduplicate_vertices(chunk_aligned_mask)
 
-  def get_meshes_on_bypass(self, segids):
+  def get_meshes_on_bypass(self, segids, allow_missing=False):
     """
     Attempt to fetch a mesh directly from storage without going through
     the chunk graph server. This capability should only be used in special
@@ -275,12 +274,16 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       initial_output = self.readers[layer_id].get_data(labels, path=subdirectory, progress=self.config.progress)
       for label, raw_binary in initial_output.items():
         if raw_binary is None:
-          raise IndexError('No mesh found for segment {}'.format(label))
-      output.update(initial_output)
+          if allow_missing:
+            continue
+          else:
+            raise IndexError('No mesh found for segment {}'.format(label))
+        else:
+          output[label] = raw_binary
 
     return { label: Mesh.from_draco(raw_binary) for label, raw_binary in output.items() }
 
-  def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=True):    
+  def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=False):    
     """See GrapheneUnshardedMeshSource.get for the user facing function."""
     level = self.meta.meta.decode_layer_id(seg_id)
     if level not in self.readers:

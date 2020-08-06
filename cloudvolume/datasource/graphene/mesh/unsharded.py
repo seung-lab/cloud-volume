@@ -49,20 +49,25 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     if bypass:
       return [ segid ]
 
-    manifest = self.fetch_manifest(segid, lod, level, bbox, return_segids=True)
+    manifest = self.fetch_manifest(segid, lod, level, bbox, return_segids=True, verify=False)
     return manifest["seg_ids"]
 
   def get_fragment_filenames(self, segid, lod=0, level=2, bbox=None, bypass=False):
     if bypass:
       return [ self.compute_filename(segid) ]
 
-    manifest = self.fetch_manifest(segid, lod, level, bbox)
+    manifest = self.fetch_manifest(segid, lod, level, bbox, verify=True)
     return manifest["fragments"]
 
-  def fetch_manifest(self, segid, lod=0, level=2, bbox=None, return_segids=False):
+  def fetch_manifest(self, segid, lod=0, level=2, bbox=None, return_segids=False, verify=True):
+    """
+    verify: the server calls exists and returns byte ranges. this is intended 
+      to take advantage of the lower latency on the server side, but can be a
+      bottleneck.
+    """
     # TODO: add lod to endpoint
     query_d = {
-      'verify': True,
+      'verify': bool(verify),
     }
     if return_segids:
       query_d['return_seg_ids'] = 1
@@ -138,7 +143,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       self, segids, 
       remove_duplicate_vertices=False, 
       fuse=False, bounding_box=None,
-      bypass=False, use_byte_offsets=True,
+      bypass=False, use_byte_offsets=False,
       deduplicate_chunk_boundaries=True,
       allow_missing=False,
     ):
