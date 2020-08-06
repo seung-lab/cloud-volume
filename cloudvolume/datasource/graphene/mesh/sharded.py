@@ -13,13 +13,13 @@ from tqdm import tqdm
 
 from cloudfiles import CloudFiles
 
-from ....lib import red, toiter, Bbox, Vec
+from ....lib import red, toiter, Bbox, Vec, first
 from ....mesh import Mesh
 from .... import paths
 
 from ..sharding import GrapheneShardReader
 from ...precomputed.sharding import ShardingSpecification
-
+from ....mesh import is_draco_chunk_aligned
 from .unsharded import GrapheneUnshardedMeshSource
 
 class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
@@ -102,8 +102,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     Returns: { label: path or None, ... }
     """
-    labels = toiter(labels)
-    labels = set(labels)
+    labels = set(toiter(labels))
 
     dynamic_labels = self.dynamic_exists(labels, progress)
     remainder_labels = set([ label for label, path in dynamic_labels.items() if path ])
@@ -113,11 +112,13 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     dynamic_labels.update(initial_labels)
     return dynamic_labels
 
-  def parse_manifest_filenames(self, filenames):
+  def parse_manifest_filenames(self, manifest):
     lists = defaultdict(list)
     initial_regexp = re.compile(r'~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
 
-    for filename in filenames:
+    filenames, segids = manifest['fragments'], manifest['seg_ids']
+
+    for filename, segid in zip(filenames, segids):
       if not filename:
         continue
 
@@ -129,7 +130,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
         (layer_id, parsed_filename, byte_start, size) = re.search(
           initial_regexp, filename
         ).groups()
-        lists['initial'].append((layer_id, parsed_filename, int(byte_start), int(size)))
+        lists['initial'].append((layer_id, parsed_filename, int(byte_start), int(size), int(segid)))
       else:
         lists['dynamic'].append(filename)
         
@@ -146,27 +147,45 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     level = self.meta.meta.decode_layer_id(seg_id)
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
 
-    filenames = self.get_fragment_filenames(seg_id, level=level, bbox=bounding_box)
-    lists = self.parse_manifest_filenames(filenames)
+    manifest = self.fetch_manifest(seg_id, level=level, bbox=bounding_box, return_segids=True)
+    lists = self.parse_manifest_filenames(manifest)
 
-    meshes = []
+    files = []
     if lists['dynamic']:
-      meshes = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
+      files = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
+    
+    dynamic_meshes = []
+    while files:
+      f = files.pop()
+      mesh = Mesh.from_draco(f['content'])
+      mesh.segid = int(os.path.basename(f['path']).split(':')[0])
+      dynamic_meshes.append(mesh)
 
     fetches = []
-    for layer_id, filename, byte_start, size in lists['initial']:
+    segid_map = {}
+    for layer_id, filename, byte_start, size, segid in lists['initial']:
+      path = self.meta.join(layer_id, filename)
+      byte_end = byte_start + size
       fetches.append({
-        'path': self.meta.join(layer_id, filename),
+        'path': path,
         'start': byte_start,
-        'end': byte_start + size,
+        'end': byte_end,
       })
+      segid_map[(path, byte_start, byte_end)] = segid
 
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
     
-    initial_meshes = CloudFiles(cloudpath, green=self.config.green).get(fetches)
-    meshes += initial_meshes
+    files = CloudFiles(cloudpath, green=self.config.green).get(fetches)
+    initial_meshes = []
+    while files:
+      f = files.pop()
+      mesh = Mesh.from_draco(f['content'])
+      start, end = f['byte_range']
+      key = (f['path'], start, end)
+      mesh.segid = segid_map[key]
+      initial_meshes.append(mesh)    
 
-    return [ Mesh.from_draco(mesh['content']) for mesh in meshes ]
+    return dynamic_meshes + initial_meshes
 
   def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
     level = self.meta.meta.decode_layer_id(seg_id)
@@ -178,6 +197,40 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     if use_byte_offsets:
       return self.get_meshes_via_manifest_byte_offsets(seg_id, bounding_box)
     return self.get_meshes_via_manifest_labels(seg_id, bounding_box)
+
+  def get_chunk_aligned_mask(self, meshes):
+    meta = self.meta.meta
+    draco_grid_size = meta.get_draco_grid_size(
+      meta.decode_layer_id(first(meshes).segid)
+    )
+    base_resolution = meta.resolution(self.config.mip)
+    lvl2_resolution = meta.resolution(self.meta.mip)
+
+    voxel_offset = Vec(0,0,0)
+    if meta.chunks_start_at_voxel_offset:
+      voxel_offset = meta.voxel_offset(self.meta.mip)
+      
+    offset = voxel_offset * lvl2_resolution
+    lvl_2_size_nm = meta.chunk_size(self.meta.mip) * base_resolution
+
+    chunk_aligned_masks = []
+    for mesh in meshes:
+      level = meta.decode_layer_id(mesh.segid)
+      chunk_size = (lvl_2_size_nm * (2 ** (level-2))).astype(np.int32)
+      verts = mesh.vertices - offset
+      # find all vertices that are exactly on chunk_size boundaries
+      is_chunk_aligned = is_draco_chunk_aligned(
+        verts, chunk_size, draco_grid_size=draco_grid_size
+      )
+      chunk_aligned_masks.append(is_chunk_aligned)
+    
+    return np.concatenate(chunk_aligned_masks)
+
+  def stitch_multi_level_draco_mesh_fragments(self, meshes, segid):
+    chunk_aligned_mask = self.get_chunk_aligned_mask(meshes)
+    mesh = Mesh.concatenate(*meshes)
+    mesh.segid = segid
+    return mesh.deduplicate_vertices(chunk_aligned_mask)
 
   def get_meshes_on_bypass(self, segids, allow_missing=False):
     """
@@ -240,7 +293,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       mesh = self.get_meshes_on_bypass(seg_id)[seg_id]
     else:
       meshes = self.get_meshes_via_manifest(seg_id, bounding_box, use_byte_offsets=use_byte_offsets)
-      mesh = Mesh.concatenate(*meshes)
+      mesh = self.stitch_multi_level_draco_mesh_fragments(meshes, seg_id)
 
     if mesh is None:
       raise IndexError('No mesh found for segment {}'.format(seg_id))
