@@ -1,3 +1,4 @@
+from cloudfiles.exceptions import CompressionError, DecompressionError
 
 class InfoError(Exception):
   pass
@@ -66,22 +67,6 @@ class UnsupportedCompressionType(ValueError):
   """
 
 # Inheritance below done for backwards compatibility reasons.
-
-class DecompressionError(DecodingError):
-  """
-  Decompression failed. This exception is used for codecs 
-  that are naieve to data contents like gzip, lzma, etc. as opposed
-  to codecs that are aware of array shape like fpzip or compressed_segmentation.
-  """
-  pass
-
-class CompressionError(EncodingError):
-  """
-  Compression failed. This exception is used for codecs 
-  that are naieve to data contents like gzip, lzma, etc. as opposed
-  to codecs that are aware of array shape like fpzip or compressed_segmentation.
-  """
-  pass
 
 class MeshDecodeError(ValueError):
   """Unable to decode a mesh object."""
