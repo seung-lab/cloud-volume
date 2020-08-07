@@ -16,6 +16,7 @@ def test_mesh_fragment_download(use_https):
 
 def test_get_mesh():
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
+  vol.cache.flush()
   mesh = vol.mesh.get(18)
   assert len(mesh) == 6123
   assert mesh.vertices.shape[0] == 6123
