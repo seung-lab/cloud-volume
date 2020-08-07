@@ -462,7 +462,7 @@ class CacheService(object):
       fragments = self.get(locs['local'], progress=progress)
 
     cf = CloudFiles(self.meta.cloudpath, progress=progress)
-    remote_fragments = cf.get(locs['remote'], raw=False)
+    remote_fragments = cf.get(locs['remote'], raw=True)
 
     for frag in remote_fragments:
       if frag['error'] is not None:
@@ -473,19 +473,11 @@ class CacheService(object):
       cf_cache.puts(
         compression.transcode(
           ( frag for frag in remote_fragments if frag['content'] is not None ),
-          compress, progress=progress, in_place=False
+          encoding=compress, progress=progress, in_place=False
         ),
         compress=compress,
+        raw=True
       )
-
-      # self.put(
-      #   [ 
-      #     (filename, content) for filename, content in remote_fragments.items() \
-      #     if content is not None 
-      #   ],
-      #   compress=compress,
-      #   progress=progress
-      # )
 
     remote_fragments = { 
       res['path']: compression.decompress(res['content'], res['compress']) \
