@@ -7,12 +7,12 @@ import shutil
 from . import scheduler
 
 from .provenance import DataLayerProvenance
-from cloudfiles import CloudFiles
-from .storage.storage_interfaces import COMPRESSION_EXTENSIONS
+from cloudfiles import CloudFiles, compression
+from cloudfiles.interfaces import COMPRESSION_EXTENSIONS
 
 from .lib import (
   Bbox, colorize, jsonify, mkdir, 
-  toabs, Vec
+  toabs, Vec, nvl
 )
 from .paths import extract
 from .secrets import CLOUD_VOLUME_DIR
@@ -451,7 +451,8 @@ class CacheService(object):
     if len(paths) == 0:
       return {}
 
-    progress = progress if progress is not None else self.config.progress
+    progress = nvl(progress, self.config.progress)
+    compress = nvl(compress, self.compress, self.config.compress)
 
     locs = self.compute_data_locations(paths)
     locs['remote'] = [ str(x) for x in locs['remote'] ]
@@ -461,26 +462,34 @@ class CacheService(object):
       fragments = self.get(locs['local'], progress=progress)
 
     cf = CloudFiles(self.meta.cloudpath, progress=progress)
-    remote_fragments = cf.get(locs['remote'])
+    remote_fragments = cf.get(locs['remote'], raw=False)
 
     for frag in remote_fragments:
       if frag['error'] is not None:
         raise frag['error']
 
-    remote_fragments = { 
-      res['path']: res['content'] \
-      for res in remote_fragments 
-    }
+    import pdb; pdb.set_trace()
 
     if self.enabled:
-      self.put(
-        [ 
-          (filename, content) for filename, content in remote_fragments.items() \
-          if content is not None 
-        ],
+      cf_cache = CloudFiles('file://' + self.path, progress=('to Cache' if progress else None))
+      cf_cache.puts(
+        compression.transcode(remote_fragments, compress, progress=progress, in_place=False),
         compress=compress,
-        progress=progress
       )
+
+      # self.put(
+      #   [ 
+      #     (filename, content) for filename, content in remote_fragments.items() \
+      #     if content is not None 
+      #   ],
+      #   compress=compress,
+      #   progress=progress
+      # )
+
+    remote_fragments = { 
+      res['path']: compress.decompress(res['content'], res['compress']) \
+      for res in remote_fragments if res['content'] is not None
+    }
 
     fragments.update(remote_fragments)
     return fragments
@@ -516,7 +525,7 @@ class CacheService(object):
     progress = 'to Cache' if progress else None
     cf = CloudFiles(save_location, progress=progress)
     cf.puts(
-      [ (name, content) for name, content in files ], 
+      files, 
       compress=compress, 
       compression_level=compress_level
     )
