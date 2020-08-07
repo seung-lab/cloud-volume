@@ -54,6 +54,8 @@ def test_fill_missing():
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, info=info)
   vol.commit_info()
 
+  vol.cache.flush()
+
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, fill_missing=True)
   assert np.count_nonzero(vol[:]) == 0
 

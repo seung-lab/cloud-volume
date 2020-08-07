@@ -468,12 +468,13 @@ class CacheService(object):
       if frag['error'] is not None:
         raise frag['error']
 
-    import pdb; pdb.set_trace()
-
     if self.enabled:
       cf_cache = CloudFiles('file://' + self.path, progress=('to Cache' if progress else None))
       cf_cache.puts(
-        compression.transcode(remote_fragments, compress, progress=progress, in_place=False),
+        compression.transcode(
+          ( frag for frag in remote_fragments if frag['content'] is not None ),
+          compress, progress=progress, in_place=False
+        ),
         compress=compress,
       )
 
@@ -487,8 +488,8 @@ class CacheService(object):
       # )
 
     remote_fragments = { 
-      res['path']: compress.decompress(res['content'], res['compress']) \
-      for res in remote_fragments if res['content'] is not None
+      res['path']: compression.decompress(res['content'], res['compress']) \
+      for res in remote_fragments
     }
 
     fragments.update(remote_fragments)
