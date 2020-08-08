@@ -7,7 +7,7 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
-from cloudfiles import reset_connection_pools, CloudFiles
+from cloudfiles import reset_connection_pools, CloudFiles, compression
 
 from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
@@ -248,15 +248,22 @@ def download_chunk(
     filename, fill_missing,
     enable_cache, compress_cache
   ):
-  content = CloudFiles(cloudpath).get(filename)
+  (file,) = CloudFiles(cloudpath).get([ filename ], raw=True)
+  content = file['content']
 
   if enable_cache:
+    cache_content = next(compression.transcode(file, compress_cache))['content'] 
     CloudFiles('file://' + cache.path).put(
       path=filename, 
-      content=(content or b''), 
+      content=(cache_content or b''), 
       content_type=content_type(meta.encoding(mip)), 
       compress=compress_cache,
+      raw=bool(cache_content),
     )
+    del cache_content
+
+  if content is not None:
+    content = compression.decompress(content, file['compress'])
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
   img3d = decode(meta, filename, content, fill_missing, mip)
