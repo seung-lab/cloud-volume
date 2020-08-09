@@ -1,6 +1,6 @@
 boto3>=1.4.7
 chardet>=3.0.4
-cloud-files>=0.9.1
+cloud-files>=0.9.2
 compressed-segmentation>=1.0.0
 fastremap>=1.9.2
 fpzip>=1.1.3
