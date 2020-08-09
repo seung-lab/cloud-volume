@@ -325,16 +325,24 @@ class CacheService(object):
     progress = progress if progress is not None else self.config.progress
 
     cf = CloudFiles(self.meta.cloudpath, progress=progress)
+    files = list(compression.transcode(files, encoding=compress, level=compress_level))
     cf.puts( 
       files, 
       compress=compress, 
       compression_level=compress_level, 
       cache_control=cache_control, 
-      content_type=content_type 
+      content_type=content_type,
+      raw=True,
     )
 
     if self.enabled:
       self.put(files, compress=compress)
+      cf_cache = CloudFiles('file://' + self.path, progress=('to Cache' if progress else None))
+      cf_cache.puts(
+        files,
+        compress=compress,
+        raw=True
+      )
 
   def download_json(self, path, compress=None):
     """

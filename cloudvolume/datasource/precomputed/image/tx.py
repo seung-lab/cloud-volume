@@ -5,7 +5,7 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles, reset_connection_pools
+from cloudfiles import CloudFiles, reset_connection_pools, compression
 
 from cloudvolume import lib, chunks
 from cloudvolume.exceptions import AlignmentError
@@ -261,21 +261,33 @@ def threaded_upload_chunks(
   def do_upload(imgchunk, cloudpath):
     encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
 
+    remote_compress = should_compress(meta.encoding(mip), compress, cache)
+    cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+    remote_compress = compression.normalize_encoding(remote_compress)
+    cache_compress = compression.normalize_encoding(cache_compress)
+
+    encoded = compression.compress(encoded, remote_compress)
+    cache_encoded = encoded
+    if remote_compress != cache_compress:
+      cache_encoded = compression.compress(encoded, cache_compress)
+    
     remote.put(
         path=cloudpath, 
         content=encoded,
         content_type=content_type(meta.encoding(mip)), 
-        compress=should_compress(meta.encoding(mip), compress, cache),
+        compress=remote_compress,
         compression_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
+        raw=True,
       )
 
     if cache.enabled:
         local.put(
           path=cloudpath,
-          content=encoded, 
+          content=cache_encoded, 
           content_type=content_type(meta.encoding(mip)), 
-          compress=should_compress(meta.encoding(mip), compress, cache, iscache=True)
+          compress=cache_compress,
+          raw=True,
         )
 
   def do_delete(cloudpath):
