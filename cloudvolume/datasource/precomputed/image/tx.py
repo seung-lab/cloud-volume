@@ -263,6 +263,8 @@ def threaded_upload_chunks(
 
     remote_compress = should_compress(meta.encoding(mip), compress, cache)
     cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+    remote_compress = compression.normalize_encoding(remote_compress)
+    cache_compress = compression.normalize_encoding(cache_compress)
 
     encoded = compression.compress(encoded, remote_compress)
     cache_encoded = encoded
