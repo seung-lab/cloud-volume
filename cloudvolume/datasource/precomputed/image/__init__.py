@@ -15,7 +15,7 @@ import uuid
 import numpy as np
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
 from ....lib import Bbox, Vec, sip, first
@@ -357,15 +357,13 @@ class PrecomputedImageSource(ImageSourceInterface):
     cfdest = CloudFiles(cloudpath)
 
     with pbar:
-      for _ in range(num_blocks, 0, -1):
-        srcpaths = list(itertools.islice(cloudpaths, step))
-        files = cfsrc.get(srcpaths)
-        files = [ (f['path'], f['content']) for f in files ]
+      for srcpaths in sip(cloudpaths, step):
+        files = cfsrc.get(srcpaths, raw=True)
         cfdest.puts(
-          files, 
-          compress=compress, 
-          compression_level=compress_level,
+          compression.transcode(files, encoding=compress, level=compress_level), 
+          compress=compress,
           content_type=tx.content_type(destvol),
+          raw=True
         )
         pbar.update()
 

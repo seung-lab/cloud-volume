@@ -1087,6 +1087,8 @@ def test_transfer():
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
+  img = cv[:]
+
   cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
 
   ls = os.listdir('/tmp/removeme/transfer/1_1_1/')
@@ -1105,6 +1107,8 @@ def test_transfer():
   dcv.refresh_info()
 
   assert 'dont_touch_me_bro' in dcv.info
+
+  assert np.all(img == dcv[:])
 
 def test_cdn_cache_control():
   delete_layer()
