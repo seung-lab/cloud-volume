@@ -595,11 +595,7 @@ class ShardReader(object):
     bundles = []
     for chunk in sorted(files, key=itemgetter("path", "start")):
       if not bundles or (chunk['path'] != bundles[-1]['path']) or (chunk['start'] != bundles[-1]['end']):
-        bundles.append({
-          **chunk,
-          'content': None,
-          'subranges': []
-        })
+        bundles.append(dict(content=None, subranges=[], **chunk))
       else:
         bundles[-1]['end'] = chunk['end']
 
