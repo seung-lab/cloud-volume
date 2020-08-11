@@ -151,7 +151,7 @@ def decode_npz(string):
 
 def decode_jpeg(bytestring, shape, dtype):
   img = Image.open(io.BytesIO(bytestring))
-  data = np.array(img.getdata(), dtype=dtype)
+  data = np.asarray(img, dtype=dtype).ravel()
 
   return data.reshape(shape, order='F')
 
