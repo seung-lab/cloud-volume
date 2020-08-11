@@ -3,6 +3,7 @@ from __future__ import print_function
 from collections import namedtuple, defaultdict
 import copy
 import json
+from operator import itemgetter
 from os.path import basename
 import struct
 
@@ -555,6 +556,8 @@ class ShardReader(object):
     """
     label, return_multiple = toiter(label, is_iter=True)
     label = set(( int(l) for l in label))
+    if not label:
+      return {}
 
     cached = {}
     if self.cache.enabled:
@@ -586,18 +589,46 @@ class ShardReader(object):
       for ext in exists.values()
     )
 
+    # Requesting many individual shard chunks is slow, but due to z-ordering
+    # we might be able to combine adjacent byte ranges. Especially helpful
+    # when downloading entire shards!
+    bundles = []
+    for chunk in sorted(files, key=itemgetter("path", "start")):
+      if not bundles or (chunk['path'] != bundles[-1]['path']) or (chunk['start'] != bundles[-1]['end']):
+        bundles.append({
+          **chunk,
+          'content': None,
+          'subranges': []
+        })
+      else:
+        bundles[-1]['end'] = chunk['end']
+
+      bundles[-1]['subranges'].append({
+          'start': chunk['start'],
+          'length': chunk['end'] - chunk['start'],
+          'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
+      })
+
+
     full_path = self.meta.join(self.meta.cloudpath, path)
-    remote_files = CloudFiles(full_path, progress=progress, green=self.green).get(files)
+    bundles_resp = CloudFiles(full_path, progress=progress, green=self.green).get(bundles)
+
+    # Responses are not guaranteed to be in order of requests
+    bundles_resp = { (r['path'], r['byte_range']): r for r in bundles_resp }
 
     binaries = {}
-    for res in remote_files:
-      if res['error']:
-        raise res['error']
-      start, end = res['byte_range']
-      key = (res['path'], start, end - start)
-      lbl = key_label[key]
-      binaries[lbl] = res['content']
-    del remote_files
+    for bundle_req in bundles:
+      bundle_resp = bundles_resp[(bundle_req['path'], (bundle_req['start'], bundle_req['end']))]
+      if bundle_resp['error']:
+        raise bundle_resp['error']
+
+      for chunk in bundle_req['subranges']:
+        key = (bundle_req['path'], chunk['start'], chunk['length'])
+        lbl = key_label[key]
+        binaries[lbl] = bundle_resp['content'][chunk['slices']]
+
+    del bundles
+    del bundles_resp
 
     if self.spec.data_encoding != 'raw':
       for filepath, binary in tqdm(binaries.items(), desc="Decompressing", disable=(not progress)):
