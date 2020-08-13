@@ -1,31 +1,24 @@
 language: python
 python:
-- '2.7'
 - '3.5'
 - '3.6'
-- '3.7-dev'
-- '3.8-dev'
+- '3.7'
+- '3.8'
 before_install:
 - PYTHON_MAJOR_VERSION=`echo $TRAVIS_PYTHON_VERSION | head -c 1`
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then sudo apt-get install python3-pip; fi
+- sudo apt-get install python3-pip
 - mkdir -p ~/.cloudvolume/secrets/
 - echo $AWS_SECRET > ~/.cloudvolume/secrets/aws-secret.json
 - echo $GOOGLE_SECRET > ~/.cloudvolume/secrets/google-secret.json
 - echo $BOSS_SECRET > ~/.cloudvolume/secrets/boss-secret.json
 install:
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then virtualenv venv; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then virtualenv -p python3 venv; fi
+- virtualenv -p python3 venv
 - source venv/bin/activate
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then pip install numpy; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip3 install numpy; fi
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then pip install fpzip; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip3 install fpzip; fi
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then pip install -e .[test,dask]; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then pip3 install -e .[test,dask]; fi
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then python setup.py sdist; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 setup.py sdist bdist_wheel --universal; fi
+- pip3 install numpy
+- pip3 install fpzip
+- pip3 install -e .[test,dask]
+- python3 setup.py sdist bdist_wheel --universal
 script:
-- if [[ $PYTHON_MAJOR_VERSION == 2 ]]; then python -m pytest -v -x test --cov=./; fi
-- if [[ $PYTHON_MAJOR_VERSION == 3 ]]; then python3 -m pytest -v -x test --cov=./; fi
+- python3 -m pytest -v -x test --cov=./
 after_success:
   - codecov --token=$CODECOV_TOKEN
