@@ -117,7 +117,7 @@ def upload(
       img3d, mip,
       (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), 
       compress=compress, cdn_cache=cdn_cache,
-      progress=progress, n_threads=0, 
+      progress=False, n_threads=0, 
       delete_black_uploads=delete_black_uploads,
       green=green,
     )
@@ -126,7 +126,8 @@ def upload(
 
   download_chunks_threaded(
     meta, cache, mip, shell_chunks, fn=shade_and_upload,
-    fill_missing=fill_missing, progress=progress, 
+    fill_missing=fill_missing, 
+    progress=("Shading Border" if progress else None), 
     compress_cache=compress_cache,
     green=green
   )
@@ -255,8 +256,8 @@ def threaded_upload_chunks(
   while img.ndim < 4:
     img = img[ ..., np.newaxis ]
 
-  remote = CloudFiles(meta.cloudpath, progress=progress)
-  local = CloudFiles('file://' + cache.path, progress=progress)
+  remote = CloudFiles(meta.cloudpath)
+  local = CloudFiles('file://' + cache.path)
 
   def do_upload(imgchunk, cloudpath):
     encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
@@ -282,13 +283,13 @@ def threaded_upload_chunks(
       )
 
     if cache.enabled:
-        local.put(
-          path=cloudpath,
-          content=cache_encoded, 
-          content_type=content_type(meta.encoding(mip)), 
-          compress=cache_compress,
-          raw=True,
-        )
+      local.put(
+        path=cloudpath,
+        content=cache_encoded, 
+        content_type=content_type(meta.encoding(mip)), 
+        compress=cache_compress,
+        raw=True,
+      )
 
   def do_delete(cloudpath):
     remote.delete(cloudpath)

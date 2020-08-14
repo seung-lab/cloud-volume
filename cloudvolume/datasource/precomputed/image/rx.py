@@ -294,10 +294,13 @@ def download_chunks_threaded(
 
   downloads = itertools.chain( local_downloads, remote_downloads )
 
+  if progress and not isinstance(progress, str):
+    progress = "Downloading"
+
   schedule_jobs(
     fns=downloads, 
     concurrency=DEFAULT_THREADS, 
-    progress=('Downloading' if progress else None),
+    progress=progress,
     total=len(cloudpaths),
     green=green,
   )
