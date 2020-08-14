@@ -755,14 +755,14 @@ class Bbox(object):
     return tmp.__iadd__(operand)
 
   def __imul__(self, operand):
-    self.minpt *= operand
-    self.maxpt *= operand
+    np.multiply(self.minpt, operand, out=self.minpt, casting='unsafe')
+    np.multiply(self.maxpt, operand, out=self.maxpt, casting='unsafe')
     return self
 
   def __mul__(self, operand):
     tmp = self.clone()
-    tmp.minpt *= operand
-    tmp.maxpt *= operand
+    np.multiply(tmp.minpt, operand, out=tmp.minpt, casting='unsafe')
+    np.multiply(tmp.maxpt, operand, out=tmp.maxpt, casting='unsafe')
     return tmp.astype(tmp.minpt.dtype)
 
   def __idiv__(self, operand):
