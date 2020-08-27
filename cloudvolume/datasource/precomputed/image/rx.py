@@ -321,7 +321,7 @@ def decode(meta, input_bbox, content, fill_missing, mip):
 
   if not content:
     if fill_missing:
-      content = ''
+      content = b''
     else:
       raise EmptyVolumeException(input_bbox)
 
