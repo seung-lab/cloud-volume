@@ -112,7 +112,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     dynamic_labels.update(initial_labels)
     return dynamic_labels
 
-  def parse_manifest_filenames(self, manifest):
+  def parse_manifest_filenames(self, manifest, verify=True):
     lists = defaultdict(list)
     initial_regexp = re.compile(r'~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
 
@@ -127,16 +127,19 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       initial = filename[0] == '~'
 
       if initial:
-        (layer_id, parsed_filename, byte_start, size) = re.search(
-          initial_regexp, filename
-        ).groups()
-        lists['initial'].append((layer_id, parsed_filename, int(byte_start), int(size), int(segid)))
+        if verify:
+          (layer_id, parsed_filename, byte_start, size) = re.search(
+            initial_regexp, filename
+          ).groups()
+          lists['initial'].append((layer_id, parsed_filename, int(byte_start), int(size), int(segid)))
+        else:
+          lists['initial'].append(segid)
       else:
         lists['dynamic'].append(filename)
         
     return lists
 
-  def get_meshes_via_manifest_byte_offsets(self, seg_id, bounding_box):
+  def get_meshes_via_manifest_byte_offsets(self, seg_id, bounding_box, verify=True):
     """    
     The manifest for sharded is a bit strange in that exists(..., return_byte_offset=True)
     is being called on the server side. To avoid duplicative delay by recomputing the offset
@@ -147,11 +150,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     level = self.meta.meta.decode_layer_id(seg_id)
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
 
-    manifest = self.fetch_manifest(seg_id, level=level, bbox=bounding_box, return_segids=True)
-    lists = self.parse_manifest_filenames(manifest)
-
+    manifest = self.fetch_manifest(seg_id, level=level, bbox=bounding_box, return_segids=True, verify=verify)
+    
+    lists = self.parse_manifest_filenames(manifest, verify=verify)
+   
     files = []
-    if lists['dynamic']:
+    if lists['dynamic']:  
       files = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
     
     dynamic_meshes = []
@@ -161,30 +165,33 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       mesh.segid = int(os.path.basename(f['path']).split(':')[0])
       dynamic_meshes.append(mesh)
 
-    fetches = []
-    segid_map = {}
-    for layer_id, filename, byte_start, size, segid in lists['initial']:
-      path = self.meta.join(layer_id, filename)
-      byte_end = byte_start + size
-      fetches.append({
-        'path': path,
-        'start': byte_start,
-        'end': byte_end,
-      })
-      segid_map[(path, byte_start, byte_end)] = segid
+    if verify:
+      fetches = []
+      segid_map = {}
+      for layer_id, filename, byte_start, size, segid in lists['initial']:
+        path = self.meta.join(layer_id, filename)
+        byte_end = byte_start + size
+        fetches.append({
+          'path': path,
+          'start': byte_start,
+          'end': byte_end,
+        })
+        segid_map[(path, byte_start, byte_end)] = segid
 
-    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
-    
-    files = CloudFiles(cloudpath, green=self.config.green).get(fetches)
-    initial_meshes = []
-    while files:
-      f = files.pop()
-      mesh = Mesh.from_draco(f['content'])
-      start, end = f['byte_range']
-      key = (f['path'], start, end)
-      mesh.segid = segid_map[key]
-      initial_meshes.append(mesh)    
-
+      cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
+      
+      files = CloudFiles(cloudpath, green=self.config.green).get(fetches)
+      initial_meshes = []
+      while files:
+        f = files.pop()
+        mesh = Mesh.from_draco(f['content'])
+        start, end = f['byte_range']
+        key = (f['path'], start, end)
+        mesh.segid = segid_map[key]
+        initial_meshes.append(mesh)    
+    else:
+      segid_map=self.get_meshes_on_bypass(lists['initial'], allow_missing=True)
+      initial_meshes=[v for v in segid_map.values()]
     return dynamic_meshes + initial_meshes
 
   def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
@@ -292,7 +299,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     if bypass:
       mesh = self.get_meshes_on_bypass(seg_id)[seg_id]
     else:
-      meshes = self.get_meshes_via_manifest(seg_id, bounding_box, use_byte_offsets=use_byte_offsets)
+      meshes = self.get_meshes_via_manifest_byte_offsets(seg_id, bounding_box, verify=use_byte_offsets)
       mesh = self.stitch_multi_level_draco_mesh_fragments(meshes, seg_id)
 
     if mesh is None:
