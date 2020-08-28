@@ -174,7 +174,7 @@ class Mesh(object):
     )
 
   @classmethod
-  def from_precomputed(self, binary):
+  def from_precomputed(self, binary, segid=None):
     """
     Mesh from_precomputed(self, binary)
 
@@ -201,7 +201,9 @@ class Mesh(object):
     faces = faces.reshape(faces.size // 3, 3)
 
     return Mesh(
-      vertices, faces, normals=None, 
+      vertices, faces, 
+      segid=segid, 
+      normals=None, 
       encoding_type='precomputed'
     )
 
@@ -220,7 +222,7 @@ class Mesh(object):
     return b''.join([ array.tobytes('C') for array in vertex_index_format ])
 
   @classmethod
-  def from_obj(self, text):
+  def from_obj(self, text, segid=None):
     """Given a string representing a Wavefront OBJ file, decode to a Mesh."""
 
     vertices = []
@@ -260,7 +262,7 @@ class Mesh(object):
     faces = np.array(faces, dtype=np.uint32)
     normals = np.array(normals, dtype=np.float32)
 
-    return Mesh(vertices, faces - 1, normals)
+    return Mesh(vertices, faces - 1, normals, segid=segid)
 
   def to_obj(self):
     """Return a string representing a .obj file."""
@@ -301,7 +303,7 @@ end_header
     return plydata
 
   @classmethod
-  def from_draco(cls, binary):
+  def from_draco(cls, binary, segid=None):
     import DracoPy
 
     try:
@@ -324,7 +326,9 @@ end_header
     faces = faces.reshape(Nf // 3, 3)
 
     return Mesh(
-      vertices, faces, normals=None,
+      vertices, faces, 
+      segid=segid,
+      normals=None,
       encoding_type='draco', 
       encoding_options=mesh_object.encoding_options
     )
