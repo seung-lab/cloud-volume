@@ -25,7 +25,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
   def compute_filename(self, label):
     layer_id = self.meta.meta.decode_layer_id(label)
-    chunk_block_shape = 2 * Vec(*self.meta.meta.mesh_chunk_size)
+    chunk_block_shape = Vec(*self.meta.meta.mesh_chunk_size, dtype=np.int64)
+    chunk_block_shape *= np.int64(self.meta.meta.fan_out ** max(0, layer_id - 2))
     start = self.meta.meta.decode_chunk_position(label)
     start *= chunk_block_shape
     bbx = Bbox(start, start + chunk_block_shape)
