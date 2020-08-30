@@ -9,14 +9,17 @@ import pytest
 import os
 from scipy import sparse 
 import sys
+import json
 
 tempdir = tempfile.mkdtemp()
 TEST_PATH = "file://{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
 PRECOMPUTED_MESH_TEST_DATASET_NAME = "meshvol_precompute"
 DRACO_MESH_TEST_DATASET_NAME = "meshvol_draco"
+GRAPHENE_SHARDED_MESH_TEST_DATASET_NAME = "meshvol_graphene_sharded"
 PCG_LOCATION = "https://www.dynamicannotationframework.com/"
 TEST_SEG_ID = 144115188084020434
+TEST_GRAPHENE_SHARDED_ID = 864691135213153080
 
 @pytest.fixture()
 def cv_graphene_mesh_precomputed(requests_mock):
@@ -25,6 +28,12 @@ def cv_graphene_mesh_precomputed(requests_mock):
   graphene_test_cv_path = "file://{}".format(graphene_test_cv_dir)
 
   info_d = {
+    "app": {
+      "supported_api_versions": [
+        0,
+        1
+      ]
+    },
     "data_dir": graphene_test_cv_path,
     "data_type": "uint64",
     "graph": {
@@ -69,18 +78,26 @@ def cv_graphene_mesh_precomputed(requests_mock):
     }],
     "type": "segmentation"
   }
-  requests_mock.get(PCG_LOCATION+PRECOMPUTED_MESH_TEST_DATASET_NAME+"/info", json=info_d)
+  requests_mock.get(posixpath.join(PCG_LOCATION,
+                    'segmentation/table',
+                    PRECOMPUTED_MESH_TEST_DATASET_NAME,
+                    "info"), json=info_d)
   
   frag_files = os.listdir(os.path.join(graphene_test_cv_dir, info_d['mesh']))
   # the file are saved as .gz but we want to list the non gz version
   # as cloudvolume will take care of finding the compressed files
   frag_files = [f[:-3] for f in frag_files if f[0]=='9']
   frag_d = {'fragments':frag_files}
-  mock_url = PCG_MESH_LOCATION + PRECOMPUTED_MESH_TEST_DATASET_NAME+"/manifest/{}:0?verify=True".format(TEST_SEG_ID)
+  mock_url = posixpath.join(PCG_LOCATION,
+              "meshing/api/v1/table",
+              PRECOMPUTED_MESH_TEST_DATASET_NAME,
+              f"manifest/{TEST_SEG_ID}:0?verify=True")
   requests_mock.get(mock_url, json=frag_d)
 
-  cloudpath = "graphene://{}{}".format(PCG_LOCATION, PRECOMPUTED_MESH_TEST_DATASET_NAME)
-  yield cloudvolume.CloudVolume(cloudpath)
+  cloudpath =   posixpath.join(PCG_LOCATION,
+                             'segmentation/table',
+                             PRECOMPUTED_MESH_TEST_DATASET_NAME)
+  yield cloudvolume.CloudVolume("graphene://" + cloudpath)
 
 @pytest.fixture()
 def cv_graphene_mesh_draco(requests_mock):
@@ -89,6 +106,12 @@ def cv_graphene_mesh_draco(requests_mock):
   graphene_test_cv_path = "file://{}".format(graphene_test_cv_dir)
 
   info_d = {
+      "app": {
+      "supported_api_versions": [
+        0,
+        1
+      ]
+    },
     "data_dir": graphene_test_cv_path,
     "data_type": "uint64",
     "graph": {
@@ -137,7 +160,11 @@ def cv_graphene_mesh_draco(requests_mock):
     }],
     "type": "segmentation"
   }
-  infourl = posixpath.join(PCG_LOCATION, 'meshing/table', DRACO_MESH_TEST_DATASET_NAME, "info")
+  infourl = posixpath.join(PCG_LOCATION,
+                           'segmentation/table',
+                           DRACO_MESH_TEST_DATASET_NAME,
+                           "info")
+
   requests_mock.get(infourl, json=info_d)
   
   frag_files = os.listdir(os.path.join(graphene_test_cv_dir, info_d['mesh']))
@@ -150,9 +177,95 @@ def cv_graphene_mesh_draco(requests_mock):
     "manifest/{}:0?verify=True".format(TEST_SEG_ID)
   )
   requests_mock.get(mock_url, json=frag_d)
-  
-  cloudpath = posixpath.join(PCG_LOCATION, 'meshing/api/v1', DRACO_MESH_TEST_DATASET_NAME)
+  cloudpath = posixpath.join(PCG_LOCATION,
+                             'segmentation/table',
+                             DRACO_MESH_TEST_DATASET_NAME)
   yield cloudvolume.CloudVolume('graphene://' + cloudpath)
+
+
+@pytest.fixture()
+def cv_graphene_sharded(requests_mock):
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+ 
+  graphene_test_cv_dir = os.path.join(test_dir,'test_cv')
+  graphene_test_cv_path = "file://{}".format(graphene_test_cv_dir)
+  #TODO: change this to point to a cloud bucket
+
+  with open(os.path.join(graphene_test_cv_dir, 'sharded_info.json'), 'r') as fp:
+    info_d = json.load(fp)
+  info_d['data_dir']=graphene_test_cv_path
+  
+  infourl = posixpath.join(PCG_LOCATION,
+                           'segmentation/table',
+                           GRAPHENE_SHARDED_MESH_TEST_DATASET_NAME,
+                           "info")
+  requests_mock.get(infourl, json=info_d)
+  
+  valid_manifest={
+  "fragments": [
+    "~6/29568-0.shard:765877565:4454",
+    "~6/50112-0.shard:129695820:17794",
+    "~7/3296-0.shard:727627771:13559",
+    "~7/3264-2.shard:660015424:21225",
+    "~7/6400-3.shard:478017968:31760",
+    "~7/7424-2.shard:9298231:40730",
+    "~7/4320-0.shard:13324264:53780",
+    "~6/29568-0.shard:27890566:21061",
+    "516154738544909386:0:40960-49152_57344-65536_0-16384"
+  ],
+  "seg_ids": [
+    440473154180453586,
+    446120245900606131,
+    511651138917622208,
+    511580770173215172,
+    518476907102810232,
+    520728706916532712,
+    513902938730988744,
+    440473154180397181,
+    516154738544909386
+  ]
+}
+  speculative_manifest = {
+  "fragments": [
+    "~440473154180453586:6:440473154180087808:29568-0.shard:929",
+    "~511651138917622208:7:511651138915794944:3296-0.shard:481",
+    "~520728706916532712:7:520728706914713600:7424-2.shard:824",
+    "~518476907102810232:7:518476907101028352:6400-3.shard:699",
+    "~511580770173215172:7:511580770171617280:3264-2.shard:745",
+    "~513902938730988744:7:513902938729480192:4320-0.shard:170",
+    "~446120245900606131:6:446120245900345344:50112-0.shard:629",
+    "~440473154180397181:6:440473154180087808:29568-0.shard:38",
+    "516154738544909386:0:40960-49152_57344-65536_0-16384"
+  ],
+  "seg_ids": [
+    440473154180453586,
+    511651138917622208,
+    520728706916532712,
+    518476907102810232,
+    511580770173215172,
+    513902938730988744,
+    446120245900606131,
+    440473154180397181,
+    516154738544909386
+  ]
+}
+  verify_manifest_url = posixpath.join(
+    PCG_LOCATION, 'meshing/api/v1/table', 
+    GRAPHENE_SHARDED_MESH_TEST_DATASET_NAME, 
+    "manifest/{}:0?verify=True".format(TEST_GRAPHENE_SHARDED_ID)
+  )
+  speculative_manifest_url = posixpath.join(
+    PCG_LOCATION, 'meshing/api/v1/table', 
+    GRAPHENE_SHARDED_MESH_TEST_DATASET_NAME, 
+    "manifest/{}:0?verify=False".format(TEST_GRAPHENE_SHARDED_ID)
+  )
+
+  requests_mock.get(verify_manifest_url, json=valid_manifest)
+  requests_mock.get(speculative_manifest_url, json=speculative_manifest)
+
+  cloudpath = posixpath.join(PCG_LOCATION, 'segmentation/table/', GRAPHENE_SHARDED_MESH_TEST_DATASET_NAME)
+  yield cloudvolume.CloudVolume('graphene://' + cloudpath)
+
 
 @pytest.fixture(scope='session')
 def cv_supervoxels(N=64, blockN=16):
@@ -320,7 +433,7 @@ def test_decode_segid(cv_graphene_mesh_draco):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
-def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
+def test_graphene_mesh_get_precomputed(cv_graphene_mesh_precomputed):
 
   mesh = cv_graphene_mesh_precomputed.mesh.get(TEST_SEG_ID)
   edges = faces_to_edges(mesh[TEST_SEG_ID].faces)
@@ -332,7 +445,7 @@ def test_graphene_mesh_get(cv_graphene_mesh_precomputed):
   assert(ccs==3)
 
 @pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
-def test_graphene_mesh_get(cv_graphene_mesh_draco):
+def test_graphene_mesh_get_draco(cv_graphene_mesh_draco):
 
   mesh = cv_graphene_mesh_draco.mesh.get(TEST_SEG_ID)
   edges = faces_to_edges(mesh[TEST_SEG_ID].faces)
@@ -342,4 +455,17 @@ def test_graphene_mesh_get(cv_graphene_mesh_draco):
   ccs, labels =  sparse.csgraph.connected_components(graph,
                              directed=False)
   assert(ccs==3)
+
+@pytest.mark.skipif(sys.version_info < (3, 0), reason="requires python3 or higher")
+def test_graphene_mesh_get_graphene_sharded(cv_graphene_sharded):
+
+  mesh = cv_graphene_sharded.mesh.get(TEST_GRAPHENE_SHARDED_ID)
+  edges = faces_to_edges(mesh[TEST_GRAPHENE_SHARDED_ID].faces)
+  graph = create_csgraph(mesh[TEST_GRAPHENE_SHARDED_ID].vertices,
+               edges,
+               directed=False)
+  ccs, labels =  sparse.csgraph.connected_components(graph,
+                             directed=False)
+  assert(ccs==21)
+
 
