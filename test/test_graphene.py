@@ -10,7 +10,7 @@ import os
 from scipy import sparse 
 import sys
 import json
-
+import re
 tempdir = tempfile.mkdtemp()
 TEST_PATH = "file://{}".format(tempdir)
 TEST_DATASET_NAME = "testvol"
@@ -186,10 +186,8 @@ def cv_graphene_mesh_draco(requests_mock):
 @pytest.fixture()
 def cv_graphene_sharded(requests_mock):
   test_dir = os.path.dirname(os.path.abspath(__file__))
- 
   graphene_test_cv_dir = os.path.join(test_dir,'test_cv')
-  graphene_test_cv_path = "file://{}".format(graphene_test_cv_dir)
-  #TODO: change this to point to a cloud bucket
+  graphene_test_cv_path = "gs://seunglab-test/graphene/meshes"
 
   with open(os.path.join(graphene_test_cv_dir, 'sharded_info.json'), 'r') as fp:
     info_d = json.load(fp)
@@ -262,9 +260,11 @@ def cv_graphene_sharded(requests_mock):
 
   requests_mock.get(verify_manifest_url, json=valid_manifest)
   requests_mock.get(speculative_manifest_url, json=speculative_manifest)
+  matcher = re.compile('https://storage.googleapis.com/')
 
+  requests_mock.get(matcher,real_http=True)
   cloudpath = posixpath.join(PCG_LOCATION, 'segmentation/table/', GRAPHENE_SHARDED_MESH_TEST_DATASET_NAME)
-  yield cloudvolume.CloudVolume('graphene://' + cloudpath)
+  yield cloudvolume.CloudVolume('graphene://' + cloudpath, use_https=True)
 
 
 @pytest.fixture(scope='session')
