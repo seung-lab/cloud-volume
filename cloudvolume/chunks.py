@@ -15,7 +15,7 @@
 import zlib
 import io
 import numpy as np
-from PIL import Image
+import simplejpeg
 
 from .lib import yellow
 
@@ -81,26 +81,34 @@ def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
   else:
     raise NotImplementedError(encoding)
 
-def encode_jpeg(arr):
-  assert arr.dtype == np.uint8
+def encode_jpeg(arr, quality=85):
+  if not np.issubdtype(arr.dtype, np.uint8):
+    raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
 
   # simulate multi-channel array for single channel arrays
   while arr.ndim < 4:
     arr = arr[..., np.newaxis] # add channels to end of x,y,z
 
-  reshaped = arr.T 
+  num_channel = arr.shape[3]
+  reshaped = arr.T
   reshaped = np.moveaxis(reshaped, 0, -1)
-  reshaped = reshaped.reshape(reshaped.shape[0] * reshaped.shape[1], reshaped.shape[2], reshaped.shape[3])
-  if reshaped.shape[2] == 1:
-    img = Image.fromarray(reshaped[:,:,0], mode='L')
-  elif reshaped.shape[2] == 3:
-    img = Image.fromarray(reshaped, mode='RGB')
-  else:
-    raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
-
-  f = io.BytesIO()
-  img.save(f, "JPEG")
-  return f.getvalue()
+  reshaped = reshaped.reshape(
+    arr.shape[0] * arr.shape[1], arr.shape[2], num_channel
+  )
+  if num_channel == 1:
+    return simplejpeg.encode_jpeg(
+      np.ascontiguousarray(reshaped), 
+      colorspace="GRAY",
+      colorsubsampling="GRAY",
+      quality=quality,
+    )
+  elif num_channel == 3:
+    return simplejpeg.encode_jpeg(
+      np.ascontiguousarray(reshaped),
+      colorspace="RGB",
+      quality=quality,
+    )
+  raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
 def encode_npz(subvol):
   """
@@ -150,9 +158,11 @@ def decode_npz(string):
   return np.load(fileobj)
 
 def decode_jpeg(bytestring, shape, dtype):
-  img = Image.open(io.BytesIO(bytestring))
-  data = np.asarray(img, dtype=dtype).ravel()
-
+  colorspace = "RGB" if len(shape) > 3 and shape[3] > 1 else "GRAY"
+  data = simplejpeg.decode_jpeg(
+    bytestring, 
+    colorspace=colorspace,
+  ).ravel()
   return data.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
