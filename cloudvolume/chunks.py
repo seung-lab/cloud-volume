@@ -89,19 +89,18 @@ def encode_jpeg(arr, quality=85):
   while arr.ndim < 4:
     arr = arr[..., np.newaxis] # add channels to end of x,y,z
 
-  reshaped = arr.T 
-  reshaped = np.moveaxis(reshaped, 0, -1)
-  reshaped = reshaped.reshape(
-    reshaped.shape[0] * reshaped.shape[1], reshaped.shape[2], reshaped.shape[3]
+  num_channel = arr.shape[3]
+  reshaped = arr.reshape(
+    arr.shape[0] * arr.shape[1], arr.shape[2], num_channel
   )
-  if reshaped.shape[2] == 1:
+  if num_channel == 1:
     return simplejpeg.encode_jpeg(
       np.ascontiguousarray(reshaped), 
       colorspace="GRAY",
       colorsubsampling="GRAY",
       quality=quality,
     )
-  elif reshaped.shape[2] == 3:
+  elif num_channel == 3:
     return simplejpeg.encode_jpeg(
       np.ascontiguousarray(reshaped),
       colorspace="RGB",
@@ -162,7 +161,7 @@ def decode_jpeg(bytestring, shape, dtype):
     bytestring, 
     colorspace=colorspace,
   )
-  return data.reshape(shape, order='F')
+  return np.asfortranarray(data.reshape(shape, order='C'))
 
 def decode_raw(bytestring, shape, dtype):
   return np.frombuffer(bytearray(bytestring), dtype=dtype).reshape(shape, order='F')
