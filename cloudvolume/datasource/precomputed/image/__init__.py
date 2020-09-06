@@ -356,9 +356,19 @@ class PrecomputedImageSource(ImageSourceInterface):
     cfsrc = CloudFiles(self.meta.cloudpath)
     cfdest = CloudFiles(cloudpath)
 
+    def check(files):
+      errors = [
+        file for file in files if \
+        (file['content'] is None or file['error'] is not None)
+      ]
+      if errors:
+        error_paths = [ f['path'] for f in errors ]
+        raise exceptions.EmptyFileException("{} were empty or had IO errors.".format(", ".join(error_paths)))
+      return files
+
     with pbar:
       for srcpaths in sip(cloudpaths, step):
-        files = cfsrc.get(srcpaths, raw=True)
+        files = check(cfsrc.get(srcpaths, raw=True))
         cfdest.puts(
           compression.transcode(files, encoding=compress, level=compress_level), 
           compress=compress,
