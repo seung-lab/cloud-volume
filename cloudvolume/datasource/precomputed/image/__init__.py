@@ -427,11 +427,10 @@ class PrecomputedImageSource(ImageSourceInterface):
     reader = sharding.ShardReader(self.meta, self.cache, spec)
 
     # 3. Gridpoints all within this one shard
-    gpts = lambda: gridpoints(aligned_bbox, self.meta.bounds(mip), chunk_size)
+    gpts = list(gridpoints(aligned_bbox, self.meta.bounds(mip), chunk_size))
+    morton_codes = compressed_morton_code(gpts, grid_size)
     all_same_shard = bool(reduce(lambda a,b: operator.eq(a,b) and a,
-      map(reader.get_filename,
-        map(lambda gpt: compressed_morton_code(gpt, grid_size), gpts())
-      )
+      map(reader.get_filename, morton_codes)
     ))
 
     if not all_same_shard:
@@ -440,8 +439,8 @@ class PrecomputedImageSource(ImageSourceInterface):
       )
 
     labels = {}
-    pt_anchor = next(gpts()) * chunk_size
-    for pt_abs in gpts():
+    pt_anchor = gpts[0] * chunk_size
+    for pt_abs, morton_code in zip(gpts, morton_codes):
       cutout_bbx = Bbox(pt_abs * chunk_size, (pt_abs + 1) * chunk_size)
 
       # Neuroglancer expects border chunks not to extend beyond dataset bounds
@@ -449,7 +448,6 @@ class PrecomputedImageSource(ImageSourceInterface):
       cutout_bbx -= pt_anchor
 
       chunk = img[ cutout_bbx.to_slices() ]
-      morton_code = compressed_morton_code(pt_abs, grid_size)
       labels[morton_code] = chunks.encode(chunk, self.meta.encoding(mip))
 
     shard_filename = reader.get_filename(first(labels.keys()))

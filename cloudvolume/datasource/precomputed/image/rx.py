@@ -55,16 +55,16 @@ def download_sharded(
 
   renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
-  gpts = gridpoints(full_bbox, bounds, chunk_size)
+  gpts = list(gridpoints(full_bbox, bounds, chunk_size))
 
   code_map = {}
-  for gridpoint in gpts:
-    zcurve_code = compressed_morton_code(gridpoint, grid_size)
+  morton_codes = compressed_morton_code(gpts, grid_size)
+  for gridpoint, morton_code in zip(gpts, morton_codes):
     cutout_bbox = Bbox(
       bounds.minpt + gridpoint * chunk_size,
       min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
     )
-    code_map[zcurve_code] = cutout_bbox
+    code_map[morton_code] = cutout_bbox
 
   all_chunkdata = reader.get_data(list(code_map.keys()), meta.key(mip), progress=progress)
   for zcode, chunkdata in all_chunkdata.items():
