@@ -91,7 +91,7 @@ def cv_graphene_mesh_precomputed(requests_mock):
   mock_url = posixpath.join(PCG_LOCATION,
               "meshing/api/v1/table",
               PRECOMPUTED_MESH_TEST_DATASET_NAME,
-              f"manifest/{TEST_SEG_ID}:0?verify=True")
+              "manifest/{}:0?verify=True".format(TEST_SEG_ID))
   requests_mock.get(mock_url, json=frag_d)
 
   cloudpath =   posixpath.join(PCG_LOCATION,
