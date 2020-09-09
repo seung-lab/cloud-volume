@@ -32,6 +32,9 @@ def to_unix_time(timestamp):
   and Python datetime objects and returns them as the equivalent
   UNIX timestamp or None if timestamp is None.
   """
+  if timestamp is None:
+    return None
+
   if isinstance(timestamp, str):
     timestamp = dateutil.parser.parse(timestamp) # returns datetime
   if isinstance(timestamp, datetime): # NB. do not change to elif
