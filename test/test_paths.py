@@ -146,3 +146,12 @@ def test_windows_path_extraction():
   assert extract.no_bucket_basepath == 'this\\is\\a\\cool'  
   assert extract.dataset == 'cool'  
   assert extract.layer == 'path'  
+
+  extract = paths.extract('precomputed://https://storage.googleapis.com/neuroglancer-public-data/kasthuri2011/ground_truth', windows=True)
+  assert extract.format == 'precomputed'
+  assert extract.protocol == 'https'
+  assert extract.bucket == 'storage.googleapis.com'
+  assert extract.basepath == 'storage.googleapis.com/neuroglancer-public-data/kasthuri2011'
+  assert extract.no_bucket_basepath == 'neuroglancer-public-data/kasthuri2011'  
+  assert extract.dataset == 'kasthuri2011'  
+  assert extract.layer == 'ground_truth'  
