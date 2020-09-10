@@ -146,7 +146,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     """
     level = self.meta.meta.decode_layer_id(seg_id)
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
-
+    if bounding_box is not None:
+      level=2
     manifest = self.fetch_manifest(seg_id, level=level, bbox=bounding_box, return_segids=True)
     lists = self.parse_manifest_filenames(manifest)
 
@@ -189,6 +190,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
   def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
     level = self.meta.meta.decode_layer_id(seg_id)
+    if bounding_box is not None:
+      level=2
     labels = self.get_fragment_labels(seg_id, level=level, bbox=bounding_box)
     meshes = self.get_meshes_on_bypass(labels, allow_missing=True) # sometimes a tiny label won't get meshed
     return list(meshes.values())
