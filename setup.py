@@ -30,9 +30,6 @@ setuptools.setup(
       "posix_ipc==1.0.4",
       "psutil==5.4.3",
     ],
-    ':sys_platform!="win32" and python_version>="3.0"': [
-      "DracoPy",
-    ],
     "mesh_viewer": [ 'vtk' ],
     "skeleton_viewer": [ 'matplotlib' ],
     "all_viewers": [ 'vtk', 'matplotlib' ],
