@@ -189,7 +189,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     return dynamic_meshes + initial_meshes
 
   def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
-    level = self.meta.meta.decode_layer_id(seg_id)
+    level = 6
     if bounding_box is not None:
       level=2
     labels = self.get_fragment_labels(seg_id, level=level, bbox=bounding_box)
