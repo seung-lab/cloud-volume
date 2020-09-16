@@ -63,6 +63,8 @@ def test_compressed_morton_code():
   assert cmc((0,0,7)) == 0b000100
   assert cmc((2,3,1)) == 0b011110
 
+  assert np.array_equal(cmc([(0,0,0), (1,0,1)]), [0b000000, 0b000101])
+
 def test_image_sharding_hash():
   spec = ShardingSpecification(
     type="neuroglancer_uint64_sharded_v1",
