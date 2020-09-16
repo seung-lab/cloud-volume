@@ -74,7 +74,7 @@ def compressed_morton_code(gridpt, grid_size):
     gridpt = np.atleast_2d(gridpt)
     single_input = True
 
-  code = np.uint64(0)
+  code = np.zeros((gridpt.shape[0],), dtype=np.uint64)
   num_bits = max(( math.ceil(math.log2(size)) for size in grid_size ))
   j = np.uint64(0)
   one = np.uint64(1)
