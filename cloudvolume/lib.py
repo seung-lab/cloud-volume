@@ -208,9 +208,31 @@ def xyzrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
     pt = Vec(0,0,0)
     for z,y,x in product(*zyxranges):
       pt.x, pt.y, pt.z = min(x, end_vec[0]), min(y, end_vec[1]), min(z, end_vec[2])
-      yield pt
+      yield pt.clone()
 
   return vectorize()
+
+def xyzrange_np(start_vec, end_vec=None, stride_vec=(1,1,1)):
+  if end_vec is None:
+    end_vec = start_vec
+    start_vec = (0,0,0)
+
+  start_vec = np.array(start_vec, dtype=np.int64)
+  end_vec = np.array(end_vec, dtype=np.int64)  
+
+  delta_vec = end_vec - start_vec
+  if not np.any(delta_vec):
+    return np.array([[]], dtype=np.int64)
+
+  axes = []
+  for axis in range(start_vec.size):
+    arr = list(range(start_vec[axis], end_vec[axis], stride_vec[axis]))
+    if arr[-1] < end_vec[axis] - 1:
+      arr.append(end_vec[axis])
+    axes.append(arr)
+
+  return np.array(np.meshgrid(*axes)).T.reshape(-1,3)
+  
 
 def map2(fn, a, b):
   assert len(a) == len(b), "Vector lengths do not match: {} (len {}), {} (len {})".format(a[:3], len(a), b[:3], len(b))
