@@ -134,9 +134,18 @@ def encode_compressed_segmentation(subvol, block_size, accelerated=ACCELERATED_C
   return encode_compressed_segmentation_pure_python(subvol, block_size)
 
 def encode_compressed_segmentation_c_ext(subvol, block_size):
+  if np.dtype(subvol.dtype) not in (np.uint32, np.uint64):
+    raise ValueError("compressed_segmentation only supports uint32 and uint64 datatypes. Got: " + str(subvol.dtype))
+
   subvol = np.squeeze(subvol, axis=3)
-  subvol = np.copy(subvol, order='C')
-  return cseg.compress(subvol, block_size=block_size, order='F')
+  if subvol.flags.c_contiguous:
+    order = 'C' 
+  elif subvol.flags.f_contiguous:
+    order = 'F'
+  else:
+    order = 'F'
+    subvol = np.asfortranarray(subvol)
+  return cseg.compress(subvol, block_size=block_size, order=order)
 
 def encode_compressed_segmentation_pure_python(subvol, block_size):
   return csegpy.encode_chunk(subvol.T, block_size=block_size)
@@ -169,7 +178,8 @@ def decode_raw(bytestring, shape, dtype):
   return np.frombuffer(bytearray(bytestring), dtype=dtype).reshape(shape, order='F')
 
 def decode_compressed_segmentation(bytestring, shape, dtype, block_size, accelerated=ACCELERATED_CSEG):
-  assert block_size is not None
+  if block_size is None:
+    raise ValueError("block_size parameter must not be None.")
 
   if accelerated:
     return decode_compressed_segmentation_c_ext(bytestring, shape, dtype, block_size)
