@@ -183,37 +183,31 @@ def test_ellipsis_read():
     pass
 
 
-def test_parallel_read():
-  paths = [
-    'gs://seunglab-test/test_v0/image',
-    's3://seunglab-test/test_v0/image',
-  ]
+@pytest.mark.parametrize('protocol', ('gs', 's3'))
+@pytest.mark.parametrize('parallel', (2, True))
+def test_parallel_read(protocol, parallel):
+  cloudpath = "{}://seunglab-test/test_v0/image".format(protocol)
 
-  for parallel in (2, True):
-    for cloudpath in paths:
-      vol1 = CloudVolume(cloudpath, parallel=1)
-      vol2 = CloudVolume(cloudpath, parallel=parallel)
+  vol1 = CloudVolume(cloudpath, parallel=1)
+  vol2 = CloudVolume(cloudpath, parallel=parallel)
 
-      data1 = vol1[:512,:512,:50]
-      img = vol2[:512,:512,:50]
-      assert np.all(data1 == vol2[:512,:512,:50])
+  data1 = vol1[:512,:512,:50]
+  img = vol2[:512,:512,:50]
+  assert np.all(data1 == vol2[:512,:512,:50])
 
 
-def test_parallel_read_shm():
-  paths = [
-    'gs://seunglab-test/test_v0/image',
-    's3://seunglab-test/test_v0/image',
-  ]
+@pytest.mark.parametrize('protocol', ('gs', 's3'))
+def test_parallel_read_shm(protocol):
+  cloudpath = "{}://seunglab-test/test_v0/image".format(protocol)
+  
+  vol1 = CloudVolume(cloudpath, parallel=1)
+  vol2 = CloudVolume(cloudpath, parallel=2)
 
-  for cloudpath in paths:
-    vol1 = CloudVolume(cloudpath, parallel=1)
-    vol2 = CloudVolume(cloudpath, parallel=2)
-
-    data1 = vol1[:512,:512,:50]
-    data2 = vol2.download_to_shared_memory(np.s_[:512,:512,:50])
-    assert np.all(data1 == data2)
-    data2.close()
-    vol2.unlink_shared_memory()
+  data1 = vol1[:512,:512,:50]
+  data2 = vol2.download_to_shared_memory(np.s_[:512,:512,:50])
+  assert np.all(data1 == data2)
+  data2.close()
+  vol2.unlink_shared_memory()
 
 def test_parallel_write():
   delete_layer()
