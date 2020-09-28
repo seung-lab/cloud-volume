@@ -1,4 +1,4 @@
-import collections
+from collections.abc import Iterable
 import json
 import os
 import posixpath
@@ -549,7 +549,7 @@ Hops:
     return Vec(*self.info['scales'][mip]['resolution'])
 
   def to_mip(self, mip):
-    mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
+    mip = list(mip) if isinstance(mip, Iterable) else int(mip)
     try:
       if isinstance(mip, list):  # mip specified by voxel resolution
         return next(
