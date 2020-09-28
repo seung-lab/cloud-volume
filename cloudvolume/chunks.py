@@ -151,7 +151,7 @@ def encode_compressed_segmentation_pure_python(subvol, block_size):
   return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
-  return subvol.tostring('F')
+  return subvol.tobytes('F')
 
 def encode_kempressed(subvol):
   data = 2.0 + np.swapaxes(subvol, 2,3)
