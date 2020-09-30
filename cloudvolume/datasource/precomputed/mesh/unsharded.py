@@ -87,7 +87,12 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     manifest_paths = [ self.manifest_path(segid) for segid in segids ]
     progress = progress if progress is not None else self.config.progress
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress, green=self.config.green)
+    cf = CloudFiles(
+      self.meta.cloudpath, 
+      progress=progress, 
+      green=self.config.green, 
+      secrets=self.config.secrets
+    )
     exists = cf.exists(manifest_paths)
 
     segid_regexp = re.compile(r'(\d+):0$')

@@ -249,7 +249,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
     filenames = [ self.compute_filename(segid) for segid in segids ]
 
-    cf = CloudFiles(dynamic_cloudpath, progress=self.config.progress, green=self.config.green)
+    cf = CloudFiles(
+      dynamic_cloudpath, 
+      progress=self.config.progress, 
+      green=self.config.green,
+      secrets=self.config.secrets
+    )
     raw_binaries = cf.get(filenames)
 
     # extract the label ID from the mesh manifest.
