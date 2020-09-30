@@ -1,4 +1,5 @@
 import copy
+import re
 import struct
 
 import numpy as np
