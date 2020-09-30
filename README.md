@@ -46,9 +46,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with Python 2.7, 3.5, 3.6, 3.7, and 3.8 (we've noticed it's faster on Python 3). We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
-
-Note that Python 2.7 does not currently support the DracoPy library, and therefore does not support the `graphene://` format.
+Cloud-volume is regularly tested on Ubuntu with 3.5, 3.6, 3.7, and 3.8. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
 
 #### `pip` Binary Installation
 
@@ -532,7 +530,7 @@ pip install vtk matplotlib
 
 ## Python 2.7 End of Life
 
-Python 2.7's [End of Life date](https://pythonclock.org/) is January, 1 2020. CloudVolume will support Python 2.7 up to that point and possibly a few months after. Numpy will be dropping support on January 1. We may accelerate the deprecation schedule if substantial technical problems arise with supporting Python 2.7, but so far the impact has been mostly limited.
+Python 2.7 is no longer supported by CloudVolume. Updated versions of `pip` will download the last supported release 1.21.1. You can read more on the policy page: https://github.com/seung-lab/cloud-volume/wiki/Policy#python-27-end-of-life
 
 ## Related Projects
 

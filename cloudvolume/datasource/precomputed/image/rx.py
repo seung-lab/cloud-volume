@@ -7,7 +7,7 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
-from cloudfiles import reset_connection_pools, CloudFiles
+from cloudfiles import reset_connection_pools, CloudFiles, compression
 
 from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
@@ -55,16 +55,16 @@ def download_sharded(
 
   renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
-  gpts = gridpoints(full_bbox, bounds, chunk_size)
+  gpts = list(gridpoints(full_bbox, bounds, chunk_size))
 
   code_map = {}
-  for gridpoint in gpts:
-    zcurve_code = compressed_morton_code(gridpoint, grid_size)
+  morton_codes = compressed_morton_code(gpts, grid_size)
+  for gridpoint, morton_code in zip(gpts, morton_codes):
     cutout_bbox = Bbox(
       bounds.minpt + gridpoint * chunk_size,
       min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
     )
-    code_map[zcurve_code] = cutout_bbox
+    code_map[morton_code] = cutout_bbox
 
   all_chunkdata = reader.get_data(list(code_map.keys()), meta.key(mip), progress=progress)
   for zcode, chunkdata in all_chunkdata.items():
@@ -250,15 +250,22 @@ def download_chunk(
     enable_cache, compress_cache,
     secrets
   ):
-  content = CloudFiles(cloudpath, secrets=secrets).get(filename)
+  (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
+  content = file['content']
 
   if enable_cache:
+    cache_content = next(compression.transcode(file, compress_cache))['content'] 
     CloudFiles('file://' + cache.path).put(
       path=filename, 
-      content=(content or b''), 
+      content=(cache_content or b''), 
       content_type=content_type(meta.encoding(mip)), 
       compress=compress_cache,
+      raw=bool(cache_content),
     )
+    del cache_content
+
+  if content is not None:
+    content = compression.decompress(content, file['compress'])
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
   img3d = decode(meta, filename, content, fill_missing, mip)
@@ -290,10 +297,13 @@ def download_chunks_threaded(
 
   downloads = itertools.chain( local_downloads, remote_downloads )
 
+  if progress and not isinstance(progress, str):
+    progress = "Downloading"
+
   schedule_jobs(
     fns=downloads, 
     concurrency=DEFAULT_THREADS, 
-    progress=('Downloading' if progress else None),
+    progress=progress,
     total=len(cloudpaths),
     green=green,
   )
@@ -314,7 +324,7 @@ def decode(meta, input_bbox, content, fill_missing, mip):
 
   if not content:
     if fill_missing:
-      content = ''
+      content = b''
     else:
       raise EmptyVolumeException(input_bbox)
 

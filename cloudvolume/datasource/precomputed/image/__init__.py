@@ -15,7 +15,7 @@ import uuid
 import numpy as np
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
 from ....lib import Bbox, Vec, sip, first
@@ -360,20 +360,28 @@ class PrecomputedImageSource(ImageSourceInterface):
     cfsrc = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
     cfdest = CloudFiles(cloudpath)
 
+    def check(files):
+      errors = [
+        file for file in files if \
+        (file['content'] is None or file['error'] is not None)
+      ]
+      if errors:
+        error_paths = [ f['path'] for f in errors ]
+        raise exceptions.EmptyFileException("{} were empty or had IO errors.".format(", ".join(error_paths)))
+      return files
+
     with pbar:
-      for _ in range(num_blocks, 0, -1):
-        srcpaths = list(itertools.islice(cloudpaths, step))
-        files = cfsrc.get(srcpaths)
-        files = [ (f['path'], f['content']) for f in files ]
+      for srcpaths in sip(cloudpaths, step):
+        files = check(cfsrc.get(srcpaths, raw=True))
         cfdest.puts(
-          files, 
-          compress=compress, 
-          compression_level=compress_level,
+          compression.transcode(files, encoding=compress, level=compress_level), 
+          compress=compress,
           content_type=tx.content_type(destvol),
+          raw=True
         )
         pbar.update()
 
-  def make_shard(self, img, bbox, mip=None, spec=None):
+  def make_shard(self, img, bbox, mip=None, spec=None, progress=False):
     """
     Convert an image that represents a single complete shard 
     into a shard file.
@@ -396,30 +404,37 @@ class PrecomputedImageSource(ImageSourceInterface):
       else:
         raise ValueError("mip {} does not have a sharding specification.".format(mip))
 
+    bbox = Bbox.create(bbox)
     if bbox.subvoxel():
       raise ValueError("Bounding box is too small to make a shard. Got: {}".format(bbox))
 
-    bbox = Bbox.create(bbox, self.meta.bounds(mip), bounded=True)
+    # Alignment Checks:
+    # 1. Aligned to atomic chunks - required for grid point generation
     aligned_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
     )
-    aligned_bbox = Bbox.clamp(aligned_bbox, self.meta.bounds(mip))
-
     if bbox != aligned_bbox:
       raise exceptions.AlignmentError(
         "Unable to create shard from a non-chunk aligned bounding box. Requested: {}, Aligned: {}".format(
         bbox, aligned_bbox
       ))
 
+    # 2. Covers the dataset at least partially
+    aligned_bbox = Bbox.clamp(aligned_bbox, self.meta.bounds(mip))
+    if aligned_bbox.subvoxel():
+      raise exceptions.OutOfBoundsError("Shard completely outside dataset: Requested: {}, Dataset: {}".format(
+        bbox, self.meta.bounds(mip)
+      ))
+
     grid_size = self.grid_size(mip)
     chunk_size = self.meta.chunk_size(mip)
     reader = sharding.ShardReader(self.meta, self.cache, spec)
 
-    gpts = lambda: gridpoints(bbox, self.meta.bounds(mip), chunk_size)
+    # 3. Gridpoints all within this one shard
+    gpts = list(gridpoints(aligned_bbox, self.meta.bounds(mip), chunk_size))
+    morton_codes = compressed_morton_code(gpts, grid_size)
     all_same_shard = bool(reduce(lambda a,b: operator.eq(a,b) and a,
-      map(reader.get_filename,
-        map(lambda gpt: compressed_morton_code(gpt, grid_size), gpts())
-      )
+      map(reader.get_filename, morton_codes)
     ))
 
     if not all_same_shard:
@@ -428,17 +443,20 @@ class PrecomputedImageSource(ImageSourceInterface):
       )
 
     labels = {}
-    pt_anchor = next(gpts())
-    for pt_abs in gpts():
-      pt_rel = pt_abs - pt_anchor
-      cutout_bbx = Bbox(pt_rel * chunk_size, (pt_rel + 1) * chunk_size)
+    pt_anchor = gpts[0] * chunk_size
+    for pt_abs, morton_code in zip(gpts, morton_codes):
+      cutout_bbx = Bbox(pt_abs * chunk_size, (pt_abs + 1) * chunk_size)
+
+      # Neuroglancer expects border chunks not to extend beyond dataset bounds
+      cutout_bbx.maxpt = cutout_bbx.maxpt.clip(None, self.meta.volume_size(mip))
+      cutout_bbx -= pt_anchor
+
       chunk = img[ cutout_bbx.to_slices() ]
-      morton_code = compressed_morton_code(pt_abs, grid_size)
       labels[morton_code] = chunks.encode(chunk, self.meta.encoding(mip))
 
     shard_filename = reader.get_filename(first(labels.keys()))
 
-    return (shard_filename, spec.synthesize_shard(labels))
+    return (shard_filename, spec.synthesize_shard(labels, progress=progress))
 
   def is_sharded(self, mip):
     scale = self.meta.scale(mip)

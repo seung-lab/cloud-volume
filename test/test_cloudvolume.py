@@ -54,6 +54,8 @@ def test_fill_missing():
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, info=info)
   vol.commit_info()
 
+  vol.cache.flush()
+
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, fill_missing=True)
   assert np.count_nonzero(vol[:]) == 0
 
@@ -181,37 +183,31 @@ def test_ellipsis_read():
     pass
 
 
-def test_parallel_read():
-  paths = [
-    'gs://seunglab-test/test_v0/image',
-    's3://seunglab-test/test_v0/image',
-  ]
+@pytest.mark.parametrize('protocol', ('gs', 's3'))
+@pytest.mark.parametrize('parallel', (2, True))
+def test_parallel_read(protocol, parallel):
+  cloudpath = "{}://seunglab-test/test_v0/image".format(protocol)
 
-  for parallel in (2, True):
-    for cloudpath in paths:
-      vol1 = CloudVolume(cloudpath, parallel=1)
-      vol2 = CloudVolume(cloudpath, parallel=parallel)
+  vol1 = CloudVolume(cloudpath, parallel=1)
+  vol2 = CloudVolume(cloudpath, parallel=parallel)
 
-      data1 = vol1[:512,:512,:50]
-      img = vol2[:512,:512,:50]
-      assert np.all(data1 == vol2[:512,:512,:50])
+  data1 = vol1[:512,:512,:50]
+  img = vol2[:512,:512,:50]
+  assert np.all(data1 == vol2[:512,:512,:50])
 
 
-def test_parallel_read_shm():
-  paths = [
-    'gs://seunglab-test/test_v0/image',
-    's3://seunglab-test/test_v0/image',
-  ]
+@pytest.mark.parametrize('protocol', ('gs', 's3'))
+def test_parallel_read_shm(protocol):
+  cloudpath = "{}://seunglab-test/test_v0/image".format(protocol)
+  
+  vol1 = CloudVolume(cloudpath, parallel=1)
+  vol2 = CloudVolume(cloudpath, parallel=2)
 
-  for cloudpath in paths:
-    vol1 = CloudVolume(cloudpath, parallel=1)
-    vol2 = CloudVolume(cloudpath, parallel=2)
-
-    data1 = vol1[:512,:512,:50]
-    data2 = vol2.download_to_shared_memory(np.s_[:512,:512,:50])
-    assert np.all(data1 == data2)
-    data2.close()
-    vol2.unlink_shared_memory()
+  data1 = vol1[:512,:512,:50]
+  data2 = vol2.download_to_shared_memory(np.s_[:512,:512,:50])
+  assert np.all(data1 == data2)
+  data2.close()
+  vol2.unlink_shared_memory()
 
 def test_parallel_write():
   delete_layer()
@@ -1085,6 +1081,8 @@ def test_transfer():
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
 
+  img = cv[:]
+
   cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
 
   ls = os.listdir('/tmp/removeme/transfer/1_1_1/')
@@ -1103,6 +1101,8 @@ def test_transfer():
   dcv.refresh_info()
 
   assert 'dont_touch_me_bro' in dcv.info
+
+  assert np.all(img == dcv[:])
 
 def test_cdn_cache_control():
   delete_layer()

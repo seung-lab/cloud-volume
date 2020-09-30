@@ -5,7 +5,7 @@ import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles, reset_connection_pools
+from cloudfiles import CloudFiles, reset_connection_pools, compression
 
 from cloudvolume import lib, chunks
 from cloudvolume.exceptions import AlignmentError
@@ -118,7 +118,7 @@ def upload(
       img3d, mip,
       (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), 
       compress=compress, cdn_cache=cdn_cache,
-      progress=progress, n_threads=0, 
+      progress=False, n_threads=0, 
       delete_black_uploads=delete_black_uploads,
       green=green, secrets=secrets
     )
@@ -127,7 +127,8 @@ def upload(
 
   download_chunks_threaded(
     meta, cache, mip, shell_chunks, fn=shade_and_upload,
-    fill_missing=fill_missing, progress=progress, 
+    fill_missing=fill_missing, 
+    progress=("Shading Border" if progress else None), 
     compress_cache=compress_cache,
     green=green, secrets=secrets
   )
@@ -262,28 +263,40 @@ def threaded_upload_chunks(
   while img.ndim < 4:
     img = img[ ..., np.newaxis ]
 
-  remote = CloudFiles(meta.cloudpath, progress=progress, secrets=secrets)
-  local = CloudFiles('file://' + cache.path, progress=progress)
+  remote = CloudFiles(meta.cloudpath, secrets=secrets)
+  local = CloudFiles('file://' + cache.path, secrets=secrets)
 
   def do_upload(imgchunk, cloudpath):
     encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
 
+    remote_compress = should_compress(meta.encoding(mip), compress, cache)
+    cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+    remote_compress = compression.normalize_encoding(remote_compress)
+    cache_compress = compression.normalize_encoding(cache_compress)
+
+    encoded = compression.compress(encoded, remote_compress)
+    cache_encoded = encoded
+    if remote_compress != cache_compress:
+      cache_encoded = compression.compress(encoded, cache_compress)
+    
     remote.put(
         path=cloudpath, 
         content=encoded,
         content_type=content_type(meta.encoding(mip)), 
-        compress=should_compress(meta.encoding(mip), compress, cache),
+        compress=remote_compress,
         compression_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
+        raw=True,
       )
 
     if cache.enabled:
-        local.put(
-          path=cloudpath,
-          content=encoded, 
-          content_type=content_type(meta.encoding(mip)), 
-          compress=should_compress(meta.encoding(mip), compress, cache, iscache=True)
-        )
+      local.put(
+        path=cloudpath,
+        content=cache_encoded, 
+        content_type=content_type(meta.encoding(mip)), 
+        compress=cache_compress,
+        raw=True,
+      )
 
   def do_delete(cloudpath):
     remote.delete(cloudpath)

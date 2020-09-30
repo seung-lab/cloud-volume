@@ -7,12 +7,12 @@ import shutil
 from . import scheduler
 
 from .provenance import DataLayerProvenance
-from cloudfiles import CloudFiles
-from .storage.storage_interfaces import COMPRESSION_EXTENSIONS
+from cloudfiles import CloudFiles, compression
+from cloudfiles.interfaces import COMPRESSION_EXTENSIONS
 
 from .lib import (
   Bbox, colorize, jsonify, mkdir, 
-  toabs, Vec
+  toabs, Vec, nvl
 )
 from .paths import extract
 from .secrets import CLOUD_VOLUME_DIR
@@ -325,16 +325,24 @@ class CacheService(object):
     progress = progress if progress is not None else self.config.progress
 
     cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
+    files = list(compression.transcode(files, encoding=compress, level=compress_level))
     cf.puts( 
       files, 
       compress=compress, 
       compression_level=compress_level, 
       cache_control=cache_control, 
-      content_type=content_type 
+      content_type=content_type,
+      raw=True,
     )
 
     if self.enabled:
       self.put(files, compress=compress)
+      cf_cache = CloudFiles('file://' + self.path, progress=('to Cache' if progress else None))
+      cf_cache.puts(
+        files,
+        compress=compress,
+        raw=True
+      )
 
   def download_json(self, path, compress=None):
     """
@@ -451,7 +459,8 @@ class CacheService(object):
     if len(paths) == 0:
       return {}
 
-    progress = progress if progress is not None else self.config.progress
+    progress = nvl(progress, self.config.progress)
+    compress = nvl(compress, self.compress, self.config.compress)
 
     locs = self.compute_data_locations(paths)
     locs['remote'] = [ str(x) for x in locs['remote'] ]
@@ -461,26 +470,27 @@ class CacheService(object):
       fragments = self.get(locs['local'], progress=progress)
 
     cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
-    remote_fragments = cf.get(locs['remote'])
+    remote_fragments = cf.get(locs['remote'], raw=True)
 
     for frag in remote_fragments:
       if frag['error'] is not None:
         raise frag['error']
 
-    remote_fragments = { 
-      res['path']: res['content'] \
-      for res in remote_fragments 
-    }
-
     if self.enabled:
-      self.put(
-        [ 
-          (filename, content) for filename, content in remote_fragments.items() \
-          if content is not None 
-        ],
+      cf_cache = CloudFiles('file://' + self.path, progress=('to Cache' if progress else None))
+      cf_cache.puts(
+        compression.transcode(
+          ( frag for frag in remote_fragments if frag['content'] is not None ),
+          encoding=compress, progress=progress, in_place=False
+        ),
         compress=compress,
-        progress=progress
+        raw=True
       )
+
+    remote_fragments = { 
+      res['path']: compression.decompress(res['content'], res['compress']) \
+      for res in remote_fragments
+    }
 
     fragments.update(remote_fragments)
     return fragments
@@ -516,7 +526,7 @@ class CacheService(object):
     progress = 'to Cache' if progress else None
     cf = CloudFiles(save_location, progress=progress)
     cf.puts(
-      [ (name, content) for name, content in files ], 
+      files, 
       compress=compress, 
       compression_level=compress_level
     )

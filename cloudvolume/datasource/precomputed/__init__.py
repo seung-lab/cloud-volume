@@ -41,7 +41,8 @@ def create_precomputed(
     meta = PrecomputedMetadata(
       cloudpath, cache=cache,
       info=info, provenance=provenance,
-      max_redirects=max_redirects
+      max_redirects=max_redirects,
+      use_https=use_https # for parsing redirects
     )
 
     if mesh_dir:

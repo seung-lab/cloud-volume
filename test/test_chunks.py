@@ -7,9 +7,9 @@ import numpy as np
 from cloudvolume.chunks import encode, decode
 from cloudvolume import chunks
 
-def encode_decode(data, format, num_chan=1):
+def encode_decode(data, format, shape=(64,64,64), num_chan=1):
   encoded = encode(data, format)
-  result = decode(encoded, format, shape=(64,64,64,num_chan), dtype=np.uint8)
+  result = decode(encoded, format, shape=list(shape) + [ num_chan ], dtype=np.uint8)
 
   assert np.all(result.shape == data.shape)
   assert np.all(data == result)
@@ -97,19 +97,21 @@ def test_npz():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
   encode_decode(random_data, 'npz')
 
-def test_jpeg():
-  for num_chan in (1,3):
-    data = np.zeros(shape=(64,64,64,num_chan), dtype=np.uint8)
-    encode_decode(data, 'jpeg', num_chan)
-    encode_decode(data + 255, 'jpeg', num_chan)
+@pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50)))
+@pytest.mark.parametrize("num_channels", (1,3))
+def test_jpeg(shape, num_channels):
+  xshape = list(shape) + [ num_channels ]
+  data = np.zeros(shape=xshape, dtype=np.uint8)
+  encode_decode(data, 'jpeg', shape, num_channels)
+  encode_decode(data + 255, 'jpeg', shape, num_channels)
 
-    # Random jpeg won't decompress to exactly the same image
-    # but it should have nearly the same average power
-    random_data = np.random.randint(255, size=(64,64,64,num_chan), dtype=np.uint8)
-    pre_avg = random_data.copy().flatten().mean()
-    encoded = encode(random_data, 'jpeg')
-    decoded = decode(encoded, 'jpeg', shape=(64,64,64,num_chan), dtype=np.uint8)
-    post_avg = decoded.copy().flatten().mean()
+  # Random jpeg won't decompress to exactly the same image
+  # but it should have nearly the same average power
+  random_data = np.random.randint(255, size=xshape, dtype=np.uint8)
+  pre_avg = random_data.copy().flatten().mean()
+  encoded = encode(random_data, 'jpeg')
+  decoded = decode(encoded, 'jpeg', shape=xshape, dtype=np.uint8)
+  post_avg = decoded.copy().flatten().mean()
 
-    assert abs(pre_avg - post_avg) < 1
+  assert abs(pre_avg - post_avg) < 1
 

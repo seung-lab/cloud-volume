@@ -1,4 +1,4 @@
-import collections
+from collections.abc import Iterable
 import json
 import os
 import posixpath
@@ -20,7 +20,7 @@ from ...lib import (
   colorize, red, mkdir, 
   Vec, Bbox, jsonify, 
 )
-from ...paths import strict_extract, ascloudpath
+from ...paths import strict_extract, ascloudpath, to_https_protocol
 
 def downscale(size, factor_in_mip, roundingfn):
   smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
@@ -39,7 +39,7 @@ class PrecomputedMetadata(object):
   def __init__(
     self, cloudpath, cache=None, 
     info=None, provenance=None, 
-    max_redirects=10
+    max_redirects=10, use_https=False
   ):
     self.path = strict_extract(cloudpath)
     self.cache = cache
@@ -48,6 +48,7 @@ class PrecomputedMetadata(object):
     self.info = None
 
     self.redirected_from = []
+    self.use_https = use_https
 
     if info is None:
       self.refresh_info(max_redirects=max_redirects)
@@ -241,6 +242,9 @@ class PrecomputedMetadata(object):
         break
 
       path = strict_extract(info['redirect'])
+      if self.use_https:
+        path = to_https_protocol(path)
+
       if path == self.path:
         break 
       elif path in visited:
@@ -545,7 +549,7 @@ Hops:
     return Vec(*self.info['scales'][mip]['resolution'])
 
   def to_mip(self, mip):
-    mip = list(mip) if isinstance(mip, collections.Iterable) else int(mip)
+    mip = list(mip) if isinstance(mip, Iterable) else int(mip)
     try:
       if isinstance(mip, list):  # mip specified by voxel resolution
         return next(

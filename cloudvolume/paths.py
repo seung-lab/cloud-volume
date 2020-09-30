@@ -32,7 +32,7 @@ Cloud Path Recieved: {}
 def ascloudpath(epath):
   return "{}://{}://{}".format(
     epath.format, epath.protocol, 
-    posixpath.join(epath.basepath, epath.dataset, epath.layer)
+    posixpath.join(epath.basepath, epath.layer)
   )
 
 def pop_protocol(cloudpath):
@@ -159,7 +159,7 @@ def extract(cloudpath, windows=None, disable_toabs=False):
     no_bucket_basepath = split_char.join(splitties[1:-1])
   elif len(splitties) >= 2:
     dataset, layer = splitties[-2:]
-    if windows:
+    if windows and protocol == 'file':
       no_bucket_basepath = split_char.join(splitties[2:-1])
       basepath = split_char.join([bucket] + splitties[2:-1])
     else:
@@ -173,6 +173,11 @@ def extract(cloudpath, windows=None, disable_toabs=False):
   )
 
 def to_https_protocol(cloudpath):
+  if isinstance(cloudpath, ExtractedPath):
+    if cloudpath.protocol in ('gs', 's3', 'matrix'):
+      return extract(to_https_protocol(ascloudpath(cloudpath)))
+    return cloudpath
+
   cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
   cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
   cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)

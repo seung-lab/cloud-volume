@@ -21,6 +21,7 @@ from ..volumecutout import VolumeCutout
 from ..datasource.graphene.metadata import GrapheneApiVersion
 
 from .precomputed import CloudVolumePrecomputed
+import tqdm
 
 def warn(text):
   print(colorize('yellow', text))
@@ -31,15 +32,18 @@ def to_unix_time(timestamp):
   and Python datetime objects and returns them as the equivalent
   UNIX timestamp or None if timestamp is None.
   """
+  if timestamp is None:
+    return None
+
   if isinstance(timestamp, str):
     timestamp = dateutil.parser.parse(timestamp) # returns datetime
   if isinstance(timestamp, datetime): # NB. do not change to elif
     timestamp = datetime.timestamp(timestamp)
 
-  if not isinstance(timestamp, int) and timestamp is not None:
+  if not isinstance(timestamp, (int, float, np.integer, np.floating)) and timestamp is not None:
     raise ValueError("Not able to convert {} to UNIX time.".format(timestamp))
 
-  return timestamp
+  return int(timestamp)
 
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
@@ -420,8 +424,38 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     root_id: uint64 root id to find supervoxels for
     bbox: cloudvolume.lib.Bbox 3d bounding box for segmentation
     """
+    if self.meta.supports_api('v1'):
+      return self.get_leaves_v1(root_id, bbox, mip)
+    return self.get_leaves_legacy(root_id, bbox, mip)
+
+  def get_leaves_v1(self, root_id, bbox, mip):
+    root_id = int(root_id)    
+
+    url = posixpath.join(
+      self.meta.base_path, self.meta.api_version.path(self.meta.server_path), 
+      "node", str(root_id), "leaves"
+    )
+    bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
+    response = requests.get(url, params={
+      "bounds": bbox.to_filename(),
+    }, headers=self.meta.auth_header)
+    response.raise_for_status()
+
+    content = response.json()
+    if "leaf_ids" not in content:
+      return np.array([], dtype=np.uint64)
+
+    return np.array(content["leaf_ids"], dtype=np.uint64)
+
+  def get_leaves_legacy(self, root_id, bbox, mip):
     root_id = int(root_id)
-    url = posixpath.join(self.meta.server_url, "segment", str(root_id), "leaves")
+
+    api = GrapheneApiVersion("1.0")
+
+    url = posixpath.join(
+      self.meta.base_path, api.path(self.meta.server_path), 
+      "segment", str(root_id), "leaves"
+    )
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
     response = requests.post(url, json=[ root_id ], params={
       'bounds': bbox.to_filename(),

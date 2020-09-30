@@ -109,7 +109,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
 
       full_path = self.reader.meta.join(self.reader.meta.cloudpath)
       
-      lod_binary = CloudFiles(full_path).get({
+      lod_binary = CloudFiles(full_path, progress=progress).get({
         'path': manifest.shard_filepath,
         'start': (manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
         'end': (manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]),  

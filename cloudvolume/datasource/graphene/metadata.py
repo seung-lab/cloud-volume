@@ -96,6 +96,7 @@ class GrapheneMetadata(PrecomputedMetadata):
       self.auth_header = {
         "Authorization": "Bearer %s" % token
       }
+    kwargs['use_https'] = bool(use_https)
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
 
     version = self.server_path.version

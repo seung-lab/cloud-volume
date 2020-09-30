@@ -15,7 +15,7 @@
 import zlib
 import io
 import numpy as np
-from PIL import Image
+import simplejpeg
 
 from .lib import yellow
 
@@ -81,26 +81,34 @@ def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
   else:
     raise NotImplementedError(encoding)
 
-def encode_jpeg(arr):
-  assert arr.dtype == np.uint8
+def encode_jpeg(arr, quality=85):
+  if not np.issubdtype(arr.dtype, np.uint8):
+    raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
 
   # simulate multi-channel array for single channel arrays
   while arr.ndim < 4:
     arr = arr[..., np.newaxis] # add channels to end of x,y,z
 
-  reshaped = arr.T 
+  num_channel = arr.shape[3]
+  reshaped = arr.T
   reshaped = np.moveaxis(reshaped, 0, -1)
-  reshaped = reshaped.reshape(reshaped.shape[0] * reshaped.shape[1], reshaped.shape[2], reshaped.shape[3])
-  if reshaped.shape[2] == 1:
-    img = Image.fromarray(reshaped[:,:,0], mode='L')
-  elif reshaped.shape[2] == 3:
-    img = Image.fromarray(reshaped, mode='RGB')
-  else:
-    raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
-
-  f = io.BytesIO()
-  img.save(f, "JPEG")
-  return f.getvalue()
+  reshaped = reshaped.reshape(
+    arr.shape[0] * arr.shape[1], arr.shape[2], num_channel
+  )
+  if num_channel == 1:
+    return simplejpeg.encode_jpeg(
+      np.ascontiguousarray(reshaped), 
+      colorspace="GRAY",
+      colorsubsampling="GRAY",
+      quality=quality,
+    )
+  elif num_channel == 3:
+    return simplejpeg.encode_jpeg(
+      np.ascontiguousarray(reshaped),
+      colorspace="RGB",
+      quality=quality,
+    )
+  raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
 def encode_npz(subvol):
   """
@@ -126,15 +134,24 @@ def encode_compressed_segmentation(subvol, block_size, accelerated=ACCELERATED_C
   return encode_compressed_segmentation_pure_python(subvol, block_size)
 
 def encode_compressed_segmentation_c_ext(subvol, block_size):
+  if np.dtype(subvol.dtype) not in (np.uint32, np.uint64):
+    raise ValueError("compressed_segmentation only supports uint32 and uint64 datatypes. Got: " + str(subvol.dtype))
+
   subvol = np.squeeze(subvol, axis=3)
-  subvol = np.copy(subvol, order='C')
-  return cseg.compress(subvol, block_size=block_size, order='F')
+  if subvol.flags.c_contiguous:
+    order = 'C' 
+  elif subvol.flags.f_contiguous:
+    order = 'F'
+  else:
+    order = 'F'
+    subvol = np.asfortranarray(subvol)
+  return cseg.compress(subvol, block_size=block_size, order=order)
 
 def encode_compressed_segmentation_pure_python(subvol, block_size):
   return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
-  return subvol.tostring('F')
+  return subvol.tobytes('F')
 
 def encode_kempressed(subvol):
   data = 2.0 + np.swapaxes(subvol, 2,3)
@@ -150,16 +167,19 @@ def decode_npz(string):
   return np.load(fileobj)
 
 def decode_jpeg(bytestring, shape, dtype):
-  img = Image.open(io.BytesIO(bytestring))
-  data = np.array(img.getdata(), dtype=dtype)
-
+  colorspace = "RGB" if len(shape) > 3 and shape[3] > 1 else "GRAY"
+  data = simplejpeg.decode_jpeg(
+    bytestring, 
+    colorspace=colorspace,
+  ).ravel()
   return data.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
   return np.frombuffer(bytearray(bytestring), dtype=dtype).reshape(shape, order='F')
 
 def decode_compressed_segmentation(bytestring, shape, dtype, block_size, accelerated=ACCELERATED_CSEG):
-  assert block_size is not None
+  if block_size is None:
+    raise ValueError("block_size parameter must not be None.")
 
   if accelerated:
     return decode_compressed_segmentation_c_ext(bytestring, shape, dtype, block_size)

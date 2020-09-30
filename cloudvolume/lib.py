@@ -48,6 +48,12 @@ class NumpyEncoder(json.JSONEncoder):
       return float(obj)
     return json.JSONEncoder.default(self, obj)
 
+def nvl(*args):
+  for arg in args:
+    if arg is not None:
+      return arg
+  return None
+
 def first(lst):
   if isinstance(lst, types.GeneratorType):
     return next(lst)

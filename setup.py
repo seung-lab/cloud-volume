@@ -12,11 +12,12 @@ def requirements():
 
 setuptools.setup(
   name="cloud-volume",
-  version="1.20.1",
+  version="3.0.0",
   setup_requires=[
     'numpy<1.17; python_version<"3.5"',
     'numpy; python_version>="3.5"',
   ],
+  python_requires="~=3.4", # >= 3.4 < 4.0
   install_requires=requirements(),
   # Environment Marker Examples:
   # https://www.python.org/dev/peps/pep-0496/
@@ -28,9 +29,6 @@ setuptools.setup(
     ':sys_platform!="win32"': [
       "posix_ipc==1.0.4",
       "psutil==5.4.3",
-    ],
-    ':sys_platform!="win32" and python_version>="3.0"': [
-      "DracoPy",
     ],
     "mesh_viewer": [ 'vtk' ],
     "skeleton_viewer": [ 'matplotlib' ],
@@ -58,12 +56,11 @@ setuptools.setup(
     "Development Status :: 5 - Production/Stable",
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 2",
-    "Programming Language :: Python :: 2.7",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.5",
     "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX",

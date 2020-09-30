@@ -22,7 +22,6 @@ def deprecation_notice(key):
   """.format(key, key)))
     NOTICE[key] += 1
 
-
 def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size):
   """
   Return a mask that for each vertex is true iff it is within
@@ -175,7 +174,7 @@ class Mesh(object):
     )
 
   @classmethod
-  def from_precomputed(self, binary):
+  def from_precomputed(self, binary, segid=None):
     """
     Mesh from_precomputed(self, binary)
 
@@ -202,7 +201,9 @@ class Mesh(object):
     faces = faces.reshape(faces.size // 3, 3)
 
     return Mesh(
-      vertices, faces, normals=None, 
+      vertices, faces, 
+      segid=segid, 
+      normals=None, 
       encoding_type='precomputed'
     )
 
@@ -221,7 +222,7 @@ class Mesh(object):
     return b''.join([ array.tobytes('C') for array in vertex_index_format ])
 
   @classmethod
-  def from_obj(self, text):
+  def from_obj(self, text, segid=None):
     """Given a string representing a Wavefront OBJ file, decode to a Mesh."""
 
     vertices = []
@@ -261,7 +262,7 @@ class Mesh(object):
     faces = np.array(faces, dtype=np.uint32)
     normals = np.array(normals, dtype=np.float32)
 
-    return Mesh(vertices, faces - 1, normals)
+    return Mesh(vertices, faces - 1, normals, segid=segid)
 
   def to_obj(self):
     """Return a string representing a .obj file."""
@@ -302,7 +303,7 @@ end_header
     return plydata
 
   @classmethod
-  def from_draco(cls, binary):
+  def from_draco(cls, binary, segid=None):
     import DracoPy
 
     try:
@@ -325,24 +326,16 @@ end_header
     faces = faces.reshape(Nf // 3, 3)
 
     return Mesh(
-      vertices, faces, normals=None,
+      vertices, faces, 
+      segid=segid,
+      normals=None,
       encoding_type='draco', 
       encoding_options=mesh_object.encoding_options
     )
 
-  def deduplicate_chunk_boundaries(self, chunk_size, is_draco=False, draco_grid_size=None, offset=(0,0,0)):
-    offset = Vec(*offset)
-    verts = self.vertices - offset
-    # find all vertices that are exactly on chunk_size boundaries
-    if is_draco:
-      if draco_grid_size is None:
-        raise ValueError('Must specify draco grid size to dedup draco meshes')
-      is_chunk_aligned = is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=draco_grid_size)
-    else:
-      is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
-
+  def deduplicate_vertices(self, is_chunk_aligned):
     faces = self.faces
-
+    verts = self.vertices
     # find all vertices that have exactly 2 duplicates
     unique_vertices, unique_inverse, counts = np.unique(
       verts, return_inverse=True, return_counts=True, axis=0
@@ -365,9 +358,22 @@ end_header
     vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
     newfaces = newfaces.astype(np.uint32).reshape( (len(newfaces) // 3, 3) )
 
-    return Mesh(vertices[:,0:3] + offset, newfaces, None, segid=self.segid, 
+    return Mesh(vertices[:,0:3], newfaces, None, segid=self.segid, 
       encoding_type=self.encoding_type, encoding_options=self.encoding_options
     )
+
+  def deduplicate_chunk_boundaries(self, chunk_size, is_draco=False, draco_grid_size=None, offset=(0,0,0)):
+    offset = Vec(*offset)
+    verts = self.vertices - offset
+    # find all vertices that are exactly on chunk_size boundaries
+    if is_draco:
+      if draco_grid_size is None:
+        raise ValueError('Must specify draco grid size to dedup draco meshes')
+      is_chunk_aligned = is_draco_chunk_aligned(verts, chunk_size, draco_grid_size=draco_grid_size)
+    else:
+      is_chunk_aligned = np.any(np.mod(verts, chunk_size) == 0, axis=1)
+
+    return self.deduplicate_vertices(is_chunk_aligned)
 
   def viewer(self):
     try:
