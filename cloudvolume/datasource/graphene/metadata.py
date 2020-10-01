@@ -111,8 +111,7 @@ class GrapheneMetadata(PrecomputedMetadata):
       try:
         token = json.loads(token)
       except json.decoder.JSONDecodeError:
-        if not re.match(r'^[0-9a-f]+$', token):
-          raise exceptions.AuthenticationError("Graphene authentication token was not formatted correctly. It should be a hexadecimal string.")
+        pass
 
     if isinstance(token, dict):
       token = token["token"]
@@ -122,6 +121,8 @@ class GrapheneMetadata(PrecomputedMetadata):
         "No Graphene authentication token was provided. "
         "Does ~/.cloudvolume/secrets/chunkedgraph-secret.json exist?"
       )
+    elif not re.match(r'^[0-9a-f]+$', token):
+      raise exceptions.AuthenticationError("Graphene authentication token was not formatted correctly. It should be a hexadecimal string.")
 
     return token
 

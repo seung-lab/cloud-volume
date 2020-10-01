@@ -22,6 +22,23 @@ TEST_SEG_ID = 144115188084020434
 TEST_GRAPHENE_SHARDED_ID = 864691135213153080
 TEST_TOKEN = "2371270ab23f129cc121dedbeef01294"
 
+def test_graphene_auth_token(graphene_vol):
+  cloudpath = "graphene://" + posixpath.join(PCG_LOCATION, 'segmentation', 'api/v1/', TEST_DATASET_NAME)
+  
+  cloudvolume.CloudVolume(cloudpath, secrets=TEST_TOKEN)
+  cloudvolume.CloudVolume(cloudpath, secrets={ "token": TEST_TOKEN })
+
+  try:
+    cloudvolume.CloudVolume(cloudpath, secrets=None)
+  except cloudvolume.exceptions.AuthenticationError:
+    pass
+
+  try:
+    cloudvolume.CloudVolume(cloudpath, secrets={ "token": "Z@(ASINAFSOFAFOSNS" })
+    assert False
+  except cloudvolume.exceptions.AuthenticationError:
+    pass
+
 @pytest.fixture()
 def cv_graphene_mesh_precomputed(requests_mock):
   test_dir = os.path.dirname(os.path.abspath(__file__))
