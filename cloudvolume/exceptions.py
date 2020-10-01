@@ -1,5 +1,9 @@
 from cloudfiles.exceptions import CompressionError, DecompressionError
 
+class AuthenticationError(BaseException):
+  """Incorrect credentials."""
+  pass
+
 class InfoError(Exception):
   pass
 
