@@ -88,13 +88,8 @@ class GrapheneMetadata(PrecomputedMetadata):
     self.auth_header = None
     self.spatial_index = None
     if use_auth:
-      token = None
-      if chunkedgraph_credentials:
-        token = chunkedgraph_credentials["token"]
-      if auth_token:
-        token = auth_token
       self.auth_header = {
-        "Authorization": "Bearer %s" % token
+        "Authorization": "Bearer %s" % self.parse_token(auth_token)
       }
     kwargs['use_https'] = bool(use_https)
     super(GrapheneMetadata, self).__init__(cloudpath, *args, **kwargs)
@@ -104,6 +99,32 @@ class GrapheneMetadata(PrecomputedMetadata):
       version = self.supported_api_versions[-1].version
 
     self.api_version = GrapheneApiVersion(version)
+
+  def parse_token(self, auth_token):
+    token = None
+    if auth_token:
+      token = auth_token
+    elif chunkedgraph_credentials:
+      token = chunkedgraph_credentials
+
+    if isinstance(token, str):
+      try:
+        token = json.loads(token)
+      except json.decoder.JSONDecodeError:
+        pass
+
+    if isinstance(token, dict):
+      token = token["token"]
+
+    if token is None:
+      raise exceptions.AuthenticationError(
+        "No Graphene authentication token was provided. "
+        "Does ~/.cloudvolume/secrets/chunkedgraph-secret.json exist?"
+      )
+    elif not re.match(r'^[0-9a-f]+$', token):
+      raise exceptions.AuthenticationError("Graphene authentication token was not formatted correctly. It should be a hexadecimal string.")
+
+    return token
 
   def supports_api(self, version):
     return GrapheneApiVersion(version) in self.supported_api_versions

@@ -43,7 +43,7 @@ def upload(
     non_aligned_writes=False,
     location=None, location_bbox=None, location_order='F',
     use_shared_memory=False, use_file=False,
-    green=False, fill_missing=False
+    green=False, fill_missing=False, secrets=None
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
 
@@ -78,7 +78,8 @@ def upload(
     "use_file": use_file,
     "delete_black_uploads": delete_black_uploads,
     "background_color": background_color,
-    "green": green,  
+    "green": green,
+    "secrets": secrets,  
   }
 
   if is_aligned:
@@ -119,7 +120,7 @@ def upload(
       compress=compress, cdn_cache=cdn_cache,
       progress=False, n_threads=0, 
       delete_black_uploads=delete_black_uploads,
-      green=green,
+      green=green, secrets=secrets
     )
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
@@ -129,7 +130,7 @@ def upload(
     fill_missing=fill_missing, 
     progress=("Shading Border" if progress else None), 
     compress_cache=compress_cache,
-    green=green
+    green=green, secrets=secrets
   )
 
 def upload_aligned(
@@ -148,6 +149,7 @@ def upload_aligned(
     delete_black_uploads=False,
     background_color=0,
     green=False,
+    secrets=None,
   ):
   global fs_lock
 
@@ -162,6 +164,7 @@ def upload_aligned(
       delete_black_uploads=delete_black_uploads,
       background_color=background_color,
       green=green, compress_level=compress_level,
+      secrets=secrets
     )
     return
 
@@ -189,7 +192,8 @@ def upload_aligned(
     compress, cdn_cache, progress,
     location, location_bbox, location_order, 
     delete_black_uploads, background_color, 
-    green, compress_level=compress_level
+    green, compress_level=compress_level,
+    secrets=secrets
   )
 
   parallel_execution(cup, chunk_ranges_by_process, parallel, cleanup_shm=location)
@@ -207,6 +211,7 @@ def child_upload_process(
     location, location_bbox, location_order, 
     delete_black_uploads, background_color,
     green, chunk_ranges, compress_level=None,
+    secrets=None
   ):
   global fs_lock
   reset_connection_pools()
@@ -236,6 +241,7 @@ def child_upload_process(
     delete_black_uploads=delete_black_uploads, 
     background_color=background_color,
     green=green, compress_level=compress_level,
+    secrets=secrets
   )
   array_like.close()
 
@@ -248,6 +254,7 @@ def threaded_upload_chunks(
     background_color=0,
     green=False,
     compress_level=None,
+    secrets=None,
   ):
   
   if cache.enabled:
@@ -256,8 +263,8 @@ def threaded_upload_chunks(
   while img.ndim < 4:
     img = img[ ..., np.newaxis ]
 
-  remote = CloudFiles(meta.cloudpath)
-  local = CloudFiles('file://' + cache.path)
+  remote = CloudFiles(meta.cloudpath, secrets=secrets)
+  local = CloudFiles('file://' + cache.path, secrets=secrets)
 
   def do_upload(imgchunk, cloudpath):
     encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))

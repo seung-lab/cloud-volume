@@ -54,7 +54,10 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'dynamic') 
     progress = progress if progress is not None else self.config.progress
 
-    results = CloudFiles(cloudpath, progress=progress, green=self.config.green).exists(checks)
+    results = CloudFiles(
+      cloudpath, progress=progress, 
+      green=self.config.green, secrets=self.config.secrets
+    ).exists(checks)
 
     output = {}
     for filepath, exists in results.items():
@@ -153,7 +156,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     files = []
     if lists['dynamic']:
-      files = CloudFiles(dynamic_cloudpath, green=self.config.green).get(lists['dynamic'])
+      files = CloudFiles(dynamic_cloudpath, green=self.config.green, secrets=self.config.secrets).get(lists['dynamic'])
     
     dynamic_meshes = []
     while files:
@@ -176,7 +179,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
     
-    files = CloudFiles(cloudpath, green=self.config.green).get(fetches)
+    files = CloudFiles(cloudpath, green=self.config.green, secrets=self.config.secrets).get(fetches)
     initial_meshes = []
     while files:
       f = files.pop()
@@ -246,7 +249,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
     filenames = [ self.compute_filename(segid) for segid in segids ]
 
-    cf = CloudFiles(dynamic_cloudpath, progress=self.config.progress, green=self.config.green)
+    cf = CloudFiles(
+      dynamic_cloudpath, 
+      progress=self.config.progress, 
+      green=self.config.green,
+      secrets=self.config.secrets
+    )
     raw_binaries = cf.get(filenames)
 
     # extract the label ID from the mesh manifest.

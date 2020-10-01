@@ -31,7 +31,7 @@ class SharedConfiguration(object):
   """
   def __init__(
     self, cdn_cache, compress, compress_level, green,
-    mip, parallel, progress,
+    mip, parallel, progress, secrets,
     *args, **kwargs
   ):
     if type(parallel) == bool:
@@ -48,6 +48,7 @@ class SharedConfiguration(object):
     self.mip = mip
     self.parallel = parallel 
     self.progress = bool(progress)
+    self.secrets = secrets
     self.args = args
     self.kwargs = kwargs
 
@@ -60,7 +61,7 @@ class CloudVolume(object):
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
     max_redirects=10, mesh_dir=None, skel_dir=None, 
-    agglomerate=False
+    agglomerate=False, secrets=None
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -188,6 +189,8 @@ class CloudVolume(object):
           Defaults to True in interactive python, False in script execution mode.
       provenance: (string, dict) In lieu of fetching a provenance 
           file, use this one. 
+      secrets: (dict) provide per-instance authorization tokens. If not provided,
+        defaults to looking in .cloudvolume/secrets for necessary tokens.
       skel_dir: (str) if not None, override the info['skeletons'] key before 
         pulling the skeleton info file.
       use_https: (bool) maps gs:// and s3:// to their respective https paths. The 

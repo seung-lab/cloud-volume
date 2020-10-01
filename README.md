@@ -116,7 +116,13 @@ pip install -e .[all_viewers] # with e.g. the all_viewers optional dependency
 
 You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided.
 
-If neither of those two conditions apply, you need a service account credential. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
+If neither of those two conditions apply, you need a service account credential. If you have your credentials handy, you can provide them like so as a dict, JSON string, or a bare token if the service will accept that.
+
+```python
+cv = CloudVolume(..., secrets=...)
+```
+
+However, it may be simpler to save your credential to disk so you don't have to always provide it. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
 
 ```bash
 mkdir -p ~/.cloudvolume/secrets/
@@ -241,6 +247,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 ```python3
 # Basic Examples
 vol = CloudVolume('gs://mybucket/retina/image')
+vol = CloudVolume('gs://mybucket/retina/image', secrets=token, dict or json)
 vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missing=False)
 vol = CloudVolume('gs://bucket/dataset/channel', mip=[ 8, 8, 40 ], bounded=True, fill_missing=False) # set mip at this resolution
 vol = CloudVolume('gs://bucket/datasset/channel', info=info) # New info file from scratch
@@ -372,7 +379,8 @@ CloudVolume(cloudpath,
      compress=None, non_aligned_writes=False, parallel=1,
      delete_black_uploads=False, background_color=0,
      green_threads=False, use_https=False,
-     max_redirects=10, mesh_dir=None, skel_dir=None)
+     max_redirects=10, mesh_dir=None, skel_dir=None,
+     secrets=None)
 ```
 
 * mip - Which mip level to access
@@ -397,6 +405,7 @@ CloudVolume(cloudpath,
 * max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).
 * mesh_dir - str. If specified, override the mesh directory specified in the info file.
 * skel_dir - str. If specified, override the skeletons directory specified in the info file.
+* secrets - str, JSON string, or dict. If specified, use this credential to access the dataset. You can pass it in the same form as the various *-secret.json files appear. If not provided, the various secret files will be consulted.
 
 ### CloudVolume Methods
 

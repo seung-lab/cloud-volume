@@ -324,7 +324,7 @@ class CacheService(object):
 
     progress = progress if progress is not None else self.config.progress
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress)
+    cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
     files = list(compression.transcode(files, encoding=compress, level=compress_level))
     cf.puts( 
       files, 
@@ -374,7 +374,7 @@ class CacheService(object):
       if locs['local']:
         return self.get_single(local_alias)
 
-    filedata = CloudFiles(self.meta.cloudpath)[path, start:end]
+    filedata = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)[path, start:end]
 
     if self.enabled:
       self.put([ (local_alias, filedata) ], compress=compress)
@@ -421,7 +421,7 @@ class CacheService(object):
 
     remote_path_tuples = list(alias_tuples.values())
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress)
+    cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
     remote_fragments = cf.get(
       ( { 'path': p[0], 'start': p[1], 'end': p[2] } for p in remote_path_tuples )
     )
@@ -469,7 +469,7 @@ class CacheService(object):
     if self.enabled:
       fragments = self.get(locs['local'], progress=progress)
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress)
+    cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
     remote_fragments = cf.get(locs['remote'], raw=True)
 
     for frag in remote_fragments:

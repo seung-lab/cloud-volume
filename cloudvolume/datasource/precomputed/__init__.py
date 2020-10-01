@@ -17,7 +17,7 @@ def create_precomputed(
     delete_black_uploads=False, background_color=0, 
     green_threads=False, use_https=False,
     max_redirects=10, mesh_dir=None, skel_dir=None,
-    **kwargs # absorb graphene arguments
+    secrets=None, **kwargs # absorb graphene arguments
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
@@ -28,6 +28,7 @@ def create_precomputed(
       mip=mip,
       parallel=parallel,
       progress=progress,
+      secrets=secrets,
     )
 
     cache = CacheService(
@@ -38,7 +39,7 @@ def create_precomputed(
     )
 
     meta = PrecomputedMetadata(
-      cloudpath, cache=cache,
+      cloudpath, config=config, cache=cache,
       info=info, provenance=provenance,
       max_redirects=max_redirects,
       use_https=use_https # for parsing redirects
