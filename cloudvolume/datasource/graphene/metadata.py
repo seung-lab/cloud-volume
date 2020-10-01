@@ -89,10 +89,14 @@ class GrapheneMetadata(PrecomputedMetadata):
     self.spatial_index = None
     if use_auth:
       token = None
-      if chunkedgraph_credentials:
-        token = chunkedgraph_credentials["token"]
       if auth_token:
         token = auth_token
+      elif chunkedgraph_credentials:
+        token = chunkedgraph_credentials
+
+      if isinstance(token, dict):
+        token = token["token"]
+
       self.auth_header = {
         "Authorization": "Bearer %s" % token
       }

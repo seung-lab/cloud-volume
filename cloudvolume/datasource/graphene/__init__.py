@@ -41,9 +41,10 @@ def create_graphene(
         compress=compress_cache,
       )
     meta = GrapheneMetadata(
-      cloudpath, cache=mkcache(cloudpath),
+      cloudpath, config=config, cache=mkcache(cloudpath),
       info=info, provenance=provenance, 
       use_https=use_https, agglomerate=agglomerate,
+      auth_token=config.secrets,
     )
     # Resetting the cache is necessary because
     # graphene retrieves a data_dir from the info file
