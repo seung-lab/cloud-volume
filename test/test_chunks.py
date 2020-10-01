@@ -78,14 +78,14 @@ def test_fpzip():
   for N in range(0,100):
     flts = np.array(range(N), dtype=np.float32).reshape( (N,1,1,1) )
     compressed = encode(flts, 'fpzip')
-    assert compressed != flts
+    assert isinstance(compressed, bytes)
     decompressed = decode(compressed, 'fpzip')
     assert np.all(decompressed == flts)
 
   for N in range(0, 200, 2):
     flts = np.array(range(N), dtype=np.float32).reshape( (N // 2, 2, 1, 1) )
     compressed = encode(flts, 'fpzip')
-    assert compressed != flts
+    assert isinstance(compressed, bytes)
     decompressed = decode(compressed, 'fpzip')
     assert np.all(decompressed == flts)
 

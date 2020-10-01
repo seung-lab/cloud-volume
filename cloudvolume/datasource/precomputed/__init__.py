@@ -39,7 +39,7 @@ def create_precomputed(
     )
 
     meta = PrecomputedMetadata(
-      cloudpath, cache=cache,
+      cloudpath, config=config, cache=cache,
       info=info, provenance=provenance,
       max_redirects=max_redirects,
       use_https=use_https # for parsing redirects

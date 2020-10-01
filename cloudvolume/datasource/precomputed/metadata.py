@@ -37,7 +37,7 @@ class PrecomputedMetadata(object):
   read and write Precomputed data types.
   """
   def __init__(
-    self, cloudpath, cache=None, 
+    self, cloudpath, config=None, cache=None, 
     info=None, provenance=None, 
     max_redirects=10, use_https=False
   ):
@@ -45,6 +45,7 @@ class PrecomputedMetadata(object):
     self.cache = cache
     if self.cache:
       self.cache.meta = self
+    self.config = config
     self.info = None
 
     self.redirected_from = []
@@ -193,7 +194,7 @@ class PrecomputedMetadata(object):
 
     Returns: dict
     """
-    info = CloudFiles(self.cloudpath).get_json('info')
+    info = CloudFiles(self.cloudpath, secrets=self.config.secrets).get_json('info')
 
     if info is None:
       raise exceptions.InfoUnavailableError(
@@ -304,7 +305,7 @@ Hops:
       separators=(',', ': ')
     )
     # use put instead of put_json to preserve formatting
-    cf = CloudFiles(self.cloudpath)
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     cf.put(
       'info', infojson,
       cache_control='no-cache',
@@ -364,7 +365,7 @@ Hops:
 
     Returns: dict
     """
-    cf = CloudFiles(self.cloudpath)
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     provfile = cf.get('provenance')
     if provfile:
       provfile = provfile.decode('utf-8')
@@ -407,7 +408,7 @@ Hops:
     )
 
     # need to use put vs put_json to preserve formatting
-    cf = CloudFiles(self.cloudpath)
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     cf.put(
       'provenance', prov, 
       cache_control='no-cache', 
