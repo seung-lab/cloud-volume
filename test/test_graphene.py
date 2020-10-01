@@ -20,6 +20,7 @@ GRAPHENE_SHARDED_MESH_TEST_DATASET_NAME = "meshvol_graphene_sharded"
 PCG_LOCATION = "https://www.dynamicannotationframework.com/"
 TEST_SEG_ID = 144115188084020434
 TEST_GRAPHENE_SHARDED_ID = 864691135213153080
+TEST_TOKEN = "2371270ab23f129cc121dedbeef01294"
 
 @pytest.fixture()
 def cv_graphene_mesh_precomputed(requests_mock):
@@ -97,7 +98,7 @@ def cv_graphene_mesh_precomputed(requests_mock):
   cloudpath =   posixpath.join(PCG_LOCATION,
                              'segmentation/table',
                              PRECOMPUTED_MESH_TEST_DATASET_NAME)
-  yield cloudvolume.CloudVolume("graphene://" + cloudpath)
+  yield cloudvolume.CloudVolume("graphene://" + cloudpath, secrets=TEST_TOKEN)
 
 @pytest.fixture()
 def cv_graphene_mesh_draco(requests_mock):
@@ -180,7 +181,7 @@ def cv_graphene_mesh_draco(requests_mock):
   cloudpath = posixpath.join(PCG_LOCATION,
                              'segmentation/table',
                              DRACO_MESH_TEST_DATASET_NAME)
-  yield cloudvolume.CloudVolume('graphene://' + cloudpath)
+  yield cloudvolume.CloudVolume('graphene://' + cloudpath, secrets=TEST_TOKEN)
 
 
 @pytest.fixture()
@@ -264,7 +265,7 @@ def cv_graphene_sharded(requests_mock):
 
   requests_mock.get(matcher,real_http=True)
   cloudpath = posixpath.join(PCG_LOCATION, 'segmentation/table/', GRAPHENE_SHARDED_MESH_TEST_DATASET_NAME)
-  yield cloudvolume.CloudVolume('graphene://' + cloudpath, use_https=True)
+  yield cloudvolume.CloudVolume('graphene://' + cloudpath, use_https=True, secrets=TEST_TOKEN)
 
 
 @pytest.fixture(scope='session')
@@ -341,7 +342,7 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
 
   cloudpath = "graphene://" + posixpath.join(PCG_LOCATION, 'segmentation', 'api/v1/', TEST_DATASET_NAME)
 
-  gcv = cloudvolume.CloudVolume(cloudpath)
+  gcv = cloudvolume.CloudVolume(cloudpath, secrets=TEST_TOKEN)
   gcv.get_leaves = partial(mock_get_leaves, gcv)
   yield gcv
 
