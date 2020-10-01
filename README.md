@@ -379,7 +379,8 @@ CloudVolume(cloudpath,
      compress=None, non_aligned_writes=False, parallel=1,
      delete_black_uploads=False, background_color=0,
      green_threads=False, use_https=False,
-     max_redirects=10, mesh_dir=None, skel_dir=None)
+     max_redirects=10, mesh_dir=None, skel_dir=None,
+     secrets=None)
 ```
 
 * mip - Which mip level to access
@@ -404,6 +405,7 @@ CloudVolume(cloudpath,
 * max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).
 * mesh_dir - str. If specified, override the mesh directory specified in the info file.
 * skel_dir - str. If specified, override the skeletons directory specified in the info file.
+* secrets - str, JSON string, or dict. If specified, use this credential to access the dataset. You can pass it in the same form as the various *-secret.json files appear.
 
 ### CloudVolume Methods
 
