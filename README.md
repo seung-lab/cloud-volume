@@ -116,7 +116,13 @@ pip install -e .[all_viewers] # with e.g. the all_viewers optional dependency
 
 You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided.
 
-If neither of those two conditions apply, you need a service account credential. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
+If neither of those two conditions apply, you need a service account credential. If you have your credentials handy, you can provide them like so as a dict, JSON string, or a bare token if the service will accept that.
+
+```python
+cv = CloudVolume(..., secrets=...)
+```
+
+However, it may be simpler to save your credential to disk so you don't have to always provide it. `google-secret.json` is a service account credential for Google Storage, `aws-secret.json` is a service account for S3, etc. You can support multiple projects at once by prefixing the bucket you are planning to access to the credential filename. `google-secret.json` will be your defaut service account, but if you also want to also access bucket ABC, you can provide `ABC-google-secret.json` and you'll have simultaneous access to your ordinary buckets and ABC. The secondary credentials are accessed on the basis of the bucket name, not the project name.
 
 ```bash
 mkdir -p ~/.cloudvolume/secrets/
@@ -241,6 +247,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 ```python3
 # Basic Examples
 vol = CloudVolume('gs://mybucket/retina/image')
+vol = CloudVolume('gs://mybucket/retina/image', secrets=token, dict or json)
 vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missing=False)
 vol = CloudVolume('gs://bucket/dataset/channel', mip=[ 8, 8, 40 ], bounded=True, fill_missing=False) # set mip at this resolution
 vol = CloudVolume('gs://bucket/datasset/channel', info=info) # New info file from scratch
