@@ -10,6 +10,10 @@ from .lib import mkdir, colorize
 
 HOME = os.path.expanduser('~')
 CLOUD_VOLUME_DIR = os.path.join(HOME, '.cloudvolume')
+try:
+  mkdir(CLOUD_VOLUME_DIR)
+except PermissionError: # allow operation in read-only mode
+  pass
 
 def secretpath(filepath):
   preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
