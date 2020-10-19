@@ -9,7 +9,7 @@ from google.oauth2 import service_account
 from .lib import mkdir, colorize
 
 HOME = os.path.expanduser('~')
-CLOUD_VOLUME_DIR = mkdir(os.path.join(HOME, '.cloudvolume'))
+CLOUD_VOLUME_DIR = os.path.join(HOME, '.cloudvolume')
 
 def secretpath(filepath):
   preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
