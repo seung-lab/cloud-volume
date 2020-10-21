@@ -1030,6 +1030,7 @@ class DataCube {
       1: Uint8Array,
       2: Uint16Array,
       4: Uint32Array,
+      8: BigUint64Array,
     };
 
     let ArrayType = choices[this.bytes];
@@ -1302,9 +1303,14 @@ function binary_get (url, progressfn) {
 function renumber (cube) {
   let assignments = new Map();
   
-  let last_label = 0;
-  let last_relabel = 0;
-  let next_label = 1;
+  let cast = (cube instanceof BigUint64Array)
+    ? BigInt
+    : Number;
+
+  let last_label = cast(0);
+  let last_relabel = cast(0);
+  let next_label = cast(1);
+  let zero = cast(0);
 
   if (cube.length) {
     last_label = cube[0];
@@ -1313,12 +1319,12 @@ function renumber (cube) {
     next_label++;
   }
 
-  let cur_label = 0;
+  let cur_label = cast(0);
   for (let i = cube.length - 1; i >= 0; i--) {
-    if (cube[i] == 0) {
+    if (cube[i] === zero) {
       continue;
     }
-    else if (cube[i] == last_label) {
+    else if (cube[i] === last_label) {
       cube[i] = last_relabel;
       continue;
     }
@@ -1338,7 +1344,7 @@ function renumber (cube) {
     }
   }
 
-  let renumbering = new cube.constructor(next_label);
+  let renumbering = new cube.constructor(Number(next_label));
   for (let [label, remap] of assignments) {
     renumbering[remap] = label;
   }
