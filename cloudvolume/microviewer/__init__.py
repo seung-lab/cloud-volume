@@ -71,7 +71,7 @@ def hyperview(
   ):
 
   img = to3d(img)
-  segmentation = emulate_eight_uint64(to3d(segmentation))
+  segmentation = to3d(segmentation)
 
   assert np.all(img.shape[:3] == segmentation.shape[:3])
 
@@ -82,20 +82,6 @@ def hyperview(
 
   return run([ img, segmentation ], hostname=hostname, port=port)
 
-def emulate_eight_uint64(img):
-  # Makes sense for viewing not segmentation 
-  # which requires uints currently. (Jan. 2019)
-  if np.dtype(img.dtype).itemsize == 8 and not np.issubdtype(img.dtype, np.float64):
-    print(yellow(
-      """
-Converting {} to float64 for display. 
-Javascript does not support native 64-bit integer arrays.
-      """.format(img.dtype)
-    ))
-    return img.astype(np.float64)
-
-  return img
-
 def view(
     img, segmentation=False, resolution=None, offset=None,
     hostname="localhost", port=DEFAULT_PORT
@@ -105,7 +91,6 @@ def view(
   img = to3d(img)
   resolution = getresolution(img, resolution)
   offset = getoffset(img, offset)
-  img = emulate_eight_uint64(img)
 
   cutout = VolumeCutout(
     buf=img,
