@@ -27,7 +27,7 @@ setuptools.setup(
       "blosc==1.8.3",
     ],
     ':sys_platform!="win32"': [
-      "posix_ipc==1.0.4",
+      "posix_ipc>=1.0.4",
       "psutil==5.4.3",
     ],
     "mesh_viewer": [ 'vtk' ],
