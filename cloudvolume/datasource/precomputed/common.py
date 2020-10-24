@@ -10,7 +10,7 @@ def should_compress(encoding, compress, cache, iscache=False):
     return cache.compress
 
   if compress is None:
-    return 'gzip' if encoding in ('raw', 'compressed_segmentation') else None
+    return 'gzip' if encoding in ('raw', 'compressed_segmentation', 'compresso') else None
   elif compress == True:
     return 'gzip'
   elif compress == False:
