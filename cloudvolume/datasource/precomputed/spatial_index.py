@@ -151,7 +151,7 @@ class SpatialIndex(object):
 
     return locations
   
-  def query(self, bbox, allow_missing=False):
+  def query(self, bbox, allow_missing=False, batch_decode_json=False):
     """
     For the specified bounding box (or equivalent representation),
     list all segment ids enclosed within it.
@@ -159,8 +159,65 @@ class SpatialIndex(object):
     If allow_missing is set, then don't raise an error if an index
     file is missing.
 
+    batch_decode_json: combine all results into one json 
+      file and parse it all at once. This uses much more memory 
+      but can improve decoding speed for huge datasets.
+
     Returns: set(labels)
     """
+    if batch_decode_json:
+      return self.query_batch_decode_json(bbox, allow_missing)
+    return self.query_online_decode_json(bbox, allow_missing)
+
+  def query_online_decode_json(self, bbox, allow_missing=False):
+    """
+    For the specified bounding box (or equivalent representation),
+    list all segment ids enclosed within it.
+    If allow_missing is set, then don't raise an error if an index
+    file is missing.
+    Returns: set(labels)
+    """
+    bbox = Bbox.create(bbox, context=self.bounds, autocrop=True)
+    original_bbox = bbox.clone()
+    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
+
+    if bbox.subvoxel():
+      return []
+
+    index_files = self.index_file_paths_for_bbox(bbox)
+    results = self.fetch_index_files(index_files)
+
+    # The bbox test saps performance a lot
+    # but we can skip it if we know 100% that
+    # the labels are going to be inside. This
+    # optimization is important for querying 
+    # entire datasets, which is contemplated
+    # for shard generation.    
+    fast_path = bbox.contains_bbox(self.bounds) or True
+
+    labels = set()
+    for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
+      if content is None:
+        if allow_missing:
+          continue
+        else:
+          raise SpatialIndexGapError(filename + " was not found.")
+
+      res = orjson.loads(content) # fast path: 50% of CPU
+
+      if fast_path:
+        labels.update( (int(label) for label in res.keys()) ) # fast path: 16% CPU
+      else:
+        for label, label_bbx in res.items():
+          label = int(label)
+          label_bbx = Bbox.from_list(label_bbx)
+
+          if Bbox.intersects(label_bbx, original_bbox):
+            labels.add(label)
+
+    return labels
+
+  def query_batch_decode_json(self, bbox, allow_missing=False):
     bbox = Bbox.create(bbox, context=self.bounds, autocrop=True)
     original_bbox = bbox.clone()
     bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
@@ -183,17 +240,25 @@ class SpatialIndex(object):
     del results
     all_content = orjson.loads(byte_content)
     del byte_content
-    
+
+    # The bbox test saps performance a lot
+    # but we can skip it if we know 100% that
+    # the labels are going to be inside. This
+    # optimization is important for querying 
+    # entire datasets, which is contemplated
+    # for shard generation.    
+    fast_path = bbox.contains_bbox(self.bounds) or True
+
     labels = set()
-    for filename, res in tqdm(zip(filenames, all_content), desc="Decoding Labels", disable=(not self.config.progress), total=len(filenames)):
-      # The bbox test saps performance a lot
-      # but we can skip it if we know 100% that
-      # the labels are going to be inside. This
-      # optimization is important for querying 
-      # entire datasets, which is contemplated
-      # for shard generation.
-      if bbox.contains_bbox(self.bounds):
-        labels.update( (int(label) for label in res.keys()) ) # fast path: 16% CPU
+    iterator = tqdm(
+      zip(filenames, all_content), 
+      desc="Decoding Labels", 
+      disable=(not self.config.progress), 
+      total=len(filenames)
+    )
+    for filename, res in iterator:
+      if fast_path:
+        labels.update( (int(label) for label in res.keys()) )
       else:
         for label, label_bbx in res.items():
           label = int(label)
