@@ -179,7 +179,7 @@ class SpatialIndex(object):
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      res = json.loads(content) # fast path: 50% of CPU
+      res = orjson.loads(content) # fast path: 50% of CPU
 
       # The bbox test saps performance a lot
       # but we can skip it if we know 100% that
