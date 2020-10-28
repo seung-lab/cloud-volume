@@ -193,7 +193,7 @@ class SpatialIndex(object):
     # optimization is important for querying 
     # entire datasets, which is contemplated
     # for shard generation.    
-    fast_path = bbox.contains_bbox(self.bounds) or True
+    fast_path = bbox.contains_bbox(self.bounds)
 
     labels = set()
     for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
@@ -247,7 +247,7 @@ class SpatialIndex(object):
     # optimization is important for querying 
     # entire datasets, which is contemplated
     # for shard generation.    
-    fast_path = bbox.contains_bbox(self.bounds) or True
+    fast_path = bbox.contains_bbox(self.bounds)
 
     labels = set()
     iterator = tqdm(
