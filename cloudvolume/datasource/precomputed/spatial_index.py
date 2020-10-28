@@ -1,6 +1,6 @@
 from collections import defaultdict
 import json
-import orjson
+import simdjson
 import os 
 
 import numpy as np
@@ -171,6 +171,9 @@ class SpatialIndex(object):
     index_files = self.index_file_paths_for_bbox(bbox)
     results = self.fetch_index_files(index_files)
 
+    fast_path = bbox.contains_bbox(self.bounds)
+    parser = simdjson.Parser()
+
     labels = set()
     for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
       if content is None:
@@ -179,17 +182,17 @@ class SpatialIndex(object):
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      res = orjson.loads(content) # fast path: 50% of CPU
-
       # The bbox test saps performance a lot
       # but we can skip it if we know 100% that
       # the labels are going to be inside. This
       # optimization is important for querying 
       # entire datasets, which is contemplated
       # for shard generation.
-      if bbox.contains_bbox(self.bounds):
-        labels.update( (int(label) for label in res.keys()) ) # fast path: 16% CPU
+      if fast_path:
+        res = parser.parse(content).keys()
+        labels.update( (int(label) for label in res ) ) # fast path: 16% CPU
       else:
+        res = simdjson.loads(content)
         for label, label_bbx in res.items():
           label = int(label)
           label_bbx = Bbox.from_list(label_bbx)
