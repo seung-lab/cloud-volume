@@ -1,8 +1,10 @@
 from collections import defaultdict
 import json
+import orjson
 import os 
 
 import numpy as np
+from tqdm import tqdm
 
 from cloudfiles import CloudFiles
 
@@ -37,12 +39,17 @@ class SpatialIndex(object):
 
   Where sx, sy, and sz are given in physical dimensions.
   """
-  def __init__(self, cloudpath, bounds, chunk_size, progress=False):
+  def __init__(self, cloudpath, bounds, chunk_size, config=None):
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
     self.chunk_size = Vec(*chunk_size)
-    self.progress = progress
+
+    if config is None:
+      self.config = {}
+      self.config.progress = None
+    else:
+      self.config = config
 
   def join(self, *paths):
     if self.path.protocol == 'file':
@@ -51,7 +58,7 @@ class SpatialIndex(object):
       return posixpath.join(*paths)    
 
   def fetch_index_files(self, index_files):
-    results = CloudFiles(self.cloudpath, progress=self.progress).get(index_files)
+    results = CloudFiles(self.cloudpath, progress=self.config.progress).get(index_files)
 
     for res in results:
       if res['error'] is not None:
@@ -143,7 +150,7 @@ class SpatialIndex(object):
             locations[int(label)].append(filename)
 
     return locations
-
+  
   def query(self, bbox, allow_missing=False):
     """
     For the specified bounding box (or equivalent representation),
@@ -165,14 +172,14 @@ class SpatialIndex(object):
     results = self.fetch_index_files(index_files)
 
     labels = set()
-    for filename, content in results.items():
+    for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
       if content is None:
         if allow_missing:
           continue
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      res = json.loads(content)
+      res = json.loads(content) # fast path: 50% of CPU
 
       # The bbox test saps performance a lot
       # but we can skip it if we know 100% that
@@ -180,9 +187,8 @@ class SpatialIndex(object):
       # optimization is important for querying 
       # entire datasets, which is contemplated
       # for shard generation.
-      if bbox.contains_bbox(self.bounds):
-        for label, label_bbx in res.items():
-          labels.add(int(label))
+      if not bbox.contains_bbox(self.bounds):
+        labels.update( (int(label) for label in res.keys()) ) # fast path: 16% CPU
       else:
         for label, label_bbx in res.items():
           label = int(label)
@@ -194,14 +200,14 @@ class SpatialIndex(object):
     return labels
 
 class CachedSpatialIndex(SpatialIndex):
-  def __init__(self, cache, cloudpath, bounds, chunk_size, progress=None):
+  def __init__(self, cache, config, cloudpath, bounds, chunk_size):
     self.cache = cache
     self.subdir = os.path.relpath(cloudpath, cache.meta.cloudpath)
 
     super(CachedSpatialIndex, self).__init__(
-      cloudpath, bounds, chunk_size, progress
+      cloudpath, bounds, chunk_size, config
     )
 
   def fetch_index_files(self, index_files):
     index_files = [ self.cache.meta.join(self.subdir, fname) for fname in index_files ]
-    return self.cache.download(index_files, progress=self.progress)
+    return self.cache.download(index_files, progress=self.config.progress)
