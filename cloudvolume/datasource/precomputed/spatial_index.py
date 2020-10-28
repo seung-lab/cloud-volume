@@ -187,7 +187,7 @@ class SpatialIndex(object):
       # optimization is important for querying 
       # entire datasets, which is contemplated
       # for shard generation.
-      if not bbox.contains_bbox(self.bounds):
+      if bbox.contains_bbox(self.bounds):
         labels.update( (int(label) for label in res.keys()) ) # fast path: 16% CPU
       else:
         for label, label_bbx in res.items():
