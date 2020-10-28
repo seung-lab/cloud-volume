@@ -171,16 +171,21 @@ class SpatialIndex(object):
     index_files = self.index_file_paths_for_bbox(bbox)
     results = self.fetch_index_files(index_files)
 
-    labels = set()
-    for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
+    for filename, content in results.items():
       if content is None:
         if allow_missing:
           continue
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      res = orjson.loads(content) # fast path: 50% of CPU
-
+    filenames = list(results.keys())
+    byte_content = b"[" + b",".join([ content for content in results.values() ]) + b"]"
+    del results
+    all_content = orjson.loads(byte_content)
+    del byte_content
+    
+    labels = set()
+    for filename, res in tqdm(zip(filenames, all_content), desc="Decoding Labels", disable=(not self.config.progress), total=len(filenames)):
       # The bbox test saps performance a lot
       # but we can skip it if we know 100% that
       # the labels are going to be inside. This
