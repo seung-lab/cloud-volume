@@ -358,7 +358,7 @@ class ShardReader(object):
     Returns: { minishard_no: uint64 Nx3 array of [segid, byte start, byte end], ... }
     """
     res = self.get_minishard_indices_for_files(( (filename, index, minishard_nos), ), path)
-    return res[filename]
+    return res[basename(filename)]
 
   def get_minishard_indices_for_files(self, requests, path="", progress=None):
     """
@@ -390,7 +390,7 @@ class ShardReader(object):
       ) 
       fufilled_by_filename[filename] = fufilled_requests
       for msn, start, end in pending_requests:
-        msn_map[(filename, start, end)] = msn
+        msn_map[(basename(filename), start, end)] = msn
 
         filepath = self.meta.join(path, filename)
 
@@ -659,19 +659,19 @@ class ShardReader(object):
     """
     index = self.get_index(filename, path)
     all_minishard_nos = list(range(len(index)))
-    minishard_indicies = self.get_minishard_indices(filename, index, all_minishard_nos, path)
-    minishard_indicies = [  
-      msi for msi in minishard_indicies.values() if msi is not None
+    minishard_indices = self.get_minishard_indices(filename, index, all_minishard_nos, path)
+    minishard_indices = [  
+      msi for msi in minishard_indices.values() if msi is not None
     ]
     if not size:
       labels = np.concatenate([  
-        msi[:,0] for msi in minishard_indicies
+        msi[:,0] for msi in minishard_indices
       ])
       return np.sort(labels)
     else:
       labels = np.concatenate([  
         msi[:,:]
-        for msi in minishard_indicies
+        for msi in minishard_indices
       ])
       labels = [ (row[0], row[2]) for row in labels[:] ]
       return sorted(labels, key=lambda x: x[1], reverse=True)
