@@ -87,6 +87,16 @@ def google_credentials(bucket = ''):
 
   if google_credentials == None:
     print(colorize('yellow', 'Using default Google credentials. There is no ~/.cloudvolume/secrets/google-secret.json set.'))  
+    if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", None) is None:
+      print(colorize('yellow', 
+      """
+      Warning: Environment variable GOOGLE_APPLICATION_CREDENTIALS is not set.
+        google-cloud-python might not find your credentials. Your credentials
+        might be located in $HOME/.config/gcloud/legacy_credentials/$YOUR_GMAIL/adc.json
+
+        If they are you can export your credentials like so:
+        export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/legacy_credentials/$YOUR_GMAIL/adc.json
+      """))  
   else:
     GOOGLE_CREDENTIALS_CACHE[bucket] = (project_name, google_credentials)
 
