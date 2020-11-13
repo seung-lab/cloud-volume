@@ -1,0 +1,164 @@
+{
+  "data_type": "uint32",
+  "mesh": "mesh_info",
+  "num_channels": 1,
+  "scales": [
+    {
+      "chunk_sizes": [
+        [
+          128,
+          128,
+          64
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "4_4_40",
+      "resolution": [
+        4,
+        4,
+        40
+      ],
+      "size": [
+        2048,
+        2048,
+        512
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          128,
+          128,
+          64
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "8_8_40",
+      "resolution": [
+        8,
+        8,
+        40
+      ],
+      "size": [
+        1024,
+        1024,
+        512
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          128,
+          128,
+          64
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "16_16_40",
+      "resolution": [
+        16,
+        16,
+        40
+      ],
+      "size": [
+        512,
+        512,
+        512
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          128,
+          128,
+          64
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "32_32_40",
+      "resolution": [
+        32,
+        32,
+        40
+      ],
+      "size": [
+        256,
+        256,
+        512
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          128,
+          128,
+          64
+        ]
+      ],
+      "compressed_segmentation_block_size": [
+        8,
+        8,
+        8
+      ],
+      "encoding": "compressed_segmentation",
+      "key": "64_64_40",
+      "resolution": [
+        64,
+        64,
+        40
+      ],
+      "size": [
+        128,
+        128,
+        512
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "skeletons": "skeletons_mip_2",
+  "type": "segmentation"
+}

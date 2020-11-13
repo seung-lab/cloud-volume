@@ -738,5 +738,22 @@ def test_sharded():
 
   shutil.rmtree('/tmp/removeme/skeletons')
 
+def test_spatial_index():
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  vol = CloudVolume('file://{}/test_cv'.format(test_dir))
+  
+  spatial_index = vol.skeleton.spatial_index
+
+  spatial_index.query(vol.bounds * vol.resolution)
+
+  locs = spatial_index.file_locations_per_label()
+  assert 71297420 in locs
+  assert locs[71297420] == ['0-8192_0-8192_0-20480.spatial']
+
+  locs = spatial_index.file_locations_per_label(labels=[71297420])
+  assert 71297420 in locs
+  assert locs[71297420] == ['0-8192_0-8192_0-20480.spatial']
+
+
 
 
