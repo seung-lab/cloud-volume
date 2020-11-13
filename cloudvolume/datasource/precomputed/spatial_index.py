@@ -136,7 +136,7 @@ class SpatialIndex(object):
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      index_labels = parser.parse(content).keys()
+      index_labels = set(parser.parse(content).keys())
       filename = os.path.basename(filename)
 
       if labels is None:
@@ -147,7 +147,6 @@ class SpatialIndex(object):
           if int(label) in labels:
             locations[int(label)].append(filename)
       else:
-        index_labels = set(index_labels)
         for label in labels:
           if str(label) in index_labels:
             locations[int(label)].append(filename)
