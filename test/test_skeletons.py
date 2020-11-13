@@ -740,7 +740,7 @@ def test_sharded():
 
 def test_spatial_index():
   test_dir = os.path.dirname(os.path.abspath(__file__))
-  vol = CloudVolume(f'file://{test_dir}/test_cv')
+  vol = CloudVolume('file://{}/test_cv'.format(test_dir))
   
   spatial_index = vol.skeleton.spatial_index
 
