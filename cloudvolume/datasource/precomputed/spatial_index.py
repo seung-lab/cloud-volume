@@ -1,5 +1,4 @@
 from collections import defaultdict
-import json
 import simdjson
 import os 
 
@@ -98,7 +97,7 @@ class SpatialIndex(object):
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      segid_bbox_dict = json.loads(content)
+      segid_bbox_dict = simdjson.loads(content)
       filename = os.path.basename(filename)
 
       if label not in segid_bbox_dict: 
@@ -127,6 +126,9 @@ class SpatialIndex(object):
     index_files = self.index_file_paths_for_bbox(self.bounds)
     index_files = self.fetch_index_files(index_files)
     locations = defaultdict(list)
+
+    parser = simdjson.Parser()
+
     for filename, content in index_files.items():
       if content is None:
         if allow_missing:
@@ -134,19 +136,20 @@ class SpatialIndex(object):
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      segid_bbox_dict = json.loads(content)
+      index_labels = parser.parse(content).keys()
       filename = os.path.basename(filename)
 
       if labels is None:
-        for label in segid_bbox_dict.keys():
+        for label in index_labels:
           locations[int(label)].append(filename)
-      elif len(labels) > len(segid_bbox_dict):
-        for label in segid_bbox_dict.keys():
+      elif len(labels) > len(index_labels):
+        for label in index_labels:
           if int(label) in labels:
             locations[int(label)].append(filename)
       else:
+        index_labels = set(index_labels)
         for label in labels:
-          if str(label) in segid_bbox_dict:
+          if str(label) in index_labels:
             locations[int(label)].append(filename)
 
     return locations
