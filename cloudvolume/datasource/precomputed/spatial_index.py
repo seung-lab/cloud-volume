@@ -9,7 +9,7 @@ from cloudfiles import CloudFiles
 
 from ...exceptions import SpatialIndexGapError
 from ... import paths
-from ...lib import Bbox, Vec, xyzrange, min2, toiter, sip
+from ...lib import Bbox, Vec, xyzrange, min2, toiter, sip, nvl
 
 class SpatialIndex(object):
   """
@@ -56,8 +56,9 @@ class SpatialIndex(object):
     else:
       return posixpath.join(*paths)    
 
-  def fetch_index_files(self, index_files):
-    results = CloudFiles(self.cloudpath, progress=self.config.progress).get(index_files)
+  def fetch_index_files(self, index_files, progress=None):
+    progress = nvl(progress, self.config.progress)
+    results = CloudFiles(self.cloudpath, progress=progress).get(index_files)
 
     for res in results:
       if res['error'] is not None:
@@ -130,13 +131,13 @@ class SpatialIndex(object):
     
     N = 500
     pbar = tqdm( 
-      total=((len(all_index_paths) + (N // 2)) // N), 
+      total=len(all_index_paths), 
       disable=(not self.config.progress), 
       desc="Extracting Locations"
     )
 
     for index_paths in sip(all_index_paths, N):
-      index_files = self.fetch_index_files(index_paths)
+      index_files = self.fetch_index_files(index_paths, progress=False)
 
       for filename, content in index_files.items():
         if content is None:
@@ -225,6 +226,7 @@ class CachedSpatialIndex(SpatialIndex):
       cloudpath, bounds, chunk_size, config
     )
 
-  def fetch_index_files(self, index_files):
+  def fetch_index_files(self, index_files, progress=None):
+    progress = nvl(progress, self.config.progress)
     index_files = [ self.cache.meta.join(self.subdir, fname) for fname in index_files ]
-    return self.cache.download(index_files, progress=self.config.progress)
+    return self.cache.download(index_files, progress=progress)
