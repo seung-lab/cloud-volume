@@ -89,6 +89,8 @@ class SpatialIndex(object):
     index_files = self.fetch_index_files(index_files)
     locations = defaultdict(list)
     
+    parser = simdjson.Parser()
+
     label = str(label)
     bbox = None
     for filename, content in index_files.items():
@@ -98,13 +100,15 @@ class SpatialIndex(object):
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      segid_bbox_dict = simdjson.loads(content)
+      segid_bbox_dict = parser.parse(content)
       filename = os.path.basename(filename)
 
       if label not in segid_bbox_dict: 
         continue 
 
-      current_bbox = Bbox.from_list(segid_bbox_dict[label])
+      current_bbox = Bbox.from_list(
+        np.frombuffer(segid_bbox_dict[label].as_buffer(of_type="i"), dtype=np.int64)
+      )
 
       if bbox is None:
         bbox = current_bbox
