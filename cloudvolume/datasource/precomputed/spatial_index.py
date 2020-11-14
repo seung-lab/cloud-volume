@@ -9,7 +9,7 @@ from cloudfiles import CloudFiles
 
 from ...exceptions import SpatialIndexGapError
 from ... import paths
-from ...lib import Bbox, Vec, xyzrange, min2, toiter
+from ...lib import Bbox, Vec, xyzrange, min2, toiter, sip
 
 class SpatialIndex(object):
   """
@@ -122,34 +122,46 @@ class SpatialIndex(object):
     """
     if labels is not None:
       labels = set(toiter(labels))
-      
-    index_files = self.index_file_paths_for_bbox(self.bounds)
-    index_files = self.fetch_index_files(index_files)
+    
     locations = defaultdict(list)
-
     parser = simdjson.Parser()
 
-    for filename, content in index_files.items():
-      if content is None:
-        if allow_missing:
-          continue
+    all_index_paths = self.index_file_paths_for_bbox(self.bounds)
+    
+    N = 500
+    pbar = tqdm( 
+      total=((len(all_index_paths) + (N // 2)) // N), 
+      disable=(not self.config.progress), 
+      desc="Extracting Locations"
+    )
+
+    for index_paths in sip(all_index_paths, N):
+      index_files = self.fetch_index_files(index_paths)
+
+      for filename, content in index_files.items():
+        if content is None:
+          if allow_missing:
+            continue
+          else:
+            raise SpatialIndexGapError(filename + " was not found.")
+
+        index_labels = set(parser.parse(content).keys())
+        filename = os.path.basename(filename)
+
+        if labels is None:
+          for label in index_labels:
+            locations[int(label)].append(filename)
+        elif len(labels) > len(index_labels):
+          for label in index_labels:
+            if int(label) in labels:
+              locations[int(label)].append(filename)
         else:
-          raise SpatialIndexGapError(filename + " was not found.")
+          for label in labels:
+            if str(label) in index_labels:
+              locations[int(label)].append(filename)
 
-      index_labels = set(parser.parse(content).keys())
-      filename = os.path.basename(filename)
-
-      if labels is None:
-        for label in index_labels:
-          locations[int(label)].append(filename)
-      elif len(labels) > len(index_labels):
-        for label in index_labels:
-          if int(label) in labels:
-            locations[int(label)].append(filename)
-      else:
-        for label in labels:
-          if str(label) in index_labels:
-            locations[int(label)].append(filename)
+      pbar.update(N)
+    pbar.close()
 
     return locations
   
