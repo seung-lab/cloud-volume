@@ -487,12 +487,12 @@ class CacheService(object):
         raw=True
       )
 
-    remote_fragments = { 
-      res['path']: compression.decompress(res['content'], res['compress']) \
-      for res in remote_fragments
-    }
+    remote_fragments_dict = {}
+    while remote_fragments:
+      res = remote_fragments.pop()
+      remote_fragments_dict[res['path']] = compression.decompress(res['content'], res['compress'])
 
-    fragments.update(remote_fragments)
+    fragments.update(remote_fragments_dict)
     return fragments
 
   def get_single(self, cloudpath, progress=None):

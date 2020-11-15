@@ -754,6 +754,9 @@ def test_spatial_index():
   assert 71297420 in locs
   assert locs[71297420] == ['0-8192_0-8192_0-20480.spatial']
 
+  bbox = spatial_index.get_bbox(59524925)
+  assert bbox == Bbox([80, 6864, 19960], [400, 8176, 20440])
+
 
 
 

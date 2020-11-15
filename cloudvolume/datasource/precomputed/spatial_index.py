@@ -9,7 +9,7 @@ from cloudfiles import CloudFiles
 
 from ...exceptions import SpatialIndexGapError
 from ... import paths
-from ...lib import Bbox, Vec, xyzrange, min2, toiter
+from ...lib import Bbox, Vec, xyzrange, min2, toiter, sip, nvl
 
 class SpatialIndex(object):
   """
@@ -56,8 +56,9 @@ class SpatialIndex(object):
     else:
       return posixpath.join(*paths)    
 
-  def fetch_index_files(self, index_files):
-    results = CloudFiles(self.cloudpath, progress=self.config.progress).get(index_files)
+  def fetch_index_files(self, index_files, progress=None):
+    progress = nvl(progress, self.config.progress)
+    results = CloudFiles(self.cloudpath, progress=progress).get(index_files)
 
     for res in results:
       if res['error'] is not None:
@@ -88,6 +89,8 @@ class SpatialIndex(object):
     index_files = self.fetch_index_files(index_files)
     locations = defaultdict(list)
     
+    parser = simdjson.Parser()
+
     label = str(label)
     bbox = None
     for filename, content in index_files.items():
@@ -97,13 +100,15 @@ class SpatialIndex(object):
         else:
           raise SpatialIndexGapError(filename + " was not found.")
 
-      segid_bbox_dict = simdjson.loads(content)
+      segid_bbox_dict = parser.parse(content)
       filename = os.path.basename(filename)
 
       if label not in segid_bbox_dict: 
         continue 
 
-      current_bbox = Bbox.from_list(segid_bbox_dict[label])
+      current_bbox = Bbox.from_list(
+        np.frombuffer(segid_bbox_dict[label].as_buffer(of_type="i"), dtype=np.int64)
+      )
 
       if bbox is None:
         bbox = current_bbox
@@ -122,34 +127,46 @@ class SpatialIndex(object):
     """
     if labels is not None:
       labels = set(toiter(labels))
-      
-    index_files = self.index_file_paths_for_bbox(self.bounds)
-    index_files = self.fetch_index_files(index_files)
+    
     locations = defaultdict(list)
-
     parser = simdjson.Parser()
 
-    for filename, content in index_files.items():
-      if content is None:
-        if allow_missing:
-          continue
+    all_index_paths = self.index_file_paths_for_bbox(self.bounds)
+    
+    N = 500
+    pbar = tqdm( 
+      total=len(all_index_paths), 
+      disable=(not self.config.progress), 
+      desc="Extracting Locations"
+    )
+
+    for index_paths in sip(all_index_paths, N):
+      index_files = self.fetch_index_files(index_paths, progress=False)
+
+      for filename, content in index_files.items():
+        if content is None:
+          if allow_missing:
+            continue
+          else:
+            raise SpatialIndexGapError(filename + " was not found.")
+
+        index_labels = set(parser.parse(content).keys())
+        filename = os.path.basename(filename)
+
+        if labels is None:
+          for label in index_labels:
+            locations[int(label)].append(filename)
+        elif len(labels) > len(index_labels):
+          for label in index_labels:
+            if int(label) in labels:
+              locations[int(label)].append(filename)
         else:
-          raise SpatialIndexGapError(filename + " was not found.")
+          for label in labels:
+            if str(label) in index_labels:
+              locations[int(label)].append(filename)
 
-      index_labels = set(parser.parse(content).keys())
-      filename = os.path.basename(filename)
-
-      if labels is None:
-        for label in index_labels:
-          locations[int(label)].append(filename)
-      elif len(labels) > len(index_labels):
-        for label in index_labels:
-          if int(label) in labels:
-            locations[int(label)].append(filename)
-      else:
-        for label in labels:
-          if str(label) in index_labels:
-            locations[int(label)].append(filename)
+      pbar.update(N)
+    pbar.close()
 
     return locations
   
@@ -213,6 +230,7 @@ class CachedSpatialIndex(SpatialIndex):
       cloudpath, bounds, chunk_size, config
     )
 
-  def fetch_index_files(self, index_files):
+  def fetch_index_files(self, index_files, progress=None):
+    progress = nvl(progress, self.config.progress)
     index_files = [ self.cache.meta.join(self.subdir, fname) for fname in index_files ]
-    return self.cache.download(index_files, progress=self.config.progress)
+    return self.cache.download(index_files, progress=progress)
