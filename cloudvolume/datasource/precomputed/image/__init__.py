@@ -97,7 +97,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     
     cf = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
     key = self.meta.key(mip)
-    return len(first(sip(cf.list(prefix=key), 1))) > 0
+    return first(cf.list(prefix=key)) is not None
 
   def download(
       self, bbox, mip, parallel=1, 

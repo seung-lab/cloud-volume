@@ -56,11 +56,17 @@ def nvl(*args):
 
 def first(lst):
   if isinstance(lst, types.GeneratorType):
-    return next(lst)
+    try:
+      return next(lst)
+    except StopIteration:
+      return None
   try:
     return lst[0]
   except TypeError:
-    return next(iter(lst))
+    try:
+      return next(iter(lst))
+    except StopIteration:
+      return None
 
 def sip(iterable, block_size):
   """Sips a fixed size from the iterable."""
