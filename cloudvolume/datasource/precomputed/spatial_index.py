@@ -226,7 +226,7 @@ class SpatialIndex(object):
     locations = defaultdict(list)
 
     if self.sqlite_db:
-      conn = sqlite3.connect(database_name)
+      conn = sqlite3.connect(self.sqlite_db)
       cur = conn.cursor()
       cur.execute("""
         select file_lookup.label, index_files.filename  
@@ -284,7 +284,7 @@ class SpatialIndex(object):
     fast_path = bbox.contains_bbox(self.bounds)
 
     if self.sqlite_db and fast_path:
-      conn = sqlite3.connect(database_name)
+      conn = sqlite3.connect(self.sqlite_db)
       cur = conn.cursor()
       cur.execute("select distinct label from file_lookup")
       while True:
