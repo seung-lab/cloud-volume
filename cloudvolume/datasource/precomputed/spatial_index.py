@@ -95,8 +95,10 @@ class SpatialIndex(object):
       pbar.update(N)
     pbar.close()
 
-  @profile
-  def to_sqlite(self, database_name="spatial_index.db", progress=None):
+  def to_sqlite(
+    self, database_name="spatial_index.db", 
+    create_indices=True, progress=None
+  ):
     progress = nvl(progress, self.config.progress)
 
     conn = sqlite3.connect(database_name)
@@ -124,15 +126,14 @@ class SpatialIndex(object):
 
     cur.execute("PRAGMA journal_mode = DELETE")
 
-    if progress:
-      print("Creating labels index...")
+    if create_indices:
+      if progress:
+        print("Creating labels index...")
+      cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
 
-    cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
-
-    if progress:
-      print("Creating filename index...")
-
-    cur.execute("CREATE INDEX fname ON file_lookup (filename)")
+      if progress:
+        print("Creating filename index...")
+      cur.execute("CREATE INDEX fname ON file_lookup (filename)")
 
     conn.close()
 
