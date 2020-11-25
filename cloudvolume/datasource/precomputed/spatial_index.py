@@ -247,7 +247,8 @@ class SpatialIndex(object):
   def file_locations_per_label_json(self, labels, allow_missing=False):
     locations = defaultdict(list)
     parser = simdjson.Parser()
-    labels = set(labels)
+    if labels is not None:
+      labels = set(toiter(labels))
 
     for index_files in self.fetch_all_index_files():
       for filename, content in index_files.items():
