@@ -193,7 +193,21 @@ class SpatialIndex(object):
     label = str(label)
     bbox = None
 
-    for index_files in self.fetch_all_index_files():
+    if self.sqlite_db:
+      conn = sqlite3.connect(self.sqlite_db)
+      cur = conn.cursor()
+      cur.execute("""
+        select index_files.filename  
+        from file_lookup, index_files
+        where file_lookup.fid = index_files.id
+          and file_lookup.label = ?
+      """, (label,))
+      iterator = [ self.fetch_index_files(( row[0] for row in cur.fetchall() )) ]
+      conn.close()
+    else:
+      iterator = self.fetch_all_index_files()
+
+    for index_files in iterator:
       for filename, content in index_files.items():
         segid_bbox_dict = parser.parse(content)
         filename = os.path.basename(filename)
