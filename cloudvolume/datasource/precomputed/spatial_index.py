@@ -137,7 +137,7 @@ class SpatialIndex(object):
       conn.commit()
 
     cur.execute("PRAGMA journal_mode = DELETE")
-    cur.execute("PRAGMA synchronous = NORMAL")
+    cur.execute("PRAGMA synchronous = FULL")
 
     if create_indices:
       if progress:
