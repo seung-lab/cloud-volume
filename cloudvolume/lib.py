@@ -695,6 +695,11 @@ class Bbox(object):
     result.maxpt = np.round(result.maxpt / chunk_size) * chunk_size
     return (result + offset).astype(self.dtype)
 
+  def num_chunks(self, chunk_size):
+    """Computes the number of chunks inside this bbox for a given chunk size."""
+    Nfn = lambda i: math.ceil((self.maxpt[i] - self.minpt[i]) / chunk_size[i])
+    return reduce(operator.mul, map(Nfn, range(len(self.minpt))))
+
   def contains(self, point):
     """
     Tests if a point on or within a bounding box.

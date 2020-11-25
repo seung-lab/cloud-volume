@@ -129,12 +129,18 @@ class SpatialIndex(object):
     if bbox.subvoxel():
       return []
 
-    index_files = []
-    for pt in xyzrange(bbox.minpt, bbox.maxpt, self.chunk_size):
-      search = Bbox( pt, min2(pt + self.chunk_size, self.bounds.maxpt) )
-      index_files.append(search.to_filename() + '.spatial')
-    
-    return index_files
+    chunk_size = self.chunk_size
+    bounds = self.bounds
+
+    class IndexPathIterator():
+      def __len__(self):
+        return bbox.num_chunks(chunk_size)
+      def __iter__(self):
+        for pt in xyzrange(bbox.minpt, bbox.maxpt, chunk_size):
+          search = Bbox( pt, min2(pt + chunk_size, bounds.maxpt) )
+          yield search.to_filename() + '.spatial'
+
+    return IndexPathIterator()
 
   def get_bbox(self, label):
     """
@@ -199,7 +205,7 @@ class SpatialIndex(object):
           for label in labels:
             if str(label) in index_labels:
               locations[int(label)].append(filename)
-    
+
     return locations
   
   def query(self, bbox, allow_missing=False):
