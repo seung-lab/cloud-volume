@@ -1,6 +1,7 @@
 from collections import defaultdict
 import simdjson
 import os 
+import sqlite3
 
 import numpy as np
 from tqdm import tqdm
@@ -66,6 +67,62 @@ class SpatialIndex(object):
 
     return { res['filename']: res['content'] for res in results }
 
+  def fetch_all_index_files(self, allow_missing=False, progress=None):
+    """Generator returning batches of (filename, json)"""
+    all_index_paths = self.index_file_paths_for_bbox(self.bounds)
+    
+    progress = nvl(progress, self.config.progress)
+
+    N = 500
+    pbar = tqdm( 
+      total=len(all_index_paths), 
+      disable=(not progress), 
+      desc="Processing Index"
+    )
+
+    for index_paths in sip(all_index_paths, N):
+      index_files = self.fetch_index_files(index_paths, progress=False)
+
+      for filename, content in index_files.items():
+        if content is None:
+          if allow_missing:
+            continue
+          else:
+            raise SpatialIndexGapError(filename + " was not found.")
+
+      yield index_files
+
+      pbar.update(N)
+    pbar.close()
+
+  def to_sqlite(self, database_name="spatial_index.db"):
+    conn = sqlite3.connect(database_name)
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE file_lookup (
+      id INTEGER PRIMARY KEY,
+      label INTEGER NOT NULL,
+      filename TEXT NOT NULL,
+      UNIQUE(label,filename)
+    )
+    """)
+
+    cur.execute("CREATE INDEX fname ON file_lookup (filename)")
+    cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
+
+    parser = simdjson.Parser()
+
+    for index_files in self.fetch_all_index_files():
+      for filename, content in index_files.items():
+        index_labels = parser.parse(content).keys()
+        filename = os.path.basename(filename).replace('.spatial', '')
+        values = ( (int(label), filename) for label in index_labels )
+        cur.executemany("INSERT INTO file_lookup(label, filename) VALUES (?,?)", values)
+      conn.commit()
+
+    conn.close()
+
   def index_file_paths_for_bbox(self, bbox):
     bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
 
@@ -85,35 +142,30 @@ class SpatialIndex(object):
 
     Returns: Bbox in physical coordinates
     """
-    index_files = self.index_file_paths_for_bbox(self.bounds)
-    index_files = self.fetch_index_files(index_files)
     locations = defaultdict(list)
-    
     parser = simdjson.Parser()
 
     label = str(label)
     bbox = None
-    for filename, content in index_files.items():
-      if content is None:
-        if allow_missing:
-          continue
+
+    parser = simdjson.Parser()
+
+    for index_files in self.fetch_all_index_files():
+      for filename, content in index_files.items():
+        segid_bbox_dict = parser.parse(content)
+        filename = os.path.basename(filename)
+
+        if label not in segid_bbox_dict: 
+          continue 
+
+        current_bbox = Bbox.from_list(
+          np.frombuffer(segid_bbox_dict[label].as_buffer(of_type="i"), dtype=np.int64)
+        )
+
+        if bbox is None:
+          bbox = current_bbox
         else:
-          raise SpatialIndexGapError(filename + " was not found.")
-
-      segid_bbox_dict = parser.parse(content)
-      filename = os.path.basename(filename)
-
-      if label not in segid_bbox_dict: 
-        continue 
-
-      current_bbox = Bbox.from_list(
-        np.frombuffer(segid_bbox_dict[label].as_buffer(of_type="i"), dtype=np.int64)
-      )
-
-      if bbox is None:
-        bbox = current_bbox
-      else:
-        bbox = Bbox.expand(bbox, current_bbox)
+          bbox = Bbox.expand(bbox, current_bbox)
 
     return bbox
 
@@ -131,25 +183,8 @@ class SpatialIndex(object):
     locations = defaultdict(list)
     parser = simdjson.Parser()
 
-    all_index_paths = self.index_file_paths_for_bbox(self.bounds)
-    
-    N = 500
-    pbar = tqdm( 
-      total=len(all_index_paths), 
-      disable=(not self.config.progress), 
-      desc="Extracting Locations"
-    )
-
-    for index_paths in sip(all_index_paths, N):
-      index_files = self.fetch_index_files(index_paths, progress=False)
-
+    for index_files in self.fetch_all_index_files():
       for filename, content in index_files.items():
-        if content is None:
-          if allow_missing:
-            continue
-          else:
-            raise SpatialIndexGapError(filename + " was not found.")
-
         index_labels = set(parser.parse(content).keys())
         filename = os.path.basename(filename)
 
@@ -164,10 +199,7 @@ class SpatialIndex(object):
           for label in labels:
             if str(label) in index_labels:
               locations[int(label)].append(filename)
-
-      pbar.update(N)
-    pbar.close()
-
+    
     return locations
   
   def query(self, bbox, allow_missing=False):
