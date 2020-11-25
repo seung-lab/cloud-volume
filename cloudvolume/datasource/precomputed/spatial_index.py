@@ -105,10 +105,18 @@ class SpatialIndex(object):
     cur = conn.cursor()
 
     cur.execute("""
+    CREATE TABLE index_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT NOT NULL
+    )
+    """)
+    cur.execute("CREATE INDEX idxfname ON index_files (filename)")
+
+    cur.execute("""
     CREATE TABLE file_lookup (
       label INTEGER NOT NULL,
-      filename TEXT NOT NULL,
-      PRIMARY KEY(label,filename)
+      fid INTEGER NOT NULL REFERENCES index_files(id),
+      PRIMARY KEY(label,fid)
     )
     """)
 
@@ -119,9 +127,12 @@ class SpatialIndex(object):
     for index_files in self.fetch_all_index_files(progress=progress):
       for filename, content in index_files.items():
         index_labels = parser.parse(content).keys()
-        filename = os.path.basename(filename).replace('.spatial', '')
-        values = ( (int(label), filename) for label in index_labels )
-        cur.executemany("INSERT INTO file_lookup(label, filename) VALUES (?,?)", values)
+        filename = os.path.basename(filename)
+        cur.execute("INSERT INTO index_files(filename) VALUES (?)", (filename,))
+        cur.execute("SELECT id from index_files where filename = ?", (filename,))
+        fid = cur.fetchone()[0]
+        values = ( (int(label), fid) for label in index_labels )
+        cur.executemany("INSERT INTO file_lookup(label, fid) VALUES (?,?)", values)
       conn.commit()
 
     cur.execute("PRAGMA journal_mode = DELETE")
@@ -133,7 +144,7 @@ class SpatialIndex(object):
 
       if progress:
         print("Creating filename index...")
-      cur.execute("CREATE INDEX fname ON file_lookup (filename)")
+      cur.execute("CREATE INDEX fname ON file_lookup (fid)")
 
     conn.close()
 
