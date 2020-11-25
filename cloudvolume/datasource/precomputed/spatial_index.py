@@ -95,31 +95,44 @@ class SpatialIndex(object):
       pbar.update(N)
     pbar.close()
 
-  def to_sqlite(self, database_name="spatial_index.db"):
+  @profile
+  def to_sqlite(self, database_name="spatial_index.db", progress=None):
+    progress = nvl(progress, self.config.progress)
+
     conn = sqlite3.connect(database_name)
     cur = conn.cursor()
 
     cur.execute("""
     CREATE TABLE file_lookup (
-      id INTEGER PRIMARY KEY,
       label INTEGER NOT NULL,
       filename TEXT NOT NULL,
-      UNIQUE(label,filename)
+      PRIMARY KEY(label,filename)
     )
     """)
 
-    cur.execute("CREATE INDEX fname ON file_lookup (filename)")
-    cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
+    cur.execute("PRAGMA journal_mode = MEMORY")
 
     parser = simdjson.Parser()
 
-    for index_files in self.fetch_all_index_files():
+    for index_files in self.fetch_all_index_files(progress=progress):
       for filename, content in index_files.items():
         index_labels = parser.parse(content).keys()
         filename = os.path.basename(filename).replace('.spatial', '')
         values = ( (int(label), filename) for label in index_labels )
         cur.executemany("INSERT INTO file_lookup(label, filename) VALUES (?,?)", values)
       conn.commit()
+
+    cur.execute("PRAGMA journal_mode = DELETE")
+
+    if progress:
+      print("Creating labels index...")
+
+    cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
+
+    if progress:
+      print("Creating filename index...")
+
+    cur.execute("CREATE INDEX fname ON file_lookup (filename)")
 
     conn.close()
 
