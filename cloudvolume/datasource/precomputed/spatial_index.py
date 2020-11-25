@@ -121,6 +121,7 @@ class SpatialIndex(object):
     """)
 
     cur.execute("PRAGMA journal_mode = MEMORY")
+    cur.execute("PRAGMA synchronous = OFF")
 
     parser = simdjson.Parser()
 
@@ -136,6 +137,7 @@ class SpatialIndex(object):
       conn.commit()
 
     cur.execute("PRAGMA journal_mode = DELETE")
+    cur.execute("PRAGMA synchronous = NORMAL")
 
     if create_indices:
       if progress:
