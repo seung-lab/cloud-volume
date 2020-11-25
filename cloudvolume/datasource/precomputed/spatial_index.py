@@ -232,31 +232,22 @@ class SpatialIndex(object):
     given labels are located in. Can be expensive. If labels is not 
     specified, all labels are fetched.
 
+    If the spatial_index.sqlite_db attribute is specified, attempt
+    to use the database instead of querying the json files.
+
     Returns: { filename: [ labels... ], ... }
     """
     if labels is not None:
-      labels = set(toiter(labels))
+      labels = toiter(labels)
     
-    locations = defaultdict(list)
-
     if self.sqlite_db:
-      conn = sqlite3.connect(self.sqlite_db)
-      cur = conn.cursor()
-      cur.execute("""
-        select file_lookup.label, index_files.filename  
-        from file_lookup, index_files
-        where file_lookup.fid = index_files.id
-      """)
-      while True:
-        rows = cur.fetchmany(size=2**20)
-        if len(rows) == 0:
-          break
-        for label, filename in rows:
-          locations[int(label)].append(filename)
-      conn.close()
-      return locations      
-
+      return self.file_locations_per_label_sql(labels)
+    return self.file_locations_per_label_json(labels, allow_missing)
+  
+  def file_locations_per_label_json(self, labels, allow_missing=False):
+    locations = defaultdict(list)
     parser = simdjson.Parser()
+    labels = set(labels)
 
     for index_files in self.fetch_all_index_files():
       for filename, content in index_files.items():
@@ -276,7 +267,37 @@ class SpatialIndex(object):
               locations[int(label)].append(filename)
 
     return locations
-  
+
+  def file_locations_per_label_sql(self, labels, sqlite_db=None):
+    sqlite_db = nvl(sqlite_db, self.sqlite_db)
+    if sqlite_db is None:
+      raise ValueError("An sqlite database file must be specified.")
+
+    locations = defaultdict(list)
+    conn = sqlite3.connect(sqlite_db)
+    cur = conn.cursor()
+
+    where_clause = ""
+    if labels:
+      where_clause = "and file_lookup.label in ({})".format(
+        ",".join(( str(int(lbl)) for lbl in labels ))
+      )
+
+    cur.execute("""
+      select file_lookup.label, index_files.filename  
+      from file_lookup, index_files
+      where file_lookup.fid = index_files.id
+        {}
+    """.format(where_clause))
+    while True:
+      rows = cur.fetchmany(2**20)
+      if len(rows) == 0:
+        break
+      for label, filename in rows:
+        locations[int(label)].append(filename)
+    conn.close()
+    return locations      
+
   def query(self, bbox, allow_missing=False):
     """
     For the specified bounding box (or equivalent representation),
@@ -300,7 +321,7 @@ class SpatialIndex(object):
     if self.sqlite_db and fast_path:
       conn = sqlite3.connect(self.sqlite_db)
       cur = conn.cursor()
-      cur.execute("select distinct label from file_lookup")
+      cur.execute("select label from file_lookup")
       while True:
         rows = cur.fetchmany(size=2**20)
         if len(rows) == 0:
