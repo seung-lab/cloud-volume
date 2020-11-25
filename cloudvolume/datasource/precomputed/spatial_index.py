@@ -39,11 +39,15 @@ class SpatialIndex(object):
 
   Where sx, sy, and sz are given in physical dimensions.
   """
-  def __init__(self, cloudpath, bounds, chunk_size, config=None):
+  def __init__(
+    self, cloudpath, bounds, chunk_size, 
+    config=None, sqlite_db=None
+  ):
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
     self.chunk_size = Vec(*chunk_size)
+    self.sqlite_db = sqlite_db # optional DB for higher performance
 
     if config is None:
       self.config = {}
@@ -95,10 +99,37 @@ class SpatialIndex(object):
       pbar.update(N)
     pbar.close()
 
+  def index_file_paths_for_bbox(self, bbox):
+    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
+
+    if bbox.subvoxel():
+      return []
+
+    chunk_size = self.chunk_size
+    bounds = self.bounds
+
+    class IndexPathIterator():
+      def __len__(self):
+        return bbox.num_chunks(chunk_size)
+      def __iter__(self):
+        for pt in xyzrange(bbox.minpt, bbox.maxpt, chunk_size):
+          search = Bbox( pt, min2(pt + chunk_size, bounds.maxpt) )
+          yield search.to_filename() + '.spatial'
+
+    return IndexPathIterator()
+
   def to_sqlite(
     self, database_name="spatial_index.db", 
     create_indices=True, progress=None
   ):
+    """
+    Create a sqlite database of labels and filenames
+    from the JSON spatial_index for faster performance.
+
+    Depending on the dataset size, this could take a while.
+    With a dataset with ~140k index files, the DB took over
+    an hour to build and was 42 GB.
+    """
     progress = nvl(progress, self.config.progress)
 
     conn = sqlite3.connect(database_name)
@@ -150,25 +181,6 @@ class SpatialIndex(object):
 
     conn.close()
 
-  def index_file_paths_for_bbox(self, bbox):
-    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
-
-    if bbox.subvoxel():
-      return []
-
-    chunk_size = self.chunk_size
-    bounds = self.bounds
-
-    class IndexPathIterator():
-      def __len__(self):
-        return bbox.num_chunks(chunk_size)
-      def __iter__(self):
-        for pt in xyzrange(bbox.minpt, bbox.maxpt, chunk_size):
-          search = Bbox( pt, min2(pt + chunk_size, bounds.maxpt) )
-          yield search.to_filename() + '.spatial'
-
-    return IndexPathIterator()
-
   def get_bbox(self, label):
     """
     Given a label, compute an enclosing bounding box for it.
@@ -180,8 +192,6 @@ class SpatialIndex(object):
 
     label = str(label)
     bbox = None
-
-    parser = simdjson.Parser()
 
     for index_files in self.fetch_all_index_files():
       for filename, content in index_files.items():
@@ -214,6 +224,24 @@ class SpatialIndex(object):
       labels = set(toiter(labels))
     
     locations = defaultdict(list)
+
+    if self.sqlite_db:
+      conn = sqlite3.connect(database_name)
+      cur = conn.cursor()
+      cur.execute("""
+        select file_lookup.label, index_files.filename  
+        from file_lookup, index_files
+        where file_lookup.fid = index_files.id
+      """)
+      while True:
+        rows = cur.fetchmany(size=2**20)
+        if len(rows) == 0:
+          break
+        for label, filename in rows:
+          locations[int(label)].append(filename)
+      conn.close()
+      return locations      
+
     parser = simdjson.Parser()
 
     for index_files in self.fetch_all_index_files():
@@ -252,13 +280,25 @@ class SpatialIndex(object):
     if bbox.subvoxel():
       return []
 
+    labels = set()
+    fast_path = bbox.contains_bbox(self.bounds)
+
+    if self.sqlite_db and fast_path:
+      conn = sqlite3.connect(database_name)
+      cur = conn.cursor()
+      cur.execute("select distinct label from file_lookup")
+      while True:
+        rows = cur.fetchmany(size=2**20)
+        if len(rows) == 0:
+          break
+        labels.update(( int(row[0]) for row in rows ))
+      conn.close()
+      return labels
+
     index_files = self.index_file_paths_for_bbox(bbox)
     results = self.fetch_index_files(index_files)
 
-    fast_path = bbox.contains_bbox(self.bounds)
     parser = simdjson.Parser()
-
-    labels = set()
     for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
       if content is None:
         if allow_missing:
