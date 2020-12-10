@@ -90,7 +90,7 @@ class Skeleton(object):
       self.edges = edges.astype(np.uint32)
 
     if radii is None:
-      self.radius = -1 * np.ones(shape=self.vertices.shape[0], dtype=np.float32)
+      self.radius = -1 + np.zeros(shape=self.vertices.shape[0], dtype=np.float32)
     elif type(radii) is list:
       self.radius = np.array(radii, dtype=np.float32)
     else:
