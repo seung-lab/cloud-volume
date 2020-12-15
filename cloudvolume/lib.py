@@ -563,13 +563,16 @@ class Bbox(object):
     result.minpt = Vec.clamp(bbx0.minpt, bbx1.minpt, bbx1.maxpt)
     result.maxpt = Vec.clamp(bbx0.maxpt, bbx1.minpt, bbx1.maxpt)
     return result
-
+  
+  @property
   def size(self):
     return Vec(*(self.maxpt - self.minpt), dtype=self.dtype)
-
+  
+  @property
   def size3(self):
     return Vec(*(self.maxpt[:3] - self.minpt[:3]), dtype=self.dtype)
 
+  @property
   def subvoxel(self):
     """
     Previously, we used bbox.volume() < 1 for testing
@@ -582,7 +585,8 @@ class Bbox(object):
     Returns: boolean
     """
     return (not self.valid()) or self.volume() < 1
-
+  
+  @property
   def empty(self):
     """
     Previously, we used bbox.volume() <= 0 for testing
@@ -596,16 +600,19 @@ class Bbox(object):
     Returns: boolean
     """
     return (not self.valid()) or (self.volume() < (20 * MACHINE_EPSILON))
-
+  
+  @property
   def valid(self):
     return np.all(self.minpt <= self.maxpt)
-
+  
+  @property
   def volume(self):
     if np.issubdtype(self.dtype, np.integer):
       return self.size3().astype(np.int64).rectVolume()
     else:
       return self.size3().astype(np.float64).rectVolume()
-
+  
+  @property
   def center(self):
     return (self.minpt + self.maxpt) / 2.0
 
