@@ -376,13 +376,16 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     path = version.path(self.meta.server_path)
 
     params = {}
+
+    if timestamp is not None:
+      params['timestamp'] = timestamp
+
     if stop_layer:
       params['stop_layer'] = int(stop_layer)
 
     if binary:
       url = posixpath.join(self.meta.base_path, path, "roots_binary")
       data = np.array(segids, dtype=np.uint64).tobytes()
-      params['timestamp'] = timestamp
     else:
       url = posixpath.join(self.meta.base_path, path, "roots")
       args['node_ids'] = segids
