@@ -358,8 +358,6 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
     args = {}
-    if timestamp is not None:
-      args['timestamp'] = timestamp
 
     headers = {}
     headers.update(self.meta.auth_header)
@@ -378,11 +376,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     params = {}
     if stop_layer:
       params['stop_layer'] = int(stop_layer)
+    
+    if timestamp is not None:
+      params['timestamp'] = timestamp
 
     if binary:
       url = posixpath.join(self.meta.base_path, path, "roots_binary")
       data = np.array(segids, dtype=np.uint64).tobytes()
-      params['timestamp'] = timestamp
     else:
       url = posixpath.join(self.meta.base_path, path, "roots")
       args['node_ids'] = segids
