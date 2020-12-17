@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime
+import math
 import json
 import os
 import pickle
@@ -42,8 +43,8 @@ def to_unix_time(timestamp):
 
   if not isinstance(timestamp, (int, float, np.integer, np.floating)) and timestamp is not None:
     raise ValueError("Not able to convert {} to UNIX time.".format(timestamp))
-
-  return int(timestamp)
+  
+  return int(math.ceil(timestamp))
 
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
