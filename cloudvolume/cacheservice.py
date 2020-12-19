@@ -538,7 +538,8 @@ class CacheService(object):
     cf.puts(
       files, 
       compress=compress, 
-      compression_level=compress_level
+      compression_level=compress_level,
+      parallel=self.config.parallel,
     )
 
   def compute_data_locations(self, cloudpaths):

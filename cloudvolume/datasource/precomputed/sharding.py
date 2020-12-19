@@ -540,7 +540,7 @@ class ShardReader(object):
 
   def get_data(
     self, label, path="", 
-    progress=None, parallel=None
+    progress=None, parallel=1
   ):
     """Fetches data from shards.
 
@@ -608,7 +608,6 @@ class ShardReader(object):
           'length': chunk['end'] - chunk['start'],
           'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
       })
-
 
     full_path = self.meta.join(self.meta.cloudpath, path)
     bundles_resp = CloudFiles(
