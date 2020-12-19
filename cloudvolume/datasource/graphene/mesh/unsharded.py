@@ -176,7 +176,6 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
     segids = list(set([ int(segid) for segid in toiter(segids) ]))
-
     meta = self.meta.meta
 
     meshes = []

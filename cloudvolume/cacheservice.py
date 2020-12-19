@@ -421,7 +421,12 @@ class CacheService(object):
 
     remote_path_tuples = list(alias_tuples.values())
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
+    cf = CloudFiles(
+      self.meta.cloudpath, 
+      progress=progress, 
+      secrets=self.config.secrets,
+      parallel=self.config.parallel,
+    )
     remote_fragments = cf.get(
       ( { 'path': p[0], 'start': p[1], 'end': p[2] } for p in remote_path_tuples )
     )
@@ -469,7 +474,12 @@ class CacheService(object):
     if self.enabled:
       fragments = self.get(locs['local'], progress=progress)
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
+    cf = CloudFiles(
+      self.meta.cloudpath, 
+      progress=progress, 
+      secrets=self.config.secrets,
+      parallel=self.config.parallel,
+    )
     remote_fragments = cf.get(locs['remote'], raw=True)
 
     for frag in remote_fragments:
