@@ -103,7 +103,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       self, bbox, mip, parallel=1, 
       location=None, retain=False,
       use_shared_memory=False, use_file=False,
-      order='F'
+      order='F', renumber=False
     ):
     """
     Download a cutout image from the dataset.
@@ -123,8 +123,15 @@ class PrecomputedImageSource(ImageSourceInterface):
       mutually exclusive with use_shared_memory. 
     order: The underlying shared memory or file buffer can use either
       C or Fortran order for storing a multidimensional array.
+    renumber: dynamically rewrite downloaded segmentation into
+      a more compact data type. Only compatible with single-process
+      non-sharded download.
 
-    Returns: 4d ndarray
+    Returns:
+      if renumber:
+        (4d ndarray, remap dict)
+      else:
+        4d ndarray
     """
 
     if self.autocrop:
@@ -137,6 +144,9 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     scale = self.meta.scale(mip)
     if 'sharding' in scale:
+      if renumber:
+        raise ValueError("renumber is only supported for non-shared volumes.")
+
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_sharded(
         bbox, mip, 
@@ -162,6 +172,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         order=order,
         green=self.config.green,
         secrets=self.config.secrets,
+        renumber=renumber,
       )
 
   @readonlyguard

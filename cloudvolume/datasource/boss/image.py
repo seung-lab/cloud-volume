@@ -32,7 +32,12 @@ class BossImageSource(ImageSourceInterface):
     self.non_aligned_writes = bool(non_aligned_writes)
     self.readonly = bool(readonly)
 
-  def download(self, bbox, mip):
+  def download(self, bbox, mip, parallel=1, renumber=False):
+    if parallel != 1:
+      raise ValueError("Only parallel=1 is supported for boss.")
+    elif renumber != False:
+      raise ValueError("Only renumber=False is supported for boss.")
+
     bounds = Bbox.clamp(bbox, self.meta.bounds(mip))
 
     if self.autocrop:
