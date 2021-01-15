@@ -116,27 +116,31 @@ def download(
 
   handle = None
 
+  if renumber and (parallel != 1):
+    raise ValueError("renumber is not supported for parallel operation.")
+
   if use_shared_memory and use_file:
     raise ValueError("use_shared_memory and use_file are mutually exclusive arguments.")
+
+  dtype = np.uint16 if renumber else meta.dtype
 
   if parallel == 1:
     if use_shared_memory: # write to shared memory
       handle, renderbuffer = shm.ndarray(
-        shape, dtype=meta.dtype, order=order,
+        shape, dtype=dtype, order=order,
         location=location, lock=fs_lock
       )
       if not retain:
         shm.unlink(location)
     elif use_file: # write to ordinary file
       handle, renderbuffer = shm.ndarray_fs(
-        shape, dtype=meta.dtype, order=order,
+        shape, dtype=dtype, order=order,
         location=location, lock=fs_lock,
         emulate_shm=False
       )
       if not retain:
         os.unlink(location)
     else:
-      dtype = np.uint16 if renumber else meta.dtype
       renderbuffer = np.zeros(shape=shape, dtype=dtype, order=order)
 
     def process(img3d, bbox):
