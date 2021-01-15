@@ -97,7 +97,7 @@ def download(
     retain, use_shared_memory, 
     use_file, compress, order='F',
     green=False, secrets=None,
-    renumber=False
+    renumber=False, background_color=0
   ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
@@ -146,7 +146,7 @@ def download(
     def process(img3d, bbox):
       shade(renderbuffer, requested_bbox, img3d, bbox)
 
-    remap = { 0: 0 }
+    remap = { background_color: background_color }
     lock = threading.Lock()
     N = 1
     def process_renumber(img3d, bbox):

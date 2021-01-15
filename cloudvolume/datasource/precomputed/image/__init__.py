@@ -173,6 +173,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         green=self.config.green,
         secrets=self.config.secrets,
         renumber=renumber,
+        background_color=int(self.background_color),
       )
 
   @readonlyguard
