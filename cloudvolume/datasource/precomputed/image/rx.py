@@ -2,12 +2,14 @@ from functools import partial
 import itertools
 import math
 import os
+import threading
 
 import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
 from cloudfiles import reset_connection_pools, CloudFiles, compression
+import fastremap
 
 from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
@@ -94,7 +96,8 @@ def download(
     parallel, location, 
     retain, use_shared_memory, 
     use_file, compress, order='F',
-    green=False, secrets=None
+    green=False, secrets=None,
+    renumber=False, background_color=0
   ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
@@ -113,36 +116,65 @@ def download(
 
   handle = None
 
+  if renumber and (parallel != 1):
+    raise ValueError("renumber is not supported for parallel operation.")
+
   if use_shared_memory and use_file:
     raise ValueError("use_shared_memory and use_file are mutually exclusive arguments.")
+
+  dtype = np.uint16 if renumber else meta.dtype
 
   if parallel == 1:
     if use_shared_memory: # write to shared memory
       handle, renderbuffer = shm.ndarray(
-        shape, dtype=meta.dtype, order=order,
+        shape, dtype=dtype, order=order,
         location=location, lock=fs_lock
       )
       if not retain:
         shm.unlink(location)
     elif use_file: # write to ordinary file
       handle, renderbuffer = shm.ndarray_fs(
-        shape, dtype=meta.dtype, order=order,
+        shape, dtype=dtype, order=order,
         location=location, lock=fs_lock,
         emulate_shm=False
       )
       if not retain:
         os.unlink(location)
     else:
-      renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
+      renderbuffer = np.zeros(shape=shape, dtype=dtype, order=order)
 
     def process(img3d, bbox):
       shade(renderbuffer, requested_bbox, img3d, bbox)
 
+    remap = { background_color: background_color }
+    lock = threading.Lock()
+    N = 1
+    def process_renumber(img3d, bbox):
+      nonlocal N
+      nonlocal lock 
+      nonlocal remap
+      nonlocal renderbuffer
+      img_labels = fastremap.unique(img3d)
+      with lock:
+        for lbl in img_labels:
+          if lbl not in remap:
+            remap[lbl] = N
+            N += 1
+        if N > np.iinfo(renderbuffer.dtype).max:
+          renderbuffer = fastremap.refit(renderbuffer, value=N, increase_only=True)
+
+      fastremap.remap(img3d, remap, in_place=True)
+      shade(renderbuffer, requested_bbox, img3d, bbox)
+
+    fn = process
+    if renumber and not (use_file or use_shared_memory):
+      fn = process_renumber  
+
     download_chunks_threaded(
       meta, cache, mip, cloudpaths, 
-      fn=process, fill_missing=fill_missing,
+      fn=fn, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
-      green=green, secrets=secrets 
+      green=green, secrets=secrets
     )
   else:
     handle, renderbuffer = multiprocess_download(
@@ -156,10 +188,13 @@ def download(
       secrets=secrets,
     )
   
-  return VolumeCutout.from_volume(
+  out = VolumeCutout.from_volume(
     meta, mip, renderbuffer, 
     requested_bbox, handle=handle
   )
+  if renumber:
+    return (out, remap)
+  return out
 
 def multiprocess_download(
     requested_bbox, mip, cloudpaths,
