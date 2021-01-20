@@ -31,7 +31,7 @@ class SharedConfiguration(object):
   """
   def __init__(
     self, cdn_cache, compress, compress_level, green,
-    mip, parallel, progress, secrets,
+    mip, parallel, progress, secrets, storage_class,
     *args, **kwargs
   ):
     if type(parallel) == bool:
@@ -49,6 +49,7 @@ class SharedConfiguration(object):
     self.parallel = parallel 
     self.progress = bool(progress)
     self.secrets = secrets
+    self.storage_class = storage_class
     self.args = args
     self.kwargs = kwargs
 
@@ -61,7 +62,7 @@ class CloudVolume(object):
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
     max_redirects=10, mesh_dir=None, skel_dir=None, 
-    agglomerate=False, secrets=None
+    agglomerate=False, secrets=None, storage_class=None
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -195,6 +196,8 @@ class CloudVolume(object):
         pulling the skeleton info file.
       use_https: (bool) maps gs:// and s3:// to their respective https paths. The 
         https paths hit a cached, read-only version of the data and may be faster.
+      storage_class: (str) for relevant cloud providers, specify the storage class of
+        uploaded files. e.g. 'STANDARD', 'COLDLINE', etc. (note: these are vendor-specific)
     """
     if use_https:
       cloudpath = to_https_protocol(cloudpath)

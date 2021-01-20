@@ -114,7 +114,8 @@ class UnshardedPrecomputedSkeletonSource(object):
     self.cache.upload(
       files=files, 
       compress='gzip', 
-      cache_control=cdn_cache_control(self.config.cdn_cache)
+      cache_control=cdn_cache_control(self.config.cdn_cache),
+      storage_class=self.config.storage_class
     )
 
   def get_bbox(self, bbox):

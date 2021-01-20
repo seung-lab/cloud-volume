@@ -17,7 +17,7 @@ def create_graphene(
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
     mesh_dir=None, skel_dir=None, agglomerate=False, 
-    secrets=None, **kwargs
+    secrets=None, storage_class=None, **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
     
@@ -26,6 +26,7 @@ def create_graphene(
       cdn_cache=cdn_cache,
       compress=compress,
       compress_level=None,
+      storage_class=storage_class,
       green=green_threads,
       mip=mip,
       parallel=parallel,

@@ -17,13 +17,14 @@ def create_precomputed(
     delete_black_uploads=False, background_color=0, 
     green_threads=False, use_https=False,
     max_redirects=10, mesh_dir=None, skel_dir=None,
-    secrets=None, **kwargs # absorb graphene arguments
+    secrets=None, storage_class=None, **kwargs # absorb graphene arguments
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
       compress=compress,
       compress_level=compress_level,
+      storage_class=storage_class,
       green=green_threads,
       mip=mip,
       parallel=parallel,

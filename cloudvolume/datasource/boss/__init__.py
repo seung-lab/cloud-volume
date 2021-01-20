@@ -12,13 +12,15 @@ def create_boss(
     fill_missing=False, cache=False, compress_cache=None,
     cdn_cache=True, progress=False, info=None, provenance=None,
     compress=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, green_threads=False
+    delete_black_uploads=False, green_threads=False,
+    storage_class=None
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
       compress=compress,
       compress_level=None,
+      storage_class=storage_class,
       green=green_threads,
       mip=mip,
       parallel=parallel,

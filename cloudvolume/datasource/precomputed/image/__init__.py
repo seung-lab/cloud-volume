@@ -198,7 +198,8 @@ class PrecomputedImageSource(ImageSourceInterface):
       CloudFiles(basepath, progress=self.config.progress, secrets=self.config.secrets).put(
         filename, shard, 
         compress=self.config.compress, 
-        cache_control=self.config.cdn_cache
+        cache_control=self.config.cdn_cache,
+        storage_class=self.config.storage_class
       )
       return
 
@@ -208,6 +209,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       compress=self.config.compress,
       compress_level=self.config.compress_level,
       cdn_cache=self.config.cdn_cache,
+      storage_class=self.config.storage_class,
       parallel=parallel, 
       progress=self.config.progress,
       location=location, 

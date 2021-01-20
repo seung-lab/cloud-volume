@@ -43,7 +43,8 @@ def upload(
     non_aligned_writes=False,
     location=None, location_bbox=None, location_order='F',
     use_shared_memory=False, use_file=False,
-    green=False, fill_missing=False, secrets=None
+    green=False, fill_missing=False, secrets=None,
+    storage_class=None
   ):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
 
@@ -79,7 +80,8 @@ def upload(
     "delete_black_uploads": delete_black_uploads,
     "background_color": background_color,
     "green": green,
-    "secrets": secrets,  
+    "secrets": secrets,
+    "storage_class": storage_class
   }
 
   if is_aligned:
@@ -120,7 +122,7 @@ def upload(
       compress=compress, cdn_cache=cdn_cache,
       progress=False, n_threads=0, 
       delete_black_uploads=delete_black_uploads,
-      green=green, secrets=secrets
+      green=green, secrets=secrets, storage_class=storage_class
     )
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
@@ -150,6 +152,7 @@ def upload_aligned(
     background_color=0,
     green=False,
     secrets=None,
+    storage_class=None,
   ):
   global fs_lock
 
@@ -164,7 +167,7 @@ def upload_aligned(
       delete_black_uploads=delete_black_uploads,
       background_color=background_color,
       green=green, compress_level=compress_level,
-      secrets=secrets
+      secrets=secrets, storage_class=storage_class
     )
     return
 
@@ -193,7 +196,7 @@ def upload_aligned(
     location, location_bbox, location_order, 
     delete_black_uploads, background_color, 
     green, compress_level=compress_level,
-    secrets=secrets
+    secrets=secrets, storage_class=storage_class
   )
 
   parallel_execution(cup, chunk_ranges_by_process, parallel, cleanup_shm=location)
@@ -211,7 +214,7 @@ def child_upload_process(
     location, location_bbox, location_order, 
     delete_black_uploads, background_color,
     green, chunk_ranges, compress_level=None,
-    secrets=None
+    secrets=None, storage_class=None
   ):
   global fs_lock
   reset_connection_pools()
@@ -241,7 +244,7 @@ def child_upload_process(
     delete_black_uploads=delete_black_uploads, 
     background_color=background_color,
     green=green, compress_level=compress_level,
-    secrets=secrets
+    secrets=secrets, storage_class=storage_class
   )
   array_like.close()
 
@@ -255,6 +258,7 @@ def threaded_upload_chunks(
     green=False,
     compress_level=None,
     secrets=None,
+    storage_class=None
   ):
   
   if cache.enabled:
@@ -287,6 +291,7 @@ def threaded_upload_chunks(
         compression_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
         raw=True,
+        storage_class=storage_class
       )
 
     if cache.enabled:

@@ -17,11 +17,12 @@ class GrapheneMeshSource(object):
     return GrapheneUnshardedMeshSource(mesh_meta, cache, config, readonly)
 
   @classmethod
-  def from_cloudpath(cls, cloudpath, cache=False, progress=False):
+  def from_cloudpath(cls, cloudpath, cache=False, progress=False, storage_class=None):
     config = SharedConfiguration(
       cdn_cache=False,
       compress=True,
       compress_level=None,
+      storage_class=storage_class,
       green=False,
       mip=0,
       parallel=1,
