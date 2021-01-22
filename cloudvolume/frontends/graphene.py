@@ -124,7 +124,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     parallel=None, segids=None,
     preserve_zeros=False,
     agglomerate=None, timestamp=None,
-    stop_layer=None
+    stop_layer=None, renumber=False
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -190,13 +190,22 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     # to the server. We can fill black in other situations.
     mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
 
-    img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel)
+    renumber_return = renumber
+    if renumber and (segids or agglomerate):
+      renumber = False # no point      
+
+    img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel, renumber=renumber)
+    renumber_remap = None
+    if renumber:
+      img, renumber_remap = img
 
     if agglomerate:
       img = self.agglomerate_cutout(img, timestamp=timestamp, stop_layer=stop_layer)
-      return VolumeCutout.from_volume(self.meta, mip, img, bbox)
+      img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
 
-    if segids is None:
+    if segids is None or agglomerate:
+      if renumber_return: 
+        return img, renumber_remap
       return img
 
     segids = list(toiter(segids))
@@ -217,10 +226,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       segids.append(0)
 
     img = fastremap.mask_except(img, segids, in_place=True, value=mask_value)
-
-    return VolumeCutout.from_volume(
+    img = VolumeCutout.from_volume(
       self.meta, mip, img, bbox 
     )
+    if renumber_return:
+      return img, renumber_remap
+    return img
   
   def agglomerate_cutout(self, img, timestamp=None, stop_layer=None):
     """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
