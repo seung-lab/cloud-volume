@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import datetime
 import math
-import json
+import orjson
 import os
 import pickle
 import posixpath
@@ -387,7 +387,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     else:
       url = posixpath.join(self.meta.base_path, path, "roots")
       args['node_ids'] = segids
-      data = json.dumps(args).encode('utf8')
+      data = orjson.dumps(args).encode('utf8')
 
     if gzip_condition:
       data = compression.compress(data, method='gzip')
@@ -398,7 +398,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if binary:
       return np.frombuffer(response.content, dtype=np.uint64)
     else:
-      return json.loads(response.content)['root_ids']
+      return orjson.loads(response.content)['root_ids']
 
   def _get_roots_legacy(self, segids, timestamp):
     args = {}
