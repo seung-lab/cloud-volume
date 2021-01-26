@@ -141,7 +141,8 @@ def download(
       if not retain:
         os.unlink(location)
     else:
-      renderbuffer = np.zeros(shape=shape, dtype=dtype, order=order)
+      renderbuffer = np.full(shape=shape, fill_value=background_color,
+                             dtype=dtype, order=order)
 
     def process(img3d, bbox):
       shade(renderbuffer, requested_bbox, img3d, bbox)
@@ -174,7 +175,7 @@ def download(
       meta, cache, mip, cloudpaths, 
       fn=fn, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
-      green=green, secrets=secrets
+      green=green, secrets=secrets, background_color=background_color
     )
   else:
     handle, renderbuffer = multiprocess_download(
@@ -186,6 +187,7 @@ def download(
       order=order,
       green=green,
       secrets=secrets,
+      background_color=background_color
     )
   
   out = VolumeCutout.from_volume(
@@ -202,7 +204,7 @@ def multiprocess_download(
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, order,
-    green, secrets=None
+    green, secrets=None, background_color=0
   ):
 
   cloudpaths_by_process = []
@@ -217,7 +219,7 @@ def multiprocess_download(
     requested_bbox, 
     fill_missing, progress,
     location, use_shared_memory,
-    green, secrets
+    green, secrets, background_color
   )
   parallel_execution(cpd, cloudpaths_by_process, parallel, cleanup_shm=location)
 
@@ -248,7 +250,7 @@ def child_process_download(
     dest_bbox, 
     fill_missing, progress,
     location, use_shared_memory, green,
-    secrets, cloudpaths
+    secrets, background_color, cloudpaths
   ):
   reset_connection_pools() # otherwise multi-process hangs
 
@@ -273,7 +275,7 @@ def child_process_download(
     meta, cache, mip, cloudpaths,
     fn=process, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache,
-    green=green, secrets=secrets
+    green=green, secrets=secrets, background_color=background_color
   )
 
   array_like.close()
@@ -283,7 +285,7 @@ def download_chunk(
     cloudpath, mip,
     filename, fill_missing,
     enable_cache, compress_cache,
-    secrets
+    secrets, background_color
   ):
   (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
   content = file['content']
@@ -303,13 +305,14 @@ def download_chunk(
     content = compression.decompress(content, file['compress'])
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
-  img3d = decode(meta, filename, content, fill_missing, mip)
+  img3d = decode(meta, filename, content, fill_missing, mip, 
+                       background_color=background_color)
   return img3d, bbox
 
 def download_chunks_threaded(
     meta, cache, mip, cloudpaths, fn, 
     fill_missing, progress, compress_cache,
-    green=False, secrets=None
+    green=False, secrets=None, background_color=0
   ):
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
@@ -319,7 +322,7 @@ def download_chunks_threaded(
       meta, cache, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache,
-      secrets
+      secrets, background_color
     )
     fn(img3d, bbox)
 
@@ -343,13 +346,13 @@ def download_chunks_threaded(
     green=green,
   )
 
-def decode(meta, input_bbox, content, fill_missing, mip):
+def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
   """
   Decode content from bytes into a numpy array using the 
   dataset metadata.
 
-  If fill_missing is True, return a zeroed array if 
-  content is empty. Otherwise, raise an EmptyVolumeException
+  If fill_missing is True, return an array filled with background_color
+  if content is empty. Otherwise, raise an EmptyVolumeException
   in that case.
 
   Returns: ndarray
@@ -372,6 +375,7 @@ def decode(meta, input_bbox, content, fill_missing, mip):
       shape=shape, 
       dtype=meta.dtype, 
       block_size=meta.compressed_segmentation_block_size(mip),
+      background_color=background_color
     )
   except Exception as error:
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(

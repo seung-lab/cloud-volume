@@ -60,12 +60,14 @@ def encode(img_chunk, encoding, block_size=None):
   else:
     raise NotImplementedError(encoding)
 
-def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
+def decode(filedata, encoding, shape=None, dtype=None, block_size=None, 
+                     background_color=0):
   if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed'):
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
-    return np.zeros(shape=shape, dtype=dtype)
+    print(background_color)
+    return np.full(shape=shape, fill_value=background_color, dtype=dtype)
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == "kempressed":

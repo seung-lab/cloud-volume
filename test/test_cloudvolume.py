@@ -66,6 +66,47 @@ def test_fill_missing():
   vol.cache.flush()
   delete_layer('/tmp/cloudvolume/empty_volume')
 
+def test_background_color():
+  info = CloudVolume.create_new_info(
+    num_channels=1, 
+    layer_type='image', 
+    data_type='uint8', 
+    encoding='raw',
+    resolution=[ 1,1,1 ], 
+    voxel_offset=[0,0,0], 
+    volume_size=[128,128,1],
+    mesh='mesh', 
+    chunk_size=[ 64,64,1 ],
+  )
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, info=info)
+  vol.commit_info()
+
+  vol.cache.flush()
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
+                    mip=0, 
+                    background_color=1, 
+                    fill_missing=True)
+  assert np.count_nonzero(vol[:] - 1) == 0
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
+                    mip=0, 
+                    background_color=1, 
+                    fill_missing=True,
+                    bounded=False)
+  assert np.count_nonzero(vol[0:129,0:129,0:1]-1) == 0
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
+                    mip=0, 
+                    background_color=1, 
+                    fill_missing=True,
+                    bounded=False,
+                    parallel=2)
+  assert np.count_nonzero(vol[0:129,0:129,0:1]-1) == 0
+  vol.cache.flush()
+  delete_layer('/tmp/cloudvolume/empty_volume')
+
 def test_has_data():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
