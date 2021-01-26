@@ -268,6 +268,9 @@ def child_process_download(
       lock=fs_lock
     )
 
+  if background_color != 0:
+      dest_img[dest_bbox.to_slices()] = background_color
+
   def process(src_img, src_bbox):
     shade(dest_img, dest_bbox, src_img, src_bbox)
 

@@ -66,7 +66,6 @@ def decode(filedata, encoding, shape=None, dtype=None, block_size=None,
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
-    print(background_color)
     return np.full(shape=shape, fill_value=background_color, dtype=dtype)
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
