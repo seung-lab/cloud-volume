@@ -43,6 +43,7 @@ setuptools.setup(
     'cloudvolume': [
       './microviewer/*',
       'LICENSE',
+      'requirements.txt',
     ],
   },
   description="A serverless client for reading and writing Neuroglancer Precomputed volumes both locally and on cloud services.",
