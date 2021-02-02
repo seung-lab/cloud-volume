@@ -49,7 +49,7 @@ setuptools.setup(
   description="A serverless client for reading and writing Neuroglancer Precomputed volumes both locally and on cloud services.",
   long_description=read('README.md'),
   long_description_content_type="text/markdown",
-  license = "BSD 3-Clause",
+  license = "License :: OSI Approved :: BSD License",
   keywords = "neuroglancer volumetric-data numpy connectomics microscopy image-processing biomedical-image-processing s3 gcs mesh meshes skeleton skeletons",
   url = "https://github.com/seung-lab/cloud-volume/",
   classifiers=[
