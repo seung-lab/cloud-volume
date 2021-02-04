@@ -67,6 +67,8 @@ def first(lst):
       return next(iter(lst))
     except StopIteration:
       return None
+  except IndexError:
+    return None
 
 def sip(iterable, block_size):
   """Sips a fixed size from the iterable."""

@@ -215,8 +215,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
   def get_chunk_aligned_mask(self, meshes):
     meta = self.meta.meta
+    first_mesh = first(meshes)
+    if first_mesh is None:
+      raise IndexError("No meshes found.")
+
     draco_grid_size = meta.get_draco_grid_size(
-      meta.decode_layer_id(first(meshes).segid)
+      meta.decode_layer_id(first_mesh.segid)
     )
     base_resolution = meta.resolution(self.config.mip)
     lvl2_resolution = meta.resolution(self.meta.mip)
