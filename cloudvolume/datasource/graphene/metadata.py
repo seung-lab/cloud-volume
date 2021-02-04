@@ -7,7 +7,7 @@ from six.moves import urllib
 
 import numpy as np
 
-from ...lib import Vec
+from ...lib import Vec, Bbox
 from ... import exceptions
 from ... import paths
 from ...secrets import chunkedgraph_credentials
@@ -249,6 +249,25 @@ class GrapheneMetadata(PrecomputedMetadata):
       pt -= self.voxel_offset(self.watershed_mip)
 
     return (pt // self.graph_chunk_size).astype(np.int32)
+
+  def point_to_chunk_bbox(self, pt, mip=None):
+    """
+    For a given point, get the Bbox of the containing 
+    chunk.
+
+    pt: x,y,z triple
+    mip: 
+      if None, pt is in physical coordinates
+      else pt is in the coordinates of the indicated mip level
+
+    Returns: Bbox in voxels
+    """
+    pos = self.point_to_chunk_position(pt, mip)
+    pos *= self.graph_chunk_size
+    if self.chunks_start_at_voxel_offset:
+      pos += self.voxel_offset(self.watershed_mip)
+
+    return Bbox(pos, pos + self.graph_chunk_size)
 
   def segid_bits(self, level):
     ct = self.spatial_bit_count(level)
