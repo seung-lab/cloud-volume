@@ -252,6 +252,7 @@ vol = CloudVolume('gs://bucket/dataset/channel', mip=0, bounded=True, fill_missi
 vol = CloudVolume('gs://bucket/dataset/channel', mip=[ 8, 8, 40 ], bounded=True, fill_missing=False) # set mip at this resolution
 vol = CloudVolume('gs://bucket/datasset/channel', info=info) # New info file from scratch
 image = vol[:,:,:] # Download the entire image stack into a numpy array
+image = vol.download(bbox, mip=2, renumber=True) # download w/ smaller dtype
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 exists = vol.image.has_data(mip=0) # boolean check to see if any data is there
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)

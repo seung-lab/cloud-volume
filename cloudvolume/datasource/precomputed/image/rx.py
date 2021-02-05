@@ -2,12 +2,14 @@ from functools import partial
 import itertools
 import math
 import os
+import threading
 
 import numpy as np
 from six.moves import range
 from tqdm import tqdm
 
 from cloudfiles import reset_connection_pools, CloudFiles, compression
+import fastremap
 
 from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
@@ -94,7 +96,8 @@ def download(
     parallel, location, 
     retain, use_shared_memory, 
     use_file, compress, order='F',
-    green=False, secrets=None
+    green=False, secrets=None,
+    renumber=False, background_color=0
   ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
@@ -113,36 +116,66 @@ def download(
 
   handle = None
 
+  if renumber and (parallel != 1):
+    raise ValueError("renumber is not supported for parallel operation.")
+
   if use_shared_memory and use_file:
     raise ValueError("use_shared_memory and use_file are mutually exclusive arguments.")
+
+  dtype = np.uint16 if renumber else meta.dtype
 
   if parallel == 1:
     if use_shared_memory: # write to shared memory
       handle, renderbuffer = shm.ndarray(
-        shape, dtype=meta.dtype, order=order,
+        shape, dtype=dtype, order=order,
         location=location, lock=fs_lock
       )
       if not retain:
         shm.unlink(location)
     elif use_file: # write to ordinary file
       handle, renderbuffer = shm.ndarray_fs(
-        shape, dtype=meta.dtype, order=order,
+        shape, dtype=dtype, order=order,
         location=location, lock=fs_lock,
         emulate_shm=False
       )
       if not retain:
         os.unlink(location)
     else:
-      renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
+      renderbuffer = np.full(shape=shape, fill_value=background_color,
+                             dtype=dtype, order=order)
 
     def process(img3d, bbox):
       shade(renderbuffer, requested_bbox, img3d, bbox)
 
+    remap = { background_color: background_color }
+    lock = threading.Lock()
+    N = 1
+    def process_renumber(img3d, bbox):
+      nonlocal N
+      nonlocal lock 
+      nonlocal remap
+      nonlocal renderbuffer
+      img_labels = fastremap.unique(img3d)
+      with lock:
+        for lbl in img_labels:
+          if lbl not in remap:
+            remap[lbl] = N
+            N += 1
+        if N > np.iinfo(renderbuffer.dtype).max:
+          renderbuffer = fastremap.refit(renderbuffer, value=N, increase_only=True)
+
+      fastremap.remap(img3d, remap, in_place=True)
+      shade(renderbuffer, requested_bbox, img3d, bbox)
+
+    fn = process
+    if renumber and not (use_file or use_shared_memory):
+      fn = process_renumber  
+
     download_chunks_threaded(
       meta, cache, mip, cloudpaths, 
-      fn=process, fill_missing=fill_missing,
+      fn=fn, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
-      green=green, secrets=secrets 
+      green=green, secrets=secrets, background_color=background_color
     )
   else:
     handle, renderbuffer = multiprocess_download(
@@ -154,12 +187,16 @@ def download(
       order=order,
       green=green,
       secrets=secrets,
+      background_color=background_color
     )
   
-  return VolumeCutout.from_volume(
+  out = VolumeCutout.from_volume(
     meta, mip, renderbuffer, 
     requested_bbox, handle=handle
   )
+  if renumber:
+    return (out, remap)
+  return out
 
 def multiprocess_download(
     requested_bbox, mip, cloudpaths,
@@ -167,7 +204,7 @@ def multiprocess_download(
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, order,
-    green, secrets=None
+    green, secrets=None, background_color=0
   ):
 
   cloudpaths_by_process = []
@@ -182,7 +219,7 @@ def multiprocess_download(
     requested_bbox, 
     fill_missing, progress,
     location, use_shared_memory,
-    green, secrets
+    green, secrets, background_color
   )
   parallel_execution(cpd, cloudpaths_by_process, parallel, cleanup_shm=location)
 
@@ -213,7 +250,7 @@ def child_process_download(
     dest_bbox, 
     fill_missing, progress,
     location, use_shared_memory, green,
-    secrets, cloudpaths
+    secrets, background_color, cloudpaths
   ):
   reset_connection_pools() # otherwise multi-process hangs
 
@@ -231,6 +268,9 @@ def child_process_download(
       lock=fs_lock
     )
 
+  if background_color != 0:
+      dest_img[dest_bbox.to_slices()] = background_color
+
   def process(src_img, src_bbox):
     shade(dest_img, dest_bbox, src_img, src_bbox)
 
@@ -238,7 +278,7 @@ def child_process_download(
     meta, cache, mip, cloudpaths,
     fn=process, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache,
-    green=green, secrets=secrets
+    green=green, secrets=secrets, background_color=background_color
   )
 
   array_like.close()
@@ -248,7 +288,7 @@ def download_chunk(
     cloudpath, mip,
     filename, fill_missing,
     enable_cache, compress_cache,
-    secrets
+    secrets, background_color
   ):
   (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
   content = file['content']
@@ -268,13 +308,14 @@ def download_chunk(
     content = compression.decompress(content, file['compress'])
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
-  img3d = decode(meta, filename, content, fill_missing, mip)
+  img3d = decode(meta, filename, content, fill_missing, mip, 
+                       background_color=background_color)
   return img3d, bbox
 
 def download_chunks_threaded(
     meta, cache, mip, cloudpaths, fn, 
     fill_missing, progress, compress_cache,
-    green=False, secrets=None
+    green=False, secrets=None, background_color=0
   ):
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
@@ -284,7 +325,7 @@ def download_chunks_threaded(
       meta, cache, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache,
-      secrets
+      secrets, background_color
     )
     fn(img3d, bbox)
 
@@ -308,13 +349,13 @@ def download_chunks_threaded(
     green=green,
   )
 
-def decode(meta, input_bbox, content, fill_missing, mip):
+def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
   """
   Decode content from bytes into a numpy array using the 
   dataset metadata.
 
-  If fill_missing is True, return a zeroed array if 
-  content is empty. Otherwise, raise an EmptyVolumeException
+  If fill_missing is True, return an array filled with background_color
+  if content is empty. Otherwise, raise an EmptyVolumeException
   in that case.
 
   Returns: ndarray
@@ -337,6 +378,7 @@ def decode(meta, input_bbox, content, fill_missing, mip):
       shape=shape, 
       dtype=meta.dtype, 
       block_size=meta.compressed_segmentation_block_size(mip),
+      background_color=background_color
     )
   except Exception as error:
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
