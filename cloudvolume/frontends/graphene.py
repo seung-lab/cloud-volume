@@ -215,7 +215,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       leaves = self.get_leaves(segid, mip0_bbox, 0)
       remapping.update({ leaf: segid for leaf in leaves })
     
-    img = fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
+    # Issue #434: Do not write img = fastremap.FN(in_place=True) as this allows
+    # the underlying buffer to get garbage collected. Make sure to carefully
+    # manage the buffer's references when making any changes.
+    fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
 
     mask_value = 0
     if preserve_zeros:
@@ -225,10 +228,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
       segids.append(0)
 
-    img = fastremap.mask_except(img, segids, in_place=True, value=mask_value)
-    img = VolumeCutout.from_volume(
-      self.meta, mip, img, bbox 
-    )
+    fastremap.mask_except(img, segids, in_place=True, value=mask_value)
     if renumber_return:
       return img, renumber_remap
     return img
