@@ -17,7 +17,7 @@ def create_precomputed(
     delete_black_uploads=False, background_color=0, 
     green_threads=False, use_https=False,
     max_redirects=10, mesh_dir=None, skel_dir=None,
-    secrets=None, **kwargs # absorb graphene arguments
+    secrets=None, request_payer=None, **kwargs # absorb graphene arguments
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
@@ -29,6 +29,7 @@ def create_precomputed(
       parallel=parallel,
       progress=progress,
       secrets=secrets,
+      request_payer=request_payer,
     )
 
     cache = CacheService(

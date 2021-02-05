@@ -92,7 +92,8 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       self.meta.cloudpath, 
       progress=progress, 
       green=self.config.green, 
-      secrets=self.config.secrets
+      secrets=self.config.secrets,
+      request_payer=self.config.request_payer
     )
     exists = cf.exists(manifest_paths)
 

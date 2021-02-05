@@ -95,7 +95,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     mip = mip if mip is not None else self.config.mip
     mip = self.meta.to_mip(mip)
     
-    cf = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
+    cf = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets, request_payer=self.config.request_payer)
     key = self.meta.key(mip)
     return first(cf.list(prefix=key)) is not None
 
@@ -174,6 +174,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         secrets=self.config.secrets,
         renumber=renumber,
         background_color=int(self.background_color),
+        request_payer=self.config.request_payer
       )
 
   @readonlyguard
@@ -207,7 +208,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     if self.is_sharded(mip):
       (filename, shard) = self.make_shard(image, bbox, mip)
       basepath = self.meta.join(self.meta.cloudpath, self.meta.key(mip))
-      CloudFiles(basepath, progress=self.config.progress, secrets=self.config.secrets).put(
+      CloudFiles(basepath, progress=self.config.progress, secrets=self.config.secrets, request_payer=self.config.request_payer).put(
         filename, shard, 
         compress=self.config.compress, 
         cache_control=self.config.cdn_cache
@@ -232,6 +233,8 @@ class PrecomputedImageSource(ImageSourceInterface):
       non_aligned_writes=self.non_aligned_writes,
       green=self.config.green,
       fill_missing=self.fill_missing, # applies only to unaligned writes
+      secrets=self.config.secrets,
+      request_payer=self.config.request_payer
     )
 
   def exists(self, bbox, mip=None):
@@ -252,7 +255,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     return CloudFiles(
       self.meta.cloudpath, progress=self.config.progress,
-      secrets=self.config.secrets
+      secrets=self.config.secrets, request_payer=self.config.request_payer
     ).exists(cloudpaths)
 
   @readonlyguard
@@ -285,7 +288,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       protocol=self.meta.path.protocol
     ) # need to regenerate so that generator isn't used up
 
-    CloudFiles(self.meta.cloudpath, progress=self.config.progress, secrets=self.config.secrets) \
+    CloudFiles(self.meta.cloudpath, progress=self.config.progress, secrets=self.config.secrets, request_payer=self.config.request_payer) \
       .delete(cloudpaths())
 
     if self.cache.enabled:
@@ -369,7 +372,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       total=num_blocks,
     )
 
-    cfsrc = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
+    cfsrc = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets, request_payer=self.config.request_payer)
     cfdest = CloudFiles(cloudpath)
 
     def check(files):
