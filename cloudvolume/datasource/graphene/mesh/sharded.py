@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from cloudfiles import CloudFiles
 
-from ....lib import red, toiter, Bbox, Vec, first
+from ....lib import red, toiter, Bbox, Vec, first, nvl
 from ....mesh import Mesh
 from .... import paths
 
@@ -156,7 +156,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     files = []
     if lists['dynamic']:
-      files = CloudFiles(dynamic_cloudpath, green=self.config.green, secrets=self.config.secrets).get(lists['dynamic'])
+      files = CloudFiles(
+        dynamic_cloudpath, 
+        green=self.config.green, 
+        secrets=self.config.secrets,
+        parallel=self.config.parallel,
+      ).get(lists['dynamic'])
     
     dynamic_meshes = []
     while files:
@@ -178,8 +183,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       segid_map[(path, byte_start, byte_end)] = segid
 
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
-    
-    files = CloudFiles(cloudpath, green=self.config.green, secrets=self.config.secrets).get(fetches)
+    files = CloudFiles(
+      cloudpath, 
+      green=self.config.green, 
+      secrets=self.config.secrets,
+      parallel=self.config.parallel,
+    ).get(fetches)
     initial_meshes = []
     while files:
       f = files.pop()
@@ -249,7 +258,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     circumstances.
     """
     segids = toiter(segids)
-    
+
     dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
     filenames = [ self.compute_filename(segid) for segid in segids ]
 
@@ -257,7 +266,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       dynamic_cloudpath, 
       progress=self.config.progress, 
       green=self.config.green,
-      secrets=self.config.secrets
+      secrets=self.config.secrets,
+      parallel=self.config.parallel,
     )
     raw_binaries = cf.get(filenames)
 
@@ -286,7 +296,11 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     for layer_id, labels in layers.items():
       subdirectory = self.meta.join(self.meta.mesh_path, 'initial', str(layer_id))
-      initial_output = self.readers[layer_id].get_data(labels, path=subdirectory, progress=self.config.progress)
+      initial_output = self.readers[layer_id].get_data(
+        labels, path=subdirectory, 
+        progress=self.config.progress,
+        parallel=self.config.parallel,
+      )
       for label, raw_binary in initial_output.items():
         if raw_binary is None:
           if allow_missing:
@@ -296,7 +310,10 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
         else:
           output[label] = raw_binary
 
-    return { label: Mesh.from_draco(raw_binary, segid=label) for label, raw_binary in output.items() }
+    return { 
+      label: Mesh.from_draco(raw_binary, segid=label) 
+      for label, raw_binary in output.items() 
+    }
 
   def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=False):    
     """See GrapheneUnshardedMeshSource.get for the user facing function."""

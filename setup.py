@@ -17,7 +17,7 @@ setuptools.setup(
     'numpy<1.17; python_version<"3.5"',
     'numpy; python_version>="3.5"',
   ],
-  python_requires="~=3.6", # >= 3.5 < 4.0
+  python_requires="~=3.6", # >= 3.6 < 4.0
   install_requires=requirements(),
   # Environment Marker Examples:
   # https://www.python.org/dev/peps/pep-0496/

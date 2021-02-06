@@ -538,12 +538,16 @@ class ShardReader(object):
 
     return shattered
 
-  def get_data(self, label, path="", progress=None):
+  def get_data(
+    self, label, path="", 
+    progress=None, parallel=1
+  ):
     """Fetches data from shards.
 
     label: one or more segment ids
     path: subdirectory path
     progress: display progress bars
+    parallel: (int >= 0) use multiple processes
 
     Return: 
       if label is a scalar:
@@ -605,9 +609,13 @@ class ShardReader(object):
           'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
       })
 
-
     full_path = self.meta.join(self.meta.cloudpath, path)
-    bundles_resp = CloudFiles(full_path, progress=progress, green=self.green).get(bundles)
+    bundles_resp = CloudFiles(
+      full_path, 
+      progress=progress, 
+      green=self.green,
+      parallel=parallel,
+    ).get(bundles)
 
     # Responses are not guaranteed to be in order of requests
     bundles_resp = { (r['path'], r['byte_range']): r for r in bundles_resp }
