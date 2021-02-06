@@ -41,6 +41,15 @@
       img {
         margin: 1px;
       }
+
+      #addsegs {
+        width: 30em;
+        height: 20ex;
+        margin: 10px;
+        margin-left: 0px;
+        margin-top: 50px;
+      }
+
     </style>
 
     <script>
@@ -50,6 +59,7 @@
       var SIZE = {};
       var PARAMETERS = {};
       var PXVALUE = [];
+      var MOUSE_OVER_IMAGE = false;
 
       var elems; 
       var _needsrender = true;
@@ -94,6 +104,9 @@
         }).then( () => render() );
 
         $(channel).on('mousemove', function (e) {
+          e.stopPropagation();
+          MOUSE_OVER_IMAGE = true;
+
           let x = e.offsetX / $(this).innerWidth(), 
             y = e.offsetY / $(this).innerHeight();
 
@@ -117,6 +130,10 @@
         });
 
         if (vol.has_segmentation) {
+          $(document).on("mousemove", function () {
+            MOUSE_OVER_IMAGE = false;
+            render();
+          });
           $(channel).on('click', function (evt) {
             var x = evt.offsetX / $(this).innerWidth(), 
               y = evt.offsetY / $(this).innerHeight();
@@ -124,7 +141,8 @@
             x = clamp(x, 0, 1);
             y = clamp(y, 0, 1);  
             
-            vol.toggleSegment(AXIS, SLICE[AXIS], x, y);        
+            vol.toggleSegment(AXIS, SLICE[AXIS], x, y);  
+            render(true);
           });
         }
       }
@@ -144,6 +162,8 @@
         }).then( () => render() );
 
         $(channel).on('mousemove', function (e) {
+          e.stopPropagation();
+          MOUSE_OVER_IMAGE = true;
           var x = e.offsetX / $(this).innerWidth(), 
             y = e.offsetY / $(this).innerHeight();
 
@@ -164,6 +184,11 @@
           }
 
           render(); 
+        });
+
+        $(document).on("mousemove", function () {
+          MOUSE_OVER_IMAGE = false;
+          render();
         });
 
         $(channel).on('click', function (evt) {
@@ -194,6 +219,7 @@
           clickpxvalue: $('#clickpxvalue'),
           channel: $('#channel'),
           selected_segments: $('#selected_segments'),
+          addsegs: $('#addsegs'),
         };
         
         window.channel = elems.channel[0];
@@ -218,7 +244,7 @@
          $(channel).on('mouseout', function (e) {
             PXVALUE = [];
             vol.hover_id = null;
-            render();
+            render(true);
           });
 
           $(channel).on('click', function (e) {
@@ -260,6 +286,27 @@
 
           loop();
         }); 
+
+        elems.addsegs.on("keypress keydown", function (evt) {
+          evt.stopPropagation();
+        });
+
+        elems.addsegs.on("keyup", function (evt) {
+          evt.stopPropagation();
+          if (evt.keyCode !== 13) {
+            return;
+          }
+
+          elems.addsegs.val()
+            .replace(" ", "")
+            .split(",")
+            .map((x) => BigInt(x))
+            .forEach((segid) => vol.selectSegment(segid));
+
+          elems.addsegs.val("");
+          vol.hover_id = null;
+          render(true);
+        });
       });
 
       $(document).on('wheel', function (e) {
@@ -301,7 +348,7 @@
         ) {
           
           vol.shuffleColors();
-          render();          
+          render(true);          
         }
         else if (evt.keyCode === 'X'.charCodeAt(0)
           || evt.keyCode === 'x'.charCodeAt(0)) {
@@ -309,7 +356,7 @@
           if (vol.clearSelected) {
             vol.clearSelected()
           }
-          render();
+          render(true);
         }
         else if (
           evt.keyCode === '='.charCodeAt(0) // '+' without shift
@@ -323,7 +370,7 @@
           vol.alpha = clamp(vol.alpha - 0.1, 0, 1);
           render();
         }
-      })
+      });
 
       function rotate_axis(delta) {
         var index = (AXES.indexOf(AXIS) + delta) % AXES.length;
@@ -383,16 +430,23 @@
           PXVALUE.push( vol.renumbering[vol.hover_id] );
         }
         else if (vol.has_segmentation) {
-          vol.hover_id =  vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
+          vol.hover_id = vol.channel.get(SLICE.x, SLICE.y, SLICE.z);
           PXVALUE.push( vol.renumbering[vol.hover_id] );
         }
         else {
           PXVALUE.push( vol.channel.get(SLICE.x, SLICE.y, SLICE.z) );
         }
+
+        if (!MOUSE_OVER_IMAGE) {
+          vol.hover_id = null;
+        }
       }
 
-      function render () {
+      function render (invalidate_cache=false) {
         update_pxvalue();
+        if (invalidate_cache) {
+          vol.cache.valid = false;
+        }
         _needsrender = true;
       }
 
@@ -500,6 +554,7 @@
 
       <p class="segmentation">SELECTED SEGMENTS</p>
       <div class="segmentation" id="selected_segments"></div>
+      <textarea id="addsegs" class="segmentation" type="text" placeholder="Input comma separated segids and press enter."></textarea>
     </div>
     
     <canvas id="channel" width="256" height="256"></canvas>

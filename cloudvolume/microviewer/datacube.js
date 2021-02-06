@@ -221,7 +221,7 @@ class SegmentationVolume extends MonoVolume {
     let ArrayType = this.channel.arrayType();
     let segarray = new Uint8Array(this.renumbering.length);
     Object.keys(segments).forEach((label) => {
-      segarray[label] = 1;
+      segarray[label] = !!segments[label];
     });
 
     // We sometimes disable the hover highlight to get more performance
@@ -302,6 +302,15 @@ class SegmentationVolume extends MonoVolume {
     }
 
     return segid;
+  }
+
+  selectSegment(segid) {
+    let _this = this;
+    segid = _this.channel.cast(segid);
+    segid = _this.renumbering.indexOf(segid);
+    if (segid !== -1) {
+      _this.segments[segid] = true;
+    }
   }
 }
 
@@ -551,10 +560,10 @@ class CachedImageData {
  *
  * Efficiently represents a 3D image as a 1D array of integer values.
  *
- * Can be configured to use 8, 16, or 32 bit integers.
+ * Can be configured to use 8, 16, 32, or 64 bit integers.
  *
  * Required:
- *  bytes: (int) 1, 2, or 4, specifies 8, 16, or 32 bit representation
+ *  bytes: (int) 1, 2, 4, or 8 specifies 8, 16, 32, or 64 bit representation
  *  
  * Optional:
  *  size: { x: (int) pixels, y: (int) pixels, z: pixels}, default 256^3
@@ -579,6 +588,12 @@ class DataCube {
       y: [ 'x', 'z' ],
       z: [ 'x', 'y' ],
     };
+  }
+
+  cast (num) {
+    return (this.cube instanceof BigUint64Array)
+      ? BigInt(num)
+      : Number(num);
   }
 
   faceDimensions (axis) {
