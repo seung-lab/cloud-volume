@@ -220,6 +220,7 @@
           channel: $('#channel'),
           selected_segments: $('#selected_segments'),
           addsegs: $('#addsegs'),
+          show_hover: $('#show_hover'),
         };
         
         window.channel = elems.channel[0];
@@ -370,6 +371,13 @@
           vol.alpha = clamp(vol.alpha - 0.1, 0, 1);
           render();
         }
+        else if (evt.keyCode === "H".charCodeAt(0)
+            || evt.keyCode === "h".charCodeAt(0)) {
+
+          elems.show_hover.prop("checked", 
+            !elems.show_hover.prop("checked")
+          );
+        }
       });
 
       function rotate_axis(delta) {
@@ -437,7 +445,7 @@
           PXVALUE.push( vol.channel.get(SLICE.x, SLICE.y, SLICE.z) );
         }
 
-        if (!MOUSE_OVER_IMAGE) {
+        if (!MOUSE_OVER_IMAGE || !elems.show_hover.prop('checked')) {
           vol.hover_id = null;
         }
       }
@@ -550,8 +558,10 @@
         <li>Left Click - freeze info about current pixel</li>
         <li class="hyperview">X - clear selected segments</li>
         <li class="hyperview">+/- increase, decrease opacity</li>
+        <li class='segmentation'>H - toggle hover highlight</li>
       </ul>
 
+      <input class="segmentation" type="checkbox" id="show_hover" name="show_hover" checked="checked"/> <label for="show_hover">Highlight Hover?</label>
       <p class="segmentation">SELECTED SEGMENTS</p>
       <div class="segmentation" id="selected_segments"></div>
       <textarea id="addsegs" class="segmentation" type="text" placeholder="Input comma separated segids and press enter."></textarea>
