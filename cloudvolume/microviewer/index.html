@@ -305,6 +305,7 @@
             .forEach((segid) => vol.selectSegment(segid));
 
           elems.addsegs.val("");
+          elems.addsegs.blur();
           vol.hover_id = null;
           render(true);
         });
