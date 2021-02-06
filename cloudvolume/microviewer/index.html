@@ -298,8 +298,12 @@
             return;
           }
 
-          elems.addsegs.val()
-            .replace(" ", "")
+          var val = elems.addsegs.val().replace(/\s/g, "");
+          if (val === "") {
+            return;
+          }
+
+          val
             .split(",")
             .map((x) => BigInt(x))
             .forEach((segid) => vol.selectSegment(segid));
