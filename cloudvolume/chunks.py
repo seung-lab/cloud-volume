@@ -94,7 +94,7 @@ def encode_jpeg(arr, quality=85):
   reshaped = arr.T
   reshaped = np.moveaxis(reshaped, 0, -1)
   reshaped = reshaped.reshape(
-    arr.shape[0] * arr.shape[1], arr.shape[2], num_channel
+    reshaped.shape[0] * reshaped.shape[1], reshaped.shape[2], num_channel
   )
   if num_channel == 1:
     return simplejpeg.encode_jpeg(
