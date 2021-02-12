@@ -97,13 +97,22 @@ def test_npz():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
   encode_decode(random_data, 'npz')
 
-@pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50)))
+@pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50), (128,128,16), ))
 @pytest.mark.parametrize("num_channels", (1,3))
 def test_jpeg(shape, num_channels):
+  import simplejpeg
+
   xshape = list(shape) + [ num_channels ]
   data = np.zeros(shape=xshape, dtype=np.uint8)
   encode_decode(data, 'jpeg', shape, num_channels)
   encode_decode(data + 255, 'jpeg', shape, num_channels)
+
+  jpg = simplejpeg.decode_jpeg(
+    encode(data, 'jpeg'), 
+    colorspace="GRAY",
+  )
+  assert jpg.shape[0] == shape[1] * shape[2]
+  assert jpg.shape[1] == shape[0]
 
   # Random jpeg won't decompress to exactly the same image
   # but it should have nearly the same average power
