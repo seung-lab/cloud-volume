@@ -399,7 +399,7 @@ def test_numpy_memmap():
   with open("/tmp/file/test/chunk.data", "wb") as f:
     f.write(data.tobytes("F"))
 
-  fp = np.memmap("chunk.data", dtype=data.dtype, mode='r', shape=(50,50,50,1), order='F')
+  fp = np.memmap("/tmp/file/test/chunk.data", dtype=data.dtype, mode='r', shape=(50,50,50,1), order='F')
   cv[:] = fp[:]
 
   shutil.rmtree('/tmp/file/')

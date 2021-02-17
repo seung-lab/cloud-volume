@@ -267,9 +267,6 @@ def threaded_upload_chunks(
   local = CloudFiles('file://' + cache.path, secrets=secrets)
 
   def do_upload(imgchunk, cloudpath):
-    if type(imgchunk) == np.memmap:
-      imgchunk = np.copy(imgchunk)
-
     encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
 
     remote_compress = should_compress(meta.encoding(mip), compress, cache)
