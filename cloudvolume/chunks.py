@@ -146,6 +146,10 @@ def encode_compressed_segmentation_c_ext(subvol, block_size):
   else:
     order = 'F'
     subvol = np.asfortranarray(subvol)
+
+  if not subvol.flags.writeable:
+    subvol = np.copy(subvol)
+
   return cseg.compress(subvol, block_size=block_size, order=order)
 
 def encode_compressed_segmentation_pure_python(subvol, block_size):

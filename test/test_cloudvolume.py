@@ -390,6 +390,20 @@ def test_download_upload_file(green):
   assert np.all(cv2[:] == cv[:])
   shutil.rmtree('/tmp/file/')
 
+def test_numpy_memmap():
+  delete_layer()
+  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+
+  mkdir('/tmp/file/test/')
+
+  with open("/tmp/file/test/chunk.data", "wb") as f:
+    f.write(data.tobytes("F"))
+
+  fp = np.memmap("/tmp/file/test/chunk.data", dtype=data.dtype, mode='r', shape=(50,50,50,1), order='F')
+  cv[:] = fp[:]
+
+  shutil.rmtree('/tmp/file/')
+
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'jpeg'))
 def test_write(green, encoding):
