@@ -119,7 +119,23 @@ class Mesh(object):
       encoding_options=copy.deepcopy(self.encoding_options),
     )
 
+  def edges(self):
+    """
+    Generate an edge list from the faces. 
+    edges are not guaranteed to be unique.
+    """
+    srt = lambda x,y: (x,y) if x < y else (y,x)
+    for face in self.faces:
+      yield srt(face[0], face[1])
+      yield srt(face[1], face[2])
+      yield srt(face[0], face[2])
+
   def triangles(self):
+    """
+    Faces are numbered using the index of vertices,
+    but sometimes it is convenient to have a list 
+    of triangles in their proper coordinate space.
+    """
     Nf = self.faces.shape[0]
     tris = np.zeros( (Nf, 3, 3), dtype=np.float32, order='C' ) # triangle, vertices, (x,y,z)
 
