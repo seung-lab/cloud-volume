@@ -14,7 +14,7 @@ mesh = vol.mesh.get(label)
 skel = vol.skeleton.get(label)
 ```
 
-CloudVolume is a serverless Python client for random access reading and writing [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
+CloudVolume is a serverless Python client for random access reading and writing of [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
 
 Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports key-value access.
 
