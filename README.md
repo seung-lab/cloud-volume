@@ -46,7 +46,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with 3.5, 3.6, 3.7, and 3.8. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
+Cloud-volume is regularly tested on Ubuntu with 3.6, 3.7, 3.8, and 3.9. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
 
 #### `pip` Binary Installation
 
