@@ -240,14 +240,14 @@ class CloudVolume(object):
                         or np.issubdtype(arr.dtype, np.floating):
         layer_type = 'image'
       else:
-        raise NotImplementedError
+        raise ValueError(f"{arr.dtype} is not a supported image type.")
 
     if arr.ndim == 3:
       num_channels = 1
     elif arr.ndim == 4:
       num_channels = arr.shape[-1]
     else:
-      raise NotImplementedError
+      raise ValueError(f"{arr.ndim} dimensions is not supported. Must be between 1 and 4.")
 
     info = cls.create_new_info(
       num_channels, layer_type, arr.dtype.name,
