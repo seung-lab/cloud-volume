@@ -1491,7 +1491,7 @@ def test_threaded_exceptions(green):
   try:
     cv[:]
     assert False
-  except:
+  except exceptions.EmptyVolumeException:
     pass
 
 
