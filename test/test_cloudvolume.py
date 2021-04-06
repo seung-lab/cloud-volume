@@ -1471,3 +1471,27 @@ def test_mip_locking():
     assert False 
   except ReadOnlyException:
     pass 
+
+@pytest.mark.parametrize("green", (True, False))
+def test_threaded_exceptions(green):
+  info = {
+    'type': 'image',
+    'data_type': 'float32', 
+    'num_channels': 1, 
+    'scales': [
+      {'chunk_sizes': [[1024, 1024, 1]], 
+      'encoding': 'raw', 
+      'key': '4_4_40', 
+      'resolution': [4, 4, 40], 
+      'size': [1024, 1024, 3], 'voxel_offset': [0, 0, 0]
+    }], 
+  }
+  cv = CloudVolume("file:///tmp/removeme/green_exceptions", info=info, green_threads=green)
+  
+  try:
+    cv[:]
+    assert False
+  except exceptions.EmptyVolumeException:
+    pass
+
+
