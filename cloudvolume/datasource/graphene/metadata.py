@@ -119,7 +119,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     if not token:
       raise exceptions.AuthenticationError(
         "No Graphene authentication token was provided. "
-        "Does ~/.cloudvolume/secrets/chunkedgraph-secret.json exist?"
+        "Does ~/.cloudvolume/secrets/cave-secret.json exist?"
       )
     elif not (re.match(r'^[0-9a-f]+$', token) or re.match(r'^[A-Za-z0-9+/]+={0,2}$', token)):
       raise exceptions.AuthenticationError("Graphene authentication token was not formatted correctly. It should either be a hexadecimal or base64 string.")
