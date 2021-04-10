@@ -157,7 +157,7 @@ def cave_credentials(domain=''):
   paths = [ default_file_path, legacy_file_path ]
 
   if domain:
-    paths = [ secretpath('secrets/{}-cave-secret.json'.format(bucket)) ] + paths
+    paths = [ secretpath('secrets/{}-cave-secret.json'.format(domain)) ] + paths
 
   credentials = {}
   for path in paths:
