@@ -142,9 +142,30 @@ else:
   boss_credentials = ''
 
 
-chunkedgraph_credentials_path = secretpath('secrets/chunkedgraph-secret.json')
-if os.path.exists(chunkedgraph_credentials_path):
-  with open(chunkedgraph_credentials_path, 'r') as f:
-    chunkedgraph_credentials = json.loads(f.read())
-else:
-  chunkedgraph_credentials = None
+# Graphene PyChunkGraph server
+# CAVE = Connectomics Annotation Versioning Engine
+CAVE_CREDENTIALS_CACHE = defaultdict(list)
+def cave_credentials(domain=''):
+  global CAVE_CREDENTIALS_CACHE
+
+  if domain in CAVE_CREDENTIALS_CACHE.keys():
+    return CAVE_CREDENTIALS_CACHE[domain]
+
+  default_file_path = secretpath('secrets/cave-secret.json')
+  legacy_file_path = secretpath('secrets/chunkedgraph-secret.json')
+
+  paths = [ default_file_path, legacy_file_path ]
+
+  if domain:
+    paths = [ secretpath('secrets/{}-cave-secret.json'.format(bucket)) ] + paths
+
+  credentials = {}
+  for path in paths:
+    if os.path.exists(path):
+      with open(path, 'rt') as f:
+        credentials = json.loads(f.read())
+      break
+
+  CAVE_CREDENTIALS_CACHE[domain] = credentials
+  return credentials
+
