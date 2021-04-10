@@ -162,16 +162,19 @@ You can create the `google-secret.json` file [here](https://console.cloud.google
 }
 ```
 
-#### `chunkedgraph-secret.json`
+#### `cave-secret.json`
 
-If you have a token from Graphene/Chunkedgraph server, create the `chunkedgraph-secret.json` file as shown in the example below.
-You may also pass the token to `GrapheneMetadata` class `auth_token="<your_token>"`, this will override the token from `json` file.
+*Note: used to be called chunkedgraph-secret.json. This is still supported but deprecated.*
+
+If you have a token from Graphene/Chunkedgraph server, create the `cave-secret.json` file as shown in the example below. You may also pass the token to `CloudVolume(..., secrets=token)`.
 
 ```json
 {
   "token": "<your_token>"
 }
 ```
+
+Note that to take advantage of multiple credential files, prepend the fully qualified domain name (FQDN) of the server instead of the bucket for GCS and S3. For example, `sudomain.domain.com-cave-secret.json`.
 
 ## Usage
 
