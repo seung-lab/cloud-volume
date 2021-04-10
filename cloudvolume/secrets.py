@@ -8,6 +8,8 @@ from .lib import mkdir, colorize
 
 HOME = os.path.expanduser('~')
 CLOUD_VOLUME_DIR = os.path.join(HOME, '.cloudvolume')
+CLOUD_VOLUME_DIR = os.environ.get("CLOUD_VOLUME_DIR", CLOUD_VOLUME_DIR)
+
 try:
   mkdir(CLOUD_VOLUME_DIR)
 except PermissionError: # allow operation in read-only mode
