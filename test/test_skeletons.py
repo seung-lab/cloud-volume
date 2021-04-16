@@ -738,9 +738,9 @@ def test_sharded():
 
   shutil.rmtree('/tmp/removeme/skeletons')
 
-def test_spatial_index():
+def test_integer_spatial_index():
   test_dir = os.path.dirname(os.path.abspath(__file__))
-  vol = CloudVolume('file://{}/test_cv'.format(test_dir))
+  vol = CloudVolume(f'file://{test_dir}/test_cv')
   
   spatial_index = vol.skeleton.spatial_index
 

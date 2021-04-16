@@ -41,13 +41,29 @@ class SpatialIndex(object):
   """
   def __init__(
     self, cloudpath, bounds, chunk_size, 
-    config=None, sqlite_db=None
+    config=None, sqlite_db=None, resolution=None
   ):
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
     self.chunk_size = Vec(*chunk_size)
     self.sqlite_db = sqlite_db # optional DB for higher performance
+    self.resolution = None
+    self.precision = None
+
+    def getprecision(num):
+      try:
+        return len(str(num).split('.')[1])
+      except IndexError:
+        return 0
+
+    if resolution is not None:
+      self.resolution = Vec(*resolution, dtype=float)
+      self.precision = max(map(getprecision, resolution))
+      if self.precision == 0:
+        self.resolution = Vec(*resolution, dtype=int)
+
+    self.physical_bounds = self.bounds * self.resolution
 
     if config is None:
       self.config = {}
@@ -100,13 +116,15 @@ class SpatialIndex(object):
     pbar.close()
 
   def index_file_paths_for_bbox(self, bbox):
-    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
+    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.physical_bounds.minpt)
 
     if bbox.subvoxel():
       return []
 
     chunk_size = self.chunk_size
     bounds = self.bounds
+    resolution = self.resolution
+    precision = self.precision
 
     class IndexPathIterator():
       def __len__(self):
@@ -114,7 +132,8 @@ class SpatialIndex(object):
       def __iter__(self):
         for pt in xyzrange(bbox.minpt, bbox.maxpt, chunk_size):
           search = Bbox( pt, min2(pt + chunk_size, bounds.maxpt) )
-          yield search.to_filename() + '.spatial'
+          search *= resolution
+          yield search.to_filename(precision) + '.spatial'
 
     return IndexPathIterator()
 
@@ -309,15 +328,15 @@ class SpatialIndex(object):
 
     Returns: set(labels)
     """
-    bbox = Bbox.create(bbox, context=self.bounds, autocrop=True)
+    bbox = Bbox.create(bbox, context=self.physical_bounds, autocrop=True)
     original_bbox = bbox.clone()
-    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.bounds.minpt)
+    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.physical_bounds.minpt)
 
     if bbox.subvoxel():
       return []
 
     labels = set()
-    fast_path = bbox.contains_bbox(self.bounds)
+    fast_path = bbox.contains_bbox(self.physical_bounds)
 
     if self.sqlite_db and fast_path:
       conn = sqlite3.connect(self.sqlite_db)
@@ -363,12 +382,17 @@ class SpatialIndex(object):
     return labels
 
 class CachedSpatialIndex(SpatialIndex):
-  def __init__(self, cache, config, cloudpath, bounds, chunk_size):
+  def __init__(
+    self, cache, config, 
+    cloudpath, bounds, chunk_size,
+    resolution
+  ):
     self.cache = cache
     self.subdir = os.path.relpath(cloudpath, cache.meta.cloudpath)
 
     super(CachedSpatialIndex, self).__init__(
-      cloudpath, bounds, chunk_size, config
+      cloudpath, bounds, chunk_size, config, 
+      resolution=resolution
     )
 
   def fetch_index_files(self, index_files, progress=None):
