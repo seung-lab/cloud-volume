@@ -33,7 +33,7 @@ class UnshardedPrecomputedSkeletonSource(object):
         self.cache, self.config,
         cloudpath=self.meta.layerpath, 
         bounds=self.meta.meta.bounds(mip),
-        resolution=self.meta.meta.resolution(mip),
+        resolution=self.meta.info['spatial_index'].get('resolution', self.meta.meta.resolution(mip)),
         chunk_size=self.meta.info['spatial_index']['chunk_size'],
       )
 
