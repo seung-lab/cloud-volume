@@ -14,13 +14,13 @@ mesh = vol.mesh.get(label)
 skel = vol.skeleton.get(label)
 ```
 
-CloudVolume is a serverless Python client for random access reading and writing [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes based system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
+CloudVolume is a serverless Python client for random access reading and writing of [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes compatible system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
 
-Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/) or on [Google Storage](https://cloud.google.com/storage/). CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports key-value access.
+Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/), [Google Storage](https://cloud.google.com/storage/), or locally. CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports key-value access.
 
 The combination of [Neuroglancer](https://github.com/google/neuroglancer/), [Igneous](https://github.com/seung-lab/igneous), and CloudVolume comprises a system for visualizing, processing, and sharing (via browser viewable URLs) petascale datasets within and between laboratories. A typical example usage would be to visualize raw electron microscope scans of mouse, fish, or fly brains up to a cubic millimeter in physical dimension. Neuroglancer and Igneous would enable you to visualize each step of the process of montaging the image, fine tuning alignment vector fields, creating segmentation layers, ROI masks, or performing other types of analysis. CloudVolume enables you to read from and write to each of these layers. Recently, we have introduced the ability to interact with the graph server ("PyChunkGraph") that backs proofreading automated segmentations via the `graphene://` format.
 
-You can find a collection of CloudVolume accessible and Neuroglancer viewable datasets at https://neurodata.io/ocp/, an open data project by some of our collaborators.
+You can find a collection of CloudVolume accessible and Neuroglancer viewable datasets at https://neurodata.io/project/ocp/, an open data project by some of our collaborators.
 
 ## Highlights
 
@@ -46,7 +46,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with 3.5, 3.6, 3.7, and 3.8. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
+Cloud-volume is regularly tested on Ubuntu with 3.6, 3.7, 3.8, and 3.9. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
 
 #### `pip` Binary Installation
 

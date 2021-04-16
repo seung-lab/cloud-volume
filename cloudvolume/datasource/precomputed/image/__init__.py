@@ -311,6 +311,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     if mip is None:
       mip = self.config.mip
 
+    if self.is_sharded(mip):
+      raise exceptions.UnsupportedFormatError(f"Sharded sources are not supported. got: {self.meta.cloudpath}")
+
     bbox = Bbox.create(bbox, self.meta.bounds(mip))
     realized_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
@@ -352,6 +355,9 @@ class PrecomputedImageSource(ImageSourceInterface):
         )
       destvol.commit_info()
       destvol.commit_provenance()
+
+    if destvol.image.is_sharded(mip):
+      raise exceptions.UnsupportedFormatError(f"Sharded destinations are not supported. got: {destvol.cloudpath}")
 
     num_blocks = np.ceil(self.meta.bounds(mip).volume() / self.meta.chunk_size(mip).rectVolume()) / step
     num_blocks = int(np.ceil(num_blocks))

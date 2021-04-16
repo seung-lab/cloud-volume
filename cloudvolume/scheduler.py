@@ -45,6 +45,15 @@ def schedule_green_jobs(
 
   pbar = tqdm(total=total, desc=progress, disable=(not progress))
   results = []
+
+  exceptions = []
+
+  def add_exception(greenlet):
+    nonlocal exceptions
+    try:
+      greenlet.get()
+    except Exception as err:
+      exceptions.append(err)
   
   def updatefn(fn):
     def realupdatefn():
@@ -55,11 +64,15 @@ def schedule_green_jobs(
 
   pool = gevent.pool.Pool(concurrency)
   for fn in fns:
-    pool.spawn( updatefn(fn) )
+    greenlet = pool.spawn( updatefn(fn) )
+    greenlet.link_exception(add_exception)
 
   pool.join()
   pool.kill()
   pbar.close()
+
+  if exceptions:
+    raise_multiple(exceptions)
 
   return results
 
@@ -89,4 +102,12 @@ def schedule_jobs(
 
   return schedule_threaded_jobs(fns, concurrency, progress, total)
 
+# c/o https://stackoverflow.com/questions/12826291/raise-two-errors-at-the-same-time
+def raise_multiple(errors):
+  if not errors:
+    return
+  try:
+    raise errors.pop()
+  finally:
+    raise_multiple(errors)
 
