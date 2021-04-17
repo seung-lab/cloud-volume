@@ -468,7 +468,7 @@ class Bbox(object):
     """
     def render(x):
       if precision:
-        return str(round(x, precision))
+        return f"{round(x, precision):.{precision}f}"
       return str(x)
 
     return '_'.join(
