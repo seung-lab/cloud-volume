@@ -57,13 +57,15 @@ class SpatialIndex(object):
       except IndexError:
         return 0
 
-    if resolution is not None:
+    if resolution is None:
+      self.physical_bounds = self.bounds.clone()
+    else:
       self.resolution = Vec(*resolution, dtype=float)
       self.precision = max(map(getprecision, resolution))
       if self.precision == 0:
         self.resolution = Vec(*resolution, dtype=int)
 
-    self.physical_bounds = self.bounds * self.resolution
+      self.physical_bounds = self.bounds.astype(self.resolution.dtype) * self.resolution
 
     if config is None:
       self.config = {}

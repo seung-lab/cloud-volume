@@ -547,7 +547,9 @@ Hops:
 
   def resolution(self, mip):
     """Vec(x,y,z) dimensions of each voxel in nanometers"""
-    return Vec(*self.info['scales'][mip]['resolution'])
+    res = self.info['scales'][mip]['resolution']
+    dtype = float if lib.floating(res) else int
+    return Vec(*res, dtype=dtype)
 
   def to_mip(self, mip):
     mip = list(mip) if isinstance(mip, Iterable) else int(mip)
