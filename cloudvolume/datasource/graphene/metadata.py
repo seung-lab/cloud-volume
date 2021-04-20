@@ -10,7 +10,7 @@ import numpy as np
 from ...lib import Vec, Bbox
 from ... import exceptions
 from ... import paths
-from ...secrets import chunkedgraph_credentials
+from ...secrets import cave_credentials
 from ..precomputed import PrecomputedMetadata
 
 VERSION_ORDERING = [  
@@ -104,8 +104,8 @@ class GrapheneMetadata(PrecomputedMetadata):
     token = None
     if auth_token:
       token = auth_token
-    elif chunkedgraph_credentials:
-      token = chunkedgraph_credentials
+    else:
+      token = cave_credentials(self.server_path.fqdn)
 
     if isinstance(token, str):
       try:
@@ -114,12 +114,12 @@ class GrapheneMetadata(PrecomputedMetadata):
         pass
 
     if isinstance(token, dict):
-      token = token["token"]
+      token = token.get("token", None)
 
-    if token is None:
+    if not token:
       raise exceptions.AuthenticationError(
         "No Graphene authentication token was provided. "
-        "Does ~/.cloudvolume/secrets/chunkedgraph-secret.json exist?"
+        "Does ~/.cloudvolume/secrets/cave-secret.json exist?"
       )
     elif not (re.match(r'^[0-9a-f]+$', token) or re.match(r'^[A-Za-z0-9+/]+={0,2}$', token)):
       raise exceptions.AuthenticationError("Graphene authentication token was not formatted correctly. It should either be a hexadecimal or base64 string.")
@@ -140,9 +140,7 @@ class GrapheneMetadata(PrecomputedMetadata):
   @property
   def base_path(self):
     path = self.server_path
-    if path.subdomain is None:
-      return path.scheme + '://' + path.domain + '/'   
-    return path.scheme + '://' + path.subdomain + '.' + path.domain + '/' 
+    return f"{path.scheme}://{path.fqdn}/"
 
   @property
   def table_path(self):
@@ -366,7 +364,7 @@ class GrapheneMetadata(PrecomputedMetadata):
   def manifest_endpoint(self):
     pth = self.server_path
     pth = GraphenePath(
-      pth.scheme, pth.subdomain, pth.domain, 
+      pth.scheme, pth.fqdn,
       'meshing', pth.version, pth.dataset
     )
 
@@ -429,7 +427,7 @@ class GrapheneMetadata(PrecomputedMetadata):
       )
     return self.mesh_metadata["draco_grid_sizes"][str(level)]
 
-GraphenePath = namedtuple('GraphenePath', ('scheme', 'subdomain', 'domain', 'modality', 'version', 'dataset'))
+GraphenePath = namedtuple('GraphenePath', ('scheme', 'fqdn', 'modality', 'version', 'dataset'))
 LEGACY_EXTRACTION_RE = re.compile(r'/?(\w+)/([\d\.]+)/([\w\d\.\_\-]+)/?')
 API_VX_EXTRACTION_RE = re.compile(r'/?(\w+)/api/(v[\d\.]+)/([\w\d\.\_\-]+)/?')
 LATEST_API_EXTRACTION_RE = re.compile(r'/?(\w+)/(table)/([\w\d\.\_\-]+)/?')
@@ -445,8 +443,6 @@ def extract_graphene_path(url):
     graphene://https://SUBDOMAIN.DOMAIN_DOT_COM/segmentation/table/DATASET
   """
   parse = urllib.parse.urlparse(url)
-  subdomain = parse.netloc.split('.')[0]
-  domain = '.'.join(parse.netloc.split('.')[1:])
 
   schemes = [ 
     LATEST_API_EXTRACTION_RE, API_VX_EXTRACTION_RE, LEGACY_EXTRACTION_RE 
@@ -460,5 +456,5 @@ def extract_graphene_path(url):
     raise exceptions.UnsupportedFormatError("Unable to parse Graphene URL: " + url)
 
   modality, version, dataset = match.groups()
-  return GraphenePath(parse.scheme, subdomain, domain, modality, version, dataset)
+  return GraphenePath(parse.scheme, parse.netloc, modality, version, dataset)
 
