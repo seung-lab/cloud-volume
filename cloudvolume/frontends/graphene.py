@@ -443,8 +443,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   def get_leaves_v1(self, root_id, bbox, mip):
     root_id = int(root_id)    
 
+    api = GrapheneApiVersion("v1")
+
     url = posixpath.join(
-      self.meta.base_path, self.meta.api_version.path(self.meta.server_path), 
+      self.meta.base_path, api.path(self.meta.server_path), 
       "node", str(root_id), "leaves"
     )
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
