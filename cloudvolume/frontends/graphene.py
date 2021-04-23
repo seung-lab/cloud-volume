@@ -465,7 +465,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if stop_layer is not None:
       params["stop_layer"] = int(stop_layer)
 
-    response = requests.get(url, params=stop_layer, headers=self.meta.auth_header)
+    response = requests.get(url, params=params, headers=self.meta.auth_header)
     response.raise_for_status()
 
     content = response.json()
