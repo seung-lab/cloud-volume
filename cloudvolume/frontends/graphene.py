@@ -427,20 +427,30 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       roots.append(root)
     return roots
 
-  def get_leaves(self, root_id, bbox, mip):
+  def get_leaves(self, root_id, bbox, mip, stop_layer=None):
     """
-    get the supervoxels for this root_id
+    Get the lower level ids for this root_id.
 
-    params
-    ------
     root_id: uint64 root id to find supervoxels for
     bbox: cloudvolume.lib.Bbox 3d bounding box for segmentation
+    mip: which mip the bbox is defined in terms of
+    stop_layer: if provided, get leaves down to the specified layer
+      otherwise watershed (layer 1) is assumed.
+
+    Returns: uint64 numpy array of leaf ids
     """
+    if stop_layer is not None and (stop_layer < 1 or stop_layer > self.meta.n_layers):
+      raise ValueError(f"stop_layer must be 1 <= stop_layer < {self.meta.n_layers}. Got: {stop_layer}")
+
     if self.meta.supports_api('v1'):
-      return self.get_leaves_v1(root_id, bbox, mip)
+      return self.get_leaves_v1(root_id, bbox, mip, stop_layer)
+
+    if stop_layer is not None:
+      raise UnsupportedGrapheneAPIVersionError("API 1.0 does not support stop_layer.")
+
     return self.get_leaves_legacy(root_id, bbox, mip)
 
-  def get_leaves_v1(self, root_id, bbox, mip):
+  def get_leaves_v1(self, root_id, bbox, mip, stop_layer=None):
     root_id = int(root_id)    
 
     api = GrapheneApiVersion("v1")
@@ -450,9 +460,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       "node", str(root_id), "leaves"
     )
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
-    response = requests.get(url, params={
-      "bounds": bbox.to_filename(),
-    }, headers=self.meta.auth_header)
+
+    params = { "bounds": bbox.to_filename() }
+    if stop_layer is not None:
+      params["stop_layer"] = int(stop_layer)
+
+    response = requests.get(url, params=params, headers=self.meta.auth_header)
     response.raise_for_status()
 
     content = response.json()
