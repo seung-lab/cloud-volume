@@ -127,11 +127,6 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
           continue
         mesh = Mesh.from_draco(frag_binary)
 
-        # Conversion references:
-        # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/draco/neuroglancer_draco.cc
-        # Treat the draco result as integers in the range [0, 2**vertex_quantization_bits)
-        mesh.vertices = mesh.vertices.view(dtype=np.int32)
-        
         # Convert from "stored model" space to "model" space
         mesh.vertices = manifest.grid_origin + manifest.vertex_offsets[lod] + \
                 manifest.chunk_shape * (2 ** lod) * \
