@@ -82,7 +82,7 @@ class PrecomputedMetadata(object):
       layer_type: (str) typically "image" or "segmentation"
       data_type: (str) e.g. "uint8", "uint16", "uint32", "float32"
       encoding: (str) "raw" for binaries like numpy arrays, "jpeg"
-      resolution: int (x,y,z), x,y,z voxel dimensions in nanometers
+      resolution: float (x,y,z), x,y,z voxel dimensions in nanometers
       voxel_offset: int (x,y,z), beginning of dataset in positive cartesian space
       volume_size: int (x,y,z), extent of dataset in cartesian space from voxel_offset
     
@@ -104,15 +104,20 @@ class PrecomputedMetadata(object):
     if not isinstance(data_type, str):
       data_type = np.dtype(data_type).name
 
+    precision = max(map(lib.getprecision, resolution))
+    res_dtype = float
+    if precision == 0:
+      res_dtype = int
+
     info = {
       "num_channels": int(num_channels),
       "type": layer_type,
       "data_type": data_type,
       "scales": [{
         "encoding": encoding,
-        "chunk_sizes": [chunk_size],
+        "chunk_sizes": [ list(map(int, chunk_size)) ],
         "key": "_".join(map(str, resolution)),
-        "resolution": list(map(int, resolution)),
+        "resolution": list(map(res_dtype, resolution)),
         "voxel_offset": list(map(int, voxel_offset)),
         "size": list(map(int, volume_size)),
       }],
@@ -126,17 +131,7 @@ class PrecomputedMetadata(object):
  
     # add mip levels
     for _ in range(max_mip):
-      new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
-      newscale = {
-        u"encoding": encoding,
-        u"chunk_sizes": [ list(map(int, chunk_size)) ],
-        u"key": "_".join(map(str, new_resolution)),
-        u"resolution": new_resolution,
-        u"voxel_offset": downscale(fullres['voxel_offset'], factor_in_mip, np.floor),
-        u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
-      }
-      info['scales'].append(newscale)
-      factor_in_mip *= factor
+      info = self.add_scale(factor, encoding=encoding, chunk_size=chunk_size, info=info)
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
