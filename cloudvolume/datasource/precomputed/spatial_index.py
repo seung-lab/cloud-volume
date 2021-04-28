@@ -10,7 +10,10 @@ from cloudfiles import CloudFiles
 
 from ...exceptions import SpatialIndexGapError
 from ... import paths
-from ...lib import Bbox, Vec, xyzrange, min2, toiter, sip, nvl
+from ...lib import (
+  Bbox, Vec, xyzrange, min2, 
+  toiter, sip, nvl, getprecision
+)
 
 class SpatialIndex(object):
   """
@@ -50,12 +53,6 @@ class SpatialIndex(object):
     self.sqlite_db = sqlite_db # optional DB for higher performance
     self.resolution = None
     self.precision = None
-
-    def getprecision(num):
-      try:
-        return len(str(num).split('.')[1])
-      except IndexError:
-        return 0
 
     if resolution is None:
       self.physical_bounds = self.bounds.clone()

@@ -633,8 +633,12 @@ Hops:
     """Used for manually resetting downsamples if something messed up."""
     self.info['scales'] = self.info['scales'][0:1]
 
-  def add_resolution(self, res, encodig=None, chunk_size=None, info=None):
-    factor = Vec(res, dtype=np.float32) // self.meta.resolution(0)
+  def add_resolution(self, res, encoding=None, chunk_size=None, info=None):
+    if isinstance(res[0], float):
+      factor = Vec(*res, dtype=float) / self.resolution(0)
+    else:
+      factor = Vec(*res, dtype=float) // self.resolution(0)
+
     return self.add_scale(factor, encoding, chunk_size, info)
 
   def add_scale(self, factor, encoding=None, chunk_size=None, info=None):
@@ -671,10 +675,17 @@ Hops:
     if encoding is None:
       encoding = fullres['encoding']
 
+    precision = max(map(lib.getprecision, fullres['resolution']))
+    precision = max(precision, max(map(lib.getprecision, factor)))
+
+    dtype = float
+    if precision == 0:
+      dtype = int
+
     newscale = {
       u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
-      u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
+      u"resolution": list(map(dtype, Vec(*fullres['resolution'], dtype=dtype) * factor )),
       u"voxel_offset": downscale(fullres.get('voxel_offset', (0,0,0)), factor, np.floor),
       u"size": downscale(fullres['size'], factor, np.ceil),
     }

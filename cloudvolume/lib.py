@@ -153,6 +153,12 @@ def touch(path):
   mkdir(os.path.dirname(path))
   open(path, 'a').close()
 
+def getprecision(num):
+  try:
+    return len(str(num).split('.')[1])
+  except IndexError:
+    return 0
+
 def find_closest_divisor(to_divide, closest_to):
   """
   This is used to find the right chunk size for
