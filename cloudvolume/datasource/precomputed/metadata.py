@@ -131,7 +131,8 @@ class PrecomputedMetadata(object):
  
     # add mip levels
     for _ in range(max_mip):
-      info = self.add_scale(factor, encoding=encoding, chunk_size=chunk_size, info=info)
+      scale = cls.add_scale(None, factor, encoding=encoding, chunk_size=chunk_size, info=info)
+      info["scales"].append(scale)
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
