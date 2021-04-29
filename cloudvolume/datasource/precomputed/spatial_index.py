@@ -329,7 +329,7 @@ class SpatialIndex(object):
     """
     bbox = Bbox.create(bbox, context=self.physical_bounds, autocrop=True)
     original_bbox = bbox.clone()
-    bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.physical_bounds.minpt)
+    bbox = bbox.expand_to_chunk_size(self.chunk_size.astype(self.physical_bounds.dtype), offset=self.physical_bounds.minpt)
 
     if bbox.subvoxel():
       return []

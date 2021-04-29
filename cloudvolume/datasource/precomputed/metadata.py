@@ -694,11 +694,11 @@ Hops:
 
     newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
 
-    new_res = np.array(newscale['resolution'], dtype=int)
+    new_res = np.array(newscale['resolution'], dtype=dtype)
 
     preexisting = False
     for index, scale in enumerate(info['scales']):
-      res = np.array(scale['resolution'], dtype=int)
+      res = np.array(scale['resolution'], dtype=dtype)
       if np.array_equal(new_res, res):
         preexisting = True
         info['scales'][index] = newscale
