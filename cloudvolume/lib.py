@@ -747,25 +747,27 @@ class Bbox(object):
 
   # note that operand can be a vector 
   # or a scalar thanks to numpy
-  def __sub__(self, operand): 
-    tmp = self.clone()
-    
+  def __isub__(self, operand): 
     if isinstance(operand, Bbox):
-      tmp.minpt -= operand.minpt
-      tmp.maxpt -= operand.maxpt
+      self.minpt = np.subtract(self.minpt, operand.minpt, casting="safe")
+      self.maxpt = np.subtract(self.maxpt, operand.maxpt, casting="safe")
     else:
-      tmp.minpt -= operand
-      tmp.maxpt -= operand
+      self.minpt = np.subtract(self.minpt, operand, casting="safe")
+      self.maxpt = np.subtract(self.maxpt, operand, casting="safe")
 
-    return tmp
+    return self.astype(self.minpt.dtype)
+
+  def __sub__(self, operand):
+    tmp = self.clone()
+    return tmp.__isub__(operand)
 
   def __iadd__(self, operand):
     if isinstance(operand, Bbox):
-      self.minpt += operand.minpt
-      self.maxpt += operand.maxpt
+      self.minpt = np.add(self.minpt, operand.minpt, casting="safe")
+      self.maxpt = np.add(self.maxpt, operand.maxpt, casting="safe")
     else:
-      self.minpt += operand
-      self.maxpt += operand
+      self.minpt = np.add(self.minpt, operand, casting="safe")
+      self.maxpt = np.add(self.maxpt, operand, casting="safe")
 
     return self
 
@@ -774,14 +776,15 @@ class Bbox(object):
     return tmp.__iadd__(operand)
 
   def __imul__(self, operand):
-    self.minpt *= operand
-    self.maxpt *= operand
+    self.minpt = np.multiply(self.minpt, operand, casting="safe")
+    self.maxpt = np.multiply(self.maxpt, operand, casting="safe")
+    self._dtype = self.minpt.dtype 
     return self
 
   def __mul__(self, operand):
     tmp = self.clone()
-    tmp.minpt *= operand
-    tmp.maxpt *= operand
+    tmp.minpt = np.multiply(tmp.minpt, operand, casting="safe")
+    tmp.maxpt = np.multiply(tmp.maxpt, operand, casting="safe")
     return tmp.astype(tmp.minpt.dtype)
 
   def __idiv__(self, operand):
