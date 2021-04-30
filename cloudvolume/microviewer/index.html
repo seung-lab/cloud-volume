@@ -36,6 +36,8 @@
         max-height: 768px;
         background: #0d0d0d;
         z-index: 10;
+
+        image-rendering: crisp-edges;
       }
 
       img {
@@ -60,6 +62,7 @@
       var PARAMETERS = {};
       var PXVALUE = [];
       var MOUSE_OVER_IMAGE = false;
+      var MAGNIFICATION = 1;
 
       var elems; 
       var _needsrender = true;
@@ -383,6 +386,18 @@
             !elems.show_hover.prop("checked")
           );
         }
+        else if (evt.keyCode === "1".charCodeAt(0)) {
+          MAGNIFICATION /= 2;
+          MAGNIFICATION = Math.max(MAGNIFICATION, 1);
+          elems.channel.css("width", (channel.width * MAGNIFICATION) + "px");
+          elems.channel.css("height", (channel.height * MAGNIFICATION) + "px");
+        }
+        else if (evt.keyCode === "2".charCodeAt(0)) {
+          MAGNIFICATION *= 2;
+          MAGNIFICATION = Math.min(MAGNIFICATION, 256);
+          elems.channel.css("width", (channel.width * MAGNIFICATION) + "px");
+          elems.channel.css("height", (channel.height * MAGNIFICATION) + "px");
+        }
       });
 
       function rotate_axis(delta) {
@@ -564,6 +579,7 @@
         <li class="hyperview">X - clear selected segments</li>
         <li class="hyperview">+/- increase, decrease opacity</li>
         <li class='segmentation'>H - toggle hover highlight</li>
+        <li>1/2 - zoom out/in</li>
       </ul>
 
       <input class="segmentation" type="checkbox" id="show_hover" name="show_hover" checked="checked"/> <label for="show_hover">Highlight Hover?</label>
