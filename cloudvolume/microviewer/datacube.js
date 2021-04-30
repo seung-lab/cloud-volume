@@ -447,9 +447,10 @@ class HyperVolume extends MonoVolume {
     const brightener = this.colorToUint32({ r: 10, g: 10, b: 10, a: 0 });
     const hover_id = this.hover_id;
 
+    let segments = this.segments;
     let selected_segments = new Uint8Array(this.renumbering.length);
     Object.keys(_this.segments).forEach((label) => {
-      selected_segments[label] = 1;
+      selected_segments[label] = !!segments[label];
     });
 
     let pxdata = pixels.data;

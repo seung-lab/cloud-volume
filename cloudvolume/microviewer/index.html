@@ -201,7 +201,8 @@
           x = clamp(x, 0, 1);
           y = clamp(y, 0, 1);  
           
-          vol.toggleSegment(AXIS, SLICE[AXIS], x, y);        
+          vol.toggleSegment(AXIS, SLICE[AXIS], x, y);
+          render(true);
         });
       }
 
