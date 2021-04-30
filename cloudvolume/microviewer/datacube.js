@@ -291,9 +291,9 @@ class SegmentationVolume extends MonoVolume {
       z = slice;
     }
 
-    x = Math.round(x);
-    y = Math.round(y);
-    z = Math.round(z);
+    x = Math.floor(x);
+    y = Math.floor(y);
+    z = Math.floor(z);
 
     let segid = _this.channel.get(x, y, z);
     
@@ -526,9 +526,9 @@ class HyperVolume extends MonoVolume {
       z = slice;
     }
 
-    x = Math.round(x);
-    y = Math.round(y);
-    z = Math.round(z);
+    x = Math.floor(x);
+    y = Math.floor(y);
+    z = Math.floor(z);
 
     let segid = _this.segmentation.get(x, y, z);
     
