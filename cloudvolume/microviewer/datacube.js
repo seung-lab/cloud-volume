@@ -538,6 +538,15 @@ class HyperVolume extends MonoVolume {
 
     return segid;
   }
+
+  selectSegment(segid) {
+    let _this = this;
+    segid = _this.segmentation.cast(segid);
+    segid = _this.renumbering.indexOf(segid);
+    if (segid !== -1) {
+      _this.segments[segid] = true;
+    }
+  }
 }
 
 class CachedImageData {
