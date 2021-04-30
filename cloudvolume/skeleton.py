@@ -990,26 +990,23 @@ class Skeleton(object):
     Returns: swc as a string
     """
     from . import __version__
-    swc_header = """# ORIGINAL_SOURCE CloudVolume {}
+    sx, sy, sz = np.diag(self.transform)[:3]
+
+    swc_header = f"""# ORIGINAL_SOURCE CloudVolume {__version__}
 # CREATURE 
 # REGION
 # FIELD/LAYER
 # TYPE
-# CONTRIBUTOR {}
+# CONTRIBUTOR {contributors}
 # REFERENCE
 # RAW 
 # EXTRAS 
 # SOMA_AREA
 # SHINKAGE_CORRECTION 
-# VERSION_NUMBER 
-# VERSION_DATE {}
-# SCALE 1.0 1.0 1.0
-
-""".format(
-      __version__, 
-      contributors,
-      datetime.datetime.utcnow().isoformat()
-    )
+# VERSION_NUMBER {__version__}
+# VERSION_DATE {datetime.datetime.utcnow().isoformat()}
+# SCALE {sx:.6f} {sy:.6f} {sz:.6f}
+"""
 
     def generate_swc(skel, offset):
       if skel.edges.size == 0:
