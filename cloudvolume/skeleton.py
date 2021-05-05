@@ -511,7 +511,7 @@ class Skeleton(object):
       return skeleton
 
     nodes_valid_mask = np.array(
-      [ bbox.contains(vtx) for vtx in skeleton.vertices ], dtype=np.bool
+      [ bbox.contains(vtx) for vtx in skeleton.vertices ], dtype=bool
     )
     nodes_valid_idx = np.where(nodes_valid_mask)[0]
 
