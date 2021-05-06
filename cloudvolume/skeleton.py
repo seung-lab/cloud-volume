@@ -1,13 +1,9 @@
 from collections import defaultdict
 import copy
 import datetime
+from io import BytesIO
 import re
 import os
-
-try:
-  from StringIO import cStringIO as BytesIO
-except ImportError:
-  from io import BytesIO
 
 import numpy as np
 import struct
