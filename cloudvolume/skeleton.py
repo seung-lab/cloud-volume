@@ -1051,7 +1051,7 @@ class Skeleton(object):
 
       return swc
 
-    skels = self.remove_disconnected_vertices().components()
+    skels = self.components()
 
     swc = swc_header + "\n"
     offset = 0
