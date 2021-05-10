@@ -5,6 +5,7 @@ from io import BytesIO
 import re
 import os
 
+import fastremap
 import numpy as np
 import struct
 
@@ -749,7 +750,7 @@ class Skeleton(object):
     vertices = skeleton.vertices
     edges = skeleton.edges
 
-    unique_nodes, unique_counts = np.unique(edges, return_counts=True)
+    unique_nodes, unique_counts = fastremap.unique(edges, return_counts=True)
     terminal_nodes = unique_nodes[ unique_counts == 1 ]
     branch_nodes = set(unique_nodes[ unique_counts >= 3 ])
     
@@ -854,7 +855,7 @@ class Skeleton(object):
       return edge_list[1:]
 
     forest = []
-    for edge in np.unique(skel.edges.flatten()):
+    for edge in fastremap.unique(skel.edges.flatten()):
       if visited[edge]:
         continue
 
