@@ -818,8 +818,7 @@ class Skeleton(object):
 
     return paths
 
-  def _compute_components(self):
-    skel = self.consolidate(remove_disconnected_vertices=False)
+  def _compute_components(self, skel):
     if skel.edges.size == 0:
       return skel, []
 
@@ -863,7 +862,7 @@ class Skeleton(object):
         extract_component(edge)
       )
 
-    return skel, forest
+    return forest
   
   def components(self):
     """
@@ -872,7 +871,8 @@ class Skeleton(object):
 
     Returns: [ Skeleton, Skeleton, ... ]
     """
-    skel, forest = self._compute_components()
+    skel = self.clone()
+    forest = self._compute_components(skel)
 
     if len(forest) == 0:
       return []
