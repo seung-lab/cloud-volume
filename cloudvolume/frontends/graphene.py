@@ -379,6 +379,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return chunk_mappings
 
   def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
+    if len(segids) == 0:
+      return []
+
     args = {}
 
     headers = {}
@@ -422,6 +425,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       return orjson.loads(response.content)['root_ids']
 
   def _get_roots_legacy(self, segids, timestamp):
+    if len(segids) == 0:
+      return []
+    
     args = {}
     if timestamp is not None:
       args['timestamp'] = timestamp
