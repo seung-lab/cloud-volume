@@ -286,13 +286,20 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         Layer 2+: Between chunk interconnections (skip connections possible)
     """
     segids = toiter(segids)
-    if isinstance(segids, np.ndarray):
-      segids = segids.tolist()
+    input_segids = np.array(segids, dtype=self.meta.dtype)
 
-    try:
-      segids.remove(0) # background segid
-    except ValueError:
-      pass
+    segids = fastremap.unique(input_segids)
+
+    base_remap = { 0: 0 }
+    # skip ids that are already root IDs
+    for segid in segids:
+      if self.meta.decode_layer_id(segid) == self.meta.n_layers:
+        base_remap[segid] = segid
+
+    segids = np.array(
+      [ segid for segid in segids if segid not in base_remap ], 
+      dtype=self.meta.dtype
+    )
 
     timestamp = to_unix_time(timestamp)
 
@@ -313,7 +320,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         + ", ".join([ str(_) for _ in self.meta.supported_api_versions ])
       )
 
-    return np.array(roots, dtype=self.meta.dtype)
+    for segid, root_id in zip(segids, roots):
+      base_remap[segid] = root_id
+
+    return fastremap.remap(input_segids, base_remap)
 
   def get_chunk_mappings(self, chunk_id, timestamp=None):
     """
