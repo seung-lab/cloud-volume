@@ -4,6 +4,7 @@ import datetime
 from io import BytesIO
 import re
 import os
+import networkx as nx
 
 import fastremap
 import numpy as np
@@ -455,23 +456,18 @@ class Skeleton(object):
 
     vertex1, inv1 = np.unique(first.vertices, axis=0, return_inverse=True)
     vertex2, inv2 = np.unique(second.vertices, axis=0, return_inverse=True)
-
+    
     vertex_match = np.all(np.abs(vertex1 - vertex2) < EPSILON)
     if not vertex_match:
       return False
 
-    remapping = {}
-    for i in range(len(inv1)):
-      remapping[inv1[i]] = inv2[i]
-    remap = np.vectorize(lambda idx: remapping[idx])
-
-    edges1 = np.sort(np.unique(first.edges, axis=0), axis=1)
-    edges1 = edges1[np.lexsort(edges1[:,::-1].T)]
-
-    edges2 = remap(second.edges)
-    edges2 = np.sort(np.unique(edges2, axis=0), axis=1)
-    edges2 = edges2[np.lexsort(edges2[:,::-1].T)]
-    edges_match = np.all(edges1 == edges2)
+    g1 = nx.Graph()
+    g1.add_edges_from(first.edges)
+    g2 = nx.Graph()
+    g2.add_edges_from(second.edges)
+    edges_match = nx.is_isomorphic(g1, g2)
+    del g1 
+    del g2
 
     if not edges_match:
       return False
@@ -873,27 +869,23 @@ class Skeleton(object):
     """
     skel = self.clone()
     forest = self._compute_components(skel)
-
+    
     if len(forest) == 0:
       return []
     elif len(forest) == 1:
       return [ skel ]
 
-    orig_verts = { tuple(coord): i for i, coord in enumerate(skel.vertices) }      
-
     skeletons = []
     for edge_list in forest:
       edge_list = np.array(edge_list, dtype=np.uint32)
-      edge_list = np.unique(edge_list, axis=0)
-      vert_idx = np.unique(edge_list.flatten())
+      vert_idx = fastremap.unique(edge_list)
+
       vert_list = skel.vertices[vert_idx]
       radii = skel.radii[vert_idx]
       vtypes = skel.vertex_types[vert_idx]
 
-      new_verts = { orig_verts[tuple(coord)]: i for i, coord in enumerate(vert_list) }
-
-      edge_vector_map = np.vectorize(lambda x: new_verts[x])
-      edge_list = edge_vector_map(edge_list)
+      remap = { vid: i for i, vid in enumerate(vert_idx) }
+      edge_list = fastremap.remap(edge_list, remap, in_place=True)
 
       skeletons.append(
         Skeleton(vert_list, edge_list, radii, vtypes, skel.id)
