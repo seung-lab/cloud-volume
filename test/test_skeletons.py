@@ -511,7 +511,7 @@ def test_read_swc():
 
   skel = Skeleton.from_swc(skel.to_swc())
   assert Skeleton.equivalent(skel, skel_gt)
-  
+
   # sorts edges
   skel = skel.consolidate()
   skel_gt = skel_gt.consolidate()
@@ -544,10 +544,6 @@ def test_components():
   assert len(components) == 2
   assert components[0].vertices.shape[0] == 3
   assert components[1].vertices.shape[0] == 3
-  print(components[0].vertices)
-  print(components[0].edges)
-  print(components[1].vertices)
-  print(components[1].edges)
   assert components[0].edges.shape[0] == 2
   assert components[1].edges.shape[0] == 3
 
