@@ -288,6 +288,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     segids = toiter(segids)
     input_segids = np.array(segids, dtype=self.meta.dtype)
 
+    if input_segids.size == 0:
+      return np.array([], dtype=self.meta.dtype)
+
     segids = fastremap.unique(input_segids)
 
     base_remap = { 0: 0 }
@@ -427,7 +430,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   def _get_roots_legacy(self, segids, timestamp):
     if len(segids) == 0:
       return []
-    
+
     args = {}
     if timestamp is not None:
       args['timestamp'] = timestamp

@@ -384,6 +384,9 @@ def test_gcv(graphene_vol):
 
 
 def test_get_roots(graphene_vol):
+  roots = graphene_vol.get_roots([])
+  assert np.all(roots == [])
+
   segids = [0, 0, 0, 0, 0]
   roots = graphene_vol.get_roots(segids)
   assert np.all(roots == segids)
