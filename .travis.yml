@@ -10,7 +10,6 @@ before_install:
 - mkdir -p ~/.cloudvolume/secrets/
 - echo $AWS_SECRET > ~/.cloudvolume/secrets/aws-secret.json
 - echo $GOOGLE_SECRET > ~/.cloudvolume/secrets/google-secret.json
-- echo $BOSS_SECRET > ~/.cloudvolume/secrets/boss-secret.json
 install:
 - virtualenv -p python3 venv
 - source venv/bin/activate
