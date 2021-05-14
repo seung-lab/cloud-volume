@@ -278,8 +278,8 @@ class Vec(np.ndarray):
       return int(''.join(map(str, self)))
 
     def __repr__(self):
-      values = u",".join(list(self.astype(str)))
-      return u"Vec({}, dtype={})".format(values, self.dtype)
+      values = ",".join([ str(x) for x in self ])
+      return f"Vec({values}, dtype={self.dtype})"
 
 def __assign(self, val, index):
   self[index] = val
@@ -823,7 +823,7 @@ class Bbox(object):
     return int(''.join(map(str, map(int, self.to_list()))))
 
   def __repr__(self):
-    return "Bbox({},{}, dtype={})".format(list(self.minpt), list(self.maxpt), self.dtype)
+    return f"Bbox({list(self.minpt)},{list(self.maxpt)}, dtype={self.dtype})"
 
 def save_images(
   image, directory=None, axis='z', 
