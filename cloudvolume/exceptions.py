@@ -4,6 +4,10 @@ class AuthenticationError(BaseException):
   """Incorrect credentials."""
   pass
 
+class DimensionError(BaseException):
+  """Wrong number of dimensions."""
+  pass
+
 class InfoError(Exception):
   pass
 

@@ -82,7 +82,7 @@ class PrecomputedMetadata(object):
       layer_type: (str) typically "image" or "segmentation"
       data_type: (str) e.g. "uint8", "uint16", "uint32", "float32"
       encoding: (str) "raw" for binaries like numpy arrays, "jpeg"
-      resolution: int (x,y,z), x,y,z voxel dimensions in nanometers
+      resolution: float (x,y,z), x,y,z voxel dimensions in nanometers
       voxel_offset: int (x,y,z), beginning of dataset in positive cartesian space
       volume_size: int (x,y,z), extent of dataset in cartesian space from voxel_offset
     
@@ -104,15 +104,20 @@ class PrecomputedMetadata(object):
     if not isinstance(data_type, str):
       data_type = np.dtype(data_type).name
 
+    precision = max(map(lib.getprecision, resolution))
+    res_dtype = float
+    if precision == 0:
+      res_dtype = int
+
     info = {
       "num_channels": int(num_channels),
       "type": layer_type,
       "data_type": data_type,
       "scales": [{
         "encoding": encoding,
-        "chunk_sizes": [chunk_size],
+        "chunk_sizes": [ list(map(int, chunk_size)) ],
         "key": "_".join(map(str, resolution)),
-        "resolution": list(map(int, resolution)),
+        "resolution": list(map(res_dtype, resolution)),
         "voxel_offset": list(map(int, voxel_offset)),
         "size": list(map(int, volume_size)),
       }],
@@ -126,17 +131,8 @@ class PrecomputedMetadata(object):
  
     # add mip levels
     for _ in range(max_mip):
-      new_resolution = list(map(int, Vec(*fullres['resolution']) * factor_in_mip ))
-      newscale = {
-        u"encoding": encoding,
-        u"chunk_sizes": [ list(map(int, chunk_size)) ],
-        u"key": "_".join(map(str, new_resolution)),
-        u"resolution": new_resolution,
-        u"voxel_offset": downscale(fullres['voxel_offset'], factor_in_mip, np.floor),
-        u"size": downscale(fullres['size'], factor_in_mip, np.ceil),
-      }
-      info['scales'].append(newscale)
-      factor_in_mip *= factor
+      scale = cls.add_scale(None, factor, encoding=encoding, chunk_size=chunk_size, info=info)
+      info["scales"].append(scale)
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
@@ -547,7 +543,9 @@ Hops:
 
   def resolution(self, mip):
     """Vec(x,y,z) dimensions of each voxel in nanometers"""
-    return Vec(*self.info['scales'][mip]['resolution'])
+    res = self.info['scales'][mip]['resolution']
+    dtype = float if lib.floating(res) else int
+    return Vec(*res, dtype=dtype)
 
   def to_mip(self, mip):
     mip = list(mip) if isinstance(mip, Iterable) else int(mip)
@@ -631,8 +629,12 @@ Hops:
     """Used for manually resetting downsamples if something messed up."""
     self.info['scales'] = self.info['scales'][0:1]
 
-  def add_resolution(self, res, encodig=None, chunk_size=None, info=None):
-    factor = Vec(res, dtype=np.float32) // self.meta.resolution(0)
+  def add_resolution(self, res, encoding=None, chunk_size=None, info=None):
+    if isinstance(res[0], float):
+      factor = Vec(*res, dtype=float) / self.resolution(0)
+    else:
+      factor = Vec(*res, dtype=float) // self.resolution(0)
+
     return self.add_scale(factor, encoding, chunk_size, info)
 
   def add_scale(self, factor, encoding=None, chunk_size=None, info=None):
@@ -669,10 +671,17 @@ Hops:
     if encoding is None:
       encoding = fullres['encoding']
 
+    precision = max(map(lib.getprecision, fullres['resolution']))
+    precision = max(precision, max(map(lib.getprecision, factor)))
+
+    dtype = float
+    if precision == 0:
+      dtype = int
+
     newscale = {
       u"encoding": encoding,
       u"chunk_sizes": [ list(map(int, chunk_size)) ],
-      u"resolution": list(map(int, Vec(*fullres['resolution']) * factor )),
+      u"resolution": list(map(dtype, Vec(*fullres['resolution'], dtype=dtype) * factor )),
       u"voxel_offset": downscale(fullres.get('voxel_offset', (0,0,0)), factor, np.floor),
       u"size": downscale(fullres['size'], factor, np.ceil),
     }
@@ -685,11 +694,11 @@ Hops:
 
     newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
 
-    new_res = np.array(newscale['resolution'], dtype=int)
+    new_res = np.array(newscale['resolution'], dtype=dtype)
 
     preexisting = False
     for index, scale in enumerate(info['scales']):
-      res = np.array(scale['resolution'], dtype=int)
+      res = np.array(scale['resolution'], dtype=dtype)
       if np.array_equal(new_res, res):
         preexisting = True
         info['scales'][index] = newscale

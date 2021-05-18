@@ -1,3 +1,4 @@
+import copy
 import re
 
 from ....lib import jsonify
@@ -79,14 +80,20 @@ class PrecomputedSkeletonMetadata(object):
     return self.info
 
   def commit_info(self):
-    if self.info:
-      self.cache.upload_single(
-        self.meta.join(self.skeleton_path, 'info'),
-        jsonify(self.info), 
-        content_type='application/json',
-        compress=False,
-        cache_control='no-cache',
-      )
+    if self.info is None:
+      return 
+
+    info = copy.deepcopy(self.info)
+    if info.get("sharding", None) is None:
+      del info["sharding"]
+
+    self.cache.upload_single(
+      self.meta.join(self.skeleton_path, 'info'),
+      jsonify(info), 
+      content_type='application/json',
+      compress=False,
+      cache_control='no-cache',
+    )
 
   def default_info(self):
     return {

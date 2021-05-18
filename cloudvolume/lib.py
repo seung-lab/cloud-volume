@@ -1,15 +1,14 @@
-from __future__ import print_function
-from six.moves import range, reduce
-
+import decimal
+from functools import reduce
 import json
-import os
-import re 
-import sys
 import math
 import operator
+import os
+import random
+import re 
+import sys
 import time
 import types
-import random
 import string 
 from itertools import product
 
@@ -153,6 +152,12 @@ def mkdir(path):
 def touch(path):
   mkdir(os.path.dirname(path))
   open(path, 'a').close()
+
+def getprecision(num):
+  try:
+    return len(str(num).split('.')[1])
+  except IndexError:
+    return 0
 
 def find_closest_divisor(to_divide, closest_to):
   """
@@ -457,9 +462,23 @@ class Bbox(object):
 
     return Bbox( mins, maxes, dtype=np.int64)
 
-  def to_filename(self):
+  def to_filename(self, precision=None):
+    """
+    Renders the Bbox as a string. For example:
+    
+    >>> Bbox([0,2,4],[1,3,5]).to_filename()
+    > '0-1_2-3_4-5'
+
+    If the data is floating point, adding a precision
+    allows will round the numbers to that decimal place.
+    """
+    def render(x):
+      if precision:
+        return f"{round(x, precision):.{precision}f}"
+      return str(x)
+
     return '_'.join(
-      ( str(self.minpt[i]) + '-' + str(self.maxpt[i]) for i in range(self.ndim) )
+      ( render(self.minpt[i]) + '-' + render(self.maxpt[i]) for i in range(self.ndim) )
     )
 
   def to_slices(self):
@@ -728,25 +747,27 @@ class Bbox(object):
 
   # note that operand can be a vector 
   # or a scalar thanks to numpy
-  def __sub__(self, operand): 
-    tmp = self.clone()
-    
+  def __isub__(self, operand): 
     if isinstance(operand, Bbox):
-      tmp.minpt -= operand.minpt
-      tmp.maxpt -= operand.maxpt
+      self.minpt = np.subtract(self.minpt, operand.minpt, casting="safe")
+      self.maxpt = np.subtract(self.maxpt, operand.maxpt, casting="safe")
     else:
-      tmp.minpt -= operand
-      tmp.maxpt -= operand
+      self.minpt = np.subtract(self.minpt, operand, casting="safe")
+      self.maxpt = np.subtract(self.maxpt, operand, casting="safe")
 
-    return tmp
+    return self.astype(self.minpt.dtype)
+
+  def __sub__(self, operand):
+    tmp = self.clone()
+    return tmp.__isub__(operand)
 
   def __iadd__(self, operand):
     if isinstance(operand, Bbox):
-      self.minpt += operand.minpt
-      self.maxpt += operand.maxpt
+      self.minpt = np.add(self.minpt, operand.minpt, casting="safe")
+      self.maxpt = np.add(self.maxpt, operand.maxpt, casting="safe")
     else:
-      self.minpt += operand
-      self.maxpt += operand
+      self.minpt = np.add(self.minpt, operand, casting="safe")
+      self.maxpt = np.add(self.maxpt, operand, casting="safe")
 
     return self
 
@@ -755,14 +776,15 @@ class Bbox(object):
     return tmp.__iadd__(operand)
 
   def __imul__(self, operand):
-    self.minpt *= operand
-    self.maxpt *= operand
+    self.minpt = np.multiply(self.minpt, operand, casting="safe")
+    self.maxpt = np.multiply(self.maxpt, operand, casting="safe")
+    self._dtype = self.minpt.dtype 
     return self
 
   def __mul__(self, operand):
     tmp = self.clone()
-    tmp.minpt *= operand
-    tmp.maxpt *= operand
+    tmp.minpt = np.multiply(tmp.minpt, operand, casting="safe")
+    tmp.maxpt = np.multiply(tmp.maxpt, operand, casting="safe")
     return tmp.astype(tmp.minpt.dtype)
 
   def __idiv__(self, operand):
