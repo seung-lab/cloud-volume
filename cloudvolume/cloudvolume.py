@@ -31,7 +31,7 @@ class SharedConfiguration(object):
   """
   def __init__(
     self, cdn_cache, compress, compress_level, green,
-    mip, parallel, progress, secrets,
+    mip, parallel, progress, secrets, request_payer,
     *args, **kwargs
   ):
     if type(parallel) == bool:
@@ -49,6 +49,7 @@ class SharedConfiguration(object):
     self.parallel = parallel 
     self.progress = bool(progress)
     self.secrets = secrets
+    self.request_payer = request_payer
     self.args = args
     self.kwargs = kwargs
 
@@ -61,7 +62,7 @@ class CloudVolume(object):
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
     max_redirects=10, mesh_dir=None, skel_dir=None, 
-    agglomerate=False, secrets=None
+    agglomerate=False, secrets=None, request_payer=None
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -191,6 +192,9 @@ class CloudVolume(object):
           file, use this one. 
       secrets: (dict) provide per-instance authorization tokens. If not provided,
         defaults to looking in .cloudvolume/secrets for necessary tokens.
+      request_payer: (str) If provided, requests will be billed towards
+        the project ID specified by `request_payer` (GCS), or the account that issued
+        the access credentials (S3, `request_payer` must be "requester")
       skel_dir: (str) if not None, override the info['skeletons'] key before 
         pulling the skeleton info file.
       use_https: (bool) maps gs:// and s3:// to their respective https paths. The 

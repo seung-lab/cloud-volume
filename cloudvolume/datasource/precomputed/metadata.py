@@ -190,7 +190,7 @@ class PrecomputedMetadata(object):
 
     Returns: dict
     """
-    info = CloudFiles(self.cloudpath, secrets=self.config.secrets).get_json('info')
+    info = CloudFiles(self.cloudpath, secrets=self.config.secrets, request_payer=self.config.request_payer).get_json('info')
 
     if info is None:
       raise exceptions.InfoUnavailableError(
@@ -301,7 +301,7 @@ Hops:
       separators=(',', ': ')
     )
     # use put instead of put_json to preserve formatting
-    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets, request_payer=self.config.request_payer)
     cf.put(
       'info', infojson,
       cache_control='no-cache',
@@ -361,7 +361,7 @@ Hops:
 
     Returns: dict
     """
-    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets, request_payer=self.config.request_payer)
     provfile = cf.get('provenance')
     if provfile:
       provfile = provfile.decode('utf-8')
@@ -404,7 +404,7 @@ Hops:
     )
 
     # need to use put vs put_json to preserve formatting
-    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets, request_payer=self.config.request_payer)
     cf.put(
       'provenance', prov, 
       cache_control='no-cache', 

@@ -44,7 +44,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     ]
 
     cloudpath = self.meta.join(self.meta.cloudpath, self.meta.mesh_path)
-    return CloudFiles(cloudpath, secrets=self.config.secrets).exists(filenames)
+    return CloudFiles(cloudpath, secrets=self.config.secrets, request_payer=self.config.request_payer).exists(filenames)
 
   def get_fragment_labels(self, segid, lod=0, level=2, bbox=None, bypass=False):
     if bypass:

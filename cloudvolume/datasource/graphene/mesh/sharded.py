@@ -56,7 +56,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     results = CloudFiles(
       cloudpath, progress=progress, 
-      green=self.config.green, secrets=self.config.secrets
+      green=self.config.green, secrets=self.config.secrets,
+      request_payer=self.config.request_payer,
     ).exists(checks)
 
     output = {}
@@ -161,6 +162,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
         green=self.config.green, 
         secrets=self.config.secrets,
         parallel=self.config.parallel,
+        request_payer=self.config.request_payer,
       ).get(lists['dynamic'])
     
     dynamic_meshes = []
@@ -188,6 +190,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       green=self.config.green, 
       secrets=self.config.secrets,
       parallel=self.config.parallel,
+      request_payer=self.config.request_payer,
     ).get(fetches)
     initial_meshes = []
     while files:
@@ -268,6 +271,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       green=self.config.green,
       secrets=self.config.secrets,
       parallel=self.config.parallel,
+      request_payer=self.config.request_payer,
     )
     raw_binaries = cf.get(filenames)
 
