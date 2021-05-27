@@ -85,7 +85,7 @@ class PrecomputedSkeletonMetadata(object):
 
     info = copy.deepcopy(self.info)
     if info.get("sharding", None) is None:
-      del info["sharding"]
+        info.pop("sharding", None)
 
     self.cache.upload_single(
       self.meta.join(self.skeleton_path, 'info'),
