@@ -199,7 +199,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     binary = self.reader.get_data(segid, self.path)
     if binary is None:
       return None
-    return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=byte_start, shard_filepath=shard_filepath)
+    return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=byte_start, path=shard_filepath)
   
   def get(self, segids, lod=0, concat=True, progress=None):
     """Fetch meshes at a given level of detail (lod).
@@ -240,7 +240,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
 
       # Read the data for all LODs
       fragment_sizes = [ 
-        np.sum(lod_fragment_sizes) for lod_fragment_sizes in self.fragment_offsets 
+        np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets 
       ]
       total_fragment_size = np.sum(fragment_sizes)
       full_path = self.reader.meta.join(self.reader.meta.cloudpath)
