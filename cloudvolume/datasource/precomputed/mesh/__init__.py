@@ -16,12 +16,13 @@ class PrecomputedMeshSource(object):
   def __new__(cls, meta, cache, config, readonly=False):
     mesh_meta = PrecomputedMeshMetadata(meta, cache)
     if mesh_meta.info.get('@type', None) == 'neuroglancer_multilod_draco':
-      if mesh_meta.info['sharding']['@type'] == 'neuroglancer_uint64_sharded_v1':
+      sharding = mesh_meta.info.get('sharding', None)
+      if sharding and sharding['@type'] == 'neuroglancer_uint64_sharded_v1':
         # Sharded storage of multi-resolution mesh fragment data
         return ShardedMultiLevelPrecomputedMeshSource(mesh_meta, cache, config, readonly) 
       else:
         # Unsharded storage of multi-resolution mesh fragment data
-        return UnshardedMultiLevelPrecomputedMeshSource()
+        return UnshardedMultiLevelPrecomputedMeshSource(mesh_meta, cache, config, readonly)
   
     # Legacy single-resolution mesh format
     return UnshardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly)
