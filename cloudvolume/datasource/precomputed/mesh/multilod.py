@@ -56,9 +56,10 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
   def get_manifest(self, segid, progress=None):
     """Retrieve the manifest for one or more segments."""
     segid, multiple_return = toiter(segid, is_iter=True)
+    progress = progress if progress is not None else self.config.progress
 
     cloudpath = self.meta.join(self.meta.cloudpath, self.path)
-    cf = CloudFiles(cloudpath)
+    cf = CloudFiles(cloudpath, progress=progress)
     results = cf.get((f"{sid}.index" for sid in segid ), total=len(segid))
 
     if not multiple_return:
@@ -111,6 +112,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
     if lod < 0:
       raise exceptions.ValueError(red(f'lod ({lod}) must be >= 0.'))
 
+    progress = progress if progress is not None else self.config.progress
     segids = toiter(segids)
 
     # decode all the fragments
