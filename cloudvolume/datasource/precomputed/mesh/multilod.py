@@ -220,7 +220,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     Reference:
       https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
     """
-
+    progress = progress if progress is not None else self.config.progress
     segids = toiter(segids)
 
     # decode all the fragments
