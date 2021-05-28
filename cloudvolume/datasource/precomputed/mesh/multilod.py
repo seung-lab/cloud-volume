@@ -63,6 +63,8 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
     results = cf.get((f"{sid}.index" for sid in segid ), total=len(segid))
 
     if not multiple_return:
+      if not results:
+        return None
       binary = results[0]["content"]
       if binary is None:
         return None
