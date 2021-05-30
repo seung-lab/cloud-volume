@@ -3,7 +3,24 @@ import pytest
 import numpy as np
 
 import cloudvolume.lib as lib
-from cloudvolume.lib import Bbox, Vec
+from cloudvolume.lib import Bbox, Vec, xyzrange, xyzrange_np
+
+def test_xyzrange():
+  def xyz(*args):
+    return np.array(list(xyzrange_np(*args)))
+
+  assert list(xyzrange((0,0,0))) == []
+  assert list(xyzrange((1,0,0))) == []
+  assert np.all(xyz((1,1,1)) == [Vec(0,0,0)])
+  assert np.all(xyz((2,1,1)) == [Vec(0,0,0), Vec(1,0,0)])
+  assert np.all(xyz((2,2,2)) == [
+    Vec(0,0,0), Vec(1,0,0),
+    Vec(0,1,0), Vec(1,1,0),
+    Vec(0,0,1), Vec(1,0,1),
+    Vec(0,1,1), Vec(1,1,1),
+  ])
+  assert np.all(xyz((2,1,1), (3,2,2)) == [Vec(2,1,1)])
+  assert np.all(xyz((2,1,1), (5,2,2), (2,1,1)) == [Vec(2,1,1), Vec(4,1,1)])
 
 def test_divisors():
 
