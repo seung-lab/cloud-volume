@@ -115,14 +115,16 @@ class SpatialIndex(object):
     pbar.close()
 
   def index_file_paths_for_bbox(self, bbox):
+    """
+    Returns an iterator over the spatial index filenames
+    that overlap with the bounding box.
+    """
     bbox = bbox.expand_to_chunk_size(self.chunk_size, offset=self.physical_bounds.minpt)
-
     if bbox.subvoxel():
       return []
 
     chunk_size = self.chunk_size
-    bounds = self.bounds
-    resolution = self.resolution
+    bounds = self.physical_bounds.clone()
     precision = self.precision
 
     class IndexPathIterator():
@@ -131,7 +133,6 @@ class SpatialIndex(object):
       def __iter__(self):
         for pt in xyzrange(bbox.minpt, bbox.maxpt, chunk_size):
           search = Bbox( pt, min2(pt + chunk_size, bounds.maxpt) )
-          search *= resolution
           yield search.to_filename(precision) + '.spatial'
 
     return IndexPathIterator()
