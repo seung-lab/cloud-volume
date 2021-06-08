@@ -3,7 +3,66 @@ import pytest
 import numpy as np
 
 import cloudvolume.lib as lib
-from cloudvolume.lib import Bbox, Vec
+from cloudvolume.lib import Bbox, Vec, xyzrange
+
+def test_xyzrange():
+  def xyz(*args):
+    return np.array(list(xyzrange(*args)))
+
+  assert list(xyzrange((0,0,0))) == []
+  assert list(xyzrange((1,0,0))) == []
+  assert np.all(xyz((1,1,1)) == [Vec(0,0,0)])
+  assert np.all(xyz((2,1,1)) == [Vec(0,0,0), Vec(1,0,0)])
+  assert np.all(xyz((2,2,2)) == [
+    Vec(0,0,0), Vec(1,0,0),
+    Vec(0,1,0), Vec(1,1,0),
+    Vec(0,0,1), Vec(1,0,1),
+    Vec(0,1,1), Vec(1,1,1),
+  ])
+  assert np.all(xyz((2,1,1), (3,2,2)) == [Vec(2,1,1)])
+  assert np.all(xyz((2,1,1), (5,2,2), (2,1,1)) == [Vec(2,1,1), Vec(4,1,1)])
+
+  z = xyz((0,0,0), (2,2,1), (0.5,0.5,0.5))
+  print(z)
+  print(len(z))
+
+  assert np.all(xyz((0,0,0), (2,2,1), (0.5,0.5,0.5)) == [
+    Vec(0.0,0.0,0.0),
+    Vec(0.5,0.0,0.0),
+    Vec(1.0,0.0,0.0),
+    Vec(1.5,0.0,0.0),
+    Vec(0.0,0.5,0.0),
+    Vec(0.5,0.5,0.0),
+    Vec(1.0,0.5,0.0),
+    Vec(1.5,0.5,0.0),
+    Vec(0.0,1.0,0.0),
+    Vec(0.5,1.0,0.0),
+    Vec(1.0,1.0,0.0),
+    Vec(1.5,1.0,0.0),
+    Vec(0.0,1.5,0.0),
+    Vec(0.5,1.5,0.0),
+    Vec(1.0,1.5,0.0),
+    Vec(1.5,1.5,0.0),
+    
+    Vec(0.0,0.0,0.5),
+    Vec(0.5,0.0,0.5),
+    Vec(1.0,0.0,0.5),
+    Vec(1.5,0.0,0.5),
+    Vec(0.0,0.5,0.5),
+    Vec(0.5,0.5,0.5),
+    Vec(1.0,0.5,0.5),
+    Vec(1.5,0.5,0.5),
+    Vec(0.0,1.0,0.5),
+    Vec(0.5,1.0,0.5),
+    Vec(1.0,1.0,0.5),
+    Vec(1.5,1.0,0.5),
+    Vec(0.0,1.5,0.5),
+    Vec(0.5,1.5,0.5),
+    Vec(1.0,1.5,0.5),
+    Vec(1.5,1.5,0.5),
+    
+  ])
+
 
 def test_divisors():
 

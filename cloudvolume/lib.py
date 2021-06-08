@@ -205,25 +205,23 @@ def xyzrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
     end_vec = start_vec
     start_vec = (0,0,0)
 
-  start_vec = np.array(start_vec, dtype=int)
-  end_vec = np.array(end_vec, dtype=int)
+  dtype = int
+  if floating(start_vec) or floating(end_vec) or floating(stride_vec):
+    dtype= float
 
-  rangeargs = ( (start, end, stride) for start, end, stride in zip(start_vec, end_vec, stride_vec) )
-  xyzranges = [ range(*arg) for arg in rangeargs ]
-  
-  # iterate then x first, then y, then z
-  # this way you process in the xy plane slice by slice
-  # but you don't create process lots of prefix-adjacent keys
-  # since all the keys start with X
-  zyxranges = xyzranges[::-1]
+  start_vec = np.array(start_vec, dtype=dtype)
+  end_vec = np.array(end_vec, dtype=dtype)
 
-  def vectorize():
-    pt = Vec(0,0,0)
-    for z,y,x in product(*zyxranges):
-      pt.x, pt.y, pt.z = min(x, end_vec[0]), min(y, end_vec[1]), min(z, end_vec[2])
-      yield pt
-
-  return vectorize()
+  (x, y, z) = start_vec
+  while z < end_vec[2]:
+    while y < end_vec[1]:
+      while x < end_vec[0]:
+        yield Vec(x,y,z, dtype=dtype)
+        x += stride_vec[0]
+      x = start_vec[0]
+      y += stride_vec[1] 
+    y = start_vec[1]
+    z += stride_vec[2]
 
 def map2(fn, a, b):
   assert len(a) == len(b), "Vector lengths do not match: {} (len {}), {} (len {})".format(a[:3], len(a), b[:3], len(b))
@@ -254,7 +252,13 @@ def check_bounds(val, low, high):
 
 class Vec(np.ndarray):
     def __new__(cls, *args, **kwargs):
-      dtype = kwargs['dtype'] if 'dtype' in kwargs else int
+      if 'dtype' in kwargs:
+        dtype = kwargs['dtype']
+      elif floating(args):
+        dtype = float
+      else:
+        dtype = int
+
       return super(Vec, cls).__new__(cls, shape=(len(args),), buffer=np.array(args).astype(dtype), dtype=dtype)
 
     @classmethod
@@ -298,7 +302,6 @@ Vec.r = Vec.x
 Vec.g = Vec.y
 Vec.b = Vec.z
 Vec.a = Vec.w
-
 
 def floating(lst):
   return any(( isinstance(x, float) for x in lst ))
