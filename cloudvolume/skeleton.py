@@ -1,14 +1,12 @@
 from collections import defaultdict
 import copy
 import datetime
+from io import BytesIO
 import re
 import os
+import networkx as nx
 
-try:
-  from StringIO import cStringIO as BytesIO
-except ImportError:
-  from io import BytesIO
-
+import fastremap
 import numpy as np
 import struct
 
@@ -458,23 +456,18 @@ class Skeleton(object):
 
     vertex1, inv1 = np.unique(first.vertices, axis=0, return_inverse=True)
     vertex2, inv2 = np.unique(second.vertices, axis=0, return_inverse=True)
-
+    
     vertex_match = np.all(np.abs(vertex1 - vertex2) < EPSILON)
     if not vertex_match:
       return False
 
-    remapping = {}
-    for i in range(len(inv1)):
-      remapping[inv1[i]] = inv2[i]
-    remap = np.vectorize(lambda idx: remapping[idx])
-
-    edges1 = np.sort(np.unique(first.edges, axis=0), axis=1)
-    edges1 = edges1[np.lexsort(edges1[:,::-1].T)]
-
-    edges2 = remap(second.edges)
-    edges2 = np.sort(np.unique(edges2, axis=0), axis=1)
-    edges2 = edges2[np.lexsort(edges2[:,::-1].T)]
-    edges_match = np.all(edges1 == edges2)
+    g1 = nx.Graph()
+    g1.add_edges_from(first.edges)
+    g2 = nx.Graph()
+    g2.add_edges_from(second.edges)
+    edges_match = nx.is_isomorphic(g1, g2)
+    del g1 
+    del g2
 
     if not edges_match:
       return False
@@ -511,7 +504,7 @@ class Skeleton(object):
       return skeleton
 
     nodes_valid_mask = np.array(
-      [ bbox.contains(vtx) for vtx in skeleton.vertices ], dtype=np.bool
+      [ bbox.contains(vtx) for vtx in skeleton.vertices ], dtype=bool
     )
     nodes_valid_idx = np.where(nodes_valid_mask)[0]
 
@@ -753,7 +746,7 @@ class Skeleton(object):
     vertices = skeleton.vertices
     edges = skeleton.edges
 
-    unique_nodes, unique_counts = np.unique(edges, return_counts=True)
+    unique_nodes, unique_counts = fastremap.unique(edges, return_counts=True)
     terminal_nodes = unique_nodes[ unique_counts == 1 ]
     branch_nodes = set(unique_nodes[ unique_counts >= 3 ])
     
@@ -821,8 +814,7 @@ class Skeleton(object):
 
     return paths
 
-  def _compute_components(self):
-    skel = self.consolidate(remove_disconnected_vertices=False)
+  def _compute_components(self, skel):
     if skel.edges.size == 0:
       return skel, []
 
@@ -855,10 +847,10 @@ class Skeleton(object):
           stack.append(child)
           parents.append(node)
 
-      return edge_list[1:]
+      return np.unique(edge_list[1:], axis=0)
 
     forest = []
-    for edge in np.unique(skel.edges.flatten()):
+    for edge in fastremap.unique(skel.edges.flatten()):
       if visited[edge]:
         continue
 
@@ -866,7 +858,7 @@ class Skeleton(object):
         extract_component(edge)
       )
 
-    return skel, forest
+    return forest
   
   def components(self):
     """
@@ -875,28 +867,25 @@ class Skeleton(object):
 
     Returns: [ Skeleton, Skeleton, ... ]
     """
-    skel, forest = self._compute_components()
-
+    skel = self.clone()
+    forest = self._compute_components(skel)
+    
     if len(forest) == 0:
       return []
     elif len(forest) == 1:
       return [ skel ]
 
-    orig_verts = { tuple(coord): i for i, coord in enumerate(skel.vertices) }      
-
     skeletons = []
     for edge_list in forest:
       edge_list = np.array(edge_list, dtype=np.uint32)
-      edge_list = np.unique(edge_list, axis=0)
-      vert_idx = np.unique(edge_list.flatten())
+      vert_idx = fastremap.unique(edge_list)
+
       vert_list = skel.vertices[vert_idx]
       radii = skel.radii[vert_idx]
       vtypes = skel.vertex_types[vert_idx]
 
-      new_verts = { orig_verts[tuple(coord)]: i for i, coord in enumerate(vert_list) }
-
-      edge_vector_map = np.vectorize(lambda x: new_verts[x])
-      edge_list = edge_vector_map(edge_list)
+      remap = { vid: i for i, vid in enumerate(vert_idx) }
+      edge_list = fastremap.remap(edge_list, remap, in_place=True)
 
       skeletons.append(
         Skeleton(vert_list, edge_list, radii, vtypes, skel.id)
@@ -933,9 +922,8 @@ class Skeleton(object):
     radii = []
     vertex_types = []
 
-    vertex_index = {}
     label_index = {}
-    parents = {}
+    
     N = 0
 
     for line in lines:
@@ -947,9 +935,15 @@ class Skeleton(object):
       vid = int(vid)
       parent_id = int(parent_id)
 
-      vertex_index[coord] = N
-      label_index[vid] = coord
-      parents[N] = parent_id
+      label_index[vid] = N
+
+      if parent_id >= 0:
+        if vid < parent_id:
+          edge = [vid, parent_id]
+        else:
+          edge = [parent_id, vid]
+
+        edges.append(edge)
 
       vertices.append(coord)
       vertex_types.append(int(vtype))
@@ -963,11 +957,9 @@ class Skeleton(object):
 
       N += 1
 
-    for i, parent_id in parents.items():
-      if parent_id < 0:
-        continue
-      
-      edges.append( (i, vertex_index[label_index[parent_id]]) )
+    for edge in edges:
+      edge[0] = label_index[edge[0]]
+      edge[1] = label_index[edge[1]]
 
     return Skeleton(vertices, edges, radii, vertex_types)
 
@@ -990,26 +982,23 @@ class Skeleton(object):
     Returns: swc as a string
     """
     from . import __version__
-    swc_header = """# ORIGINAL_SOURCE CloudVolume {}
+    sx, sy, sz = np.diag(self.transform)[:3]
+
+    swc_header = f"""# ORIGINAL_SOURCE CloudVolume {__version__}
 # CREATURE 
 # REGION
 # FIELD/LAYER
 # TYPE
-# CONTRIBUTOR {}
+# CONTRIBUTOR {contributors}
 # REFERENCE
 # RAW 
 # EXTRAS 
 # SOMA_AREA
 # SHINKAGE_CORRECTION 
-# VERSION_NUMBER 
-# VERSION_DATE {}
-# SCALE 1.0 1.0 1.0
-
-""".format(
-      __version__, 
-      contributors,
-      datetime.datetime.utcnow().isoformat()
-    )
+# VERSION_NUMBER {__version__}
+# VERSION_DATE {datetime.datetime.utcnow().isoformat()}
+# SCALE {sx:.6f} {sy:.6f} {sz:.6f}
+"""
 
     def generate_swc(skel, offset):
       if skel.edges.size == 0:
@@ -1051,7 +1040,7 @@ class Skeleton(object):
 
       return swc
 
-    skels = self.remove_disconnected_vertices().components()
+    skels = self.components()
 
     swc = swc_header + "\n"
     offset = 0

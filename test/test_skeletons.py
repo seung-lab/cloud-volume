@@ -434,7 +434,7 @@ def test_downsample_joints():
 
                         (2, 3,0), # 0
                         
-                        (2, 2,0), # 1
+                        (2, 1,0), # 1
       (0,0,0),          (2, 0,0),     (4,0,0), # 2, 3, 4
 
                         (2,-2,0), # 5                        
@@ -448,8 +448,8 @@ def test_downsample_joints():
                   (3,5),
                   (5,6)
     ],
-    radii=[ 0, 1, 3, 5, 7, 9, 10 ],
-    vertex_types=[ 0, 1, 3, 5, 7, 9, 10 ],
+    radii=[ 0, 2, 3, 5, 7, 9, 10 ],
+    vertex_types=[ 0, 2, 3, 5, 7, 9, 10 ],
     segid=1337,
   )
 
@@ -510,7 +510,8 @@ def test_read_swc():
   assert Skeleton.equivalent(skel, skel_gt)
 
   skel = Skeleton.from_swc(skel.to_swc())
-  assert np.all(np.abs(skel.vertices - skel_gt.vertices) < 0.00001)
+  assert Skeleton.equivalent(skel, skel_gt)
+
   # sorts edges
   skel = skel.consolidate()
   skel_gt = skel_gt.consolidate()
