@@ -148,7 +148,7 @@ class ShardingSpecification(object):
 
     return ShardLocation(shard_number, minishard_number, remainder)
 
-  def synthesize_shards(self, data, progress=False):
+  def synthesize_shards(self, data, offset=None, progress=False):
     """
     Given this specification and a comprehensive listing of
     all the items that could be combined into a given shard,
@@ -162,7 +162,7 @@ class ShardingSpecification(object):
       $filename: binary data,
     }
     """
-    return synthesize_shard_files(self, data, progress)
+    return synthesize_shard_files(self, data, offset, progress)
 
   def synthesize_shard(self, labels, progress=False, presorted=False):
     """
@@ -684,7 +684,7 @@ class ShardReader(object):
       labels = [ (row[0], row[2]) for row in labels[:] ]
       return sorted(labels, key=lambda x: x[1], reverse=True)
 
-def synthesize_shard_files(spec, data, progress=False):
+def synthesize_shard_files(spec, data, offset=None, progress=False):
   """
   From a set of data guaranteed to constitute one or more
   complete and comprehensive shards (no partial shards) 
@@ -720,12 +720,15 @@ def synthesize_shard_files(spec, data, progress=False):
 
   for shardno, shardgrp in pbar:
     filename = str(shardno) + '.shard'
-    shard_files[filename] = synthesize_shard_file(spec, shardgrp, progress=(progress > 1), presorted=True)
+    shard_files[filename] = synthesize_shard_file(
+        spec, shardgrp, offset, progress=(progress > 1), presorted=True)
 
   return shard_files
 
 # NB: This is going to be memory hungry and can be optimized
-def synthesize_shard_file(spec, label_group, progress=False, presorted=False):
+
+
+def synthesize_shard_file(spec, label_group, offset=None, progress=False, presorted=False):
   """
   Assemble a shard file from a group of labels that all belong in the same shard.
 
@@ -772,8 +775,13 @@ def synthesize_shard_file(spec, label_group, progress=False, presorted=False):
         binary = compression.compress(binary, method=spec.data_encoding)
 
       minishard_index[0, i] = label - last_label
-      minishard_index[1, i] = 0 # minishard_index[2, i - 1]
-      minishard_index[2, i] = len(binary)
+      if offset is None:
+        minishard_index[1, i] = 0 # minishard_index[2, i - 1]
+        minishard_index[2, i] = len(binary)
+      else:
+        minishard_index[1, i] = offset[label] #add offset of the actual data if it exists
+        minishard_index[2, i] = len(binary)-offset[label]
+      
       minishard_components.append(binary)
       last_label = label
       del minishardgrp[label]
@@ -785,10 +793,11 @@ def synthesize_shard_file(spec, label_group, progress=False, presorted=False):
 
   del minishard_mapping
 
-  cum_minishard_size = 0
-  for idx, minishard in zip(minishard_indicies, minishards):
-    idx[1, 0] = cum_minishard_size
-    cum_minishard_size += len(minishard)
+  if offset is None:
+    cum_minishard_size = 0
+    for idx, minishard in zip(minishard_indicies, minishards):
+      idx[1, 0] = cum_minishard_size
+      cum_minishard_size += len(minishard)
 
   if progress:
     print("Partial assembly of minishard indicies and data... ", end="", flush=True)
