@@ -4,7 +4,7 @@ import time
 import multiprocessing as mp
 import numpy as np
 
-from .exceptions import UnsupportedFormatError
+from .exceptions import UnsupportedFormatError, DimensionError
 from .lib import generate_random_string
 from .paths import strict_extract, to_https_protocol
 
@@ -234,27 +234,28 @@ class CloudVolume(object):
     the numpy array itself was not downsampled. 
     """
     if not layer_type:
-      if arr.dtype in (np.bool, np.uint32, np.uint64, np.uint16):
+      if arr.dtype in (bool, np.uint32, np.uint64, np.uint16):
         layer_type = 'segmentation'
       elif np.issubdtype(arr.dtype, np.integer) \
                         or np.issubdtype(arr.dtype, np.floating):
         layer_type = 'image'
       else:
-        raise NotImplementedError
+        raise ValueError(f"{arr.dtype} is not supported.")
 
     if arr.ndim == 3:
       num_channels = 1
     elif arr.ndim == 4:
       num_channels = arr.shape[-1]
     else:
-      raise NotImplementedError
-
+      raise DimensionError(f"CloudVolume only accepts 3 or 4 dimensional images. Got: {arr.ndim}")
+      
     info = cls.create_new_info(
       num_channels, layer_type, arr.dtype.name,
       encoding, resolution,
       voxel_offset, arr.shape[:3],
       chunk_size=chunk_size, max_mip=max_mip
     )
+    
     vol = CloudVolume(vol_path, info=info, bounded=True, compress=compress)
     # save the info file
     vol.commit_info()

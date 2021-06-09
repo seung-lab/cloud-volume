@@ -63,12 +63,13 @@ def encode(img_chunk, encoding, block_size=None):
   else:
     raise NotImplementedError(encoding)
 
-def decode(filedata, encoding, shape=None, dtype=None, block_size=None):
+def decode(filedata, encoding, shape=None, dtype=None, block_size=None, 
+                     background_color=0):
   if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed'):
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
-    return np.zeros(shape=shape, dtype=dtype)
+    return np.full(shape=shape, fill_value=background_color, dtype=dtype)
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == "kempressed":
@@ -98,7 +99,7 @@ def encode_jpeg(arr, quality=85):
   reshaped = arr.T
   reshaped = np.moveaxis(reshaped, 0, -1)
   reshaped = reshaped.reshape(
-    arr.shape[0] * arr.shape[1], arr.shape[2], num_channel
+    reshaped.shape[0] * reshaped.shape[1], reshaped.shape[2], num_channel
   )
   if num_channel == 1:
     return simplejpeg.encode_jpeg(
@@ -150,6 +151,10 @@ def encode_compressed_segmentation_c_ext(subvol, block_size):
   else:
     order = 'F'
     subvol = np.asfortranarray(subvol)
+
+  if not subvol.flags.writeable:
+    subvol = np.copy(subvol)
+
   return cseg.compress(subvol, block_size=block_size, order=order)
 
 def encode_compressed_segmentation_pure_python(subvol, block_size):

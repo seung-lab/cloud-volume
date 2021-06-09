@@ -331,8 +331,20 @@ def graphene_vol(cv_supervoxels,  requests_mock, monkeypatch, N=64):
     "data_dir": cv_supervoxels,
     "data_type": "uint64",
     "graph": {
-      "chunk_size": [64, 64, 64]
+      "chunk_size": [64, 64, 64],
+      "bounding_box": [2048, 2048, 512], 
+      "chunk_size": [256, 256, 512], 
+      "cv_mip": 0, 
+      "n_bits_for_layer_id": 8, 
+      "n_layers": 12, 
+      "spatial_bit_masks": {
+        '1': 10, '2': 10, '3': 9, 
+        '4': 8, '5': 7, '6': 6, 
+        '7': 5, '8': 4, '9': 3, 
+        '10': 2, '11': 1, '12': 1
+      }
     },
+    "app": { "supported_api_versions": [0, 1] },
     "mesh": "mesh_mip_2_err_40_sv16",
     "num_channels": 1,
     "scales": [
@@ -370,6 +382,18 @@ def test_gcv(graphene_vol):
   assert cutout_sv.shape == (5,5,5,1)
   assert graphene_vol[0,0,0].shape == (1,1,1,1)
 
+
+def test_get_roots(graphene_vol):
+  roots = graphene_vol.get_roots([])
+  assert np.all(roots == [])
+
+  segids = [0, 0, 0, 0, 0]
+  roots = graphene_vol.get_roots(segids)
+  assert np.all(roots == segids)
+
+  segids = [0, 864691135462849854, 864691135462849854, 0]
+  roots = graphene_vol.get_roots(segids)
+  assert np.all(roots == segids)
 
 def faces_to_edges(faces, return_index=False):
   """

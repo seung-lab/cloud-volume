@@ -534,7 +534,10 @@ class CloudVolumePrecomputed(object):
       segids=None, preserve_zeros=False,
       
       # Absorbing polymorphic Graphene calls
-      agglomerate=None, timestamp=None, stop_layer=None
+      agglomerate=None, timestamp=None, stop_layer=None,
+
+      # new download arguments
+      renumber=False
     ):
     """
     Downloads segmentation from the indicated cutout
@@ -550,6 +553,9 @@ class CloudVolumePrecomputed(object):
       False: mask other segids with zero
       True: mask other segids with the largest integer value
         contained by the image data type and leave zero as is.
+    renumber: dynamically rewrite downloaded segmentation into
+      a more compact data type. Only compatible with single-process
+      non-sharded download.
 
     agglomerate, timestamp, and stop_layer are just there to 
     absorb arguments to what could be a graphene frontend.
@@ -568,10 +574,15 @@ class CloudVolumePrecomputed(object):
     if parallel is None:
       parallel = self.parallel
 
-    img = self.image.download(bbox, mip, parallel=parallel)
+    tup = self.image.download(bbox, mip, parallel=parallel, renumber=bool(renumber))
+    if renumber:
+      img, remap = tup
+    else:
+      remap = {}
+      img = tup
 
     if segids is None:
-      return img
+      return tup
 
     mask_value = 0
     if preserve_zeros:
@@ -583,9 +594,13 @@ class CloudVolumePrecomputed(object):
 
     img = fastremap.mask_except(img, segids, in_place=True, value=mask_value)
 
-    return VolumeCutout.from_volume(
+    img = VolumeCutout.from_volume(
       self.meta, mip, img, bbox
     )
+    if renumber:
+      return img, remap
+    else:
+      return img
 
   def download_point(
     self, pt, size=256, 

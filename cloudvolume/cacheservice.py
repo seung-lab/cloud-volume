@@ -421,7 +421,12 @@ class CacheService(object):
 
     remote_path_tuples = list(alias_tuples.values())
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
+    cf = CloudFiles(
+      self.meta.cloudpath, 
+      progress=progress, 
+      secrets=self.config.secrets,
+      parallel=self.config.parallel,
+    )
     remote_fragments = cf.get(
       ( { 'path': p[0], 'start': p[1], 'end': p[2] } for p in remote_path_tuples )
     )
@@ -469,7 +474,12 @@ class CacheService(object):
     if self.enabled:
       fragments = self.get(locs['local'], progress=progress)
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
+    cf = CloudFiles(
+      self.meta.cloudpath, 
+      progress=progress, 
+      secrets=self.config.secrets,
+      parallel=self.config.parallel,
+    )
     remote_fragments = cf.get(locs['remote'], raw=True)
 
     for frag in remote_fragments:
@@ -487,12 +497,12 @@ class CacheService(object):
         raw=True
       )
 
-    remote_fragments = { 
-      res['path']: compression.decompress(res['content'], res['compress']) \
-      for res in remote_fragments
-    }
+    remote_fragments_dict = {}
+    while remote_fragments:
+      res = remote_fragments.pop()
+      remote_fragments_dict[res['path']] = compression.decompress(res['content'], res['compress'])
 
-    fragments.update(remote_fragments)
+    fragments.update(remote_fragments_dict)
     return fragments
 
   def get_single(self, cloudpath, progress=None):
@@ -528,7 +538,8 @@ class CacheService(object):
     cf.puts(
       files, 
       compress=compress, 
-      compression_level=compress_level
+      compression_level=compress_level,
+      parallel=self.config.parallel,
     )
 
   def compute_data_locations(self, cloudpaths):

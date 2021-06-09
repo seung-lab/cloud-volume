@@ -1,16 +1,15 @@
 language: python
 python:
-- '3.5'
 - '3.6'
 - '3.7'
 - '3.8'
+- '3.9'
 before_install:
 - PYTHON_MAJOR_VERSION=`echo $TRAVIS_PYTHON_VERSION | head -c 1`
 - sudo apt-get install python3-pip
 - mkdir -p ~/.cloudvolume/secrets/
 - echo $AWS_SECRET > ~/.cloudvolume/secrets/aws-secret.json
 - echo $GOOGLE_SECRET > ~/.cloudvolume/secrets/google-secret.json
-- echo $BOSS_SECRET > ~/.cloudvolume/secrets/boss-secret.json
 install:
 - virtualenv -p python3 venv
 - source venv/bin/activate

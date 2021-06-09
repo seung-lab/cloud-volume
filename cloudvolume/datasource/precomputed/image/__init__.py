@@ -97,13 +97,13 @@ class PrecomputedImageSource(ImageSourceInterface):
     
     cf = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
     key = self.meta.key(mip)
-    return len(list(sip(cf.list(prefix=key), 1))) > 0
+    return first(cf.list(prefix=key)) is not None
 
   def download(
       self, bbox, mip, parallel=1, 
       location=None, retain=False,
       use_shared_memory=False, use_file=False,
-      order='F'
+      order='F', renumber=False
     ):
     """
     Download a cutout image from the dataset.
@@ -123,8 +123,15 @@ class PrecomputedImageSource(ImageSourceInterface):
       mutually exclusive with use_shared_memory. 
     order: The underlying shared memory or file buffer can use either
       C or Fortran order for storing a multidimensional array.
+    renumber: dynamically rewrite downloaded segmentation into
+      a more compact data type. Only compatible with single-process
+      non-sharded download.
 
-    Returns: 4d ndarray
+    Returns:
+      if renumber:
+        (4d ndarray, remap dict)
+      else:
+        4d ndarray
     """
 
     if self.autocrop:
@@ -137,6 +144,9 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     scale = self.meta.scale(mip)
     if 'sharding' in scale:
+      if renumber:
+        raise ValueError("renumber is only supported for non-shared volumes.")
+
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_sharded(
         bbox, mip, 
@@ -162,6 +172,8 @@ class PrecomputedImageSource(ImageSourceInterface):
         order=order,
         green=self.config.green,
         secrets=self.config.secrets,
+        renumber=renumber,
+        background_color=int(self.background_color),
       )
 
   @readonlyguard
@@ -299,6 +311,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     if mip is None:
       mip = self.config.mip
 
+    if self.is_sharded(mip):
+      raise exceptions.UnsupportedFormatError(f"Sharded sources are not supported. got: {self.meta.cloudpath}")
+
     bbox = Bbox.create(bbox, self.meta.bounds(mip))
     realized_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
@@ -340,6 +355,9 @@ class PrecomputedImageSource(ImageSourceInterface):
         )
       destvol.commit_info()
       destvol.commit_provenance()
+
+    if destvol.image.is_sharded(mip):
+      raise exceptions.UnsupportedFormatError(f"Sharded destinations are not supported. got: {destvol.cloudpath}")
 
     num_blocks = np.ceil(self.meta.bounds(mip).volume() / self.meta.chunk_size(mip).rectVolume()) / step
     num_blocks = int(np.ceil(num_blocks))

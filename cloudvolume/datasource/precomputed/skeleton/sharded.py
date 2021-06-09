@@ -15,10 +15,12 @@ class ShardedPrecomputedSkeletonSource(object):
 
     self.spatial_index = None
     if self.meta.spatial_index:
+      mip = self.meta.mip or 0
       self.spatial_index = CachedSpatialIndex(
-        self.cache,
+        self.cache, self.config,
         cloudpath=self.meta.layerpath, 
-        bounds=self.meta.meta.bounds(0) * self.meta.meta.resolution(0),
+        bounds=self.meta.meta.bounds(mip),
+        resolution=self.meta.info['spatial_index'].get('resolution', self.meta.meta.resolution(mip)),
         chunk_size=self.meta.info['spatial_index']['chunk_size'],
       )
 

@@ -12,12 +12,12 @@ def requirements():
 
 setuptools.setup(
   name="cloud-volume",
-  version="3.1.1",
+  version="4.1.0",
   setup_requires=[
     'numpy<1.17; python_version<"3.5"',
     'numpy; python_version>="3.5"',
   ],
-  python_requires="~=3.4", # >= 3.4 < 4.0
+  python_requires="~=3.6", # >= 3.6 < 4.0
   install_requires=requirements(),
   # Environment Marker Examples:
   # https://www.python.org/dev/peps/pep-0496/
@@ -43,12 +43,13 @@ setuptools.setup(
     'cloudvolume': [
       './microviewer/*',
       'LICENSE',
+      'requirements.txt',
     ],
   },
   description="A serverless client for reading and writing Neuroglancer Precomputed volumes both locally and on cloud services.",
   long_description=read('README.md'),
   long_description_content_type="text/markdown",
-  license = "BSD 3-Clause",
+  license = "License :: OSI Approved :: BSD License",
   keywords = "neuroglancer volumetric-data numpy connectomics microscopy image-processing biomedical-image-processing s3 gcs mesh meshes skeleton skeletons",
   url = "https://github.com/seung-lab/cloud-volume/",
   classifiers=[
@@ -57,10 +58,10 @@ setuptools.setup(
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.5",
     "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX",

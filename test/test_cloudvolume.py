@@ -66,6 +66,47 @@ def test_fill_missing():
   vol.cache.flush()
   delete_layer('/tmp/cloudvolume/empty_volume')
 
+def test_background_color():
+  info = CloudVolume.create_new_info(
+    num_channels=1, 
+    layer_type='image', 
+    data_type='uint8', 
+    encoding='raw',
+    resolution=[ 1,1,1 ], 
+    voxel_offset=[0,0,0], 
+    volume_size=[128,128,1],
+    mesh='mesh', 
+    chunk_size=[ 64,64,1 ],
+  )
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', mip=0, info=info)
+  vol.commit_info()
+
+  vol.cache.flush()
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
+                    mip=0, 
+                    background_color=1, 
+                    fill_missing=True)
+  assert np.count_nonzero(vol[:] - 1) == 0
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
+                    mip=0, 
+                    background_color=1, 
+                    fill_missing=True,
+                    bounded=False)
+  assert np.count_nonzero(vol[0:129,0:129,0:1]-1) == 0
+
+  vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
+                    mip=0, 
+                    background_color=1, 
+                    fill_missing=True,
+                    bounded=False,
+                    parallel=2)
+  assert np.count_nonzero(vol[0:129,0:129,0:1]-1) == 0
+  vol.cache.flush()
+  delete_layer('/tmp/cloudvolume/empty_volume')
+
 def test_has_data():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
@@ -347,6 +388,20 @@ def test_download_upload_file(green):
   cv2.upload_from_file('/tmp/file/test', cv.bounds)
 
   assert np.all(cv2[:] == cv[:])
+  shutil.rmtree('/tmp/file/')
+
+def test_numpy_memmap():
+  delete_layer()
+  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+
+  mkdir('/tmp/file/test/')
+
+  with open("/tmp/file/test/chunk.data", "wb") as f:
+    f.write(data.tobytes("F"))
+
+  fp = np.memmap("/tmp/file/test/chunk.data", dtype=data.dtype, mode='r', shape=(50,50,50,1), order='F')
+  cv[:] = fp[:]
+
   shutil.rmtree('/tmp/file/')
 
 @pytest.mark.parametrize('green', (True, False))
@@ -1416,3 +1471,27 @@ def test_mip_locking():
     assert False 
   except ReadOnlyException:
     pass 
+
+@pytest.mark.parametrize("green", (True, False))
+def test_threaded_exceptions(green):
+  info = {
+    'type': 'image',
+    'data_type': 'float32', 
+    'num_channels': 1, 
+    'scales': [
+      {'chunk_sizes': [[1024, 1024, 1]], 
+      'encoding': 'raw', 
+      'key': '4_4_40', 
+      'resolution': [4, 4, 40], 
+      'size': [1024, 1024, 3], 'voxel_offset': [0, 0, 0]
+    }], 
+  }
+  cv = CloudVolume("file:///tmp/removeme/green_exceptions", info=info, green_threads=green)
+  
+  try:
+    cv[:]
+    assert False
+  except exceptions.EmptyVolumeException:
+    pass
+
+

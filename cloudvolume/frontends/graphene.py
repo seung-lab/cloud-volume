@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import datetime
-import json
+import math
+import orjson
 import os
 import pickle
 import posixpath
@@ -42,8 +43,8 @@ def to_unix_time(timestamp):
 
   if not isinstance(timestamp, (int, float, np.integer, np.floating)) and timestamp is not None:
     raise ValueError("Not able to convert {} to UNIX time.".format(timestamp))
-
-  return int(timestamp)
+  
+  return int(math.ceil(timestamp))
 
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
@@ -123,7 +124,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     parallel=None, segids=None,
     preserve_zeros=False,
     agglomerate=None, timestamp=None,
-    stop_layer=None
+    stop_layer=None, renumber=False
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -189,13 +190,22 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     # to the server. We can fill black in other situations.
     mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
 
-    img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel)
+    renumber_return = renumber
+    if renumber and (segids or agglomerate):
+      renumber = False # no point      
+
+    img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel, renumber=renumber)
+    renumber_remap = None
+    if renumber:
+      img, renumber_remap = img
 
     if agglomerate:
       img = self.agglomerate_cutout(img, timestamp=timestamp, stop_layer=stop_layer)
-      return VolumeCutout.from_volume(self.meta, mip, img, bbox)
+      img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
 
-    if segids is None:
+    if segids is None or agglomerate:
+      if renumber_return: 
+        return img, renumber_remap
       return img
 
     segids = list(toiter(segids))
@@ -205,7 +215,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       leaves = self.get_leaves(segid, mip0_bbox, 0)
       remapping.update({ leaf: segid for leaf in leaves })
     
-    img = fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
+    # Issue #434: Do not write img = fastremap.FN(in_place=True) as this allows
+    # the underlying buffer to get garbage collected. Make sure to carefully
+    # manage the buffer's references when making any changes.
+    fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
 
     mask_value = 0
     if preserve_zeros:
@@ -215,11 +228,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
       segids.append(0)
 
-    img = fastremap.mask_except(img, segids, in_place=True, value=mask_value)
-
-    return VolumeCutout.from_volume(
-      self.meta, mip, img, bbox 
-    )
+    fastremap.mask_except(img, segids, in_place=True, value=mask_value)
+    if renumber_return:
+      return img, renumber_remap
+    return img
   
   def agglomerate_cutout(self, img, timestamp=None, stop_layer=None):
     """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
@@ -274,13 +286,23 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         Layer 2+: Between chunk interconnections (skip connections possible)
     """
     segids = toiter(segids)
-    if isinstance(segids, np.ndarray):
-      segids = segids.tolist()
+    input_segids = np.array(segids, dtype=self.meta.dtype)
 
-    try:
-      segids.remove(0) # background segid
-    except ValueError:
-      pass
+    if input_segids.size == 0:
+      return np.array([], dtype=self.meta.dtype)
+
+    segids = fastremap.unique(input_segids)
+
+    base_remap = { 0: 0 }
+    # skip ids that are already root IDs
+    for segid in segids:
+      if self.meta.decode_layer_id(segid) == self.meta.n_layers:
+        base_remap[segid] = segid
+
+    segids = np.array(
+      [ segid for segid in segids if segid not in base_remap ], 
+      dtype=self.meta.dtype
+    )
 
     timestamp = to_unix_time(timestamp)
 
@@ -301,7 +323,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         + ", ".join([ str(_) for _ in self.meta.supported_api_versions ])
       )
 
-    return np.array(roots, dtype=self.meta.dtype)
+    for segid, root_id in zip(segids, roots):
+      base_remap[segid] = root_id
+
+    return fastremap.remap(input_segids, base_remap)
 
   def get_chunk_mappings(self, chunk_id, timestamp=None):
     """
@@ -357,9 +382,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return chunk_mappings
 
   def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
+    if len(segids) == 0:
+      return []
+
     args = {}
-    if timestamp is not None:
-      args['timestamp'] = timestamp
 
     headers = {}
     headers.update(self.meta.auth_header)
@@ -378,15 +404,17 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     params = {}
     if stop_layer:
       params['stop_layer'] = int(stop_layer)
+    
+    if timestamp is not None:
+      params['timestamp'] = timestamp
 
     if binary:
       url = posixpath.join(self.meta.base_path, path, "roots_binary")
       data = np.array(segids, dtype=np.uint64).tobytes()
-      params['timestamp'] = timestamp
     else:
       url = posixpath.join(self.meta.base_path, path, "roots")
       args['node_ids'] = segids
-      data = json.dumps(args).encode('utf8')
+      data = orjson.dumps(args).encode('utf8')
 
     if gzip_condition:
       data = compression.compress(data, method='gzip')
@@ -397,9 +425,12 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if binary:
       return np.frombuffer(response.content, dtype=np.uint64)
     else:
-      return json.loads(response.content)['root_ids']
+      return orjson.loads(response.content)['root_ids']
 
   def _get_roots_legacy(self, segids, timestamp):
+    if len(segids) == 0:
+      return []
+
     args = {}
     if timestamp is not None:
       args['timestamp'] = timestamp
@@ -415,30 +446,45 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       roots.append(root)
     return roots
 
-  def get_leaves(self, root_id, bbox, mip):
+  def get_leaves(self, root_id, bbox, mip, stop_layer=None):
     """
-    get the supervoxels for this root_id
+    Get the lower level ids for this root_id.
 
-    params
-    ------
     root_id: uint64 root id to find supervoxels for
     bbox: cloudvolume.lib.Bbox 3d bounding box for segmentation
+    mip: which mip the bbox is defined in terms of
+    stop_layer: if provided, get leaves down to the specified layer
+      otherwise watershed (layer 1) is assumed.
+
+    Returns: uint64 numpy array of leaf ids
     """
+    if stop_layer is not None and (stop_layer < 1 or stop_layer > self.meta.n_layers):
+      raise ValueError(f"stop_layer must be 1 <= stop_layer < {self.meta.n_layers}. Got: {stop_layer}")
+
     if self.meta.supports_api('v1'):
-      return self.get_leaves_v1(root_id, bbox, mip)
+      return self.get_leaves_v1(root_id, bbox, mip, stop_layer)
+
+    if stop_layer is not None:
+      raise UnsupportedGrapheneAPIVersionError("API 1.0 does not support stop_layer.")
+
     return self.get_leaves_legacy(root_id, bbox, mip)
 
-  def get_leaves_v1(self, root_id, bbox, mip):
+  def get_leaves_v1(self, root_id, bbox, mip, stop_layer=None):
     root_id = int(root_id)    
 
+    api = GrapheneApiVersion("v1")
+
     url = posixpath.join(
-      self.meta.base_path, self.meta.api_version.path(self.meta.server_path), 
+      self.meta.base_path, api.path(self.meta.server_path), 
       "node", str(root_id), "leaves"
     )
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip), bounded=self.bounded)
-    response = requests.get(url, params={
-      "bounds": bbox.to_filename(),
-    }, headers=self.meta.auth_header)
+
+    params = { "bounds": bbox.to_filename() }
+    if stop_layer is not None:
+      params["stop_layer"] = int(stop_layer)
+
+    response = requests.get(url, params=params, headers=self.meta.auth_header)
     response.raise_for_status()
 
     content = response.json()
