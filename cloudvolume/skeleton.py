@@ -454,11 +454,12 @@ class Skeleton(object):
 
     EPSILON = 1e-7
 
-    vertex1, inv1 = np.unique(first.vertices, axis=0, return_inverse=True)
-    vertex2, inv2 = np.unique(second.vertices, axis=0, return_inverse=True)
+    vertex1, ct1 = np.unique(first.vertices, axis=0, return_counts=True)
+    vertex2, ct2 = np.unique(second.vertices, axis=0, return_counts=True)
     
     vertex_match = np.all(np.abs(vertex1 - vertex2) < EPSILON)
-    if not vertex_match:
+    ct_match = np.all(ct1 == ct2)
+    if not (vertex_match and ct_match):
       return False
 
     g1 = nx.Graph()
