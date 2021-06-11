@@ -75,13 +75,20 @@ def compressed_morton_code(gridpt, grid_size):
     single_input = True
 
   code = np.zeros((gridpt.shape[0],), dtype=np.uint64)
-  num_bits = max(( math.ceil(math.log2(size)) for size in grid_size ))
+  num_bits = [ math.ceil(math.log2(size)) for size in grid_size ]
   j = np.uint64(0)
   one = np.uint64(1)
 
-  for i in range(num_bits):
+  if sum(num_bits) > 64:
+    raise ValueError(f"Unable to represent grids that require more than 64 bits. Grid size {grid_size} requires {num_bits} bits.")
+
+  max_coords = np.max(gridpt, axis=0)
+  if np.any(max_coords >= grid_size):
+    raise ValueError(f"Unable to represent grid points larger than the grid. Grid size: {grid_size} Grid points: {gridpt}")
+
+  for i in range(max(num_bits)):
     for dim in range(3):
-      if 2 ** i <= grid_size[dim]:
+      if 2 ** i <= grid_size[dim] and grid_size[dim] > 1:
         bit = (((np.uint64(gridpt[:, dim]) >> np.uint64(i)) & one) << j)
         code |= bit
         j += one
