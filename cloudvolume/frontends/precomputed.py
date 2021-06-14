@@ -574,7 +574,9 @@ class CloudVolumePrecomputed(object):
     if parallel is None:
       parallel = self.parallel
 
-    tup = self.image.download(bbox, mip, parallel=parallel, renumber=bool(renumber))
+    tup = self.image.download(
+      bbox.astype(np.int64), mip, parallel=parallel, renumber=bool(renumber)
+    )
     if renumber:
       img, remap = tup
     else:
