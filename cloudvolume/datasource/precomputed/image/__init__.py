@@ -187,7 +187,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     if mip in self.meta.locked_mips():
       raise exceptions.ReadOnlyException(
-        "MIP {} is currently write locked. If this should not be the case, run vol.meta.unlock_mip({}).".format(
+        "MIP {} is currently write locked. If this should not be the case, run vol.meta.unlock_mips({}).".format(
           mip, mip
         )
       )
@@ -262,7 +262,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     if mip in self.meta.locked_mips():
       raise exceptions.ReadOnlyException(
-        "MIP {} is currently write locked. If this should not be the case, run vol.meta.unlock_mip({}).".format(
+        "MIP {} is currently write locked. If this should not be the case, run vol.meta.unlock_mips({}).".format(
           mip, mip
         )
       )
