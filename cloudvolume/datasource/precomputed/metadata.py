@@ -626,10 +626,10 @@ Hops:
     self.info['scales'] = self.info['scales'][0:1]
 
   def add_resolution(self, res, encoding=None, chunk_size=None, info=None):
-    if isinstance(res[0], float):
+    if lib.floating(res):
       factor = Vec(*res, dtype=float) / self.resolution(0)
     else:
-      factor = Vec(*res, dtype=float) // self.resolution(0)
+      factor = Vec(*res) // self.resolution(0)
 
     return self.add_scale(factor, encoding, chunk_size, info)
 
