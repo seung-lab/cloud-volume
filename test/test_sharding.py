@@ -52,7 +52,11 @@ def test_compressed_morton_code():
   assert cmc((0,0,0)) == 0b000000
   assert cmc((1,0,0)) == 0b000001
   assert cmc((2,0,0)) == 0b001000
-  assert cmc((3,0,0)) == 0b001001
+  try:
+    cmc((3,0,0))
+    assert False
+  except ValueError:
+    pass
   assert cmc((2,2,0)) == 0b011000
   assert cmc((2,2,1)) == 0b011100
 
@@ -60,10 +64,17 @@ def test_compressed_morton_code():
 
   assert cmc((0,0,0)) == 0b000000
   assert cmc((1,0,0)) == 0b000001
-  assert cmc((0,0,7)) == 0b000100
-  assert cmc((2,3,1)) == 0b011110
+  try:
+    cmc((0,0,7))
+    assert False
+  except ValueError:
+    pass
+  assert cmc((1,2,0)) == 0b001001
 
-  assert np.array_equal(cmc([(0,0,0), (1,0,1)]), [0b000000, 0b000101])
+  assert np.array_equal(cmc([(0,0,0), (1,2,0)]), [0b000000, 0b001001])
+
+  cmc = lambda coord: compressed_morton_code(coord, grid_size=(4,4,1))
+  assert cmc((3,3,0)) == 0b1111
 
 def test_image_sharding_hash():
   spec = ShardingSpecification(
