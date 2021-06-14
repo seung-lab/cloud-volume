@@ -125,14 +125,10 @@ class PrecomputedMetadata(object):
 
     if redirect is not None:
       info['redirect'] = str(redirect)
-    
-    fullres = info['scales'][0]
-    factor_in_mip = factor.clone()
  
     # add mip levels
-    for _ in range(max_mip):
-      scale = cls.add_scale(None, factor, encoding=encoding, chunk_size=chunk_size, info=info)
-      info["scales"].append(scale)
+    for mip in range(max_mip):
+      cls.add_scale(None, factor ** mip, encoding=encoding, chunk_size=chunk_size, info=info)
 
     if encoding == 'compressed_segmentation':
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))

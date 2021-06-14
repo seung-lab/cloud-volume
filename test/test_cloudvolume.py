@@ -729,6 +729,41 @@ def test_info_provenance_cache():
   assert not os.path.exists(provpath)
   vol.cache.flush_provenance() # assert no error by double delete
 
+def test_create_new_info():
+  info = CloudVolume.create_new_info(
+    num_channels=1, 
+    layer_type='image',
+    data_type='uint8',
+    encoding='raw',
+    resolution=[4.5, 4.5, 40],
+    voxel_offset=[0, 0, 0],
+    volume_size=[2048, 2048, 256],
+    chunk_size=[128,128,16],
+    max_mip=5,
+    factor=(2,2,1),
+  )
+  
+  res = [ scale["resolution"] for scale in info["scales"] ]
+  keys = [ scale["key"] for scale in info["scales"] ]
+
+  assert res == [
+    [4.5, 4.5, 40.0],
+    [9.0, 9.0, 40.0],
+    [18.0, 18.0, 40.0],
+    [36.0, 36.0, 40.0],
+    [72.0, 72.0, 40.0],
+  ] 
+
+  assert keys == [
+    "4.5_4.5_40.0",
+    "9.0_9.0_40.0",
+    "18.0_18.0_40.0",
+    "36.0_36.0_40.0",
+    "72.0_72.0_40.0",
+  ]
+
+
+
 def test_caching():
   image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
   image[0:64,0:64,0:64] = 1
