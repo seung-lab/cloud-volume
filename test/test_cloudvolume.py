@@ -762,6 +762,38 @@ def test_create_new_info():
     "72.0_72.0_40.0",
   ]
 
+  info = CloudVolume.create_new_info(
+    num_channels=1, 
+    layer_type='image',
+    data_type='uint8',
+    encoding='raw',
+    resolution=[4, 4, 40],
+    voxel_offset=[0, 0, 0],
+    volume_size=[2048, 2048, 256],
+    chunk_size=[128,128,16],
+    max_mip=5,
+    factor=(2,2,1),
+  )
+  
+  res = [ scale["resolution"] for scale in info["scales"] ]
+  keys = [ scale["key"] for scale in info["scales"] ]
+
+  assert res == [
+    [4, 4, 40],
+    [8, 8, 40],
+    [16, 16, 40],
+    [32, 32, 40],
+    [64, 64, 40],
+  ] 
+
+  assert keys == [
+    "4_4_40",
+    "8_8_40",
+    "16_16_40",
+    "32_32_40",
+    "64_64_40",
+  ]
+
 
 
 def test_caching():
