@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from cloudvolume import compression
 from cloudvolume.exceptions import UnsupportedProtocolError
-from cloudvolume.lib import mkdir, scatter, jsonify, duplicates
+from cloudvolume.lib import mkdir, scatter, jsonify, duplicates, yellow
 from cloudvolume.threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from cloudvolume.scheduler import schedule_green_jobs
 
@@ -43,14 +43,23 @@ def default_byte_iterator(starts, ends):
     ends = itertools.repeat(None)
   return iter(starts), iter(ends)
 
+WARNING_PRINTED = False
+
 class StorageBase(object):
   """Abastract base class of Storage with some implementation details."""
   def __init__(self, layer_path, progress=False):
+    global WARNING_PRINTED
     self.progress = progress
 
     self._layer_path = layer_path
     self._path = cloudvolume.paths.extract(layer_path)
     self._interface_cls = get_interface_class(self._path.protocol)
+
+    if not WARNING_PRINTED:
+      print(yellow(
+        "Storage is deprecated. Please use CloudFiles instead. See https://github.com/seung-lab/cloud-files"
+      ))
+      WARNING_PRINTED = True
   
   @property
   def layer_path(self):
