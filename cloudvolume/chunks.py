@@ -16,6 +16,7 @@ import zlib
 import io
 import numpy as np
 import simplejpeg
+import compresso
 
 from .lib import yellow
 
@@ -49,6 +50,8 @@ def encode(img_chunk, encoding, block_size=None):
     return fpzip.compress(img_chunk, order='F')
   elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
+  elif encoding == "compresso":
+    return compresso.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
     return encode_jpeg(img_chunk)
   elif encoding == "npz":
@@ -75,6 +78,8 @@ def decode(filedata, encoding, shape=None, dtype=None, block_size=None,
     return fpzip.decompress(filedata, order='F')
   elif encoding == "compressed_segmentation":
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
+  elif encoding == "compresso":
+    return compresso.decompress(filedata).reshape(shape)
   elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
   elif encoding == "npz":

@@ -33,7 +33,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 - Multi-threaded, supports multi-process and green threads.
 - Memory optimized, supports shared memory.
-- Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`fpzip`](https://github.com/seung-lab/fpzip/), [`brotli`](https://en.wikipedia.org/wiki/Brotli))
+- Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`compresso`](https://github.com/seung-lab/compresso), [`fpzip`](https://github.com/seung-lab/fpzip/), [`brotli`](https://en.wikipedia.org/wiki/Brotli))
 - Understands image hierarchies & anisotropic pixel resolutions.
 - Accomodates downloading missing tiles (`fill_missing=True`).
 - Accomodates uploading compressed black tiles to erasure coded file systems (`delete_black_uploads=True`).
@@ -54,7 +54,7 @@ Cloud-volume is regularly tested on Ubuntu with 3.6, 3.7, 3.8, and 3.9. We offic
 pip install cloud-volume # standard installation
 ```
 
-CloudVolume depends on the PyPI packages [`fpzip`](https://github.com/seung-lab/fpzip) and [`compressed_segmentation`](https://github.com/seung-lab/compressedseg), which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
+CloudVolume depends on several PyPI packages which are Cython bindings for C++. We have provided compiled binaries for many platforms and python versions, however if you are on an unsupported system, pip will attempt to install from source. In that case, follow the instructions below.
 
 **Windows Note:** If you get errors related to a missing C++ compiler, this blog post might help you: https://www.scivision.dev/python-windows-visual-c-14-required/
 
@@ -86,10 +86,6 @@ pip install cloud-volume
 ```
 
 Due to packaging problems endemic to Python, Cython packages that depend on numpy require numpy header files be installed before attempting to install the package you want. The numpy headers are not recognized unless numpy is installed in a seperate process that runs first. There are hacks for this issue, but I haven't gotten them to work. If you think binaries should be available for your platform, please let us know by opening an issue.
-
-The libraries depending on numpy are:
-- compressed_segmentation: Smaller and faster segmentation files. A pure python fallback is present. When the accelerated version is present, IO is faster than with gzip alone.
-- fpzip: A lossless compression library for 3D & 4D floating point data.
 
 #### Manual Installation
 
@@ -221,7 +217,8 @@ info = CloudVolume.create_new_info(
     num_channels    = 1,
     layer_type      = 'segmentation',
     data_type       = 'uint64', # Channel images might be 'uint8'
-    encoding        = 'raw', # raw, jpeg, compressed_segmentation, fpzip, kempressed
+    # raw, jpeg, compressed_segmentation, fpzip, kempressed, compresso
+    encoding        = 'raw', 
     resolution      = [4, 4, 40], # Voxel scaling, units are in nanometers
     voxel_offset    = [0, 0, 0], # x,y,z offset in voxels from the origin
     mesh            = 'mesh',
@@ -239,6 +236,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | raw                     | Any                        | Y        | Y           | Serialized numpy arrays.                                                                 |
 | jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              |
 | compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      |
+| compresso               | Segmentation               | Y        | N*          | Lossless high compression algorithm for connectomics segmentation.                       |
 | fpzip                   | Floating Point             | Y        | N*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  |
 | kempressed              | Anisotropic Z Floating Point | N        | N*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
 
@@ -552,6 +550,7 @@ Python 2.7 is no longer supported by CloudVolume. Updated versions of `pip` will
 3. [fpzip](https://github.com/seung-lab/fpzip): A Python Package for the C++ code by Lindstrom et al.
 4. [compressed_segmentation](https://github.com/seung-lab/compressedseg): A Python Package wrapping the code for the compressed_segmentation format developed by Jeremy Maitin-Shepard and Stephen Plaza.
 5. [Kimimaro](https://github.com/seung-lab/kimimaro): High performance skeletonization of densely labeled 3D volumes.
+6. [compresso](https://github.com/seung-lab/compresso): High lossless compression of connectomics segmentation. Algorithm by and code derived from Matejek et al.
 
 ## Acknowledgments
 
