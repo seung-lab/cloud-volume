@@ -34,7 +34,7 @@ def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, tran
             (mesh.vertices / (2.0 ** vertex_quantization_bits - 1)))
 
     # Scale to native (nm) space
-    mesh.vertices =  mesh.vertices * (transform[0,0], transform[1,1], transform[2,2])
+    mesh.vertices =  mesh.vertices * (transform[0,0], transform[1,1], transform[2,2])+transform[:3,3]
     meshdata[manifest.segment_id].append(mesh)
   return meshdata
 
@@ -46,7 +46,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
     self.lod_scale_multiplier = self.meta.info['lod_scale_multiplier']
     self.transform = np.array(self.meta.info['transform'] + [0,0,0,1]).reshape(4,4)
   
-    if np.any(self.transform * np.array([[0,1,1,1],[1,0,1,1],[1,1,0,1],[1,1,1,0]])):
+    if np.any(self.transform * np.array([[0,1,1,0],[1,0,1,0],[1,1,0,0],[1,1,1,0]])):
       raise exceptions.MeshDecodeError(red("Non-scale homogeneous transforms are not implemented"))
 
   @property
@@ -170,7 +170,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     self.lod_scale_multiplier = self.meta.info['lod_scale_multiplier']
     self.transform = np.array(self.meta.info['transform'] + [0,0,0,1]).reshape(4,4)
   
-    if np.any(self.transform * np.array([[0,1,1,1],[1,0,1,1],[1,1,0,1],[1,1,1,0]])):
+    if np.any(self.transform * np.array([[0,1,1,0],[1,0,1,0],[1,1,0,0],[1,1,1,0]])):
       raise exceptions.MeshDecodeError(red("Non-scale homogeneous transforms are not implemented"))
 
   @property
