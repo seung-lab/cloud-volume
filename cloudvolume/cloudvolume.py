@@ -31,7 +31,7 @@ class SharedConfiguration(object):
   """
   def __init__(
     self, cdn_cache, compress, compress_level, green,
-    mip, parallel, progress, secrets,
+    mip, parallel, progress, secrets, order,
     *args, **kwargs
   ):
     if type(parallel) == bool:
@@ -49,6 +49,7 @@ class SharedConfiguration(object):
     self.parallel = parallel 
     self.progress = bool(progress)
     self.secrets = secrets
+    self.order = order
     self.args = args
     self.kwargs = kwargs
 
@@ -61,7 +62,7 @@ class CloudVolume(object):
     delete_black_uploads=False, background_color=0,
     green_threads=False, use_https=False,
     max_redirects=10, mesh_dir=None, skel_dir=None, 
-    agglomerate=False, secrets=None
+    agglomerate=False, secrets=None, order: str = 'f'
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 

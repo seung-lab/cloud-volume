@@ -19,7 +19,7 @@ from .. import lib
 from ..cacheservice import CacheService
 from .. import exceptions 
 from ..lib import ( 
-  colorize, red, mkdir, 
+  yellow, red, mkdir, 
   Vec, Bbox, jsonify
 )
 
@@ -33,7 +33,7 @@ from ..volumecutout import VolumeCutout
 from .. import sharedmemory
 
 def warn(text):
-  print(colorize('yellow', text))
+  print(yellow(text))
 
 class CloudVolumePrecomputed(object):
   def __init__(self, 
@@ -527,7 +527,9 @@ class CloudVolumePrecomputed(object):
     requested_bbox = Bbox.from_slices(slices)
 
     img = self.download(requested_bbox, self.mip)
-    return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
+    img = img[::steps.x, ::steps.y, ::steps.z, channel_slice]
+    if self.config.order == 'c':
+      img = fastremap. 
 
   def download(
       self, bbox, mip=None, parallel=None,
