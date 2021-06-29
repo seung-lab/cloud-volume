@@ -8,7 +8,6 @@ import sys
 import math
 import operator
 import time
-import types
 import random
 import string 
 from itertools import product
@@ -126,6 +125,7 @@ def colorize(color, text):
   color = color.upper()
   return COLORS[color] + text + COLORS['RESET']
 
+<<<<<<< HEAD
 def generate_random_string(size=6):
   return ''.join(random.SystemRandom().choice(
     string.ascii_lowercase + string.digits) for _ in range(size)
@@ -133,6 +133,98 @@ def generate_random_string(size=6):
 
 def toabs(path):
   path = os.path.expanduser(path)
+=======
+BucketPath = namedtuple('BucketPath', 
+  ('protocol', 'bucket', 'path')
+)
+
+ExtractedPath = namedtuple('ExtractedPath', 
+  ('protocol', 'intermediate_path', 'bucket', 'dataset','layer')
+)
+
+def extract_bucket_path(cloudpath):
+  protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
+  bucket_re = r'^(/?[~\d\w_\.\-]+)/'
+
+  error = UnsupportedProtocolError("""
+    Cloud path must conform to PROTOCOL://BUCKET/PATH
+    Example: gs://test_bucket/em
+
+    Supported protocols: gs, s3, file, matrix, boss, http, https
+
+    Received: {}
+    """.format(cloudpath))
+
+  match = re.match(protocol_re, cloudpath)
+
+  if not match:
+    raise error
+
+  (protocol,) = match.groups()
+  cloudpath = re.sub(protocol_re, '', cloudpath)
+  
+  if protocol == 'file':
+    cloudpath = toabs(cloudpath)
+
+  match = re.match(bucket_re, cloudpath)
+  if not match:
+    raise error
+
+  (bucket,) = match.groups()
+  cloudpath = re.sub(bucket_re, '', cloudpath)
+
+  return BucketPath(protocol, bucket, cloudpath)
+
+def generate_random_string(size=6):
+  return ''.join(random.SystemRandom().choice(string.ascii_lowercase + \
+                  string.digits) for _ in range(size))
+
+def extract_path(cloudpath):
+  """cloudpath: e.g. gs://neuroglancer/DATASET/LAYER/info or s3://..."""
+  protocol_re = r'^(gs|file|s3|boss|matrix|https?)://'
+  bucket_re = r'^(/?[~\d\w_\.\-]+)/'
+  tail_re = r'([\d\w_\.\-]+)/([\d\w_\.\-]+)/?$'
+
+  error = UnsupportedProtocolError("""
+    Cloud path must conform to PROTOCOL://BUCKET/zero/or/more/dirs/DATASET/LAYER
+    Example: gs://test_bucket/mouse_dataset/em
+
+    Supported protocols: gs, s3, file, matrix, boss, http, https
+
+    Received: {}
+    """.format(cloudpath))
+
+  match = re.match(protocol_re, cloudpath)
+
+  if not match:
+    raise error
+
+  (protocol,) = match.groups()
+  cloudpath = re.sub(protocol_re, '', cloudpath)
+  if protocol == 'file':
+    cloudpath = toabs(cloudpath)
+
+  match = re.match(bucket_re, cloudpath)
+  if not match:
+    raise error
+
+  (bucket,) = match.groups()
+  cloudpath = re.sub(bucket_re, '', cloudpath)
+
+  match = re.search(tail_re, cloudpath)
+  if not match:
+    raise error
+  dataset, layer = match.groups()
+
+  intermediate_path = re.sub(tail_re, '', cloudpath)
+  return ExtractedPath(protocol, intermediate_path, bucket, dataset, layer)
+
+def toabs(path):
+  home = os.path.join(os.environ['HOME'], '')
+  # remove file protocol
+  # path = re.sub('^file://?', '', path)
+  path = re.sub('^~/?', home, path)
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
   return os.path.abspath(path)
 
 def mkdir(path):
@@ -206,21 +298,49 @@ def xyzrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
   rangeargs = ( (start, end, stride) for start, end, stride in zip(start_vec, end_vec, stride_vec) )
   xyzranges = [ range(*arg) for arg in rangeargs ]
   
-  # iterate then x first, then y, then z
+  # iterate x first, then y, then z
   # this way you process in the xy plane slice by slice
   # but you don't create process lots of prefix-adjacent keys
   # since all the keys start with X
-  zyxranges = xyzranges[::-1]
 
   def vectorize():
+    for z,y,x in product(*xyzranges[::-1]):
+      yield Vec(x,y,z)
+
+  return vectorize()
+
+def zyxrange(start_vec, end_vec=None, stride_vec=(1,1,1)):
+  if end_vec is None:
+    end_vec = start_vec
+    start_vec = (0,0,0)
+
+  start_vec = np.array(start_vec, dtype=int)
+  end_vec = np.array(end_vec, dtype=int)
+
+  rangeargs = ( (start, end, stride) for start, end, stride in zip(start_vec, end_vec, stride_vec) )
+  xyzranges = [ range(*arg) for arg in rangeargs ]
+  
+  # iterate x first, then y, then z
+  # this way you process in the xy plane slice by slice
+  # but you don't create process lots of prefix-adjacent keys
+  # since all the keys start with X
+
+  def vectorize():
+<<<<<<< HEAD
     pt = Vec(0,0,0)
     for z,y,x in product(*zyxranges):
       pt.x, pt.y, pt.z = min(x, end_vec[0]), min(y, end_vec[1]), min(z, end_vec[2])
       yield pt
+=======
+    for z,y,x in product(*xyzranges[::-1]):
+      yield Vec(z,y,x)
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
   return vectorize()
 
+
 def map2(fn, a, b):
+  """map the function to all the elements of a and b"""
   assert len(a) == len(b), "Vector lengths do not match: {} (len {}), {} (len {})".format(a[:3], len(a), b[:3], len(b))
 
   result = np.empty(len(a))
@@ -250,7 +370,9 @@ def check_bounds(val, low, high):
 class Vec(np.ndarray):
     def __new__(cls, *args, **kwargs):
       dtype = kwargs['dtype'] if 'dtype' in kwargs else int
-      return super(Vec, cls).__new__(cls, shape=(len(args),), buffer=np.array(args).astype(dtype), dtype=dtype)
+      obj = super(Vec, cls).__new__(cls, shape=(len(args),), buffer=np.array(args).astype(dtype), dtype=dtype)
+      obj.isfortran = kwargs['isfortran'] if 'isfortran' in kwargs else True
+      return obj
 
     @classmethod
     def clamp(cls, val, minvec, maxvec):
@@ -304,15 +426,41 @@ class Bbox(object):
   __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
 
   """Represents a three dimensional cuboid in space."""
-  def __init__(self, a, b, dtype=None):
+  def __init__(self, a, b, dtype=None, isfortran=True):
     if dtype is None:
       if floating(a) or floating(b):
         dtype = np.float32
       else:
         dtype = np.int32
+<<<<<<< HEAD
 
     self.minpt = Vec(*[ min(ai,bi) for ai,bi in zip(a,b) ], dtype=dtype)
     self.maxpt = Vec(*[ max(ai,bi) for ai,bi in zip(a,b) ], dtype=dtype)
+=======
+    
+    self.isfortran = isfortran
+    if isfortran:
+      a = a[:3]
+      b = b[:3]
+    else:
+      # the last 3 indexes are z,y,x
+      a = a[-3:]
+      b = b[-3:]
+      
+    self.minpt = Vec(
+      min(a[0], b[0]),
+      min(a[1], b[1]),
+      min(a[2], b[2]),
+      dtype=dtype
+    )
+
+    self.maxpt = Vec(
+      max(a[0], b[0]),
+      max(a[1], b[1]),
+      max(a[2], b[2]),
+      dtype=dtype
+    )
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
     self._dtype = np.dtype(dtype)
 
@@ -336,24 +484,54 @@ class Bbox(object):
   def intersection(cls, bbx1, bbx2):
     result = Bbox( [ 0 ] * bbx1.ndim, [ 0 ] * bbx2.ndim )
 
+<<<<<<< HEAD
     if not Bbox.intersects(bbx1, bbx2):
       return result
     
     for i in range(result.ndim):
       result.minpt[i] = max(bbx1.minpt[i], bbx2.minpt[i])
       result.maxpt[i] = min(bbx1.maxpt[i], bbx2.maxpt[i])
+=======
+    result = Bbox( (0,0,0), (0,0,0) )
+    result.minpt[0] = max(bbx1.minpt[0], bbx2.minpt[0])
+    result.minpt[1] = max(bbx1.minpt[1], bbx2.minpt[1])
+    result.minpt[2] = max(bbx1.minpt[2], bbx2.minpt[2])
+    result.maxpt[0] = min(bbx1.maxpt[0], bbx2.maxpt[0])
+    result.maxpt[1] = min(bbx1.maxpt[1], bbx2.maxpt[1])
+    result.maxpt[2] = min(bbx1.maxpt[2], bbx2.maxpt[2])
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
     return result
 
   @classmethod
   def intersects(cls, bbx1, bbx2):
+<<<<<<< HEAD
     return np.all(bbx1.minpt < bbx2.maxpt) and np.all(bbx1.maxpt > bbx2.minpt)
+=======
+    return (
+          bbx1.minpt[0] < bbx2.maxpt[0]
+      and bbx1.maxpt[0] > bbx2.minpt[0] 
+      and bbx1.minpt[1] < bbx2.maxpt[1]
+      and bbx1.maxpt[1] > bbx2.minpt[1]
+      and bbx1.minpt[2] < bbx2.maxpt[2]
+      and bbx1.maxpt[2] > bbx2.minpt[2] 
+    )
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
   @classmethod
   def near_edge(cls, bbx1, bbx2, distance=0):
     return (
+<<<<<<< HEAD
          np.any( np.abs(bbx1.minpt - bbx2.minpt) <= distance )
       or np.any( np.abs(bbx1.maxpt - bbx2.maxpt) <= distance )
+=======
+         abs(bbx1.minpt[0] - bbx2.minpt[0]) <= distance
+      or abs(bbx1.minpt[1] - bbx2.minpt[1]) <= distance
+      or abs(bbx1.minpt[2] - bbx2.minpt[2]) <= distance
+      or abs(bbx1.maxpt[0] - bbx2.maxpt[0]) <= distance
+      or abs(bbx1.maxpt[1] - bbx2.maxpt[1]) <= distance
+      or abs(bbx1.maxpt[2] - bbx2.maxpt[2]) <= distance
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
     )
 
   @classmethod
@@ -398,19 +576,37 @@ class Bbox(object):
     return Bbox( (0,0,0), vec, dtype=dtype)
 
   @classmethod
+<<<<<<< HEAD
   def from_filename(cls, filename, dtype=int):
     match = FILENAME_RE.search(os.path.basename(filename))
 
     if match is None:
       raise ValueError("Unable to decode bounding box from: " + str(filename))
+=======
+  def from_filename(cls, filename, dtype=int, filename_order='xyz', bbox_order='xyz'):
+    """
+    filename_order: (str) the order of filename, could be xyz or zyx
+    bbox_order: (str) the order of Bbox, could be xyz or zyx
+    """
+    match = re.search(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz)?$', os.path.basename(filename))
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
-    (xmin, xmax,
-     ymin, ymax,
-     zmin, zmax) = map(int, match.groups())
+    if filename_order == 'xyz':
+      (xmin, xmax,
+      ymin, ymax,
+      zmin, zmax) = map(int, match.groups())
+    else:
+      raise NotImplementedError
 
-    return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
+    if bbox_order == 'xyz':
+      return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
+    elif bbox_order == 'zyx':
+      return Bbox( (zmin, ymin, xmin), (zmax, ymax, xmax), dtype=dtype )
+    else:
+      raise NameError
 
   @classmethod
+<<<<<<< HEAD
   def from_slices(cls, slices, context=None, bounded=False, autocrop=False):
     if context:
       slices = context.reify_slices(
@@ -425,6 +621,19 @@ class Bbox(object):
       [ slc.start for slc in slices ],
       [ (slc.start if slc.stop < slc.start else slc.stop) for slc in slices ]
     )
+=======
+  def from_slices(cls, slices3, order='xyz'):
+    if order == 'xyz':
+      return Bbox(
+        (slices3[0].start, slices3[1].start, slices3[2].start), 
+        (slices3[0].stop, slices3[1].stop, slices3[2].stop) 
+      )
+    elif order == 'zyx':
+      return Bbox(
+        (slices3[-3].start, slices3[-2].start, slices3[-1].start), 
+        (slices3[-3].stop, slices3[-2].stop, slices3[-1].stop) 
+      )
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
   @classmethod
   def from_list(cls, lst):
@@ -463,9 +672,24 @@ class Bbox(object):
     )
 
   def to_slices(self):
+<<<<<<< HEAD
     return tuple([
       slice(int(self.minpt[i]), int(self.maxpt[i])) for i in range(self.ndim)
     ])
+=======
+    if self.isfortran:
+      return (
+        slice(int(self.minpt.x), int(self.maxpt.x)),
+        slice(int(self.minpt.y), int(self.maxpt.y)),
+        slice(int(self.minpt.z), int(self.maxpt.z))
+      )
+    else:
+      return (
+        slice(int(self.minpt.z), int(self.maxpt.z)),
+        slice(int(self.minpt.y), int(self.maxpt.y)),
+        slice(int(self.minpt.x), int(self.maxpt.x))
+      )
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
   def to_list(self):
     return list(self.minpt) + list(self.maxpt)
@@ -850,11 +1074,18 @@ def save_images(
   if progress:
     print("Saving to {}".format(directory))
 
-  indexmap = {
-    'x': 0,
-    'y': 1,
-    'z': 2,
-  }
+  if np.isfortran(image):
+    indexmap = {
+      'x': 0,
+      'y': 1,
+      'z': 2,
+    }
+  else:
+    indexmap = {
+      'x': -1,
+      'y': -2,
+      'z': -3
+    }
 
   index = indexmap[axis]
 
@@ -882,10 +1113,14 @@ def save_images(
     elif index == 2:
       img = image[:, :, level, channel ]
     else:
+<<<<<<< HEAD
       raise IndexError("Index {} is not valid. Expected 0, 1, or 2.".format(index))
 
     while img.ndim < 3:
       img = img[..., np.newaxis ]
+=======
+      raise NotImplementedError
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
     num_channels = img.shape[2]
 

@@ -8,14 +8,14 @@ import os
 import shutil
 import sys
 
-from cloudvolume import exceptions
-from cloudvolume.exceptions import AlignmentError, ReadOnlyException
+from cloudvolume.exceptions import AlignmentError
 from cloudvolume import CloudVolume, chunks
-from cloudvolume.lib import Bbox, Vec, yellow, mkdir
+from cloudvolume.lib import Bbox, Vec, yellow
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
   TEST_NUMBER,  
-  delete_layer, create_layer
+  delete_layer, create_layer,
+  create_volume_from_image
 )
 from cloudvolume.datasource.precomputed.common import cdn_cache_control
 from cloudvolume.datasource.precomputed.image.tx import generate_chunks
@@ -30,6 +30,22 @@ def test_from_numpy():
   arr = np.random.randn(128,128, 128, 3)
   arr = np.asarray(arr, dtype=np.float32)
   vol = CloudVolume.from_numpy(arr, max_mip=1)
+  arr2 = vol[:,:,:]
+  np.alltrue(arr == arr2)
+  shutil.rmtree('/tmp/image')
+
+def test_from_numpy():
+  arr = np.random.random_integers(0, high=255, size=(128,128, 128))
+  arr = np.asarray(arr, dtype=np.uint8)
+  arr = np.asfortranarray(arr)
+  vol = CloudVolume.from_numpy(arr)
+  arr2 = vol[:,:,:]
+  np.alltrue(arr == arr2)
+  
+  arr = np.random.randn(128,128, 128, 3)
+  arr = np.asarray(arr, dtype=np.float32)
+  arr = np.asfortranarray(arr)
+  vol = CloudVolume.from_numpy(arr)
   arr2 = vol[:,:,:]
   np.alltrue(arr == arr2)
   shutil.rmtree('/tmp/image')
@@ -306,11 +322,15 @@ def test_parallel_shared_memory_write():
   assert np.all(cv[128:,128:,:64] == 3)    
   assert np.all(cv[:,:,64:128] == 2)    
 
+  
+  delete_layer()
+  cv, _ = create_layer(size=(1,128,256,256), offset=(0,0,0), order='C')
+
   shareddata[:] = 0
   shareddata[:,0,0] = 1
-  cv.upload_from_shared_memory(shm_location, bbox=Bbox((0,0,0), (256,256,128)), order='C')
-  assert np.all(cv[0,0,:] == 1)
-  assert np.all(cv[1,0,:] == 0)
+  cv.upload_from_shared_memory(shm_location, bbox=Bbox((0,0,0), (128,256,256)))
+  assert np.alltrue(cv[0,0,:] == 1)
+  assert np.alltrue(cv[1,0,:] == 0)
 
   mmapfh.close()
   shm.unlink(shm_location)
@@ -392,7 +412,7 @@ def test_download_upload_file(green):
 
 def test_numpy_memmap():
   delete_layer()
-  cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
+  cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
 
   mkdir('/tmp/file/test/')
 
@@ -427,21 +447,30 @@ def test_write(green, encoding):
   # out of bounds
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
+<<<<<<< HEAD
   cv.green_threads = green
+=======
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
   with pytest.raises(ValueError):
     cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
   
   # non-aligned writes
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
+<<<<<<< HEAD
   cv.green_threads = green
+=======
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
   with pytest.raises(ValueError):
     cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
   # test bounds check for short boundary chunk
   delete_layer()
   cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
+<<<<<<< HEAD
   cv.green_threads = green
+=======
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
   cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
   cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
@@ -1135,8 +1164,11 @@ def test_transfer():
   # Bbox version
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
+<<<<<<< HEAD
 
   img = cv[:]
+=======
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
   cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
 
@@ -1377,8 +1409,20 @@ def test_redirects():
   except exceptions.CyclicRedirect:
     pass
 
+<<<<<<< HEAD
   vol.info['redirect'] = 'file:///tmp/cloudvolume/redirects_6'
   vol.commit_info()
+=======
+def test_get_mesh_order_stability():
+  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
+  first_mesh = vol.mesh.get([148, 18], fuse=True)
+  
+  for _ in range(5):
+    next_mesh = vol.mesh.get([148, 18], fuse=True)
+    assert first_mesh['num_vertices'] == next_mesh['num_vertices']
+    assert np.all(first_mesh['vertices'] == next_mesh['vertices'])
+    assert np.all(first_mesh['faces'] == next_mesh['faces'])
+>>>>>>> 6792360c098ccfc0c47418ebb70b28bbcbe3fc42
 
   vol = CloudVolume('file:///tmp/cloudvolume/redirects_1')
 
