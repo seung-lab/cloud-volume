@@ -127,7 +127,8 @@ class PrecomputedMetadata(object):
       info['redirect'] = str(redirect)
  
     # add mip levels
-    for mip in range(max_mip):
+    # the max_mip should be inclusive
+    for mip in range(max_mip + 1):
       cls.add_scale(None, factor ** mip, encoding=encoding, chunk_size=chunk_size, info=info)
 
     if encoding == 'compressed_segmentation':
