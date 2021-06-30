@@ -16,6 +16,7 @@ from .... import exceptions
 from ....lib import yellow, red, toiter
 from ....mesh import Mesh
 from ..spatial_index import CachedSpatialIndex
+from .common import apply_transform
 
 SEGIDRE = re.compile(r'\b(\d+):0.*?$')
 
@@ -34,6 +35,11 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     self.config = config
 
     self.readonly = bool(readonly)
+
+    if 'transform' not in self.meta.info:
+      self.transform = np.eye(4)
+    else:
+      self.transform = np.array(self.meta.info['transform'] + [0,0,0,1]).reshape(4,4)
 
     self.spatial_index = None
     if self.meta.spatial_index:
@@ -162,6 +168,8 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     meshdata = [ mesh for segid, mesh in meshdata ]
     meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
     mesh = Mesh.concatenate(*meshdata)
+    mesh.vertices = apply_transform(mesh.vertices, self.transform)
+
 
     if not remove_duplicate_vertices:
       return mesh 

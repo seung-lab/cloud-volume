@@ -5,6 +5,7 @@ import numpy as np
 
 from cloudfiles import CloudFiles
 
+from .common import apply_transform
 from .unsharded import UnshardedLegacyPrecomputedMeshSource
 from ..sharding import ShardingSpecification, ShardReader
 from ....mesh import Mesh
@@ -32,9 +33,8 @@ def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, tran
             manifest.chunk_shape * (2 ** lod) * \
             (manifest.fragment_positions[lod][:,frag] + \
             (mesh.vertices / (2.0 ** vertex_quantization_bits - 1)))
-    n_verts = len(mesh.vertices)
-    # Scale to native (nm) space
-    mesh.vertices = np.matmul(transform[:3,:], np.hstack([mesh.vertices, np.ones((n_verts,1)) ]).T).T
+    
+    mesh.vertices = apply_transform(mesh.vertices, transform)
     meshdata[manifest.segment_id].append(mesh)
   return meshdata
 
