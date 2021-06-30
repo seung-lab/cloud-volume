@@ -88,7 +88,7 @@ def compressed_morton_code(gridpt, grid_size):
 
   for i in range(max(num_bits)):
     for dim in range(3):
-      if 2 ** i <= grid_size[dim] and grid_size[dim] > 1:
+      if 2 ** i < grid_size[dim]:
         bit = (((np.uint64(gridpt[:, dim]) >> np.uint64(i)) & one) << j)
         code |= bit
         j += one
@@ -123,4 +123,3 @@ def shade(dest_img, dest_bbox, src_img, src_bbox):
     src_img = src_img[..., np.newaxis]
   
   dest_img[ dbox.to_slices() ] = src_img[ sbox.to_slices() ]
-
