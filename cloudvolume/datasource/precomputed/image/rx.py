@@ -293,6 +293,9 @@ def download_chunk(
   (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
   content = file['content']
 
+  if file['error']:
+    raise file['error']
+
   if enable_cache:
     cache_content = next(compression.transcode(file, compress_cache))['content'] 
     CloudFiles('file://' + cache.path).put(
