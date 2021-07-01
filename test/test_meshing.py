@@ -42,6 +42,16 @@ def test_get_mesh():
   # just don't crash
   mesh = vol.mesh.get(18, chunk_size=(512, 512, 100), fuse=True)
 
+  # test transform
+  mesh = vol.mesh.get(18)
+
+  vol.mesh.transform = np.eye(4) * 2
+  vol.mesh.transform[:,3] = 1
+
+  double_mesh = vol.mesh.get(18)
+
+  assert (2 * mesh.vertices + 1 == double_mesh.vertices).all()
+
 def test_duplicate_vertices():
   verts = np.array([
     [0,0,0], [0,1,0],
