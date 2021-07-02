@@ -349,15 +349,13 @@ def generate_chunks(meta, img, offset, mip):
   alignment_check = bounds.round_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
 
   if not np.all(alignment_check.minpt == bounds.minpt):
-    raise AlignmentError("""
+    raise AlignmentError(f"""
       Only chunk aligned writes are supported by this function. 
 
-      Got:             {}
-      Volume Offset:   {} 
-      Nearest Aligned: {}
-    """.format(
-      bounds, meta.voxel_offset(mip), alignment_check)
-    )
+      Got:             {bounds}
+      Volume Offset:   {meta.voxel_offset(mip)} 
+      Nearest Aligned: {alignment_check}
+    """)
 
   bounds = Bbox.clamp(bounds, meta.bounds(mip))
 
