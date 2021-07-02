@@ -348,6 +348,18 @@ class Bbox(object):
   def dtype(self):
     return self._dtype
 
+  @property
+  def dx(self):
+    return self.maxpt.x - self.minpt.x
+
+  @property
+  def dy(self):
+    return self.maxpt.y - self.minpt.y
+
+  @property
+  def dz(self):
+    return self.maxpt.z - self.minpt.z  
+
   @classmethod
   def intersection(cls, bbx1, bbx2):
     result = Bbox( [ 0 ] * bbx1.ndim, [ 0 ] * bbx2.ndim )

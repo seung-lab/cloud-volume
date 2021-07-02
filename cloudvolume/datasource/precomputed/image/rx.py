@@ -105,11 +105,11 @@ def download(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
   full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
-  cloudpaths = list(chunknames(
+  cloudpaths = chunknames(
     full_bbox, meta.bounds(mip), 
     meta.key(mip), meta.chunk_size(mip), 
     protocol=meta.path.protocol
-  ))
+  )
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)

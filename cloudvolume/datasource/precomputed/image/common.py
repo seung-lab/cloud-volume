@@ -98,14 +98,24 @@ def parallel_execution(
 def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
   path = posixpath if protocol != 'file' else os.path
 
-  for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
-    highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
-    filename = "{}-{}_{}-{}_{}-{}".format(
-      x, highpt.x,
-      y, highpt.y, 
-      z, highpt.z
-    )
-    yield path.join(key, filename)
+  class ChunkNamesIterator():
+    def __len__(self):
+      # round up and avoid conversion to float
+      n_chunks = (bbox.dx + chunk_size[0] - 1) // chunk_size[0]
+      n_chunks *= (bbox.dy + chunk_size[1] - 1) // chunk_size[1]
+      n_chunks *= (bbox.dz + chunk_size[2] - 1) // chunk_size[2]
+      return n_chunks
+    def __iter__(self):
+      for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
+        highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
+        filename = "{}-{}_{}-{}_{}-{}".format(
+          x, highpt.x,
+          y, highpt.y, 
+          z, highpt.z
+        )
+        yield path.join(key, filename)
+
+  return ChunkNamesIterator()
 
 def gridpoints(bbox, volume_bbox, chunk_size):
   """
