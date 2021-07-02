@@ -9,6 +9,7 @@ from ...cacheservice import CacheService
 from ...frontends import CloudVolumePrecomputed
 from ...lib import yellow
 from ...paths import strict_extract
+from ...secrets import CLOUD_VOLUME_CACHE_DIR
 
 def create_precomputed(
     cloudpath, mip=0, bounded=True, autocrop=False,

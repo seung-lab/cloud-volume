@@ -333,7 +333,9 @@ vol = CloudVolume(...)
 # single core, send all of vol to destination, no painting memory
 vol.transfer_to('gs://bucket/dataset/layer', vol.bounds)
 
-# Caching, located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
+# Caching, default located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
+# You can also set the cache location using
+# cache=str or with environment variable CLOUD_VOLUME_CACHE_DIR
 vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
 image = vol[0:10,0:10,0:10] # Download partial image and cache
 vol[0:10,0:10,0:10] = image # Upload partial image and cache

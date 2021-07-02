@@ -1,6 +1,7 @@
 from .. import exceptions
 from ..lib import yellow, Bbox, Vec
 from ..cacheservice import default_path
+from ..secrets import CLOUD_VOLUME_CACHE_DIR
 
 import numpy as np
 
@@ -77,9 +78,11 @@ def autocropfn(meta, image, bbox, mip):
   return image, cropped_bbox
 
 def get_cache_path(cache, cloudpath):
-  cache_path = default_path(cloudpath)
   if type(cache) == str:
-    cache_path = cache
-  return cache_path
+    return cache
+  elif CLOUD_VOLUME_CACHE_DIR is not None:
+    return CLOUD_VOLUME_CACHE_DIR
+
+  return default_path(cloudpath)
 
 

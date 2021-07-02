@@ -9,6 +9,7 @@ from .lib import mkdir, colorize
 HOME = os.path.expanduser('~')
 CLOUD_VOLUME_DIR = os.path.join(HOME, '.cloudvolume')
 CLOUD_VOLUME_DIR = os.environ.get("CLOUD_VOLUME_DIR", CLOUD_VOLUME_DIR)
+CLOUD_VOLUME_CACHE_DIR = os.environ.get("CLOUD_VOLUME_CACHE_DIR", None)
 
 try:
   mkdir(CLOUD_VOLUME_DIR)
