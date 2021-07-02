@@ -3,6 +3,7 @@ from .metadata import BossMetadata
 
 from ...frontends.precomputed import CloudVolumePrecomputed
 
+from .. import get_cache_path
 from ...cacheservice import CacheService
 from ...cloudvolume import SharedConfiguration, register_plugin
 from ...paths import strict_extract
@@ -25,7 +26,7 @@ def create_boss(
       progress=progress,
     )
     cache = CacheService(
-      cloudpath=(cache if type(cache) == str else cloudpath),
+      cloudpath=get_cache_path(cache, cloudpath),
       enabled=bool(cache),
       config=config,
       compress=compress_cache,

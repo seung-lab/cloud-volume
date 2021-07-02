@@ -1,5 +1,6 @@
 from .. import exceptions
 from ..lib import yellow, Bbox, Vec
+from ..cacheservice import default_path
 
 import numpy as np
 
@@ -74,5 +75,11 @@ def autocropfn(meta, image, bbox, mip):
   image = image[ img_bbox.to_slices() ]
 
   return image, cropped_bbox
+
+def get_cache_path(cache, cloudpath):
+  cache_path = default_path(cloudpath)
+  if type(cache) == str:
+    cache_path = cache
+  return cache_path
 
 

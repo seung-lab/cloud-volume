@@ -3,6 +3,7 @@ from .metadata import PrecomputedMetadata
 from .mesh import PrecomputedMeshSource
 from .skeleton import PrecomputedSkeletonSource
 
+from .. import get_cache_path
 from ...cloudvolume import register_plugin, SharedConfiguration
 from ...cacheservice import CacheService
 from ...frontends import CloudVolumePrecomputed
@@ -32,7 +33,7 @@ def create_precomputed(
     )
 
     cache = CacheService(
-      cloudpath=(cache if type(cache) == str else cloudpath),
+      cloudpath=get_cache_path(cache, cloudpath),
       enabled=bool(cache),
       config=config,
       compress=compress_cache,

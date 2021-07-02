@@ -3,6 +3,7 @@ from .metadata import GrapheneMetadata
 from ..precomputed.image import PrecomputedImageSource
 from ..precomputed.skeleton import PrecomputedSkeletonSource
 
+from .. import get_cache_path
 from ...cacheservice import CacheService
 from ...cloudvolume import SharedConfiguration, register_plugin
 from ...paths import strict_extract
@@ -35,7 +36,7 @@ def create_graphene(
 
     def mkcache(cloudpath):
       return CacheService(
-        cloudpath=(cache if type(cache) == str else cloudpath),
+        cloudpath=get_cache_path(cache, cloudpath),
         enabled=bool(cache),
         config=config,
         compress=compress_cache,

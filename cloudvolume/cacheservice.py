@@ -20,6 +20,16 @@ from .secrets import CLOUD_VOLUME_DIR
 def warn(text):
   print(colorize('yellow', text))
 
+def default_path(cloudpath):
+  path = extract(cloudpath)
+  basepath = path.basepath
+  if basepath[0] == os.path.sep:
+    basepath = basepath[1:]
+
+  return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
+    path.protocol, basepath, path.layer
+  ))
+
 class CacheService(object):
   def __init__(
     self, cloudpath,
@@ -32,8 +42,7 @@ class CacheService(object):
     meta: PrecomputedMetadata
     compress: None = linked to dataset setting, bool = Force
     """
-    self._path = extract(cloudpath)
-    self.path = self.default_path()
+    self.path = cloudpath
 
     self.config = config
     self._enabled = enabled 
@@ -63,15 +72,6 @@ class CacheService(object):
   def enabled(self, val):
     self._enabled = val 
     self.initialize()
-
-  def default_path(self):
-    basepath = self._path.basepath
-    if basepath[0] == os.path.sep:
-      basepath = basepath[1:]
-
-    return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-      self._path.protocol, basepath, self._path.layer
-    ))
   
   def num_files(self, all_mips=False):
     def size(mip):
