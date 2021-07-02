@@ -1,4 +1,3 @@
-import concurrent.futures
 import copy
 from functools import partial
 import itertools
@@ -6,12 +5,18 @@ import json
 import math
 import multiprocessing as mp
 import os
+import platform
 import posixpath
 import signal
 
 import numpy as np
+import pathos.pools
+from tqdm import tqdm
 
-from ....lib import xyzrange, min2, max2, Vec, Bbox
+from ....lib import (
+  xyzrange, min2, max2, Vec, Bbox, 
+  sip, totalfn
+)
 from .... import sharedmemory as shm
 
 # Used in sharedmemory to emulate shared memory on 
@@ -19,10 +24,49 @@ from .... import sharedmemory as shm
 # more limited than on Linux.
 fs_lock = mp.Lock()
 
-def parallel_execution(fn, items, parallel, cleanup_shm=None):
+error_queue = mp.Queue()
+
+def check_error_queue():
+  if error_queue.empty():
+    return
+
+  errors = []
+  while not error_queue.empty():
+    err = error_queue.get()
+    if err is not StopIteration:
+      errors.append(err)
+  if len(errors):
+    raise Exception(errors)
+
+def error_capturing_fn(fn, *args, **kwargs):
+  try:
+    return fn(*args, **kwargs)
+  except Exception as err:
+    print(err)
+    error_queue.put(err)
+    return 0
+
+def parallel_execution(
+  fn, items, parallel, 
+  progress, desc="Progress",
+  total=None, cleanup_shm=None,
+  block_size=100, min_block_size=10
+):
+  if parallel is True:
+    parallel = mp.cpu_count()
+  elif parallel <= 0:
+    raise ValueError(f"Parallel must be a positive number or boolean (True: all cpus). Got: {parallel}")
+
   def cleanup(signum, frame):
     if cleanup_shm:
       shm.unlink(cleanup_shm)
+
+  fn = partial(error_capturing_fn, fn)
+  total = totalfn(items, total)
+
+  if total is not None and (total / parallel) < block_size:
+    block_size = int(math.ceil(total / parallel))
+    block_size = max(block_size, min_block_size)
 
   prevsigint = signal.getsignal(signal.SIGINT)
   prevsigterm = signal.getsignal(signal.SIGTERM)
@@ -30,11 +74,26 @@ def parallel_execution(fn, items, parallel, cleanup_shm=None):
   signal.signal(signal.SIGINT, cleanup)
   signal.signal(signal.SIGTERM, cleanup)
 
-  with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
-    executor.map(fn, items)
+  # Fix for MacOS which can segfault due to 
+  # urllib calling libdispatch which is not fork-safe
+  # https://bugs.python.org/issue30385
+  no_proxy = os.environ.get("no_proxy", "")
+  if platform.system().lower() == "darwin":
+    os.environ["no_proxy"] = "*"
 
-  signal.signal(signal.SIGINT, prevsigint)
-  signal.signal(signal.SIGTERM, prevsigterm)
+  try:
+    with tqdm(desc=desc, total=total) as pbar:
+      with pathos.pools.ProcessPool(parallel) as pool:
+        for num_inserted in pool.imap(fn, sip(items, block_size)):
+          pbar.update(num_inserted)
+  finally: 
+    if platform.system().lower() == "darwin":
+      os.environ["no_proxy"] = no_proxy
+
+    signal.signal(signal.SIGINT, prevsigint)
+    signal.signal(signal.SIGTERM, prevsigterm)
+  
+  check_error_queue()
 
 def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
   path = posixpath if protocol != 'file' else os.path

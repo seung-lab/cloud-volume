@@ -168,13 +168,6 @@ def upload_aligned(
     )
     return
 
-  length = (len(chunk_ranges) // parallel) or 1
-  chunk_ranges_by_process = []
-  for i in range(0, len(chunk_ranges), length):
-    chunk_ranges_by_process.append(
-      chunk_ranges[i:i+length]
-    )
-
   # use_shared_memory means use a predetermined
   # shared memory location, not no shared memory 
   # at all.
@@ -189,14 +182,18 @@ def upload_aligned(
   cup = partial(child_upload_process, 
     meta, cache, 
     img.shape, offset, mip,
-    compress, cdn_cache, progress,
+    compress, cdn_cache, False, # progress=False
     location, location_bbox, location_order, 
     delete_black_uploads, background_color, 
     green, compress_level=compress_level,
     secrets=secrets
   )
 
-  parallel_execution(cup, chunk_ranges_by_process, parallel, cleanup_shm=location)
+  parallel_execution(
+    cup, chunk_ranges, parallel, 
+    progress, desc="Upload", 
+    cleanup_shm=location
+  )
 
   # If manual mode is enabled, it's the 
   # responsibilty of the user to clean up
@@ -229,21 +226,23 @@ def child_upload_process(
     readonly=True
   )
 
-  if location_bbox:
-    cutout_bbox = Bbox( offset, offset + img_shape[:3] )
-    delta_box = cutout_bbox.clone() - location_bbox.minpt
-    renderbuffer = renderbuffer[ delta_box.to_slices() ]
+  try: 
+    if location_bbox:
+      cutout_bbox = Bbox( offset, offset + img_shape[:3] )
+      delta_box = cutout_bbox.clone() - location_bbox.minpt
+      renderbuffer = renderbuffer[ delta_box.to_slices() ]
 
-  threaded_upload_chunks(
-    meta, cache, 
-    renderbuffer, mip, chunk_ranges, 
-    compress=compress, cdn_cache=cdn_cache, progress=progress,
-    delete_black_uploads=delete_black_uploads, 
-    background_color=background_color,
-    green=green, compress_level=compress_level,
-    secrets=secrets
-  )
-  array_like.close()
+    return threaded_upload_chunks(
+      meta, cache, 
+      renderbuffer, mip, chunk_ranges, 
+      compress=compress, cdn_cache=cdn_cache, progress=progress,
+      delete_black_uploads=delete_black_uploads, 
+      background_color=background_color,
+      green=green, compress_level=compress_level,
+      secrets=secrets
+    )
+  finally:
+    array_like.close()
 
 def threaded_upload_chunks(
     meta, cache, 
@@ -338,6 +337,8 @@ def threaded_upload_chunks(
     total=len(chunk_ranges),
     green=green,
   )
+
+  return len(chunk_ranges)
 
 def generate_chunks(meta, img, offset, mip):
   shape = Vec(*img.shape)[:3]

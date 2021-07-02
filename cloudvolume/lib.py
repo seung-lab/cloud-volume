@@ -69,6 +69,14 @@ def first(lst):
   except IndexError:
     return None
 
+def totalfn(iterator, total):
+  if total is not None:
+    return total
+  try:
+    return len(iterator)
+  except TypeError:
+    return None
+
 def sip(iterable, block_size):
   """Sips a fixed size from the iterable."""
   ct = 0

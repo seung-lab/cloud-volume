@@ -206,22 +206,20 @@ def multiprocess_download(
     retain, use_shared_memory, order,
     green, secrets=None, background_color=0
   ):
-
-  cloudpaths_by_process = []
-  length = int(math.ceil(len(cloudpaths) / float(parallel)) or 1)
-  for i in range(0, len(cloudpaths), length):
-    cloudpaths_by_process.append(
-      cloudpaths[i:i+length]
-    )
-
+  
   cpd = partial(child_process_download, 
     meta, cache, mip, compress_cache, 
     requested_bbox, 
-    fill_missing, progress,
+    fill_missing, False, # progress=False
     location, use_shared_memory,
     green, secrets, background_color
   )
-  parallel_execution(cpd, cloudpaths_by_process, parallel, cleanup_shm=location)
+  parallel_execution(
+    cpd, cloudpaths, parallel, 
+    progress=progress, 
+    desc="Download",
+    cleanup_shm=location
+  )
 
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
@@ -282,6 +280,8 @@ def child_process_download(
   )
 
   array_like.close()
+
+  return len(cloudpaths)
 
 def download_chunk(
     meta, cache, 
