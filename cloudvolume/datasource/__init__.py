@@ -1,7 +1,8 @@
-from .. import exceptions
-from ..lib import yellow, Bbox, Vec
-from ..cacheservice import default_path
-from ..secrets import CLOUD_VOLUME_CACHE_DIR
+import os.path
+
+from .. import exceptions, paths
+from ..lib import yellow, Bbox, Vec, toabs
+from ..secrets import CLOUD_VOLUME_CACHE_DIR, CLOUD_VOLUME_DIR
 
 import numpy as np
 
@@ -79,10 +80,22 @@ def autocropfn(meta, image, bbox, mip):
 
 def get_cache_path(cache, cloudpath):
   if type(cache) == str:
-    return cache
+    return get_cache_path_helper(cache, cloudpath)
   elif CLOUD_VOLUME_CACHE_DIR is not None:
-    return CLOUD_VOLUME_CACHE_DIR
+    return get_cache_path_helper(CLOUD_VOLUME_CACHE_DIR, cloudpath)
 
-  return default_path(cloudpath)
+  base = os.path.join(CLOUD_VOLUME_DIR, 'cache')
+  return get_cache_path_helper(base, cloudpath)
+
+def get_cache_path_helper(base, cloudpath):
+  path = paths.extract(cloudpath)
+  basepath = path.basepath
+  if basepath[0] == os.path.sep:
+    basepath = basepath[1:]
+
+  return toabs(os.path.join(
+    base, path.protocol, basepath, path.layer
+  ))
+
 
 

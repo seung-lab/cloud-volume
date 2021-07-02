@@ -14,21 +14,9 @@ from .lib import (
   Bbox, colorize, jsonify, mkdir, 
   toabs, Vec, nvl
 )
-from .paths import extract
-from .secrets import CLOUD_VOLUME_DIR
 
 def warn(text):
   print(colorize('yellow', text))
-
-def default_path(cloudpath):
-  path = extract(cloudpath)
-  basepath = path.basepath
-  if basepath[0] == os.path.sep:
-    basepath = basepath[1:]
-
-  return toabs(os.path.join(CLOUD_VOLUME_DIR, 'cache', 
-    path.protocol, basepath, path.layer
-  ))
 
 class CacheService(object):
   def __init__(
