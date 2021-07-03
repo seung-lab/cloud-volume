@@ -8,6 +8,7 @@ import os
 import platform
 import posixpath
 import signal
+import traceback
 
 import numpy as np
 import pathos.pools
@@ -42,7 +43,7 @@ def error_capturing_fn(fn, *args, **kwargs):
   try:
     return fn(*args, **kwargs)
   except Exception as err:
-    print(err)
+    traceback.print_exception(type(err), err, err.__traceback__)
     error_queue.put(err)
     return 0
 
