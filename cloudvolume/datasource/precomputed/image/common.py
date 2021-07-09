@@ -11,7 +11,7 @@ import signal
 import traceback
 
 import numpy as np
-import pathos.pools
+import concurrent.futures
 from tqdm import tqdm
 
 from ....lib import (
@@ -26,6 +26,7 @@ from .... import sharedmemory as shm
 fs_lock = mp.Lock()
 
 error_queue = mp.Queue()
+progress_queue = mp.Queue()
 
 def check_error_queue():
   if error_queue.empty():
@@ -39,6 +40,11 @@ def check_error_queue():
   if len(errors):
     raise Exception(errors)
 
+def progress_queue_listener(q, total, desc):
+  pbar = tqdm(total=total, desc=desc)
+  for ct in iter(q.get, None):
+    pbar.update(int(ct))
+
 def error_capturing_fn(fn, *args, **kwargs):
   try:
     return fn(*args, **kwargs)
@@ -51,7 +57,7 @@ def parallel_execution(
   fn, items, parallel, 
   progress, desc="Progress",
   total=None, cleanup_shm=None,
-  block_size=100, min_block_size=10
+  block_size=500, min_block_size=10
 ):
   if parallel is True:
     parallel = mp.cpu_count()
@@ -83,16 +89,26 @@ def parallel_execution(
     os.environ["no_proxy"] = "*"
 
   try:
-    with tqdm(desc=desc, total=total) as pbar:
-      with pathos.pools.ProcessPool(parallel) as pool:
-        for num_inserted in pool.imap(fn, sip(items, block_size)):
-          pbar.update(num_inserted)
+    if progress:
+      proc = mp.Process(
+        target=progress_queue_listener, 
+        args=(progress_queue,total,desc)
+      )
+      proc.start()
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel, mp_context=mp.get_context("fork")) as pool:
+      pool.map(fn, sip(items, block_size))
   finally: 
     if platform.system().lower() == "darwin":
       os.environ["no_proxy"] = no_proxy
 
     signal.signal(signal.SIGINT, prevsigint)
     signal.signal(signal.SIGTERM, prevsigterm)
+
+    if progress:
+      progress_queue.put(None)
+      proc.join()
+      proc.close()
   
   check_error_queue()
 

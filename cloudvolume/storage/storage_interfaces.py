@@ -31,10 +31,12 @@ class keydefaultdict(defaultdict):
 S3_POOL = None
 GC_POOL = None
 def reset_connection_pools():
+  import gc
   global S3_POOL
   global GC_POOL
   S3_POOL = keydefaultdict(lambda service: keydefaultdict(lambda bucket_name: S3ConnectionPool(service, bucket_name)))
   GC_POOL = keydefaultdict(lambda bucket_name: GCloudBucketPool(bucket_name))
+  gc.collect()
 
 reset_connection_pools()
 

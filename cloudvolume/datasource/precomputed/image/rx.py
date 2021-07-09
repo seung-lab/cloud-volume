@@ -5,8 +5,6 @@ import os
 import threading
 
 import numpy as np
-from six.moves import range
-from tqdm import tqdm
 
 from cloudfiles import reset_connection_pools, CloudFiles, compression
 import fastremap
@@ -27,7 +25,7 @@ import cloudvolume.sharedmemory as shm
 
 from ..common import should_compress, content_type
 from .common import (
-  fs_lock, parallel_execution, 
+  fs_lock, progress_queue, parallel_execution, 
   chunknames, shade, gridpoints,
   compressed_morton_code
 )
@@ -210,7 +208,7 @@ def multiprocess_download(
   cpd = partial(child_process_download, 
     meta, cache, mip, compress_cache, 
     requested_bbox, 
-    fill_missing, False, # progress=False
+    fill_missing, progress,
     location, use_shared_memory,
     green, secrets, background_color
   )
@@ -271,11 +269,13 @@ def child_process_download(
 
   def process(src_img, src_bbox):
     shade(dest_img, dest_bbox, src_img, src_bbox)
+    if progress:
+      progress_queue.put(1)
 
   download_chunks_threaded(
     meta, cache, mip, cloudpaths,
     fn=process, fill_missing=fill_missing,
-    progress=progress, compress_cache=compress_cache,
+    progress=False, compress_cache=compress_cache,
     green=green, secrets=secrets, background_color=background_color
   )
 
