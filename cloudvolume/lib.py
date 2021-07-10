@@ -1,3 +1,4 @@
+from typing import Union
 import decimal
 from functools import reduce
 import json
@@ -633,8 +634,11 @@ class Bbox(object):
   def center(self):
     return (self.minpt + self.maxpt) / 2.0
 
-  def grow(self, amt):
-    assert amt >= 0
+  def grow(self, amt: Union[int, tuple, list]):
+    if isinstance(amt, tuple) or isinstance(amt, list):
+      assert len(amt) == 3
+      amt = np.asarray(amt)
+
     self.minpt -= amt
     self.maxpt += amt
     return self
