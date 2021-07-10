@@ -1,6 +1,7 @@
 from functools import partial
 import itertools
 import math
+import multiprocessing as mp
 import os
 import threading
 
@@ -25,12 +26,14 @@ import cloudvolume.sharedmemory as shm
 
 from ..common import should_compress, content_type
 from .common import (
-  fs_lock, progress_queue, parallel_execution, 
+  fs_lock, parallel_execution, 
   chunknames, shade, gridpoints,
   compressed_morton_code
 )
 
 from .. import sharding
+
+progress_queue = None # defined in common.initialize_progress_queue
 
 def download_sharded(
     requested_bbox, mip,
@@ -202,9 +205,8 @@ def multiprocess_download(
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, order,
-    green, secrets=None, background_color=0
+    green, secrets=None, background_color=0,
   ):
-  
   cpd = partial(child_process_download, 
     meta, cache, mip, compress_cache, 
     requested_bbox, 
@@ -216,7 +218,8 @@ def multiprocess_download(
     cpd, cloudpaths, parallel, 
     progress=progress, 
     desc="Download",
-    cleanup_shm=location
+    cleanup_shm=location,
+    block_size=750,
   )
 
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
@@ -270,6 +273,11 @@ def child_process_download(
   def process(src_img, src_bbox):
     shade(dest_img, dest_bbox, src_img, src_bbox)
     if progress:
+      # This is not good programming practice, but
+      # I could not find a clean way to do this that
+      # did not result in warnings about leaked semaphores.
+      # progress_queue is created in common.py:initialize_progress_queue
+      # as a global for this module.
       progress_queue.put(1)
 
   download_chunks_threaded(

@@ -30,6 +30,8 @@ from ..common import (
 )
 from .rx import download_chunks_threaded
 
+progress_queue = None # defined in common.initialize_progress_queue
+
 def upload(
     meta, cache,
     image, offset, mip,
@@ -182,7 +184,7 @@ def upload_aligned(
   cup = partial(child_upload_process, 
     meta, cache, 
     img.shape, offset, mip,
-    compress, cdn_cache, False, # progress=False
+    compress, cdn_cache, progress,
     location, location_bbox, location_order, 
     delete_black_uploads, background_color, 
     green, compress_level=compress_level,
@@ -226,6 +228,15 @@ def child_upload_process(
     readonly=True
   )
 
+  def updatefn():
+    if progress:
+      # This is not good programming practice, but
+      # I could not find a clean way to do this that
+      # did not result in warnings about leaked semaphores.
+      # progress_queue is created in common.py:initialize_progress_queue
+      # as a global for this module.
+      progress_queue.put(1)
+
   try: 
     if location_bbox:
       cutout_bbox = Bbox( offset, offset + img_shape[:3] )
@@ -235,11 +246,11 @@ def child_upload_process(
     return threaded_upload_chunks(
       meta, cache, 
       renderbuffer, mip, chunk_ranges, 
-      compress=compress, cdn_cache=cdn_cache, progress=progress,
+      compress=compress, cdn_cache=cdn_cache, progress=updatefn,
       delete_black_uploads=delete_black_uploads, 
       background_color=background_color,
       green=green, compress_level=compress_level,
-      secrets=secrets
+      secrets=secrets,
     )
   finally:
     array_like.close()
@@ -330,10 +341,16 @@ def threaded_upload_chunks(
     else:
       do_upload(imgchunk, cloudpath)
 
+  def process_and_update(*args, **kwargs):
+    process(*args, **kwargs)
+    # Needed for multiprocess progress bar.
+    if callable(progress):
+      progress()
+
   schedule_jobs(
-    fns=( partial(process, *vals) for vals in chunk_ranges ), 
+    fns=( partial(process_and_update, *vals) for vals in chunk_ranges ), 
     concurrency=n_threads, 
-    progress=('Uploading' if progress else None),
+    progress=('Uploading' if progress and not callable(progress) else None),
     total=len(chunk_ranges),
     green=green,
   )

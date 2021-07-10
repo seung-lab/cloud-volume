@@ -20,13 +20,21 @@ from ....lib import (
 )
 from .... import sharedmemory as shm
 
-# Used in sharedmemory to emulate shared memory on 
-# OS X using a file, which has that facility but is 
-# more limited than on Linux.
-fs_lock = mp.Lock()
+fs_lock = None
+error_queue = None
+progress_queue = None
 
-error_queue = mp.Queue()
-progress_queue = mp.Queue()
+# Why not just assign fs_lock = mp.Lock()
+# and instead find a place in the code to
+# initialize it? If you don't jump through 
+# that hoop, you get warnings:
+#   /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/multiprocessing/resource_tracker.py:216: 
+#   UserWarning: resource_tracker: There appear to be 2 leaked semaphore objects to clean up at shutdown
+#   warnings.warn('resource_tracker: There appear to be %d '
+def init_fs_lock():
+  global fs_lock 
+  if fs_lock is None:
+    fs_lock = mp.Lock()
 
 def check_error_queue():
   if error_queue.empty():
@@ -43,7 +51,7 @@ def check_error_queue():
 def progress_queue_listener(q, total, desc):
   pbar = tqdm(total=total, desc=desc)
   for ct in iter(q.get, None):
-    pbar.update(int(ct))
+    pbar.update(ct)
 
 def error_capturing_fn(fn, *args, **kwargs):
   try:
@@ -53,12 +61,22 @@ def error_capturing_fn(fn, *args, **kwargs):
     error_queue.put(err)
     return 0
 
+def initialize_progress_queue(progress_queue):
+  from . import rx, tx
+  rx.progress_queue = progress_queue
+  tx.progress_queue = progress_queue
+
 def parallel_execution(
   fn, items, parallel, 
   progress, desc="Progress",
   total=None, cleanup_shm=None,
-  block_size=500, min_block_size=10
+  block_size=1000, min_block_size=10
 ):
+  global error_queue
+
+  error_queue = mp.Queue()
+  progress_queue = mp.Queue()
+
   if parallel is True:
     parallel = mp.cpu_count()
   elif parallel <= 0:
@@ -96,7 +114,11 @@ def parallel_execution(
       )
       proc.start()
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=parallel, mp_context=mp.get_context("fork")) as pool:
+    with concurrent.futures.ProcessPoolExecutor(
+      max_workers=parallel,
+      initializer=initialize_progress_queue,
+      initargs=(progress_queue,),
+    ) as pool:
       pool.map(fn, sip(items, block_size))
   finally: 
     if platform.system().lower() == "darwin":
@@ -109,8 +131,13 @@ def parallel_execution(
       progress_queue.put(None)
       proc.join()
       proc.close()
-  
+
+    progress_queue.close()
+    progress_queue.join_thread()
+
   check_error_queue()
+  error_queue.close()
+  error_queue.join_thread()
 
 def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
   path = posixpath if protocol != 'file' else os.path
