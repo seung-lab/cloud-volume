@@ -164,17 +164,17 @@ def test_bbox_grow():
   bbox = Bbox( (1,1,1), (10, 10, 10), dtype=np.float32 )
   bbox2 = bbox.clone()
 
-  bbox2.grow(1)
+  bbox2.adjust(1)
   assert np.all(bbox2.minpt == bbox.minpt - 1)
   assert np.all(bbox2.maxpt == bbox.maxpt + 1)
 
   bbox3 = bbox.clone()
-  bbox3.grow(-1)
+  bbox3.adjust(-1)
   assert np.all(bbox3.minpt == bbox.minpt + 1)
   assert np.all(bbox3.maxpt == bbox.maxpt - 1)
 
   bbox4 = bbox.clone()
-  bbox4.grow((1,1,1))
+  bbox4.adjust((1,1,1))
   assert np.all(bbox2.minpt == bbox.minpt - 1)
   assert np.all(bbox2.maxpt == bbox.maxpt + 1)
 
