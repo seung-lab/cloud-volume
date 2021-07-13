@@ -648,7 +648,14 @@ class Bbox(object):
     return self
 
   def shrink(self, amt: Union[int, tuple, list]):
-    return self.adjust(amt)
+    if isinstance(amt, int):
+      assert amt > 0
+    elif isinstance(amt, tuple) or isinstance(amt, list):
+      for item in amt:
+        assert item > 0
+
+    # make it negative for shrink
+    return self.adjust(-amt)
 
   def grow(self, amt: Union[int, tuple, list]):
     return self.adjust(amt)
