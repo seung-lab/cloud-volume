@@ -160,6 +160,24 @@ def test_bbox_division():
   bbox /= 3.0 
   assert np.all(x == point333)
 
+def test_bbox_grow():
+  bbox = Bbox( (1,1,1), (10, 10, 10), dtype=np.float32 )
+  bbox2 = bbox.clone()
+
+  bbox2.adjust(1)
+  assert np.all(bbox2.minpt == bbox.minpt - 1)
+  assert np.all(bbox2.maxpt == bbox.maxpt + 1)
+
+  bbox3 = bbox.clone()
+  bbox3.adjust(-1)
+  assert np.all(bbox3.minpt == bbox.minpt + 1)
+  assert np.all(bbox3.maxpt == bbox.maxpt - 1)
+
+  bbox4 = bbox.clone()
+  bbox4.adjust((1,1,1))
+  assert np.all(bbox2.minpt == bbox.minpt - 1)
+  assert np.all(bbox2.maxpt == bbox.maxpt + 1)
+
 def test_bbox_slicing():
   bbx_rect = Bbox.from_slices(np.s_[1:10,1:10,1:10])
   bbx_plane = Bbox.from_slices(np.s_[1:10,10:1,1:10])

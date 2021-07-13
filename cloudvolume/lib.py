@@ -1,3 +1,4 @@
+from typing import Union
 import decimal
 from functools import reduce
 import json
@@ -633,21 +634,31 @@ class Bbox(object):
   def center(self):
     return (self.minpt + self.maxpt) / 2.0
 
-  def grow(self, amt):
-    assert amt >= 0
+  def adjust(self, amt: Union[int, tuple, list]):
+    if isinstance(amt, tuple) or isinstance(amt, list):
+      assert len(amt) == 3
+      amt = np.asarray(amt)
+
     self.minpt -= amt
     self.maxpt += amt
-    return self
-
-  def shrink(self, amt):
-    assert amt >= 0
-    self.minpt += amt
-    self.maxpt -= amt
-
+    
     if not self.valid():
       raise ValueError("Cannot shrink bbox below zero volume.")
 
     return self
+
+  def shrink(self, amt: Union[int, tuple, list]):
+    if isinstance(amt, int):
+      assert amt > 0
+    elif isinstance(amt, tuple) or isinstance(amt, list):
+      for item in amt:
+        assert item > 0
+
+    # make it negative for shrink
+    return self.adjust(-amt)
+
+  def grow(self, amt: Union[int, tuple, list]):
+    return self.adjust(amt)
 
   def expand_to_chunk_size(self, chunk_size, offset=Vec(0,0,0, dtype=int)):
     """
