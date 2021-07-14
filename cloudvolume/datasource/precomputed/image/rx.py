@@ -26,14 +26,15 @@ import cloudvolume.sharedmemory as shm
 
 from ..common import should_compress, content_type
 from .common import (
-  fs_lock, parallel_execution, 
+  parallel_execution, 
   chunknames, shade, gridpoints,
   compressed_morton_code
 )
 
 from .. import sharding
 
-progress_queue = None # defined in common.initialize_progress_queue
+progress_queue = None # defined in common.initialize_synchronization
+fs_lock = None # defined in common.initialize_synchronization
 
 def download_sharded(
     requested_bbox, mip,

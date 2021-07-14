@@ -20,21 +20,8 @@ from ....lib import (
 )
 from .... import sharedmemory as shm
 
-fs_lock = None
 error_queue = None
 progress_queue = None
-
-# Why not just assign fs_lock = mp.Lock()
-# and instead find a place in the code to
-# initialize it? If you don't jump through 
-# that hoop, you get warnings:
-#   /Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/multiprocessing/resource_tracker.py:216: 
-#   UserWarning: resource_tracker: There appear to be 2 leaked semaphore objects to clean up at shutdown
-#   warnings.warn('resource_tracker: There appear to be %d '
-def init_fs_lock():
-  global fs_lock 
-  if fs_lock is None:
-    fs_lock = mp.Lock()
 
 def check_error_queue():
   if error_queue.empty():
@@ -61,10 +48,12 @@ def error_capturing_fn(fn, *args, **kwargs):
     error_queue.put(err)
     return 0
 
-def initialize_progress_queue(progress_queue):
+def initialize_synchronization(progress_queue, fs_lock):
   from . import rx, tx
   rx.progress_queue = progress_queue
   tx.progress_queue = progress_queue
+  rx.fs_lock = fs_lock
+  tx.fs_lock = fs_lock
 
 def parallel_execution(
   fn, items, parallel, 
@@ -76,6 +65,7 @@ def parallel_execution(
 
   error_queue = mp.Queue()
   progress_queue = mp.Queue()
+  fs_lock = mp.Lock()
 
   if parallel is True:
     parallel = mp.cpu_count()
@@ -116,8 +106,8 @@ def parallel_execution(
 
     with concurrent.futures.ProcessPoolExecutor(
       max_workers=parallel,
-      initializer=initialize_progress_queue,
-      initargs=(progress_queue,),
+      initializer=initialize_synchronization,
+      initargs=(progress_queue,fs_lock),
     ) as pool:
       pool.map(fn, sip(items, block_size))
   finally: 

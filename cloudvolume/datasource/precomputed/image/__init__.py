@@ -23,7 +23,7 @@ from .... import sharedmemory, chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
-from .common import chunknames, gridpoints, compressed_morton_code, init_fs_lock
+from .common import chunknames, gridpoints, compressed_morton_code
 from . import tx, rx
 
 class PrecomputedImageSource(ImageSourceInterface):
@@ -50,8 +50,6 @@ class PrecomputedImageSource(ImageSourceInterface):
     self.background_color = background_color
 
     self.shared_memory_id = self.generate_shared_memory_location()
-
-    init_fs_lock()
 
   def generate_shared_memory_location(self):
     return 'precomputed-shm-' + str(uuid.uuid4())

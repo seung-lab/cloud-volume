@@ -21,8 +21,7 @@ import cloudvolume.sharedmemory as shm
 
 from ... import check_grid_aligned
 from .common import (
-  fs_lock, parallel_execution, chunknames, 
-  shade
+  parallel_execution, chunknames, shade
 ) 
 from ..common import (
   content_type, cdn_cache_control,
@@ -30,7 +29,8 @@ from ..common import (
 )
 from .rx import download_chunks_threaded
 
-progress_queue = None # defined in common.initialize_progress_queue
+progress_queue = None # defined in common.initialize_synchronization
+fs_lock = None # defined in common.initialize_synchronization
 
 def upload(
     meta, cache,
