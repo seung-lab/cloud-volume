@@ -65,11 +65,15 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
       return 
 
     self.send_response(200)
-    self.serve_data(data)
+    self.serve_data(data, byte_range)
 
-  def serve_data(self, data):
+  def serve_data(self, data, byte_range):
     self.send_header('Content-type', 'application/octet-stream')
     self.send_header('Access-Control-Allow-Origin', '*')
     self.send_header('Content-length', str(len(data)))
+
+    if any(byte_range):
+      self.send_header('Content-range', f"bytes {byte_range[0]}-{byte_range[1]}/*")
+
     self.end_headers()
     self.wfile.write(data)
