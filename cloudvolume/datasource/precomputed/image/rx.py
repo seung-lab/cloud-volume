@@ -1,12 +1,11 @@
 from functools import partial
 import itertools
 import math
+import multiprocessing as mp
 import os
 import threading
 
 import numpy as np
-from six.moves import range
-from tqdm import tqdm
 
 from cloudfiles import reset_connection_pools, CloudFiles, compression
 import fastremap
@@ -27,12 +26,15 @@ import cloudvolume.sharedmemory as shm
 
 from ..common import should_compress, content_type
 from .common import (
-  fs_lock, parallel_execution, 
+  parallel_execution, 
   chunknames, shade, gridpoints,
   compressed_morton_code
 )
 
 from .. import sharding
+
+progress_queue = None # defined in common.initialize_synchronization
+fs_lock = None # defined in common.initialize_synchronization
 
 def download_sharded(
     requested_bbox, mip,
@@ -105,11 +107,11 @@ def download(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
   full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
-  cloudpaths = list(chunknames(
+  cloudpaths = chunknames(
     full_bbox, meta.bounds(mip), 
     meta.key(mip), meta.chunk_size(mip), 
     protocol=meta.path.protocol
-  ))
+  )
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
@@ -204,16 +206,8 @@ def multiprocess_download(
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, order,
-    green, secrets=None, background_color=0
+    green, secrets=None, background_color=0,
   ):
-
-  cloudpaths_by_process = []
-  length = int(math.ceil(len(cloudpaths) / float(parallel)) or 1)
-  for i in range(0, len(cloudpaths), length):
-    cloudpaths_by_process.append(
-      cloudpaths[i:i+length]
-    )
-
   cpd = partial(child_process_download, 
     meta, cache, mip, compress_cache, 
     requested_bbox, 
@@ -221,7 +215,13 @@ def multiprocess_download(
     location, use_shared_memory,
     green, secrets, background_color
   )
-  parallel_execution(cpd, cloudpaths_by_process, parallel, cleanup_shm=location)
+  parallel_execution(
+    cpd, cloudpaths, parallel, 
+    progress=progress, 
+    desc="Download",
+    cleanup_shm=location,
+    block_size=750,
+  )
 
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
@@ -273,15 +273,24 @@ def child_process_download(
 
   def process(src_img, src_bbox):
     shade(dest_img, dest_bbox, src_img, src_bbox)
+    if progress:
+      # This is not good programming practice, but
+      # I could not find a clean way to do this that
+      # did not result in warnings about leaked semaphores.
+      # progress_queue is created in common.py:initialize_progress_queue
+      # as a global for this module.
+      progress_queue.put(1)
 
   download_chunks_threaded(
     meta, cache, mip, cloudpaths,
     fn=process, fill_missing=fill_missing,
-    progress=progress, compress_cache=compress_cache,
+    progress=False, compress_cache=compress_cache,
     green=green, secrets=secrets, background_color=background_color
   )
 
   array_like.close()
+
+  return len(cloudpaths)
 
 def download_chunk(
     meta, cache, 

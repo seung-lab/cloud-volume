@@ -70,6 +70,14 @@ def first(lst):
   except IndexError:
     return None
 
+def totalfn(iterator, total):
+  if total is not None:
+    return total
+  try:
+    return len(iterator)
+  except TypeError:
+    return None
+
 def sip(iterable, block_size):
   """Sips a fixed size from the iterable."""
   ct = 0
@@ -340,6 +348,18 @@ class Bbox(object):
   @property 
   def dtype(self):
     return self._dtype
+
+  @property
+  def dx(self):
+    return self.maxpt.x - self.minpt.x
+
+  @property
+  def dy(self):
+    return self.maxpt.y - self.minpt.y
+
+  @property
+  def dz(self):
+    return self.maxpt.z - self.minpt.z  
 
   @classmethod
   def intersection(cls, bbx1, bbx2):

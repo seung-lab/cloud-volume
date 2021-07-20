@@ -29,6 +29,7 @@ def schedule_threaded_jobs(
     for fn in fns:
       tq.put(updatefn(fn))
 
+  pbar.close()
   return results
 
 def schedule_green_jobs(

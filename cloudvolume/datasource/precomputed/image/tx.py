@@ -21,14 +21,16 @@ import cloudvolume.sharedmemory as shm
 
 from ... import check_grid_aligned
 from .common import (
-  fs_lock, parallel_execution, chunknames, 
-  shade
+  parallel_execution, chunknames, shade
 ) 
 from ..common import (
   content_type, cdn_cache_control,
   should_compress
 )
 from .rx import download_chunks_threaded
+
+progress_queue = None # defined in common.initialize_synchronization
+fs_lock = None # defined in common.initialize_synchronization
 
 def upload(
     meta, cache,
@@ -153,7 +155,7 @@ def upload_aligned(
   ):
   global fs_lock
 
-  chunk_ranges = list(generate_chunks(meta, img, offset, mip))
+  chunk_ranges = generate_chunks(meta, img, offset, mip)
 
   if parallel == 1:
     threaded_upload_chunks(
@@ -167,13 +169,6 @@ def upload_aligned(
       secrets=secrets
     )
     return
-
-  length = (len(chunk_ranges) // parallel) or 1
-  chunk_ranges_by_process = []
-  for i in range(0, len(chunk_ranges), length):
-    chunk_ranges_by_process.append(
-      chunk_ranges[i:i+length]
-    )
 
   # use_shared_memory means use a predetermined
   # shared memory location, not no shared memory 
@@ -196,7 +191,11 @@ def upload_aligned(
     secrets=secrets
   )
 
-  parallel_execution(cup, chunk_ranges_by_process, parallel, cleanup_shm=location)
+  parallel_execution(
+    cup, chunk_ranges, parallel, 
+    progress, desc="Upload", 
+    cleanup_shm=location
+  )
 
   # If manual mode is enabled, it's the 
   # responsibilty of the user to clean up
@@ -229,21 +228,32 @@ def child_upload_process(
     readonly=True
   )
 
-  if location_bbox:
-    cutout_bbox = Bbox( offset, offset + img_shape[:3] )
-    delta_box = cutout_bbox.clone() - location_bbox.minpt
-    renderbuffer = renderbuffer[ delta_box.to_slices() ]
+  def updatefn():
+    if progress:
+      # This is not good programming practice, but
+      # I could not find a clean way to do this that
+      # did not result in warnings about leaked semaphores.
+      # progress_queue is created in common.py:initialize_progress_queue
+      # as a global for this module.
+      progress_queue.put(1)
 
-  threaded_upload_chunks(
-    meta, cache, 
-    renderbuffer, mip, chunk_ranges, 
-    compress=compress, cdn_cache=cdn_cache, progress=progress,
-    delete_black_uploads=delete_black_uploads, 
-    background_color=background_color,
-    green=green, compress_level=compress_level,
-    secrets=secrets
-  )
-  array_like.close()
+  try: 
+    if location_bbox:
+      cutout_bbox = Bbox( offset, offset + img_shape[:3] )
+      delta_box = cutout_bbox.clone() - location_bbox.minpt
+      renderbuffer = renderbuffer[ delta_box.to_slices() ]
+
+    return threaded_upload_chunks(
+      meta, cache, 
+      renderbuffer, mip, chunk_ranges, 
+      compress=compress, cdn_cache=cdn_cache, progress=updatefn,
+      delete_black_uploads=delete_black_uploads, 
+      background_color=background_color,
+      green=green, compress_level=compress_level,
+      secrets=secrets,
+    )
+  finally:
+    array_like.close()
 
 def threaded_upload_chunks(
     meta, cache, 
@@ -331,13 +341,21 @@ def threaded_upload_chunks(
     else:
       do_upload(imgchunk, cloudpath)
 
+  def process_and_update(*args, **kwargs):
+    process(*args, **kwargs)
+    # Needed for multiprocess progress bar.
+    if callable(progress):
+      progress()
+
   schedule_jobs(
-    fns=( partial(process, *vals) for vals in chunk_ranges ), 
+    fns=( partial(process_and_update, *vals) for vals in chunk_ranges ), 
     concurrency=n_threads, 
-    progress=('Uploading' if progress else None),
+    progress=('Uploading' if progress and not callable(progress) else None),
     total=len(chunk_ranges),
     green=green,
   )
+
+  return len(chunk_ranges)
 
 def generate_chunks(meta, img, offset, mip):
   shape = Vec(*img.shape)[:3]
@@ -348,24 +366,34 @@ def generate_chunks(meta, img, offset, mip):
   alignment_check = bounds.round_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
 
   if not np.all(alignment_check.minpt == bounds.minpt):
-    raise AlignmentError("""
+    raise AlignmentError(f"""
       Only chunk aligned writes are supported by this function. 
 
-      Got:             {}
-      Volume Offset:   {} 
-      Nearest Aligned: {}
-    """.format(
-      bounds, meta.voxel_offset(mip), alignment_check)
-    )
+      Got:             {bounds}
+      Volume Offset:   {meta.voxel_offset(mip)} 
+      Nearest Aligned: {alignment_check}
+    """)
 
   bounds = Bbox.clamp(bounds, meta.bounds(mip))
 
   img_offset = bounds.minpt - offset
   img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
 
-  for startpt in xyzrange( img_offset, img_end, meta.chunk_size(mip) ):
-    startpt = startpt.clone()
-    endpt = min2(startpt + meta.chunk_size(mip), shape)
-    spt = (startpt + bounds.minpt).astype(int)
-    ept = (endpt + bounds.minpt).astype(int)
-    yield (startpt, endpt, spt, ept)
+  class ChunkIterator():
+    def __len__(self):
+      csize = meta.chunk_size(mip)
+      bbox = Bbox(img_offset, img_end)
+      # round up and avoid conversion to float
+      n_chunks = (bbox.dx + csize[0] - 1) // csize[0]
+      n_chunks *= (bbox.dy + csize[1] - 1) // csize[1]
+      n_chunks *= (bbox.dz + csize[2] - 1) // csize[2]
+      return n_chunks
+    def __iter__(self):
+      for startpt in xyzrange( img_offset, img_end, meta.chunk_size(mip) ):
+        startpt = startpt.clone()
+        endpt = min2(startpt + meta.chunk_size(mip), shape)
+        spt = (startpt + bounds.minpt).astype(int)
+        ept = (endpt + bounds.minpt).astype(int)
+        yield (startpt, endpt, spt, ept)
+
+  return ChunkIterator()

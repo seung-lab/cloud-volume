@@ -1,4 +1,3 @@
-import concurrent.futures
 import copy
 from functools import partial
 import itertools
@@ -6,23 +5,83 @@ import json
 import math
 import multiprocessing as mp
 import os
+import platform
 import posixpath
 import signal
+import traceback
 
 import numpy as np
+import concurrent.futures
+from tqdm import tqdm
 
-from ....lib import xyzrange, min2, max2, Vec, Bbox
+from ....lib import (
+  xyzrange, min2, max2, Vec, Bbox, 
+  sip, totalfn
+)
 from .... import sharedmemory as shm
 
-# Used in sharedmemory to emulate shared memory on 
-# OS X using a file, which has that facility but is 
-# more limited than on Linux.
-fs_lock = mp.Lock()
+error_queue = None
+progress_queue = None
 
-def parallel_execution(fn, items, parallel, cleanup_shm=None):
+def check_error_queue():
+  if error_queue.empty():
+    return
+
+  errors = []
+  while not error_queue.empty():
+    err = error_queue.get()
+    if err is not StopIteration:
+      errors.append(err)
+  if len(errors):
+    raise Exception(errors)
+
+def progress_queue_listener(q, total, desc):
+  pbar = tqdm(total=total, desc=desc)
+  for ct in iter(q.get, None):
+    pbar.update(ct)
+
+def error_capturing_fn(fn, *args, **kwargs):
+  try:
+    return fn(*args, **kwargs)
+  except Exception as err:
+    traceback.print_exception(type(err), err, err.__traceback__)
+    error_queue.put(err)
+    return 0
+
+def initialize_synchronization(progress_queue, fs_lock):
+  from . import rx, tx
+  rx.progress_queue = progress_queue
+  tx.progress_queue = progress_queue
+  rx.fs_lock = fs_lock
+  tx.fs_lock = fs_lock
+
+def parallel_execution(
+  fn, items, parallel, 
+  progress, desc="Progress",
+  total=None, cleanup_shm=None,
+  block_size=1000, min_block_size=10
+):
+  global error_queue
+
+  error_queue = mp.Queue()
+  progress_queue = mp.Queue()
+  fs_lock = mp.Lock()
+
+  if parallel is True:
+    parallel = mp.cpu_count()
+  elif parallel <= 0:
+    raise ValueError(f"Parallel must be a positive number or boolean (True: all cpus). Got: {parallel}")
+
   def cleanup(signum, frame):
     if cleanup_shm:
       shm.unlink(cleanup_shm)
+
+  fn = partial(error_capturing_fn, fn)
+  total = totalfn(items, total)
+
+  if total is not None and (total / parallel) < block_size:
+    block_size = int(math.ceil(total / parallel))
+    block_size = max(block_size, min_block_size)
 
   prevsigint = signal.getsignal(signal.SIGINT)
   prevsigterm = signal.getsignal(signal.SIGTERM)
@@ -30,23 +89,67 @@ def parallel_execution(fn, items, parallel, cleanup_shm=None):
   signal.signal(signal.SIGINT, cleanup)
   signal.signal(signal.SIGTERM, cleanup)
 
-  with concurrent.futures.ProcessPoolExecutor(max_workers=parallel) as executor:
-    executor.map(fn, items)
+  # Fix for MacOS which can segfault due to 
+  # urllib calling libdispatch which is not fork-safe
+  # https://bugs.python.org/issue30385
+  no_proxy = os.environ.get("no_proxy", "")
+  if platform.system().lower() == "darwin":
+    os.environ["no_proxy"] = "*"
 
-  signal.signal(signal.SIGINT, prevsigint)
-  signal.signal(signal.SIGTERM, prevsigterm)
+  try:
+    if progress:
+      proc = mp.Process(
+        target=progress_queue_listener, 
+        args=(progress_queue,total,desc)
+      )
+      proc.start()
+
+    with concurrent.futures.ProcessPoolExecutor(
+      max_workers=parallel,
+      initializer=initialize_synchronization,
+      initargs=(progress_queue,fs_lock),
+    ) as pool:
+      pool.map(fn, sip(items, block_size))
+  finally: 
+    if platform.system().lower() == "darwin":
+      os.environ["no_proxy"] = no_proxy
+
+    signal.signal(signal.SIGINT, prevsigint)
+    signal.signal(signal.SIGTERM, prevsigterm)
+
+    if progress:
+      progress_queue.put(None)
+      proc.join()
+      proc.close()
+
+    progress_queue.close()
+    progress_queue.join_thread()
+
+  check_error_queue()
+  error_queue.close()
+  error_queue.join_thread()
 
 def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
   path = posixpath if protocol != 'file' else os.path
 
-  for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
-    highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
-    filename = "{}-{}_{}-{}_{}-{}".format(
-      x, highpt.x,
-      y, highpt.y, 
-      z, highpt.z
-    )
-    yield path.join(key, filename)
+  class ChunkNamesIterator():
+    def __len__(self):
+      # round up and avoid conversion to float
+      n_chunks = (bbox.dx + chunk_size[0] - 1) // chunk_size[0]
+      n_chunks *= (bbox.dy + chunk_size[1] - 1) // chunk_size[1]
+      n_chunks *= (bbox.dz + chunk_size[2] - 1) // chunk_size[2]
+      return n_chunks
+    def __iter__(self):
+      for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
+        highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
+        filename = "{}-{}_{}-{}_{}-{}".format(
+          x, highpt.x,
+          y, highpt.y, 
+          z, highpt.z
+        )
+        yield path.join(key, filename)
+
+  return ChunkNamesIterator()
 
 def gridpoints(bbox, volume_bbox, chunk_size):
   """

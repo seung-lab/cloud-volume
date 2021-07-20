@@ -87,8 +87,12 @@ def ndarray_fs(
   return array_like, renderbuffer
 
 def allocate_shm_file(filename, nbytes, dbytes, readonly):
-  exists = os.path.exists(filename)
-  size = 0 if not exists else os.path.getsize(filename)
+  try:
+    size = os.path.getsize(filename)
+    exists = True
+  except FileNotFoundError:
+    size = 0
+    exists = False
 
   if readonly and not exists:
     raise SharedMemoryReadError(filename + " has not been allocated. Requested " + str(nbytes) + " bytes.")
