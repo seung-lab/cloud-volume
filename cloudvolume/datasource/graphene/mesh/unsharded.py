@@ -67,6 +67,28 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       bottleneck.
     """
     # TODO: add lod to endpoint
+    cacheable = (bbox is None and verify)
+    cache_path = self.meta.join(self.path, f"{segid}:{lod}")
+
+    if self.cache.enabled and cacheable:
+      manifest = self.cache.get_json(cache_path)
+      if manifest is not None:
+        if "seg_ids" in manifest and not return_segids:
+          del manifest["seg_ids"]
+          return manifest
+        elif "seg_ids" not in manifest and return_segids:
+          pass
+        else:
+          return manifest
+
+    manifest = self.fetch_manifest_remote(segid, lod, level, bbox, return_segids, verify)
+
+    if self.cache.enabled and cacheable:
+      self.cache.put_json(cache_path, manifest)
+
+    return manifest
+
+  def fetch_manifest_remote(self, segid, lod=0, level=2, bbox=None, return_segids=False, verify=True):
     query_d = {
       'verify': bool(verify),
     }
