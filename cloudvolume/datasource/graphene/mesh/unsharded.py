@@ -144,7 +144,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       self, segids, 
       remove_duplicate_vertices=False, 
       fuse=False, bounding_box=None,
-      bypass=False, use_byte_offsets=False,
+      bypass=False, use_byte_offsets=True,
       deduplicate_chunk_boundaries=True,
       allow_missing=False,
     ):
