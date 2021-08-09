@@ -155,6 +155,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         progress=self.config.progress,
         fill_missing=self.fill_missing,
         order=order,
+        background_color=int(self.background_color),
       )
     else:
       return rx.download(

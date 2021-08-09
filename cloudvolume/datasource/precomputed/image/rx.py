@@ -41,7 +41,7 @@ def download_sharded(
     meta, cache, spec,
     compress, progress,
     fill_missing, 
-    order
+    order, background_color
   ):
 
   full_bbox = requested_bbox.expand_to_chunk_size(
@@ -73,15 +73,10 @@ def download_sharded(
   all_chunkdata = reader.get_data(list(code_map.keys()), meta.key(mip), progress=progress)
   for zcode, chunkdata in all_chunkdata.items():
     cutout_bbox = code_map[zcode]
-    if chunkdata is None:
-      if fill_missing:
-        chunkdata = None
-      else:
-        raise EmptyVolumeException(cutout_bbox)
-
     img3d = decode(
       meta, cutout_bbox, 
-      chunkdata, fill_missing, mip
+      chunkdata, fill_missing, mip,
+      background_color=background_color
     )
 
     shade(renderbuffer, requested_bbox, img3d, cutout_bbox)
