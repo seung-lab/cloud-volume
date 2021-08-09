@@ -509,6 +509,10 @@ class CacheService(object):
     kwargs['progress'] = False
     return self.put([ (path, content) ], *args, **kwargs)
 
+  def put_json(self, path, content, *args, **kwargs):
+    content = jsonify(content).encode("utf8")
+    return self.put_single(path, content, *args, *kwargs)
+
   def put(self, files, progress=None, compress=None, compress_level=None):
     """files: [ (filename, content) ]"""
     if progress is None:
