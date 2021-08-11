@@ -321,37 +321,48 @@ def download_chunks_threaded(
     fill_missing, progress, compress_cache,
     green=False, secrets=None, background_color=0
   ):
-  locations = cache.compute_data_locations(cloudpaths)
-  cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
+  # locations = cache.compute_data_locations(cloudpaths)
+  # cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
 
-  def process(cloudpath, filename, enable_cache):
-    img3d, bbox = download_chunk(
-      meta, cache, cloudpath, mip,
-      filename, fill_missing,
-      enable_cache, compress_cache,
-      secrets, background_color
-    )
+  # def process(cloudpath, filename, enable_cache):
+  #   img3d, bbox = download_chunk(
+  #     meta, cache, cloudpath, mip,
+  #     filename, fill_missing,
+  #     enable_cache, compress_cache,
+  #     secrets, background_color
+  #   )
+  #   fn(img3d, bbox)
+
+  # # local_downloads = ( 
+  # #   partial(process, cachedir, os.path.basename(filename), False) for filename in locations['local'] 
+  # # )
+  # # remote_downloads = ( 
+  # #   partial(process, meta.cloudpath, filename, cache.enabled) for filename in locations['remote'] 
+  # # )
+
+  # downloads = itertools.chain( local_downloads, remote_downloads )
+
+  # if progress and not isinstance(progress, str):
+  #   progress = "Downloading"
+
+  cloudpaths = list(cloudpaths)
+  files = CloudFiles(meta.cloudpath, progress=True, secrets=secrets).get(cloudpaths)
+
+  for f in files:
+    filename = f["path"]
+    content = f["content"]
+    bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
+    img3d = decode(meta, filename, content, fill_missing, mip, 
+                         background_color=background_color)
     fn(img3d, bbox)
 
-  local_downloads = ( 
-    partial(process, cachedir, os.path.basename(filename), False) for filename in locations['local'] 
-  )
-  remote_downloads = ( 
-    partial(process, meta.cloudpath, filename, cache.enabled) for filename in locations['remote'] 
-  )
-
-  downloads = itertools.chain( local_downloads, remote_downloads )
-
-  if progress and not isinstance(progress, str):
-    progress = "Downloading"
-
-  schedule_jobs(
-    fns=downloads, 
-    concurrency=DEFAULT_THREADS, 
-    progress=progress,
-    total=len(cloudpaths),
-    green=green,
-  )
+  # schedule_jobs(
+  #   fns=downloads, 
+  #   concurrency=DEFAULT_THREADS, 
+  #   progress=progress,
+  #   total=len(cloudpaths),
+  #   green=green,
+  # )
 
 def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
   """
