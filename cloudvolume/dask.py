@@ -63,7 +63,6 @@ def to_cloudvolume(arr,
   -------
   See notes on `compute` and `return_stored` parameters.
   """
-  import dask
   import dask.array as da
   if not da.core._check_regular_chunks(arr.chunks):
     raise ValueError('Attempt to save array to cloudvolume with irregular '
@@ -95,12 +94,7 @@ def to_cloudvolume(arr,
                                      arr.shape[:3],
                                      chunk_size=chunk_size,
                                      max_mip=max_mip)
-
-  # Delay writing any metadata until computation time.
-  #   - the caller may never do the full computation
-  #   - the filesystem may be slow, and there is a desire to open files
-  #     in parallel on worker machines.
-  vol = dask.delayed(_create_cloudvolume)(cloudpath, info, **kwargs)
+  vol = _create_cloudvolume(cloudpath, info, **kwargs)
   return arr.store(vol, lock=False, compute=compute, return_stored=return_stored)
 
 
