@@ -360,7 +360,7 @@ class MultiLevelPrecomputedMeshManifest:
   def header_dtype(self):
     return self._header_dtype(self.num_lods)
 
-  def _header_dtype(cls, num_lods)
+  def _header_dtype(cls, num_lods):
     return np.dtype([
       ('chunk_shape', np.float32, (3,)),
       ('grid_origin', np.float32, (3,)),
