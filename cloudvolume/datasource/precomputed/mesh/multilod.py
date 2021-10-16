@@ -65,7 +65,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
       binary = results[0]["content"]
       if binary is None:
         return None
-      return MultiLevelPrecomputedMeshManifest(binary, segment_id=first(segid), offset=0)
+      return MultiLevelPrecomputedMeshManifest.from_binary(binary, segment_id=first(segid), shard_offset=0)
 
     regexp = re.compile(r'(\d+)\.index$')
     manifests = []
@@ -75,7 +75,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
       binary = res["content"]
       if binary is None:
         manifests.append(None)
-      manifest = MultiLevelPrecomputedMeshManifest(binary, segment_id=sid, offset=0)
+      manifest = MultiLevelPrecomputedMeshManifest.from_binary(binary, segment_id=sid, shard_offset=0)
       manifests.append(manifest)
 
     return manifests
@@ -194,7 +194,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     binary = self.reader.get_data(segid, self.path)
     if binary is None:
       return None
-    return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, offset=byte_start, path=shard_filepath)
+    return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, shard_offset=byte_start, path=shard_filepath)
   
   def get(self, segids, lod=0, concat=True, progress=None):
     """Fetch meshes at a given level of detail (lod).
@@ -241,8 +241,8 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
       full_path = self.reader.meta.join(self.reader.meta.cloudpath)
       lod_binary = CloudFiles(full_path, progress=progress, secrets=self.config.secrets).get({
         'path': manifest.path,
-        'start': (manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
-        'end': (manifest.offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]),  
+        'start': (manifest.shard_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
+        'end': (manifest.shard_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]),  
       })
 
       meshes = extract_lod_meshes(
@@ -262,40 +262,50 @@ class MultiLevelPrecomputedMeshManifest:
   # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/datasource/precomputed/meshes.md
   # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/multiscale.ts
 
-  def __init__(self, binary, segment_id, offset, path=None):
-    self._segment = segment_id
-    self._binary = binary
-    self._offset = offset
-    self._path = path
+  def __init__(
+    self, segment_id, chunk_shape, grid_origin, 
+    num_lods, lod_scales, vertex_offsets, num_fragments_per_lod, 
+    fragment_positions, fragment_offsets, shard_offset=0, 
+    path=None
+  ):
+    # core specification
+    self.chunk_shape = chunk_shape
+    self.grid_origin = grid_origin
+    self.num_lods = int(num_lods)
+    self.lod_scales = lod_scales
+    self.vertex_offsets = vertex_offsets
+    self.num_fragments_per_lod = num_fragments_per_lod
+    self.fragment_positions = fragment_positions
+    self.fragment_offsets = fragment_offsets
 
+    # custom metadata
+    self.segment_id = int(segment_id)
+    self.shard_offset = shard_offset
+    self.path = path
+
+  @classmethod
+  def from_binary(cls, binary, segment_id, shard_offset=0, path=None):
     # num_loads is the 7th word
-    num_lods = int(np.frombuffer(self._binary[6*4:7*4], dtype=np.uint32)[0])
+    num_lods = int(np.frombuffer(binary[6*4:7*4], dtype=np.uint32)[0])
 
-    header_dt = np.dtype([
-      ('chunk_shape', np.float32, (3,)),
-      ('grid_origin', np.float32, (3,)),
-      ('num_lods', np.uint32),
-      ('lod_scales', np.float32, (num_lods,)),
-      ('vertex_offsets', np.float32, (num_lods,3)),
-      ('num_fragments_per_lod', np.uint32, (num_lods,))
-    ])
-    self._header = np.frombuffer(self._binary[0:header_dt.itemsize], dtype=header_dt)
+    header_dt = cls._header_dtype(num_lods)
+    header = np.frombuffer(binary[0:header_dt.itemsize], dtype=header_dt)
     offset = header_dt.itemsize
 
-    self._fragment_positions = []
-    self._fragment_offsets = []
+    fragment_positions = []
+    fragment_offsets = []
     for lod in range(num_lods):
       # Read fragment positions
-      pos_size =  3 * 4 * self.num_fragments_per_lod[lod]
-      self._fragment_positions.append(
-        np.frombuffer(self._binary[offset:offset + pos_size], dtype=np.uint32).reshape((3,self.num_fragments_per_lod[lod]))
+      pos_size =  3 * 4 * num_fragments_per_lod[lod]
+      fragment_positions.append(
+        np.frombuffer(binary[offset:offset + pos_size], dtype=np.uint32).reshape((3,num_fragments_per_lod[lod]))
       )
       offset += pos_size
 
       # Read fragment sizes
-      off_size = 4 * self.num_fragments_per_lod[lod]
-      self._fragment_offsets.append(
-        np.frombuffer(self._binary[offset:offset + off_size], dtype=np.uint32)
+      off_size = 4 * num_fragments_per_lod[lod]
+      fragment_offsets.append(
+        np.frombuffer(binary[offset:offset + off_size], dtype=np.uint32)
       )
       offset += off_size
 
@@ -305,57 +315,66 @@ class MultiLevelPrecomputedMeshManifest:
         'Error decoding mesh manifest for segment {}'.format(segment_id)
       ))
 
-  def data_size(self):
-    fragment_sizes = [ 
-      np.sum(lod_fragment_sizes) for lod_fragment_sizes in self.fragment_offsets 
+    return MultiLevelPrecomputedMeshManifest(
+      segment_id, 
+      chunk_shape=header['chunk_shape'][0],
+      grid_origin=header['grid_origin'][0],
+      num_lods=header['num_lods'][0],
+      lod_scales=header['lod_scales'][0], 
+      vertex_offsets=header['vertex_offsets'][0],
+      num_fragments_per_lod=header['num_fragments_per_lod'][0],
+      fragment_position=fragment_positions,
+      fragment_offsets=fragment_offsets,
+      shard_offset=shard_offset,
+      path=path
+    )
+
+  def to_binary(self):
+    """Render the manifest in its serialized binary representation."""
+    chunk_shape = np.array(self.chunk_shape, dtype=np.float32).reshape((3,))
+    grid_origin = np.array(self.grid_origin, dtype=np.float32).reshape((3,))
+    vertex_offsets = np.array(self.vertex_offsets, dtype=np.float32).reshape(
+      (self.num_lods, 3), order="C"
+    )
+    num_fragments_per_lod = np.array(
+      num_fragments_per_lod, dtype=np.uint32
+    ).reshape((self.num_lods,), order="C")
+
+    # frag positions and offsets must be provided in morton order
+    fragment_positions = np.array(fragment_positions, dtype=np.uint32)
+    fragment_offsets = np.array(fragment_offsets, dtype=np.uint32)
+
+    manifest = [
+      chunk_shape.astype('<f').tobytes(),
+      grid_origin.astype('<f').tobytes(),
+      struct.pack('<I', self.num_lods),
+      lod_scales.astype('<f').tobytes(),
+      vertex_offsets.astype('<f').tobytes(order='C'),
+      num_fragments_per_lod.astype('<I').tobytes(),
+      fragment_positions.astype('<I').tobytes(order='C'),
+      fragment_offsets.astype('<I').tobytes(order='C')
     ]
-    return np.sum(fragment_sizes)
 
-  @property
-  def segment_id(self):
-    return self._segment
+    return b''.join(manifest)
 
-  @property
-  def chunk_shape(self):
-    return self._header['chunk_shape'][0]
+  def header_dtype(self):
+    return self._header_dtype(self.num_lods)
 
-  @property
-  def grid_origin(self):
-    return self._header['grid_origin'][0]
+  def _header_dtype(cls, num_lods)
+    return np.dtype([
+      ('chunk_shape', np.float32, (3,)),
+      ('grid_origin', np.float32, (3,)),
+      ('num_lods', np.uint32),
+      ('lod_scales', np.float32, (num_lods,)),
+      ('vertex_offsets', np.float32, (num_lods,3)),
+      ('num_fragments_per_lod', np.uint32, (num_lods,))
+    ])
 
-  @property
-  def num_lods(self):
-    return self._header['num_lods'][0]
+  def __len__(self):
+    fixed_header_size = self.header_dtype().itemsize
+    lod_frags = 0
+    for lod in range(self.num_lods):
+      lod_frags += self.num_fragments_per_lod[lod]
 
-  @property
-  def lod_scales(self):
-    return self._header['lod_scales'][0]
-
-  @property
-  def vertex_offsets(self):
-    return self._header['vertex_offsets'][0]
-
-  @property
-  def num_fragments_per_lod(self):
-    return self._header['num_fragments_per_lod'][0]
-
-  @property
-  def fragment_positions(self):
-    return self._fragment_positions
-
-  @property
-  def fragment_offsets(self):
-    return self._fragment_offsets
-
-  @property
-  def length(self):
-    return len(self._binary)
-
-  @property
-  def offset(self):
-    """Manifest offset within the shard file. Used as a base when calculating fragment offsets."""
-    return self._offset
-
-  @property
-  def path(self):
-    return self._path
+    variable_header_size = (3*4 + 4) * lod_frags # frag pos + frag offsets
+    return fixed_header_size + variable_header_size
