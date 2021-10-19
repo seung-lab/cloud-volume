@@ -671,11 +671,11 @@ class Bbox(object):
     if isinstance(amt, int):
       assert amt > 0
     elif isinstance(amt, tuple) or isinstance(amt, list):
-      for item in amt:
-        assert item > 0
+      amt = np.array(amt)
+      assert np.all(amt > 0) # type: ignore
 
     # make it negative for shrink
-    return self.adjust(-amt)
+    return self.adjust(-amt) # type: ignore
 
   def grow(self, amt: Union[int, tuple, list]):
     return self.adjust(amt)
