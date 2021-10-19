@@ -1,9 +1,10 @@
 from collections import defaultdict
-import simdjson
+import urllib.parse
 import os 
 import sqlite3
 
 import numpy as np
+import simdjson
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
@@ -14,6 +15,38 @@ from ...lib import (
   Bbox, Vec, xyzrange, min2, 
   toiter, sip, nvl, getprecision
 )
+
+def parse_db_path(path):
+  result = urllib.parse.urlparse(path)
+  return {
+    "scheme": (result.scheme or "sqlite"),
+    "username": result.username,
+    "password": result.password,
+    "hostname": result.hostname,
+    "port": result.port,
+    "path": result.path,
+  }
+
+def connect(path):
+  result = parse_db_path(path)
+
+  if result["scheme"] == "sqlite":
+    return sqlite3.connect(result["path"])
+
+  if result["scheme"] != "mysql":
+    raise ValueError(
+      f"{result['scheme']} is not a supported "
+      f"spatial database connector."
+    )
+
+  import mysql.connector
+  return mysql.connect(
+    host=result["hostname"],
+    user=result["username"],
+    passwd=result["password"],
+    port=result["port"],
+    database=result["path"]
+  )
 
 class SpatialIndex(object):
   """
@@ -137,41 +170,23 @@ class SpatialIndex(object):
 
     return IndexPathIterator()
 
-  def to_sqlite(
-    self, database_name="spatial_index.db", 
-    create_indices=True, progress=None
-  ):
-    """
-    Create a sqlite database of labels and filenames
-    from the JSON spatial_index for faster performance.
-
-    Depending on the dataset size, this could take a while.
-    With a dataset with ~140k index files, the DB took over
-    an hour to build and was 42 GB.
-    """
+  def _to_sql_common(self, cur, create_indices, progress):
     progress = nvl(progress, self.config.progress)
-
-    conn = sqlite3.connect(database_name)
-    cur = conn.cursor()
-
     cur.execute("""
-    CREATE TABLE index_files (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filename TEXT NOT NULL
-    )
+      CREATE TABLE index_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT NOT NULL
+      )
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
     cur.execute("""
-    CREATE TABLE file_lookup (
-      label INTEGER NOT NULL,
-      fid INTEGER NOT NULL REFERENCES index_files(id),
-      PRIMARY KEY(label,fid)
-    )
+      CREATE TABLE file_lookup (
+        label INTEGER NOT NULL,
+        fid INTEGER NOT NULL REFERENCES index_files(id),
+        PRIMARY KEY(label,fid)
+      )
     """)
-
-    cur.execute("PRAGMA journal_mode = MEMORY")
-    cur.execute("PRAGMA synchronous = OFF")
 
     parser = simdjson.Parser()
 
@@ -186,9 +201,6 @@ class SpatialIndex(object):
         cur.executemany("INSERT INTO file_lookup(label, fid) VALUES (?,?)", values)
       conn.commit()
 
-    cur.execute("PRAGMA journal_mode = DELETE")
-    cur.execute("PRAGMA synchronous = FULL")
-
     if create_indices:
       if progress:
         print("Creating labels index...")
@@ -198,6 +210,41 @@ class SpatialIndex(object):
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
 
+  def to_mysql(self, path, create_indices=True, progress=None):
+    progress = nvl(progress, self.config.progress)
+    parse = parse_db_path(path)
+    conn = connect(path)
+    cur = conn.cursor()
+
+    database_name = parse["path"] or "spatial_index"
+
+    cur.execute("""
+      CREATE DATABASE IF NOT EXISTS ?
+      CHARACTER SET utf8 COLLATE utf8_bin
+    """, database_name)
+
+    self._to_sql_common(cur, create_indices, progress)
+    conn.close()
+
+  def to_sqlite(
+    self, database_name="spatial_index.db", 
+    create_indices=True, progress=None
+  ):
+    """
+    Create a sqlite database of labels and filenames
+    from the JSON spatial_index for faster performance.
+
+    Depending on the dataset size, this could take a while.
+    With a dataset with ~140k index files, the DB took over
+    an hour to build and was 42 GB.
+    """
+    conn = sqlite3.connect(database_name)
+    cur = conn.cursor()
+    cur.execute("PRAGMA journal_mode = MEMORY")
+    cur.execute("PRAGMA synchronous = OFF")
+    self._to_sql_common(cur, create_indices, progress)
+    cur.execute("PRAGMA journal_mode = DELETE")
+    cur.execute("PRAGMA synchronous = FULL")
     conn.close()
 
   def get_bbox(self, label):
