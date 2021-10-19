@@ -1,3 +1,5 @@
+from typing import Optional, Union, Dict
+
 from collections import defaultdict
 import os
 import json
@@ -57,8 +59,11 @@ def default_google_project_name():
 
   return None
 
+CredentialType = Dict[str,Union[str,int]]
+CredentialCacheType = Dict[str,CredentialType]
+
 PROJECT_NAME = default_google_project_name()
-GOOGLE_CREDENTIALS_CACHE = {}
+GOOGLE_CREDENTIALS_CACHE:CredentialCacheType = {}
 google_credentials_path = secretpath('secrets/google-secret.json')
 
 def google_credentials(bucket = ''):
@@ -93,7 +98,7 @@ def google_credentials(bucket = ''):
 
   return project_name, google_credentials
 
-AWS_CREDENTIALS_CACHE = defaultdict(dict)
+AWS_CREDENTIALS_CACHE:CredentialCacheType = defaultdict(dict)
 aws_credentials_path = secretpath('secrets/aws-secret.json')
 def aws_credentials(bucket = '', service = 'aws'):
   global AWS_CREDENTIALS_CACHE
@@ -145,7 +150,7 @@ else:
 
 # Graphene PyChunkGraph server
 # CAVE = Connectomics Annotation Versioning Engine
-CAVE_CREDENTIALS_CACHE = defaultdict(list)
+CAVE_CREDENTIALS_CACHE:CredentialCacheType = defaultdict(dict)
 def cave_credentials(domain=''):
   global CAVE_CREDENTIALS_CACHE
 

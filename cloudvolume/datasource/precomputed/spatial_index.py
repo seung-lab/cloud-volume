@@ -44,13 +44,13 @@ class SpatialIndex(object):
   """
   def __init__(
     self, cloudpath, bounds, chunk_size, 
-    config=None, sqlite_db=None, resolution=None
+    config=None, sql_db=None, resolution=None
   ):
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
     self.chunk_size = Vec(*chunk_size)
-    self.sqlite_db = sqlite_db # optional DB for higher performance
+    self.sql_db = config.spatial_index_db # optional DB for higher performance
     self.resolution = None
     self.precision = None
 
@@ -212,8 +212,8 @@ class SpatialIndex(object):
     label = str(label)
     bbox = None
 
-    if self.sqlite_db:
-      conn = sqlite3.connect(self.sqlite_db)
+    if self.sql_db:
+      conn = connect(self.sql_db)
       cur = conn.cursor()
       cur.execute("""
         select index_files.filename  
@@ -251,7 +251,7 @@ class SpatialIndex(object):
     given labels are located in. Can be expensive. If labels is not 
     specified, all labels are fetched.
 
-    If the spatial_index.sqlite_db attribute is specified, attempt
+    If the spatial_index.sql_db attribute is specified, attempt
     to use the database instead of querying the json files.
 
     Returns: { filename: [ labels... ], ... }
@@ -259,7 +259,7 @@ class SpatialIndex(object):
     if labels is not None:
       labels = toiter(labels)
     
-    if self.sqlite_db:
+    if self.sql_db:
       return self.file_locations_per_label_sql(labels)
     return self.file_locations_per_label_json(labels, allow_missing)
   
@@ -288,13 +288,13 @@ class SpatialIndex(object):
 
     return locations
 
-  def file_locations_per_label_sql(self, labels, sqlite_db=None):
-    sqlite_db = nvl(sqlite_db, self.sqlite_db)
-    if sqlite_db is None:
+  def file_locations_per_label_sql(self, labels, sql_db=None):
+    sql_db = nvl(sql_db, self.sql_db)
+    if sql_db is None:
       raise ValueError("An sqlite database file must be specified.")
 
     locations = defaultdict(list)
-    conn = sqlite3.connect(sqlite_db)
+    conn = connect(sql_db)
     cur = conn.cursor()
 
     where_clause = ""
@@ -338,8 +338,8 @@ class SpatialIndex(object):
     labels = set()
     fast_path = bbox.contains_bbox(self.physical_bounds)
 
-    if self.sqlite_db and fast_path:
-      conn = sqlite3.connect(self.sqlite_db)
+    if self.sql_db and fast_path:
+      conn = connect(self.sql_db)
       cur = conn.cursor()
       cur.execute("select label from file_lookup")
       while True:
