@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, cast
 import decimal
 from functools import reduce
 import json

@@ -32,7 +32,7 @@ try:
   import fpzip 
 except ImportError:
   fpziperrormsg = yellow("CloudVolume: fpzip codec is not available. Was it installed? pip install fpzip")
-  class fpzip():
+  class fpzip(): # type: ignore
     @classmethod
     def compress(cls, content):
       raise NotImplementedError(fpziperrormsg)

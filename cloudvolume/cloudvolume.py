@@ -1,5 +1,6 @@
 import sys
 import time
+from typing import Optional, Union
 
 import multiprocessing as mp
 import numpy as np
@@ -20,6 +21,11 @@ REGISTERED_PLUGINS = {}
 def register_plugin(key, creation_function):
   REGISTERED_PLUGINS[key.lower()] = creation_function
 
+CompressType = Optional[Union[str,bool]]
+ParallelType = Union[int,bool]
+CacheType = Union[bool,str]
+SecretsType = Optional[Union[str,dict]]
+
 class SharedConfiguration(object):
   """
   Hack around python's inability to
@@ -30,8 +36,10 @@ class SharedConfiguration(object):
   synchronize them.
   """
   def __init__(
-    self, cdn_cache, compress, compress_level, green,
-    mip, parallel, progress, secrets,
+    self, cdn_cache:bool, compress:CompressType, 
+    compress_level:Optional[int], green:bool,
+    mip:int, parallel:ParallelType, progress:bool, secrets:SecretsType,
+    spatial_index_db:Optional[str],
     *args, **kwargs
   ):
     if type(parallel) == bool:
@@ -49,19 +57,22 @@ class SharedConfiguration(object):
     self.parallel = parallel 
     self.progress = bool(progress)
     self.secrets = secrets
+    self.spatial_index_db = spatial_index_db
     self.args = args
     self.kwargs = kwargs
 
-class CloudVolume(object):
+class CloudVolume:
   def __new__(cls,
-    cloudpath, mip=0, bounded=True, autocrop=False,
-    fill_missing=False, cache=False, compress_cache=None,
-    cdn_cache=True, progress=INTERACTIVE, info=None, provenance=None,
-    compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, background_color=0,
-    green_threads=False, use_https=False,
-    max_redirects=10, mesh_dir=None, skel_dir=None, 
-    agglomerate=False, secrets=None
+    cloudpath:str, mip:int=0, bounded:bool=True, 
+    autocrop:bool=False, fill_missing:bool=False, cache:CacheType=False, 
+    compress_cache:CompressType=None, cdn_cache:bool=True, 
+    progress:bool=INTERACTIVE, info:dict=None, provenance:dict=None,
+    compress:CompressType=None, compress_level:Optional[int]=None, 
+    non_aligned_writes:bool=False, parallel:ParallelType=1, delete_black_uploads:bool=False, 
+    background_color:int=0, green_threads:bool=False, use_https:bool=False,
+    max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
+    agglomerate:bool=False, secrets:SecretsType=None, 
+    spatial_index_db:Optional[str]=None
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -193,6 +204,16 @@ class CloudVolume(object):
         defaults to looking in .cloudvolume/secrets for necessary tokens.
       skel_dir: (str) if not None, override the info['skeletons'] key before 
         pulling the skeleton info file.
+      spatial_index_db: (str) A path to an sqlite3 or mysql database that follows 
+        the following uri schema. sqlite is assumed if no scheme is present in 
+        the uri.
+          [sqlite://]filename.db
+          mysql://<username>:<password>@<host>:<port>/<db_name>
+
+        Igneous generated datasets include a JSON based spatial
+        database that tiles the dataset. This can be fast enough up to about 100 TVx
+        datasets. Above that, a proper database is required for efficient queries.
+        We provide multiple SQL database types that the index can be hosted on.
       use_https: (bool) maps gs:// and s3:// to their respective https paths. The 
         https paths hit a cached, read-only version of the data and may be faster.
     """
