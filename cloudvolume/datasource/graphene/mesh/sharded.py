@@ -61,7 +61,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     output = {}
     for filepath, exists in results.items():
-      label = int(os.path.basename(filepath)[:-2]) # strip :0
+      label = int(os.path.basename(filepath).split(':')[0]) # strip :0
       output[label] = filepath if exists else None
 
     return output
