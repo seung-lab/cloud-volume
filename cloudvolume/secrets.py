@@ -151,7 +151,7 @@ else:
 # Graphene PyChunkGraph server
 # CAVE = Connectomics Annotation Versioning Engine
 CAVE_CREDENTIALS_CACHE:CredentialCacheType = defaultdict(dict)
-def cave_credentials(domain=''):
+def cave_credentials(domain=""):
   global CAVE_CREDENTIALS_CACHE
 
   if domain in CAVE_CREDENTIALS_CACHE.keys():
@@ -175,3 +175,28 @@ def cave_credentials(domain=''):
   CAVE_CREDENTIALS_CACHE[domain] = credentials
   return credentials
 
+# This is for (as of this writing anyway) the spatial index
+# when run at huge scale in the cloud.
+MYSQL_CREDENTIALS_CACHE:CredentialCacheType = defaultdict(dict)
+def mysql_credentials(domain=""):
+  global MYSQL_CREDENTIALS_CACHE
+
+  if domain in MYSQL_CREDENTIALS_CACHE.keys():
+    return MYSQL_CREDENTIALS_CACHE[domain]
+
+  default_file_path = secretpath('secrets/mysql-secret.json')
+
+  paths = [ default_file_path ]
+
+  if domain:
+    paths = [ secretpath(f"secrets/{domain}-mysql-secret.json") ] + paths
+
+  credentials = {}
+  for path in paths:
+    if os.path.exists(path):
+      with open(path, 'rt') as f:
+        credentials = json.loads(f.read())
+      break
+
+  MYSQL_CREDENTIALS_CACHE[domain] = credentials
+  return credentials  
