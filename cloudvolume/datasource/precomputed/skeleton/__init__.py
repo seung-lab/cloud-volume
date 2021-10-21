@@ -38,6 +38,9 @@ class PrecomputedSkeletonSource(object):
     )
 
     cloudpath, skel_dir = os.path.split(cloudpath)
-    meta = PrecomputedMetadata(cloudpath, cache, info={ 'skeletons': skel_dir })
+    meta = PrecomputedMetadata(
+      cloudpath, config, cache, 
+      info={ 'skeletons': skel_dir }
+    )
 
     return PrecomputedSkeletonSource(meta, cache, config)

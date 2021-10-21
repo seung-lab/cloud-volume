@@ -47,7 +47,9 @@ class PrecomputedMeshSource(object):
     )
 
     cloudpath, mesh_dir = os.path.split(cloudpath)
-    meta = PrecomputedMetadata(cloudpath, cache, info={ 'mesh': mesh_dir })
+    meta = PrecomputedMetadata(
+      cloudpath, config, cache, info={ 'mesh': mesh_dir }
+    )
 
     return PrecomputedMeshSource(meta, cache, config)
 
