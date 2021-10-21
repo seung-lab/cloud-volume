@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from cloudfiles import CloudFiles
 
+from ...secrets import mysql_credentials
 from ...exceptions import SpatialIndexGapError
 from ... import paths
 from ...lib import (
@@ -39,12 +40,19 @@ def connect(path):
       f"spatial database connector."
     )
 
+  if any([ result[x] is None for x in ("username", "password") ]):
+    credentials = mysql_credentials(result["hostname"])
+    if result["password"] is None:
+      result["password"] = credentials["password"]
+    if result["username"] is None:
+      result["username"] = credentials["username"]
+
   import mysql.connector
-  return mysql.connect(
+  return mysql.connector.connect(
     host=result["hostname"],
     user=result["username"],
     passwd=result["password"],
-    port=result["port"],
+    port=(result["port"] or 3306), # default MySQL port
     database=result["path"]
   )
 
@@ -172,10 +180,12 @@ class SpatialIndex(object):
 
   def _to_sql_common(self, cur, create_indices, progress):
     progress = nvl(progress, self.config.progress)
+    cur.execute("""DROP TABLE IF EXISTS index_files, file_lookup""")
+
     cur.execute("""
       CREATE TABLE index_files (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        filename TEXT NOT NULL
+        id INTEGER PRIMARY KEY,
+        filename VARCHAR(100) NOT NULL
       )
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
@@ -210,24 +220,45 @@ class SpatialIndex(object):
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
 
+  def to_sql(self, path=None, create_indices=True, progress=None):
+    parse = parse_db_path(path)
+    if parse["scheme"] == "sqlite":
+      return self.to_sqlite(parse["path"], create_indices, progress)
+    elif parse["scheme"] == "mysql":
+      return self.to_mysql(path, create_indices, progress)
+    else:
+      raise ValueError(
+        f"Unsupported database type. {path}\n"
+        "Supported types: sqlite:// and mysql://"
+      )
+
   def to_mysql(self, path, create_indices=True, progress=None):
+    """
+    Create a mysql database of labels and filenames
+    from the JSON spatial_index for faster performance.
+    """
     progress = nvl(progress, self.config.progress)
     parse = parse_db_path(path)
     conn = connect(path)
     cur = conn.cursor()
 
     database_name = parse["path"] or "spatial_index"
+    # import pdb; pdb.set_trace()
+    # database_name = conn.converter.escape(database_name)
 
-    cur.execute("""
-      CREATE DATABASE IF NOT EXISTS ?
+    # GRANT CREATE, SELECT, INSERT, DELETE, INDEX ON database TO user@localhost
+
+    cur.execute(f"""
+      CREATE DATABASE IF NOT EXISTS {database_name}
       CHARACTER SET utf8 COLLATE utf8_bin
-    """, database_name)
+    """)
+    cur.execute(f"use {database_name}")
 
     self._to_sql_common(cur, create_indices, progress)
     conn.close()
 
   def to_sqlite(
-    self, database_name="spatial_index.db", 
+    self, path="spatial_index.db", 
     create_indices=True, progress=None
   ):
     """
