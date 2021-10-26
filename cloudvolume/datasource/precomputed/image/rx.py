@@ -161,8 +161,8 @@ def download(
         if N > np.iinfo(renderbuffer.dtype).max:
           renderbuffer = fastremap.refit(renderbuffer, value=N, increase_only=True)
 
-      fastremap.remap(img3d, remap, in_place=True)
-      shade(renderbuffer, requested_bbox, img3d, bbox)
+        fastremap.remap(img3d, remap, in_place=True)
+        shade(renderbuffer, requested_bbox, img3d, bbox)
 
     fn = process
     if renumber and not (use_file or use_shared_memory):
