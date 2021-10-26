@@ -37,7 +37,7 @@ class PrecomputedMetadata(object):
   read and write Precomputed data types.
   """
   def __init__(
-    self, cloudpath, config=None, cache=None, 
+    self, cloudpath, config, cache=None, 
     info=None, provenance=None, 
     max_redirects=10, use_https=False
   ):
