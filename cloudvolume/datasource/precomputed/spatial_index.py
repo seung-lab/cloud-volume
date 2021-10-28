@@ -1,4 +1,5 @@
 from collections import defaultdict
+import re
 import urllib.parse
 import os 
 import sqlite3
@@ -265,8 +266,16 @@ class SpatialIndex(object):
     database_name = parse["path"] or "spatial_index"
     # GRANT CREATE, SELECT, INSERT, DELETE, INDEX ON database TO user@localhost
 
-    # This is a possible SQL injection risk but I am not
-    # sure how to sanitize this input. Using a bind doesn't work.
+    # Can't sanitize table names easily using a bind.
+    # Therefore check to see if there are any non alphanumerics + underscore
+    # https://stackoverflow.com/questions/3247183/variable-table-name-in-sqlite
+    if re.search(r'[^a-zA-Z0-9_]', database_name):
+      raise ValueError(
+        f"Invalid characters in database name. "
+        f"Only alphanumerics and underscores are allowed. "
+        f"Got: {database_name}"
+      )
+
     cur.execute(f"""
       CREATE DATABASE IF NOT EXISTS {database_name}
       CHARACTER SET utf8 COLLATE utf8_bin
