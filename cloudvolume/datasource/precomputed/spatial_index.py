@@ -25,13 +25,18 @@ def parse_db_path(path):
   database defaults to "spatial_index"
   """
   result = urllib.parse.urlparse(path)
+
+  path = "spatial_index"
+  if result.path:
+    path = result.path.replace('/', '')
+
   return {
     "scheme": (result.scheme or "sqlite"),
     "username": result.username,
     "password": result.password,
     "hostname": result.hostname,
     "port": result.port,
-    "path": result.path,
+    "path": path,
   }
 
 def connect(path):
@@ -52,11 +57,6 @@ def connect(path):
       result["password"] = credentials["password"]
     if result["username"] is None:
       result["username"] = credentials["username"]
-
-  if result["path"]:
-    result["path"] = result["path"].replace('/', '')
-  else:
-    result["path"] = "spatial_index"
 
   import mysql.connector
   return mysql.connector.connect(
@@ -240,6 +240,7 @@ class SpatialIndex(object):
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
 
   def to_sql(self, path=None, create_indices=True, progress=None):
+    path = path or self.sql_db
     parse = parse_db_path(path)
     if parse["scheme"] == "sqlite":
       return self.to_sqlite(parse["path"], create_indices, progress)
