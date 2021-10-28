@@ -277,7 +277,7 @@ class SpatialIndex(object):
     With a dataset with ~140k index files, the DB took over
     an hour to build and was 42 GB.
     """
-    conn = sqlite3.connect(database_name)
+    conn = sqlite3.connect(path)
     cur = conn.cursor()
     cur.execute("PRAGMA journal_mode = MEMORY")
     cur.execute("PRAGMA synchronous = OFF")
