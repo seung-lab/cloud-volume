@@ -18,6 +18,12 @@ from ...lib import (
 )
 
 def parse_db_path(path):
+  """
+  sqlite paths: filename.db
+  mysql paths: mysql://{user}:{pwd}@{host}/{database}
+
+  database defaults to "spatial_index"
+  """
   result = urllib.parse.urlparse(path)
   return {
     "scheme": (result.scheme or "sqlite"),
