@@ -267,6 +267,8 @@ class SpatialIndex(object):
     cur.execute(f"use {database_name}")
 
     self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=True)
+    
+    cur.close()
     conn.close()
 
   def to_sqlite(
@@ -288,6 +290,7 @@ class SpatialIndex(object):
     self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=False)
     cur.execute("PRAGMA journal_mode = DELETE")
     cur.execute("PRAGMA synchronous = FULL")
+    cur.close()
     conn.close()
 
   def get_bbox(self, label):
@@ -437,6 +440,7 @@ class SpatialIndex(object):
         if len(rows) == 0:
           break
         labels.update(( int(row[0]) for row in rows ))
+      cur.close()
       conn.close()
       return labels
 
