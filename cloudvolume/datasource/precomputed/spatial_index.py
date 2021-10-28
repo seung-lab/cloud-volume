@@ -47,6 +47,11 @@ def connect(path):
     if result["username"] is None:
       result["username"] = credentials["username"]
 
+  if result["path"]:
+    result["path"] = result["path"].replace('/', '')
+  else:
+    result["path"] = "spatial_index"
+
   import mysql.connector
   return mysql.connector.connect(
     host=result["hostname"],
