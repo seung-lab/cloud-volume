@@ -455,7 +455,9 @@ class SpatialIndex(object):
         rows = cur.fetchmany(size=2**20)
         if len(rows) == 0:
           break
-        labels.update(( int(row[0]) for row in rows ))
+        # Sqlite only stores signed integers, so we need to coerce negative
+        # integers back into unsigned with a bitwise and.
+        labels.update(( int(row[0]) & 0xffffffffffffffff for row in rows ))
       cur.close()
       conn.close()
       return labels
