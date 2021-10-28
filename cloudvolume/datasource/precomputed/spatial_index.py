@@ -178,6 +178,7 @@ class SpatialIndex(object):
 
     return IndexPathIterator()
 
+<<<<<<< HEAD
   def _to_sql_common(self, conn, cur, create_indices, progress, mysql_syntax=False):
     # handle SQLite vs MySQL syntax quirks
     BIND = '%s' if mysql_syntax else '?'
@@ -190,15 +191,31 @@ class SpatialIndex(object):
     cur.execute(f"""
       CREATE TABLE index_files (
         id {INTEGER} PRIMARY KEY {AUTOINC},
+=======
+  def _to_sql_common(self, cur, create_indices, progress):
+    progress = nvl(progress, self.config.progress)
+    cur.execute("""DROP TABLE IF EXISTS index_files, file_lookup""")
+
+    cur.execute("""
+      CREATE TABLE index_files (
+        id INTEGER PRIMARY KEY,
+>>>>>>> 509d09f35854ece3293cecf52d25380061002845
         filename VARCHAR(100) NOT NULL
       )
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
+<<<<<<< HEAD
     cur.execute(f"""
       CREATE TABLE file_lookup (
         label {INTEGER} NOT NULL,
         fid {INTEGER} NOT NULL REFERENCES index_files(id),
+=======
+    cur.execute("""
+      CREATE TABLE file_lookup (
+        label INTEGER NOT NULL,
+        fid INTEGER NOT NULL REFERENCES index_files(id),
+>>>>>>> 509d09f35854ece3293cecf52d25380061002845
         PRIMARY KEY(label,fid)
       )
     """)
@@ -261,7 +278,11 @@ class SpatialIndex(object):
     """)
     cur.execute(f"use {database_name}")
 
+<<<<<<< HEAD
     self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=True)
+=======
+    self._to_sql_common(cur, create_indices, progress)
+>>>>>>> 509d09f35854ece3293cecf52d25380061002845
     conn.close()
 
   def to_sqlite(
@@ -280,7 +301,11 @@ class SpatialIndex(object):
     cur = conn.cursor()
     cur.execute("PRAGMA journal_mode = MEMORY")
     cur.execute("PRAGMA synchronous = OFF")
+<<<<<<< HEAD
     self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=False)
+=======
+    self._to_sql_common(cur, create_indices, progress)
+>>>>>>> 509d09f35854ece3293cecf52d25380061002845
     cur.execute("PRAGMA journal_mode = DELETE")
     cur.execute("PRAGMA synchronous = FULL")
     conn.close()
