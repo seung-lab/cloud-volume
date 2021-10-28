@@ -129,7 +129,7 @@ class SpatialIndex(object):
 
   def fetch_all_index_files(self, allow_missing=False, progress=None):
     """Generator returning batches of (filename, json)"""
-    all_index_paths = self.index_file_paths_for_bbox(self.bounds)
+    all_index_paths = self.index_file_paths_for_bbox(self.physical_bounds)
     
     progress = nvl(progress, self.config.progress)
 
