@@ -178,22 +178,27 @@ class SpatialIndex(object):
 
     return IndexPathIterator()
 
-  def _to_sql_common(self, cur, create_indices, progress):
+  def _to_sql_common(self, conn, cur, create_indices, progress, mysql_syntax=False):
+    # handle SQLite vs MySQL syntax quirks
+    BIND = '%s' if mysql_syntax else '?'
+    AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
+    INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
+
     progress = nvl(progress, self.config.progress)
     cur.execute("""DROP TABLE IF EXISTS index_files, file_lookup""")
 
-    cur.execute("""
+    cur.execute(f"""
       CREATE TABLE index_files (
-        id INTEGER PRIMARY KEY,
+        id {INTEGER} PRIMARY KEY {AUTOINC},
         filename VARCHAR(100) NOT NULL
       )
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
-    cur.execute("""
+    cur.execute(f"""
       CREATE TABLE file_lookup (
-        label INTEGER NOT NULL,
-        fid INTEGER NOT NULL REFERENCES index_files(id),
+        label {INTEGER} NOT NULL,
+        fid {INTEGER} NOT NULL REFERENCES index_files(id),
         PRIMARY KEY(label,fid)
       )
     """)
@@ -204,11 +209,13 @@ class SpatialIndex(object):
       for filename, content in index_files.items():
         index_labels = parser.parse(content).keys()
         filename = os.path.basename(filename)
-        cur.execute("INSERT INTO index_files(filename) VALUES (?)", (filename,))
-        cur.execute("SELECT id from index_files where filename = ?", (filename,))
+        cur.execute(f"INSERT INTO index_files(filename) VALUES ({BIND})", (filename,))
+        cur.execute(f"SELECT id from index_files where filename = {BIND}", (filename,))
         fid = cur.fetchone()[0]
         values = ( (int(label), fid) for label in index_labels )
-        cur.executemany("INSERT INTO file_lookup(label, fid) VALUES (?,?)", values)
+        if mysql_syntax:
+          values = list(values) # doesn't support generators in v8.0.26
+        cur.executemany(f"INSERT INTO file_lookup(label, fid) VALUES ({BIND},{BIND})", values)
       conn.commit()
 
     if create_indices:
@@ -254,7 +261,7 @@ class SpatialIndex(object):
     """)
     cur.execute(f"use {database_name}")
 
-    self._to_sql_common(cur, create_indices, progress)
+    self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=True)
     conn.close()
 
   def to_sqlite(
@@ -273,7 +280,7 @@ class SpatialIndex(object):
     cur = conn.cursor()
     cur.execute("PRAGMA journal_mode = MEMORY")
     cur.execute("PRAGMA synchronous = OFF")
-    self._to_sql_common(cur, create_indices, progress)
+    self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=False)
     cur.execute("PRAGMA journal_mode = DELETE")
     cur.execute("PRAGMA synchronous = FULL")
     conn.close()
