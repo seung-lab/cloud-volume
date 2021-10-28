@@ -185,7 +185,8 @@ class SpatialIndex(object):
     INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
 
     progress = nvl(progress, self.config.progress)
-    cur.execute("""DROP TABLE IF EXISTS index_files, file_lookup""")
+    cur.execute("""DROP TABLE IF EXISTS index_files""")
+    cur.execute("""DROP TABLE IF EXISTS file_lookup""")
 
     cur.execute(f"""
       CREATE TABLE index_files (
