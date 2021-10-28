@@ -251,11 +251,10 @@ class SpatialIndex(object):
     cur = conn.cursor()
 
     database_name = parse["path"] or "spatial_index"
-    # import pdb; pdb.set_trace()
-    # database_name = conn.converter.escape(database_name)
-
     # GRANT CREATE, SELECT, INSERT, DELETE, INDEX ON database TO user@localhost
 
+    # This is a possible SQL injection risk but I am not
+    # sure how to sanitize this input. Using a bind doesn't work.
     cur.execute(f"""
       CREATE DATABASE IF NOT EXISTS {database_name}
       CHARACTER SET utf8 COLLATE utf8_bin
