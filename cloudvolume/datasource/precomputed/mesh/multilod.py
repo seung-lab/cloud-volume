@@ -194,7 +194,10 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     binary = self.reader.get_data(segid, self.path)
     if binary is None:
       return None
-    return MultiLevelPrecomputedMeshManifest(binary, segment_id=segid, shard_offset=byte_start, path=shard_filepath)
+
+    return MultiLevelPrecomputedMeshManifest.from_binary(
+      binary, segment_id=segid, shard_offset=byte_start, path=shard_filepath
+    )
   
   def get(self, segids, lod=0, concat=True, progress=None):
     """Fetch meshes at a given level of detail (lod).
@@ -288,9 +291,10 @@ class MultiLevelPrecomputedMeshManifest:
     # num_loads is the 7th word
     num_lods = int(np.frombuffer(binary[6*4:7*4], dtype=np.uint32)[0])
 
-    header_dt = cls._header_dtype(num_lods)
+    header_dt = cls._header_dtype(cls, num_lods)
     header = np.frombuffer(binary[0:header_dt.itemsize], dtype=header_dt)
     offset = header_dt.itemsize
+    num_fragments_per_lod = header["num_fragments_per_lod"][0]
 
     fragment_positions = []
     fragment_offsets = []
@@ -323,7 +327,7 @@ class MultiLevelPrecomputedMeshManifest:
       lod_scales=header['lod_scales'][0], 
       vertex_offsets=header['vertex_offsets'][0],
       num_fragments_per_lod=header['num_fragments_per_lod'][0],
-      fragment_position=fragment_positions,
+      fragment_positions=fragment_positions,
       fragment_offsets=fragment_offsets,
       shard_offset=shard_offset,
       path=path
