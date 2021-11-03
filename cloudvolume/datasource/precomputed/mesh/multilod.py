@@ -1,5 +1,6 @@
 from collections import defaultdict
 import re
+import struct
 
 import numpy as np
 
@@ -341,12 +342,13 @@ class MultiLevelPrecomputedMeshManifest:
       (self.num_lods, 3), order="C"
     )
     num_fragments_per_lod = np.array(
-      num_fragments_per_lod, dtype=np.uint32
+      self.num_fragments_per_lod, dtype=np.uint32
     ).reshape((self.num_lods,), order="C")
 
     # frag positions and offsets must be provided in morton order
-    fragment_positions = np.array(fragment_positions, dtype=np.uint32)
-    fragment_offsets = np.array(fragment_offsets, dtype=np.uint32)
+    fragment_positions = np.array(self.fragment_positions, dtype=np.uint32)
+    fragment_offsets = np.array(self.fragment_offsets, dtype=np.uint32)
+    lod_scales = np.array(self.lod_scales, dtype=np.float32)
 
     manifest = [
       chunk_shape.astype('<f').tobytes(),
