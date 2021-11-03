@@ -82,6 +82,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
           return manifest
     if bbox is not None:
       verify = False
+      level = 2
     manifest = self.fetch_manifest_remote(segid, lod, level, bbox, return_segids, verify)
 
     if self.cache.enabled and cacheable:
