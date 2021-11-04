@@ -93,8 +93,9 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
   def fetch_manifest_remote(self, segid, lod=0, level=2, bbox=None, return_segids=False, verify=True):
     query_d = {
       'verify': bool(verify),
-      'level': level,
+      'level': level
     }
+
     if return_segids:
       query_d['return_seg_ids'] = 1
 
