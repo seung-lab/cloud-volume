@@ -13,59 +13,6 @@ from ....mesh import Mesh
 from ....lib import yellow, red, toiter, first
 from .... import exceptions
 
-def from_stored_model_space(
-  vertices:np.ndarray, 
-  manifest:MultiLevelPrecomputedMeshManifest, 
-  lod:int, 
-  vertex_quantization_bits:int, 
-  frag:int
-) -> np.ndarray:
-  """
-  Neuroglancer Specification:
-  https://github.com/google/neuroglancer/blob/8432f531c4d8eb421556ec36926a29d9064c2d3c/src/neuroglancer/datasource/precomputed/meshes.md#multi-resolution-mesh-fragment-data-file-format
-
-  The mesh fragment data files consist of the concatenation of the 
-  encoded mesh data for all octree nodes specified in the manifest file,
-  in the same order the nodes are specified in the index file, starting
-  with lod 0. Each mesh fragment is a Draco-encoded triangular mesh with
-  a 3-component integer vertex position attribute. Each position component j
-  must be a value x in the range [0, 2**vertex_quantization_bits), which
-  corresponds to a "stored model" coordinate of:
-
-  grid_origin[j] +
-  vertex_offsets[lod,j] +
-  chunk_shape[j] * (2**lod) * (fragmentPosition[j] +
-                               x / ((2**vertex_quantization_bits)-1))
-  """
-  return (
-    manifest.grid_origin + 
-    manifest.vertex_offsets[lod] + (
-      manifest.chunk_shape * (2 ** lod) * (
-        manifest.fragment_positions[lod][:,frag] + 
-        (vertices / (2.0 ** vertex_quantization_bits - 1))
-      )
-    )
-  )
-
-def to_stored_model_space(  
-  vertices:np.ndarray, 
-  manifest:MultiLevelPrecomputedMeshManifest, 
-  lod:int, 
-  vertex_quantization_bits:int, 
-  frag:int
-) -> np.ndarray:
-  """Inverse of from_stored_model_space (see explaination there)."""
-  stored_model = ((2 ** vertex_quantization_bits) - 1) * (
-    (
-      (verticies - manifest.grid_origin - manifest.vertex_offsets[lod]) 
-      / (manifest.chunk_shape * (2 ** lod))
-    ) - manifest.fragment_positions[lod][:,frag]
-  )
-  return np.clip(
-    stored_model, 0, (2**vertex_quantization_bits) - 1, 
-    out=stored_model
-  )
-
 def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, transform):
   meshdata = defaultdict(list)
   num_frags = manifest.fragment_offsets[lod].shape[0]
@@ -90,7 +37,7 @@ def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, tran
 
     # "stored model" to "model" coordinates
     mesh.vertices = from_stored_model_space(
-      vertices, manifest, lod, vertex_quantization_bits, frag
+      mesh.vertices, manifest, lod, vertex_quantization_bits, frag
     )
     # "model" to physical coordinates (usually scaling by resolution)
     mesh.vertices = apply_transform(mesh.vertices, transform)
@@ -448,3 +395,58 @@ class MultiLevelPrecomputedMeshManifest:
 
     variable_header_size = (3*4 + 4) * lod_frags # frag pos + frag offsets
     return fixed_header_size + variable_header_size
+
+def from_stored_model_space(
+  vertices:np.ndarray, 
+  manifest:MultiLevelPrecomputedMeshManifest, 
+  lod:int, 
+  vertex_quantization_bits:int, 
+  frag:int
+) -> np.ndarray:
+  """
+  Neuroglancer Specification:
+  https://github.com/google/neuroglancer/blob/8432f531c4d8eb421556ec36926a29d9064c2d3c/src/neuroglancer/datasource/precomputed/meshes.md#multi-resolution-mesh-fragment-data-file-format
+
+  The mesh fragment data files consist of the concatenation of the 
+  encoded mesh data for all octree nodes specified in the manifest file,
+  in the same order the nodes are specified in the index file, starting
+  with lod 0. Each mesh fragment is a Draco-encoded triangular mesh with
+  a 3-component integer vertex position attribute. Each position component j
+  must be a value x in the range [0, 2**vertex_quantization_bits), which
+  corresponds to a "stored model" coordinate of:
+
+  grid_origin[j] +
+  vertex_offsets[lod,j] +
+  chunk_shape[j] * (2**lod) * (fragmentPosition[j] +
+                               x / ((2**vertex_quantization_bits)-1))
+  """
+  return (
+    manifest.grid_origin + 
+    manifest.vertex_offsets[lod] + (
+      manifest.chunk_shape * (2 ** lod) * (
+        manifest.fragment_positions[lod][:,frag] + 
+        (vertices / (2.0 ** vertex_quantization_bits - 1))
+      )
+    )
+  )
+
+def to_stored_model_space(  
+  vertices:np.ndarray, 
+  manifest:MultiLevelPrecomputedMeshManifest, 
+  lod:int, 
+  vertex_quantization_bits:int, 
+  frag:int
+) -> np.ndarray:
+  """Inverse of from_stored_model_space (see explaination there)."""
+  vertices = vertices.astype(np.float32)
+  stored_model = ((2 ** vertex_quantization_bits) - 1) * (
+    (
+      (vertices - manifest.grid_origin - manifest.vertex_offsets[lod]) 
+      / (manifest.chunk_shape * (2 ** lod))
+    ) - manifest.fragment_positions[lod][:,frag]
+  )
+  stored_model = (stored_model + 0.5).astype(np.uint32)
+  return np.clip(
+    stored_model, 0, (2**vertex_quantization_bits) - 1, 
+    out=stored_model
+  )
