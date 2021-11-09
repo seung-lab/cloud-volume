@@ -298,6 +298,11 @@ class MultiLevelPrecomputedMeshManifest:
     self.shard_offset = shard_offset
     self.path = path
 
+    # normalize attributes
+    self.fragment_positions = [ 
+      np.array(fpos) for fpos in self.fragment_positions
+    ]
+
   @classmethod
   def from_binary(cls, binary, segment_id, shard_offset=0, path=None):
     # num_loads is the 7th word

@@ -152,3 +152,50 @@ def test_get_mesh_order_stability():
     assert len(first_mesh.vertices) == len(next_mesh.vertices)
     assert np.all(first_mesh.vertices == next_mesh.vertices)
     assert np.all(first_mesh.faces == next_mesh.faces)
+
+def test_stored_model_quantization():
+  from cloudvolume.datasource.precomputed.mesh import multilod
+
+  vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
+  mesh = vol.mesh.get(18, fuse=True)
+  mesh.vertices /= vol.resolution
+
+  manifest = multilod.MultiLevelPrecomputedMeshManifest(
+    segment_id=18, 
+    chunk_shape=vol.bounds.size3(), 
+    grid_origin=vol.bounds.minpt, 
+    num_lods=1, 
+    lod_scales=[ 1 ], 
+    vertex_offsets=[[0,0,0]],
+    num_fragments_per_lod=[1], 
+    fragment_positions=[[[0,0,0]]], 
+    fragment_offsets=[0],
+  )
+
+  vqb = 16
+  lod = 0
+
+  kwargs = {
+    "lod": lod,
+    "vertex_quantization_bits": vqb, 
+    "frag": 0
+  }
+
+  quantized_verts = multilod.to_stored_model_space( 
+    mesh.vertices, manifest, **kwargs
+  )
+  restored_verts1 = multilod.from_stored_model_space(
+    quantized_verts, manifest, **kwargs
+  )
+  quantized_verts = multilod.to_stored_model_space( 
+    restored_verts1, manifest, **kwargs
+  )
+  restored_verts2 = multilod.from_stored_model_space(
+    quantized_verts, manifest, **kwargs
+  )
+
+  precision = float(np.min(vol.bounds.size3()) / ((2**vqb) - 1))
+
+  max_error = float(np.max(np.abs(restored_verts1 - mesh.vertices)))
+  assert max_error < precision
+  assert np.all(np.isclose(restored_verts1, restored_verts2))
