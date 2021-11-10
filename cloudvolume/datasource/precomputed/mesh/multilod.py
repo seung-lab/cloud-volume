@@ -140,8 +140,8 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
         green=self.config.green, secrets=self.config.secrets
       ).get({
         'path': str(manifest.segment_id),
-        'start': np.sum(fragment_sizes[0:lod]),
-        'end': np.sum(fragment_sizes[0:lod+1]),  
+        'start': int(np.sum(fragment_sizes[0:lod])),
+        'end': int(np.sum(fragment_sizes[0:lod+1])),  
       })
 
       meshes = extract_lod_meshes(
