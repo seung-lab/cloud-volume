@@ -16,10 +16,9 @@ from .... import exceptions
 def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, transform):
   meshdata = defaultdict(list)
   for frag in range(manifest.fragment_offsets[lod].shape[0]):
-    frag_binary = lod_binary[
-      int(np.sum(manifest.fragment_offsets[lod][0:frag])) :
-      int(np.sum(manifest.fragment_offsets[lod][0:frag+1]))
-    ]
+    start = int(np.sum(manifest.fragment_offsets[lod][0:frag]))
+    end = start + int(manifest.fragment_offsets[lod][frag])
+    frag_binary = lod_binary[start:end]
     if len(frag_binary) == 0:
       # According to @JBMS, empty fragments are used in cases where a child 
       # fragment exists, but its parent does not have a corresponding fragment, 
