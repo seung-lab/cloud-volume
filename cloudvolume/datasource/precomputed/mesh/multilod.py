@@ -15,17 +15,11 @@ from .... import exceptions
 
 def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, transform):
   meshdata = defaultdict(list)
-  num_frags = manifest.fragment_offsets[lod].shape[0]
-
-  for frag in range(num_frags):
-    start = int(np.sum(manifest.fragment_offsets[lod][0:frag]))
-    
-    if frag == num_frags - 1:
-      frag_binary = lod_binary[start:]
-    else:
-      end = int(start + manifest.fragment_offsets[lod][frag])
-      frag_binary = lod_binary[start:end]
-
+  for frag in range(manifest.fragment_offsets[lod].shape[0]):
+    frag_binary = lod_binary[
+      int(np.sum(manifest.fragment_offsets[lod][0:frag])) :
+      int(np.sum(manifest.fragment_offsets[lod][0:frag+1]))
+    ]
     if len(frag_binary) == 0:
       # According to @JBMS, empty fragments are used in cases where a child 
       # fragment exists, but its parent does not have a corresponding fragment, 
@@ -50,6 +44,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
 
     self.vertex_quantization_bits = self.meta.info['vertex_quantization_bits']
     self.lod_scale_multiplier = self.meta.info['lod_scale_multiplier']
+    self.transform = np.array(self.meta.info['transform'] + [0,0,0,1]).reshape(4,4)
   
   @property
   def path(self):
@@ -140,21 +135,14 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
         np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets 
       ]
       
-      params = {
-        'path': str(manifest.segment_id),
-        'start': int(np.sum(fragment_sizes[0:lod])),
-        'end': int(np.sum(fragment_sizes[0:lod+1])), 
-      }
-      # e.g. The last LOD is not represented correctly
-      # by summing offsets. We have to read to the end
-      # of the file.
-      if lod == manifest.num_lods - 1:
-        params['end'] = None # read to end of file
-
       lod_binary = CloudFiles(
         full_path, progress=progress, 
         green=self.config.green, secrets=self.config.secrets
-      ).get(params)
+      ).get({
+        'path': str(manifest.segment_id),
+        'start': np.sum(fragment_sizes[0:lod]),
+        'end': np.sum(fragment_sizes[0:lod+1]),  
+      })
 
       meshes = extract_lod_meshes(
         manifest, lod, lod_binary, 
