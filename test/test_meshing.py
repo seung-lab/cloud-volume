@@ -158,11 +158,12 @@ def test_stored_model_quantization():
 
   vol = CloudVolume('gs://seunglab-test/test_v0/segmentation')
   mesh = vol.mesh.get(18, fuse=True)
-  mesh.vertices /= vol.resolution
+  res = vol.meta.resolution(vol.mesh.meta.mip)
+  mesh.vertices /= res
 
   manifest = multilod.MultiLevelPrecomputedMeshManifest(
     segment_id=18, 
-    chunk_shape=vol.bounds.size3(), 
+    chunk_shape=vol.bounds.size3() + 1, 
     grid_origin=vol.bounds.minpt, 
     num_lods=1, 
     lod_scales=[ 1 ], 
@@ -172,7 +173,7 @@ def test_stored_model_quantization():
     fragment_offsets=[0],
   )
 
-  vqb = 16
+  vqb = 10
   lod = 0
 
   kwargs = {
@@ -194,8 +195,7 @@ def test_stored_model_quantization():
     quantized_verts, manifest, **kwargs
   )
 
-  precision = float(np.min(vol.bounds.size3()) / ((2**vqb) - 1))
-
+  precision = float(np.max(manifest.chunk_shape) / (2**vqb))
   max_error = float(np.max(np.abs(restored_verts1 - mesh.vertices)))
   assert max_error < precision
   assert np.all(np.isclose(restored_verts1, restored_verts2))
