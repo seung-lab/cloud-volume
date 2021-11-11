@@ -437,7 +437,7 @@ def to_stored_model_space(
   stored_model /= manifest.chunk_shape * (2 ** lod)
   stored_model -= manifest.fragment_positions[lod][:,frag]
   stored_model *= quant_factor
-  stored_model = (stored_model + 0.5).astype(np.uint32)
+  stored_model = np.round(stored_model, out=stored_model)
   return np.clip(
     stored_model, 0, quant_factor, 
     out=stored_model
