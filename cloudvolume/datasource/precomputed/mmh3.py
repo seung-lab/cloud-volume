@@ -439,6 +439,7 @@ def hash_bytes( key, seed = 0x0, x64arch = True ):
 
 if __name__ == "__main__":
     import argparse
+    import sys
     
     parser = argparse.ArgumentParser( 'pymurmur3', 'pymurmur [options] "string to hash"' )
     parser.add_argument( '--seed', type = int, default = 0 )

@@ -1,10 +1,16 @@
+from typing import Optional, Union
+
 from .image import PrecomputedImageSource
 from .metadata import PrecomputedMetadata
 from .mesh import PrecomputedMeshSource
 from .skeleton import PrecomputedSkeletonSource
 
 from .. import get_cache_path
-from ...cloudvolume import register_plugin, SharedConfiguration
+from ...cloudvolume import (
+  register_plugin, SharedConfiguration,
+  CompressType, ParallelType, CacheType,
+  SecretsType
+)
 from ...cacheservice import CacheService
 from ...frontends import CloudVolumePrecomputed
 from ...lib import yellow
@@ -12,14 +18,16 @@ from ...paths import strict_extract
 from ...secrets import CLOUD_VOLUME_CACHE_DIR
 
 def create_precomputed(
-    cloudpath, mip=0, bounded=True, autocrop=False,
-    fill_missing=False, cache=False, compress_cache=None,
-    cdn_cache=True, progress=False, info=None, provenance=None,
-    compress=None, compress_level=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, background_color=0, 
-    green_threads=False, use_https=False,
-    max_redirects=10, mesh_dir=None, skel_dir=None,
-    secrets=None, **kwargs # absorb graphene arguments
+    cloudpath:str, mip:int=0, bounded:bool=True, autocrop:bool=False,
+    fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
+    cdn_cache:bool=True, progress:bool=False, info:Optional[dict]=None, 
+    provenance:Optional[dict]=None, compress:CompressType=None, 
+    compress_level:Optional[int]=None, non_aligned_writes:bool=False, 
+    parallel:ParallelType=1, delete_black_uploads:bool=False, background_color:int=0, 
+    green_threads:bool=False, use_https:bool=False,
+    max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None,
+    secrets:SecretsType=None, spatial_index_db:Optional[str]=None, 
+    **kwargs # absorb graphene arguments
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
@@ -31,9 +39,10 @@ def create_precomputed(
       parallel=parallel,
       progress=progress,
       secrets=secrets,
+      spatial_index_db=spatial_index_db,
     )
 
-    cache = CacheService(
+    cache_service = CacheService(
       cloudpath=get_cache_path(cache, cloudpath),
       enabled=bool(cache),
       config=config,
@@ -41,7 +50,7 @@ def create_precomputed(
     )
 
     meta = PrecomputedMetadata(
-      cloudpath, config=config, cache=cache,
+      cloudpath, config=config, cache=cache_service,
       info=info, provenance=provenance,
       max_redirects=max_redirects,
       use_https=use_https # for parsing redirects
@@ -77,7 +86,7 @@ def create_precomputed(
       )))
 
     image = PrecomputedImageSource(
-      config, meta, cache,
+      config, meta, cache_service,
       autocrop=bool(autocrop),
       bounded=bool(bounded),
       non_aligned_writes=bool(non_aligned_writes),
@@ -87,11 +96,11 @@ def create_precomputed(
       readonly=readonly,
     )
 
-    mesh = PrecomputedMeshSource(meta, cache, config, readonly)
-    skeleton = PrecomputedSkeletonSource(meta, cache, config, readonly)
+    mesh = PrecomputedMeshSource(meta, cache_service, config, readonly)
+    skeleton = PrecomputedSkeletonSource(meta, cache_service, config, readonly)
 
     return CloudVolumePrecomputed(
-      meta, cache, config, 
+      meta, cache_service, config, 
       image, mesh, skeleton,
       mip
     )

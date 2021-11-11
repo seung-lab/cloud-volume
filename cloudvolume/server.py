@@ -1,10 +1,6 @@
 import os
 
-try: 
-  from http.server import BaseHTTPRequestHandler, HTTPServer
-except ImportError:
-  from SocketServer import TCPServer as HTTPServer
-  from BaseHTTPServer import BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import json
 from six.moves import range
@@ -39,6 +35,13 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
     self.cloudpath = cloudpath
     BaseHTTPRequestHandler.__init__(self, *args)
 
+  def do_OPTIONS(self):
+    self.send_response(200, "ok")   
+    self.send_header('Access-Control-Allow-Origin', '*')              
+    self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    self.send_header("Access-Control-Allow-Headers", "range")
+    self.end_headers()
+    
   def do_GET(self):  
     if self.path.find('..') != -1:
       self.send_error(403, "Relative paths are not allowed.")

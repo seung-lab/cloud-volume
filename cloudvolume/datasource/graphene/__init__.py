@@ -1,3 +1,5 @@
+from typing import Optional, Union
+
 from .mesh import GrapheneMeshSource
 from .metadata import GrapheneMetadata
 from ..precomputed.image import PrecomputedImageSource
@@ -5,20 +7,24 @@ from ..precomputed.skeleton import PrecomputedSkeletonSource
 
 from .. import get_cache_path
 from ...cacheservice import CacheService
-from ...cloudvolume import SharedConfiguration, register_plugin
+from ...cloudvolume import (
+  SharedConfiguration, register_plugin,
+  CompressType, ParallelType, CacheType,
+  SecretsType
+)
 from ...paths import strict_extract
 
 from requests import HTTPError
 
 def create_graphene(
-    cloudpath, mip=0, bounded=True, autocrop=False,
-    fill_missing=False, cache=False, compress_cache=None,
-    cdn_cache=True, progress=False, info=None, provenance=None,
-    compress=None, parallel=1,
-    delete_black_uploads=False, background_color=0,
-    green_threads=False, use_https=False,
-    mesh_dir=None, skel_dir=None, agglomerate=False, 
-    secrets=None, **kwargs
+    cloudpath:str, mip:int=0, bounded:bool=True, autocrop:bool=False,
+    fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
+    cdn_cache:bool=True, progress:bool=False, info:dict=None, provenance:dict=None,
+    compress:CompressType=None, parallel:ParallelType=1,
+    delete_black_uploads:bool=False, background_color:int=0,
+    green_threads:bool=False, use_https:bool=False,
+    mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
+    agglomerate:bool=False, secrets:SecretsType=None, spatial_index_db:Optional[str]=None, **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
     
@@ -32,6 +38,7 @@ def create_graphene(
       parallel=parallel,
       progress=progress,
       secrets=secrets,
+      spatial_index_db=spatial_index_db,
     )
 
     def mkcache(cloudpath):
@@ -50,9 +57,9 @@ def create_graphene(
     # Resetting the cache is necessary because
     # graphene retrieves a data_dir from the info file
     # that reflects the real cache location.
-    cache = mkcache(meta.cloudpath) 
-    meta.cache = cache
-    cache.meta = meta
+    cache_service = mkcache(meta.cloudpath) 
+    meta.cache = cache_service
+    cache_service.meta = meta
 
     if mesh_dir:
       meta.info['mesh'] = str(mesh_dir)
@@ -60,7 +67,7 @@ def create_graphene(
       meta.info['skeletons'] = str(skel_dir)
 
     image = PrecomputedImageSource(
-      config, meta, cache,
+      config, meta, cache_service,
       autocrop=bool(autocrop),
       bounded=bool(bounded),
       non_aligned_writes=False,
@@ -69,11 +76,11 @@ def create_graphene(
       background_color=background_color,
     )
 
-    mesh = GrapheneMeshSource(meta, cache, config)
-    skeleton = PrecomputedSkeletonSource(meta, cache, config)
+    mesh = GrapheneMeshSource(meta, cache_service, config)
+    skeleton = PrecomputedSkeletonSource(meta, cache_service, config)
 
     return CloudVolumeGraphene(
-      meta, cache, config, 
+      meta, cache_service, config, 
       image, mesh, skeleton,
       mip=mip
     )

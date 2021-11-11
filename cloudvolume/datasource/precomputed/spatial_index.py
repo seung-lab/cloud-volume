@@ -1,19 +1,72 @@
 from collections import defaultdict
-import simdjson
+import re
+import urllib.parse
 import os 
 import sqlite3
 
 import numpy as np
+import simdjson
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
 
+from ...secrets import mysql_credentials
 from ...exceptions import SpatialIndexGapError
 from ... import paths
 from ...lib import (
   Bbox, Vec, xyzrange, min2, 
   toiter, sip, nvl, getprecision
 )
+
+def parse_db_path(path):
+  """
+  sqlite paths: filename.db
+  mysql paths: mysql://{user}:{pwd}@{host}/{database}
+
+  database defaults to "spatial_index"
+  """
+  result = urllib.parse.urlparse(path)
+
+  path = "spatial_index"
+  if result.path:
+    path = result.path.replace('/', '')
+
+  return {
+    "scheme": (result.scheme or "sqlite"),
+    "username": result.username,
+    "password": result.password,
+    "hostname": result.hostname,
+    "port": result.port,
+    "path": path,
+  }
+
+def connect(path):
+  result = parse_db_path(path)
+
+  if result["scheme"] == "sqlite":
+    return sqlite3.connect(result["path"])
+
+  if result["scheme"] != "mysql":
+    raise ValueError(
+      f"{result['scheme']} is not a supported "
+      f"spatial database connector."
+    )
+
+  if any([ result[x] is None for x in ("username", "password") ]):
+    credentials = mysql_credentials(result["hostname"])
+    if result["password"] is None:
+      result["password"] = credentials["password"]
+    if result["username"] is None:
+      result["username"] = credentials["username"]
+
+  import mysql.connector
+  return mysql.connector.connect(
+    host=result["hostname"],
+    user=result["username"],
+    passwd=result["password"],
+    port=(result["port"] or 3306), # default MySQL port
+    database=result["path"]
+  )
 
 class SpatialIndex(object):
   """
@@ -44,13 +97,13 @@ class SpatialIndex(object):
   """
   def __init__(
     self, cloudpath, bounds, chunk_size, 
-    config=None, sqlite_db=None, resolution=None
+    config=None, sql_db=None, resolution=None
   ):
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
     self.chunk_size = Vec(*chunk_size)
-    self.sqlite_db = sqlite_db # optional DB for higher performance
+    self.sql_db = config.spatial_index_db # optional DB for higher performance
     self.resolution = None
     self.precision = None
 
@@ -88,7 +141,7 @@ class SpatialIndex(object):
 
   def fetch_all_index_files(self, allow_missing=False, progress=None):
     """Generator returning batches of (filename, json)"""
-    all_index_paths = self.index_file_paths_for_bbox(self.bounds)
+    all_index_paths = self.index_file_paths_for_bbox(self.physical_bounds)
     
     progress = nvl(progress, self.config.progress)
 
@@ -137,41 +190,31 @@ class SpatialIndex(object):
 
     return IndexPathIterator()
 
-  def to_sqlite(
-    self, database_name="spatial_index.db", 
-    create_indices=True, progress=None
-  ):
-    """
-    Create a sqlite database of labels and filenames
-    from the JSON spatial_index for faster performance.
+  def _to_sql_common(self, conn, cur, create_indices, progress, mysql_syntax=False):
+    # handle SQLite vs MySQL syntax quirks
+    BIND = '%s' if mysql_syntax else '?'
+    AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
+    INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
 
-    Depending on the dataset size, this could take a while.
-    With a dataset with ~140k index files, the DB took over
-    an hour to build and was 42 GB.
-    """
     progress = nvl(progress, self.config.progress)
+    cur.execute("""DROP TABLE IF EXISTS index_files""")
+    cur.execute("""DROP TABLE IF EXISTS file_lookup""")
 
-    conn = sqlite3.connect(database_name)
-    cur = conn.cursor()
-
-    cur.execute("""
-    CREATE TABLE index_files (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filename TEXT NOT NULL
-    )
+    cur.execute(f"""
+      CREATE TABLE index_files (
+        id {INTEGER} PRIMARY KEY {AUTOINC},
+        filename VARCHAR(100) NOT NULL
+      )
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
-    cur.execute("""
-    CREATE TABLE file_lookup (
-      label INTEGER NOT NULL,
-      fid INTEGER NOT NULL REFERENCES index_files(id),
-      PRIMARY KEY(label,fid)
-    )
+    cur.execute(f"""
+      CREATE TABLE file_lookup (
+        label {INTEGER} NOT NULL,
+        fid {INTEGER} NOT NULL REFERENCES index_files(id),
+        PRIMARY KEY(label,fid)
+      )
     """)
-
-    cur.execute("PRAGMA journal_mode = MEMORY")
-    cur.execute("PRAGMA synchronous = OFF")
 
     parser = simdjson.Parser()
 
@@ -179,15 +222,14 @@ class SpatialIndex(object):
       for filename, content in index_files.items():
         index_labels = parser.parse(content).keys()
         filename = os.path.basename(filename)
-        cur.execute("INSERT INTO index_files(filename) VALUES (?)", (filename,))
-        cur.execute("SELECT id from index_files where filename = ?", (filename,))
+        cur.execute(f"INSERT INTO index_files(filename) VALUES ({BIND})", (filename,))
+        cur.execute(f"SELECT id from index_files where filename = {BIND}", (filename,))
         fid = cur.fetchone()[0]
         values = ( (int(label), fid) for label in index_labels )
-        cur.executemany("INSERT INTO file_lookup(label, fid) VALUES (?,?)", values)
+        if mysql_syntax:
+          values = list(values) # doesn't support generators in v8.0.26
+        cur.executemany(f"INSERT INTO file_lookup(label, fid) VALUES ({BIND},{BIND})", values)
       conn.commit()
-
-    cur.execute("PRAGMA journal_mode = DELETE")
-    cur.execute("PRAGMA synchronous = FULL")
 
     if create_indices:
       if progress:
@@ -198,6 +240,73 @@ class SpatialIndex(object):
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
 
+  def to_sql(self, path=None, create_indices=True, progress=None):
+    path = path or self.sql_db
+    parse = parse_db_path(path)
+    if parse["scheme"] == "sqlite":
+      return self.to_sqlite(parse["path"], create_indices, progress)
+    elif parse["scheme"] == "mysql":
+      return self.to_mysql(path, create_indices, progress)
+    else:
+      raise ValueError(
+        f"Unsupported database type. {path}\n"
+        "Supported types: sqlite:// and mysql://"
+      )
+
+  def to_mysql(self, path, create_indices=True, progress=None):
+    """
+    Create a mysql database of labels and filenames
+    from the JSON spatial_index for faster performance.
+    """
+    progress = nvl(progress, self.config.progress)
+    parse = parse_db_path(path)
+    conn = connect(path)
+    cur = conn.cursor()
+
+    database_name = parse["path"] or "spatial_index"
+    # GRANT CREATE, SELECT, INSERT, DELETE, INDEX ON database TO user@localhost
+
+    # Can't sanitize table names easily using a bind.
+    # Therefore check to see if there are any non alphanumerics + underscore
+    # https://stackoverflow.com/questions/3247183/variable-table-name-in-sqlite
+    if re.search(r'[^a-zA-Z0-9_]', database_name):
+      raise ValueError(
+        f"Invalid characters in database name. "
+        f"Only alphanumerics and underscores are allowed. "
+        f"Got: {database_name}"
+      )
+
+    cur.execute(f"""
+      CREATE DATABASE IF NOT EXISTS {database_name}
+      CHARACTER SET utf8 COLLATE utf8_bin
+    """)
+    cur.execute(f"use {database_name}")
+
+    self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=True)
+    
+    cur.close()
+    conn.close()
+
+  def to_sqlite(
+    self, path="spatial_index.db", 
+    create_indices=True, progress=None
+  ):
+    """
+    Create a sqlite database of labels and filenames
+    from the JSON spatial_index for faster performance.
+
+    Depending on the dataset size, this could take a while.
+    With a dataset with ~140k index files, the DB took over
+    an hour to build and was 42 GB.
+    """
+    conn = sqlite3.connect(path)
+    cur = conn.cursor()
+    cur.execute("PRAGMA journal_mode = MEMORY")
+    cur.execute("PRAGMA synchronous = OFF")
+    self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=False)
+    cur.execute("PRAGMA journal_mode = DELETE")
+    cur.execute("PRAGMA synchronous = FULL")
+    cur.close()
     conn.close()
 
   def get_bbox(self, label):
@@ -212,8 +321,8 @@ class SpatialIndex(object):
     label = str(label)
     bbox = None
 
-    if self.sqlite_db:
-      conn = sqlite3.connect(self.sqlite_db)
+    if self.sql_db:
+      conn = connect(self.sql_db)
       cur = conn.cursor()
       cur.execute("""
         select index_files.filename  
@@ -251,7 +360,7 @@ class SpatialIndex(object):
     given labels are located in. Can be expensive. If labels is not 
     specified, all labels are fetched.
 
-    If the spatial_index.sqlite_db attribute is specified, attempt
+    If the spatial_index.sql_db attribute is specified, attempt
     to use the database instead of querying the json files.
 
     Returns: { filename: [ labels... ], ... }
@@ -259,7 +368,7 @@ class SpatialIndex(object):
     if labels is not None:
       labels = toiter(labels)
     
-    if self.sqlite_db:
+    if self.sql_db:
       return self.file_locations_per_label_sql(labels)
     return self.file_locations_per_label_json(labels, allow_missing)
   
@@ -288,13 +397,13 @@ class SpatialIndex(object):
 
     return locations
 
-  def file_locations_per_label_sql(self, labels, sqlite_db=None):
-    sqlite_db = nvl(sqlite_db, self.sqlite_db)
-    if sqlite_db is None:
+  def file_locations_per_label_sql(self, labels, sql_db=None):
+    sql_db = nvl(sql_db, self.sql_db)
+    if sql_db is None:
       raise ValueError("An sqlite database file must be specified.")
 
     locations = defaultdict(list)
-    conn = sqlite3.connect(sqlite_db)
+    conn = connect(sql_db)
     cur = conn.cursor()
 
     where_clause = ""
@@ -338,15 +447,18 @@ class SpatialIndex(object):
     labels = set()
     fast_path = bbox.contains_bbox(self.physical_bounds)
 
-    if self.sqlite_db and fast_path:
-      conn = sqlite3.connect(self.sqlite_db)
+    if self.sql_db and fast_path:
+      conn = connect(self.sql_db)
       cur = conn.cursor()
       cur.execute("select label from file_lookup")
       while True:
         rows = cur.fetchmany(size=2**20)
         if len(rows) == 0:
           break
-        labels.update(( int(row[0]) for row in rows ))
+        # Sqlite only stores signed integers, so we need to coerce negative
+        # integers back into unsigned with a bitwise and.
+        labels.update(( int(row[0]) & 0xffffffffffffffff for row in rows ))
+      cur.close()
       conn.close()
       return labels
 
