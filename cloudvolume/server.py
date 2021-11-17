@@ -60,7 +60,10 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
     if self.headers["Range"]:
       start, end = parse_range_header(self.headers["Range"])
       query["start"] = start
-      query["end"] = end
+      query["end"] = end + 1
+      if start >= end:
+        self.send_error(416, f"{self.headers['Range']} had start >= end.")
+        return
 
     data = CloudFiles(self.cloudpath).get(query)
 
