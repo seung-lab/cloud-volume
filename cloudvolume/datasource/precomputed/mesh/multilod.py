@@ -241,10 +241,12 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
       ]
       total_fragment_size = np.sum(fragment_sizes)
       full_path = self.reader.meta.join(self.reader.meta.cloudpath)
+
+      manifest_byte_start = (manifest.shard_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod])
       lod_binary = CloudFiles(full_path, progress=progress, secrets=self.config.secrets).get({
         'path': manifest.path,
-        'start': (manifest.shard_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod]),
-        'end': (manifest.shard_offset - total_fragment_size) + np.sum(fragment_sizes[0:lod+1]),  
+        'start': int(manifest_byte_start),
+        'end': int(manifest_byte_start + fragment_sizes[lod]),
       })
 
       meshes = extract_lod_meshes(
