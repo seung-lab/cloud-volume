@@ -3,6 +3,7 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import json
+import re
 from six.moves import range
 
 import numpy as np
@@ -14,6 +15,8 @@ from cloudvolume.lib import Vec, Bbox, mkdir, save_images, yellow
 from cloudvolume.paths import ExtractedPath
 
 DEFAULT_PORT = 8080
+
+RANGE_RE = re.compile(r"^bytes=(\d+)?-(\d+)?$")
 
 def view(cloudpath, hostname="localhost", port=DEFAULT_PORT):
   """Start a local web app on the given port that lets you explore this cutout."""
@@ -29,6 +32,10 @@ def view(cloudpath, hostname="localhost", port=DEFAULT_PORT):
     print("\nContinuing program execution...")
   finally:
     myServer.server_close()
+
+def parse_range_header(header):
+  start, end = re.match(RANGE_RE, header).groups()
+  return int(start), int(end)
 
 class ViewerServerHandler(BaseHTTPRequestHandler):
   def __init__(self, cloudpath, *args):
@@ -48,7 +55,14 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
       raise ValueError("Relative paths are not allowed.")
 
     path = self.path[1:]
-    data = CloudFiles(self.cloudpath).get(path)
+
+    query = { "path": path }
+    if self.headers["Range"]:
+      start, end = parse_range_header(self.headers["Range"])
+      query["start"] = start
+      query["end"] = end
+
+    data = CloudFiles(self.cloudpath).get(query)
 
     if data is None:
       self.send_error(404, '/' + path + ": Not Found")
