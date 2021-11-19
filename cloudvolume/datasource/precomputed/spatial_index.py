@@ -26,13 +26,25 @@ def parse_db_path(path):
   database defaults to "spatial_index"
   """
   result = urllib.parse.urlparse(path)
+  scheme = result.scheme or "sqlite"
+
+  if scheme == "sqlite":
+    path = path.replace("sqlite://", "")
+    return {
+      "scheme": scheme,
+      "username": None,
+      "password": None,
+      "hostname": None,
+      "port": None,
+      "path": path,
+    }
 
   path = "spatial_index"
   if result.path:
     path = result.path.replace('/', '')
 
   return {
-    "scheme": (result.scheme or "sqlite"),
+    "scheme": scheme,
     "username": result.username,
     "password": result.password,
     "hostname": result.hostname,
