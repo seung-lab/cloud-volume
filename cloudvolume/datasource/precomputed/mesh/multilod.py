@@ -414,7 +414,7 @@ def from_stored_model_space(
   chunk_shape[j] * (2**lod) * (fragmentPosition[j] +
                                x / ((2**vertex_quantization_bits)-1))
   """
-  return (
+  return np.array(
     manifest.grid_origin + 
     manifest.vertex_offsets[lod] + (
       manifest.chunk_shape * (2 ** lod) * (
