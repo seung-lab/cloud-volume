@@ -779,15 +779,16 @@ def synthesize_shard_file(spec, label_group, data_offset=None, progress=False, p
       if spec.data_encoding != 'raw':
         binary = compression.compress(binary, method=spec.data_encoding)
 
+      # delta encoded [label, offset, size]
       minishard_index[0, i] = label - last_label
       if data_offset is None:
         minishard_index[1, i] = 0 # minishard_index[2, i - 1]
         minishard_index[2, i] = len(binary)
       else:
         # add offset of the actual data if it exists
-        minishard_index[1, i] = data_offset[label]
-        minishard_index[2, i] = len(binary)-data_offset[label]
-      
+        minishard_index[1, i] = len(binary) - data_offset[label]
+        minishard_index[2, i] = data_offset[label]
+
       minishard_components.append(binary)
       last_label = label
       del minishardgrp[label]
@@ -799,11 +800,10 @@ def synthesize_shard_file(spec, label_group, data_offset=None, progress=False, p
 
   del minishard_mapping
 
-  if data_offset is None:
-    cum_minishard_size = 0
-    for idx, minishard in zip(minishard_indicies, minishards):
-      idx[1, 0] = cum_minishard_size
-      cum_minishard_size += len(minishard)
+  cum_minishard_size = 0
+  for idx, minishard in zip(minishard_indicies, minishards):
+    idx[1, 0] += cum_minishard_size
+    cum_minishard_size += len(minishard)
 
   if progress:
     print("Partial assembly of minishard indicies and data... ", end="", flush=True)
