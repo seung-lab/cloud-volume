@@ -192,11 +192,8 @@ def extract(cloudpath, windows=None, disable_toabs=False):
 
 def to_https_protocol(cloudpath):
   if isinstance(cloudpath, ExtractedPath):
-    if cloudpath.protocol in ('gs', 's3', 'matrix'):
+    if cloudpath.protocol in ('gs', 's3', 'matrix', 'tigerdata'):
       return extract(to_https_protocol(ascloudpath(cloudpath)))
     return cloudpath
 
-  cloudpath = cloudpath.replace("gs://", "https://storage.googleapis.com/", 1)
-  cloudpath = cloudpath.replace("s3://", "https://s3.amazonaws.com/", 1)
-  cloudpath = cloudpath.replace("matrix://", "https://s3-hpcrc.rc.princeton.edu/", 1)
-  return cloudpath
+  return cloudfiles.paths.to_https_protocol(cloudpath)
