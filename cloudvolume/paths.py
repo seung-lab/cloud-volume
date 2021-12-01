@@ -1,3 +1,5 @@
+import cloudfiles.paths
+
 from collections import namedtuple
 import os
 import posixpath
@@ -11,10 +13,13 @@ ExtractedPath = namedtuple('ExtractedPath',
   ('format', 'protocol', 'bucket', 'basepath', 'no_bucket_basepath', 'dataset', 'layer')
 )
 
-ALLOWED_PROTOCOLS = [ 'gs', 'file', 's3', 'matrix', 'http', 'https' ]
+ALLOWED_PROTOCOLS = cloudfiles.paths.ALLOWED_PROTOCOLS
 ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss' ] 
 
-CLOUDPATH_ERROR = yellow("""
+def cloudpath_error(cloudpath):
+  global ALLOWED_PROTOCOLS
+  global ALLOWED_FORMATS
+  return yellow("""
 Cloud Path must conform to FORMAT://PROTOCOL://BUCKET/PATH
 Examples: 
   precomputed://gs://test_bucket/em
@@ -26,7 +31,8 @@ Supported Protocols: {}
 
 Cloud Path Recieved: {}
 """).format(
-  ", ".join(ALLOWED_FORMATS), ", ".join(ALLOWED_PROTOCOLS), '{}' # curry first two
+  ", ".join(ALLOWED_FORMATS), ", ".join(ALLOWED_PROTOCOLS), 
+  cloudpath
 )
 
 def ascloudpath(epath):
@@ -49,14 +55,19 @@ def pop_protocol(cloudpath):
   return (protocol, cloudpath)
 
 def extract_format_protocol(cloudpath):
-  error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
+  global ALLOWED_PROTOCOLS
+  error = UnsupportedProtocolError(cloudpath_error(cloudpath))
   
   (proto, cloudpath) = pop_protocol(cloudpath)
-  
+
   if proto is None:
     raise error # e.g. ://test_bucket, test_bucket, wow//test_bucket
 
   fmt, protocol = None, None
+
+  if proto not in (ALLOWED_PROTOCOLS + ALLOWED_FORMATS):
+    cloudfiles.paths.update_aliases_from_file()
+    ALLOWED_PROTOCOLS = cloudfiles.paths.ALLOWED_PROTOCOLS
 
   if proto in ALLOWED_PROTOCOLS:
     fmt = 'precomputed'
@@ -65,6 +76,10 @@ def extract_format_protocol(cloudpath):
     fmt = proto
 
   (proto, cloudpath) = pop_protocol(cloudpath)
+
+  if proto not in (ALLOWED_PROTOCOLS + ALLOWED_FORMATS):
+    cloudfiles.paths.update_aliases_from_file()
+    ALLOWED_PROTOCOLS = cloudfiles.paths.ALLOWED_PROTOCOLS
 
   if proto in ALLOWED_FORMATS:
     raise error # e.g. gs://graphene://
@@ -77,6 +92,9 @@ def extract_format_protocol(cloudpath):
   (proto, cloudpath) = pop_protocol(cloudpath)
   if proto is not None:
     raise error # e.g. gs://gs://gs://
+
+  if protocol is None:
+    raise error
 
   return (fmt, protocol, cloudpath)
 
@@ -91,7 +109,7 @@ def strict_extract(cloudpath, windows=None, disable_toabs=False):
   path = extract(cloudpath, windows, disable_toabs)
 
   if path.dataset == '' or path.layer == '':
-    raise UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
+    raise UnsupportedProtocolError(cloudpath_error(cloudpath))
 
   return path
 
@@ -120,7 +138,7 @@ def extract(cloudpath, windows=None, disable_toabs=False):
   windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+)')
   bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)/') # posix /what/a/great/path
   
-  error = UnsupportedProtocolError(CLOUDPATH_ERROR.format(cloudpath))
+  error = UnsupportedProtocolError(cloudpath_error(cloudpath))
 
   if windows is None:
     windows = sys.platform == 'win32'

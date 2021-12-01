@@ -26,7 +26,6 @@ from ..lib import (
 from ..datasource import autocropfn
 from ..datasource.precomputed import PrecomputedMetadata
 
-from ..paths import strict_extract
 from ..provenance import DataLayerProvenance
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
