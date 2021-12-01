@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from cloudvolume import compression
 from cloudvolume.exceptions import UnsupportedProtocolError
-from cloudvolume.lib import mkdir, scatter, jsonify, duplicates, yellow
+from cloudvolume.lib import mkdir, scatter, jsonify, duplicates, yellow, red
 from cloudvolume.threaded_queue import ThreadedQueue, DEFAULT_THREADS
 from cloudvolume.scheduler import schedule_green_jobs
 
@@ -56,8 +56,10 @@ class StorageBase(object):
     self._interface_cls = get_interface_class(self._path.protocol)
 
     if not WARNING_PRINTED:
-      print(yellow(
-        "Storage is deprecated. Please use CloudFiles instead. See https://github.com/seung-lab/cloud-files"
+      print(red(
+        "Storage is obsolete and will be removed soon! "
+        "Update your code to use CloudFiles instead. "
+        "See https://github.com/seung-lab/cloud-files"
       ))
       WARNING_PRINTED = True
   
