@@ -126,6 +126,7 @@ mv aws-secret.json ~/.cloudvolume/secrets/ # needed for Amazon
 mv google-secret.json ~/.cloudvolume/secrets/ # needed for Google
 mv boss-secret.json ~/.cloudvolume/secrets/ # needed for the BOSS
 mv matrix-secret.json ~/.cloudvolume/secrets/ # needed for Matrix
+mv tigerdata-secret.json ~/.cloudvolume/secrets/ # needed for Tigerdata
 ```
 
 #### `aws-secret.json` and `matrix-secret.json`
@@ -182,11 +183,11 @@ Supported URLs are of the forms:
 
 The format or protocol fields may be omitted where required. In the case of the precomputed format, the format specifier is optional.
 
-| Format      | Protocols                         | Default | Example                                |
-|-------------|-----------------------------------|---------|----------------------------------------|
-| precomputed | gs, s3, http, https, file, matrix | Yes     | gs://mybucket/dataset/layer            |
-| graphene    | gs, s3, http, https, file, matrix |         | graphene://gs://mybucket/dataset/layer |
-| boss        | N/A                               |         | boss://collection/experiment/channel   |
+| Format      | Protocols                                    | Default | Example                                |
+|-------------|----------------------------------------------|---------|----------------------------------------|
+| precomputed | gs, s3, http, https, file, matrix, tigerdata | Yes     | gs://mybucket/dataset/layer            |
+| graphene    | gs, s3, http, https, file, matrix, tigerdata |         | graphene://gs://mybucket/dataset/layer |
+| boss        | N/A                                          |         | boss://collection/experiment/channel   |
 
 ### Supported Formats
 
@@ -197,11 +198,15 @@ The format or protocol fields may be omitted where required. In the case of the 
 We currently support reading the sharded skeleton format within Precomputed that is used in some newer datasets. Other data types are forthcoming.
 
 ### Supported Protocols
+
 * gs:   Google Storage
 * s3:   Amazon S3
 * http(s): (read-only) Ordinary Web Servers
 * file: Local File System (absolute path)
-* matrix: Princeton Internal System
+* matrix: Princeton Internal System (run in large part by Seung Lab)
+* tigerdata: Princeton Internal System (run by Princeton OIT)
+
+CloudVolume also supports [alternative s3 aliases](https://github.com/seung-lab/cloud-files#alias-for-alternative-s3-endpoints) via CloudFiles.
 
 
 ### `info` Files - New Dataset
