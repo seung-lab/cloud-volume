@@ -13,6 +13,8 @@ from ....mesh import Mesh
 from ....lib import yellow, red, toiter, first
 from .... import exceptions
 
+import fastremap
+
 def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, transform):
   meshdata = defaultdict(list)
   for frag in range(manifest.fragment_offsets[lod].shape[0]):
@@ -432,7 +434,7 @@ def to_stored_model_space(
   frag:int
 ) -> np.ndarray:
   """Inverse of from_stored_model_space (see explaination there)."""
-  vertices = vertices.astype(np.float64)
+  vertices = vertices.astype(np.float32)
   quant_factor = ((2 ** vertex_quantization_bits) - 1) 
 
   stored_model = vertices - manifest.grid_origin - manifest.vertex_offsets[lod]
@@ -440,7 +442,14 @@ def to_stored_model_space(
   stored_model -= manifest.fragment_positions[lod][:,frag]
   stored_model *= quant_factor
   stored_model = np.round(stored_model, out=stored_model)
-  return np.clip(
+  stored_model = np.clip(
     stored_model, 0, quant_factor, 
     out=stored_model
   )
+
+  dtype = fastremap.fit_dtype(np.uint64, value=quant_factor)
+  return stored_model.astype(dtype)
+
+
+
+
