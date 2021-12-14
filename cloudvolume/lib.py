@@ -476,15 +476,9 @@ class Bbox(object):
       ]
     """
     arr = np.array(arr, dtype=np.float32)
-
-    mins = []
-    maxes = []
-
-    for i in range(arr.shape[1]):
-      mins.append( np.min(arr[:,i]) )
-      # Note that the right side should be exclusive
-      # following the python indexing scheme
-      maxes.append( np.max(arr[:,i]) + 1)
+    
+    mins = np.min(arr, axis=0)
+    maxes = np.max(arr, axis=0) + 1
 
     return Bbox( mins, maxes, dtype=np.int64)
 
