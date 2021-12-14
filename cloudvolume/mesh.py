@@ -324,30 +324,16 @@ end_header
     import DracoPy
 
     try:
-      mesh_object = DracoPy.decode_buffer_to_mesh(binary)
-      vertices = np.array(mesh_object.points).astype(np.float32)
-      faces = np.array(mesh_object.faces).astype(np.uint32)
+      mesh = DracoPy.decode(binary)
     except ValueError:
       raise MeshDecodeError("Not a valid draco mesh.")
 
-    Nv = len(vertices)
-    Nf = len(faces)
-
-    if Nv % 3 != 0: 
-      raise MeshDecodeError("Mesh vertices not 3D. Cannot decode. Num. vertices: {}".format(Nv))
-
-    if Nf % 3 != 0:
-      raise MeshDecodeError("Faces are not sets of triples. Cannot decode. Num. faces: {}".format(Nf))
-
-    vertices = vertices.reshape(Nv // 3, 3)
-    faces = faces.reshape(Nf // 3, 3)
-
     return Mesh(
-      vertices, faces, 
+      mesh.points, mesh.faces, 
       segid=segid,
       normals=None,
       encoding_type='draco', 
-      encoding_options=mesh_object.encoding_options
+      encoding_options=mesh.encoding_options
     )
 
   def deduplicate_vertices(self, is_chunk_aligned):
