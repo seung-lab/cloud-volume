@@ -476,13 +476,9 @@ class Bbox(object):
       ]
     """
     arr = np.array(arr, dtype=np.float32)
-
-    mins = []
-    maxes = []
-
-    for i in range(arr.shape[1]):
-      mins.append( np.min(arr[:,i]) )
-      maxes.append( np.max(arr[:,i]) )
+    
+    mins = np.min(arr, axis=0)
+    maxes = np.max(arr, axis=0) + 1
 
     return Bbox( mins, maxes, dtype=np.int64)
 
@@ -761,7 +757,7 @@ class Bbox(object):
 
     Returns: boolean
     """
-    return np.all(point >= self.minpt) and np.all(point <= self.maxpt)
+    return np.all(point >= self.minpt) and np.all(point < self.maxpt)
 
   def contains_bbox(self, bbox):
     return self.contains(bbox.minpt) and self.contains(bbox.maxpt)
