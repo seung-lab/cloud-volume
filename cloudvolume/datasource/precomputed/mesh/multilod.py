@@ -434,7 +434,7 @@ def to_stored_model_space(
   frag:int
 ) -> np.ndarray:
   """Inverse of from_stored_model_space (see explaination there)."""
-  vertices = vertices.astype(np.float32)
+  vertices = vertices.astype(np.float32, copy=False)
   quant_factor = ((2 ** vertex_quantization_bits) - 1) 
 
   stored_model = vertices - manifest.grid_origin - manifest.vertex_offsets[lod]
