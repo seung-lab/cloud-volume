@@ -543,20 +543,20 @@ class CacheService(object):
     def no_compression_ext(fnames):
       results = []
       for fname in fnames:
-        (name, ext) = pathmodule.splitext(fname)
+        (name, ext) = pathmodule.splitext(fname.name)
         if ext in COMPRESSION_EXTENSIONS:
           results.append(name)
         else:
-          results.append(fname)
+          results.append(fname.name)
       return results
 
     list_dirs = set([ pathmodule.dirname(pth) for pth in cloudpaths ])
     filenames = []
-
+    
     for list_dir in list_dirs:
       list_dir = os.path.join(self.path, list_dir)
-      filenames += no_compression_ext(os.listdir(mkdir(list_dir)))
-
+      filenames += no_compression_ext(os.scandir(mkdir(list_dir)))
+    
     basepathmap = { pathmodule.basename(path): pathmodule.dirname(path) for path in cloudpaths }
 
     # check which files are already cached, we only want to download ones not in cache
