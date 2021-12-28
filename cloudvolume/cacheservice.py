@@ -462,6 +462,13 @@ class CacheService(object):
     if self.enabled:
       fragments = self.get(locs['local'], progress=progress)
 
+    # fixes e.g. mesh\info -> mesh/info on Windows
+    if self.meta.path.protocol != 'file' and os.path.sep == '\\':
+      fragments = { 
+        "/".join(key.split('\\')): val 
+        for key,val in fragments.items() 
+      }
+
     cf = CloudFiles(
       self.meta.cloudpath, 
       progress=progress, 
