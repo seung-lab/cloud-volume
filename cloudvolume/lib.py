@@ -757,7 +757,7 @@ class Bbox(object):
 
     Returns: boolean
     """
-    return np.all(point >= self.minpt) and np.all(point < self.maxpt)
+    return np.all(point >= self.minpt) and np.all(point <= self.maxpt)
 
   def contains_bbox(self, bbox):
     return self.contains(bbox.minpt) and self.contains(bbox.maxpt)
