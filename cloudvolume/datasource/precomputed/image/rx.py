@@ -292,7 +292,8 @@ def download_chunk(
     cloudpath, mip,
     filename, fill_missing,
     enable_cache, compress_cache,
-    secrets, background_color
+    secrets, background_color,
+    extract_labels=False
   ):
   (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
   content = file['content']
@@ -312,26 +313,30 @@ def download_chunk(
     content = compression.decompress(content, file['compress'])
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
-  img3d = decode(meta, filename, content, fill_missing, mip, 
+  
+  fn = decode_unique if extract_labels else decode
+  img3d = fn(meta, filename, content, fill_missing, mip, 
                        background_color=background_color)
   return img3d, bbox
 
 def download_chunks_threaded(
     meta, cache, mip, cloudpaths, fn, 
     fill_missing, progress, compress_cache,
-    green=False, secrets=None, background_color=0
+    green=False, secrets=None, background_color=0,
+    extract_labels=False
   ):
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
 
   def process(cloudpath, filename, enable_cache):
-    img3d, bbox = download_chunk(
+    labels, bbox = download_chunk(
       meta, cache, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache,
-      secrets, background_color
+      secrets, background_color,
+      extract_labels
     )
-    fn(img3d, bbox)
+    fn(labels, bbox)
 
   local_downloads = ( 
     partial(process, cachedir, os.path.basename(filename), False) for filename in locations['local'] 
@@ -353,7 +358,11 @@ def download_chunks_threaded(
     green=green,
   )
 
-def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
+def decode(
+  meta, input_bbox, 
+  content, fill_missing, 
+  mip, background_color=0
+):
   """
   Decode content from bytes into a numpy array using the 
   dataset metadata.
@@ -364,6 +373,31 @@ def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
 
   Returns: ndarray
   """
+  return _decode_helper(  
+    chunks.decode, 
+    meta, input_bbox, 
+    content, fill_missing, 
+    mip, background_color,
+  )
+
+def decode_unique(
+  meta, input_bbox, 
+  content, fill_missing, 
+  mip, background_color=0
+):
+  """Gets the unique labels present in a given chunk."""
+  return _decode_helper(  
+    chunks.labels, 
+    meta, input_bbox, 
+    content, fill_missing, 
+    mip, background_color,
+  )
+
+def _decode_helper(  
+  fn, meta, input_bbox, 
+  content, fill_missing, 
+  mip, background_color=0,
+):
   bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
 
@@ -376,7 +410,7 @@ def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
   try:
-    return chunks.decode(
+    return fn(
       content, 
       encoding=meta.encoding(mip), 
       shape=shape, 
@@ -388,4 +422,45 @@ def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
         content_len, bbox, input_bbox, error)))
     raise
+
+def unique_unsharded(
+  requested_bbox, mip, 
+  meta, cache,
+  fill_missing, progress,
+  parallel,
+  compress, 
+  green=False, secrets=None,
+  background_color=0
+):
+  """
+  Accumulate all unique labels within the requested
+  bounding box.
+  """
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  cloudpaths = chunknames(
+    full_bbox, meta.bounds(mip), 
+    meta.key(mip), meta.chunk_size(mip), 
+    protocol=meta.path.protocol
+  )
+  shape = list(requested_bbox.size3()) + [ meta.num_channels ]
+
+  compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+
+  all_labels = set()
+  def process(labels, bbox):
+    nonlocal all_labels
+    all_labels |= set(labels)
+
+  download_chunks_threaded(
+    meta, cache, mip, cloudpaths, 
+    fn=process, fill_missing=fill_missing,
+    progress=progress, compress_cache=compress_cache, 
+    green=green, secrets=secrets, background_color=background_color,
+    extract_labels=True
+  )
+
+  return all_labels
 

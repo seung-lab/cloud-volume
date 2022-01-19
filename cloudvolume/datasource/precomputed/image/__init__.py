@@ -142,11 +142,11 @@ class PrecomputedImageSource(ImageSourceInterface):
     if location is None:
       location = self.shared_memory_id
 
-    scale = self.meta.scale(mip)
-    if 'sharding' in scale:
+    if self.is_sharded(mip):
       if renumber:
         raise ValueError("renumber is only supported for non-shared volumes.")
 
+      scale = self.meta.scale(mip)
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_sharded(
         bbox, mip, 
@@ -176,6 +176,28 @@ class PrecomputedImageSource(ImageSourceInterface):
         renumber=renumber,
         background_color=int(self.background_color),
       )
+
+  def unique(self, bbox, mip=None):
+    if self.autocrop:
+      bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
+
+    self.check_bounded(bbox, mip)
+
+    if self.is_sharded(mip):
+      raise NotImplementedError("Shards are not yet supported.")
+
+    return rx.unique_unsharded(
+      bbox, mip, 
+      meta=self.meta,
+      cache=self.cache,
+      parallel=1,
+      fill_missing=self.fill_missing,
+      progress=self.config.progress,
+      compress=self.config.compress,
+      green=self.config.green,
+      secrets=self.config.secrets,
+      background_color=int(self.background_color),
+    )
 
   @readonlyguard
   def upload(
