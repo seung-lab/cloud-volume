@@ -18,7 +18,7 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
-from ....lib import Bbox, Vec, sip, first
+from ....lib import Bbox, Vec, sip, first, BboxLikeType
 from .... import sharedmemory, chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
@@ -177,7 +177,8 @@ class PrecomputedImageSource(ImageSourceInterface):
         background_color=int(self.background_color),
       )
 
-  def unique(self, bbox, mip):
+  def unique(self, bbox:BboxLikeType, mip:int) -> set:
+    """Extract unique values in an efficient way."""
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip))
     
     if self.autocrop:

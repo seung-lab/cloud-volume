@@ -1,4 +1,4 @@
-from typing import Union, cast
+from typing import Union, Sequence, List, cast
 import decimal
 from functools import reduce
 import json
@@ -876,6 +876,8 @@ class Bbox(object):
 
   def __repr__(self):
     return f"Bbox({list(self.minpt)},{list(self.maxpt)}, dtype={self.dtype})"
+
+BboxLikeType = Union[Bbox, Sequence[slice], str, Vec]
 
 def save_images(
   image, directory=None, axis='z', 
