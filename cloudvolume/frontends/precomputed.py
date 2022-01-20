@@ -529,7 +529,7 @@ class CloudVolumePrecomputed(object):
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
   def unique(
-    self, bbox, mip=None, parallel=None,
+    self, bbox, mip=None,
     # Absorbing polymorphic Graphene calls
     agglomerate=None, timestamp=None, stop_layer=None,
   ):
@@ -547,11 +547,8 @@ class CloudVolumePrecomputed(object):
     if mip is None:
       mip = self.mip
 
-    if parallel is None:
-      parallel = self.parallel
-
     return self.image.unique(
-      bbox.astype(np.int64), mip#, parallel=parallel,
+      bbox.astype(np.int64), mip
     )
 
   def download(

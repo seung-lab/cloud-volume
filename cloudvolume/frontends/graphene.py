@@ -153,7 +153,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     # to the server. We can fill black in other situations.
     mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
 
-    labels = super(CloudVolumeGraphene, self).unique(bbox, mip=mip)
+    labels = super().unique(bbox, mip=mip)
 
     if agglomerate:
       return set(self.get_roots(
@@ -366,7 +366,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       layer_id = self.meta.decode_layer_id(segid)
       if layer_id in (stop_layer, self.meta.n_layers):
         base_remap[segid] = segid
-    
+
     segids = np.array(
       [ segid for segid in segids if segid not in base_remap ], 
       dtype=self.meta.dtype
