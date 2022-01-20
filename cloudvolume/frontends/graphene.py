@@ -363,9 +363,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     base_remap = { 0: 0 }
     # skip ids that are already root IDs
     for segid in segids:
-      if self.meta.decode_layer_id(segid) == self.meta.n_layers:
+      layer_id = self.meta.decode_layer_id(segid)
+      if layer_id in (stop_layer, self.meta.n_layers):
         base_remap[segid] = segid
-
+    
     segids = np.array(
       [ segid for segid in segids if segid not in base_remap ], 
       dtype=self.meta.dtype
