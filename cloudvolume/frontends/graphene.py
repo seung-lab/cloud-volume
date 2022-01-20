@@ -143,7 +143,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
 
     if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
-      raise ValueError("Stop layer {} must be 1 <= stop_layer <= {} or None.".format(stop_layer, self.meta.n_layers))
+      raise ValueError(
+        f"Stop layer {stop_layer} must be "
+        f"1 <= stop_layer <= {self.meta.n_layers} or None."
+      )
 
     if mip is None:
       mip = self.mip
