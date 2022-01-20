@@ -186,20 +186,29 @@ class PrecomputedImageSource(ImageSourceInterface):
     self.check_bounded(bbox, mip)
 
     if self.is_sharded(mip):
-      raise NotImplementedError("Shards are not yet supported.")
-
-    return rx.unique_unsharded(
-      bbox, mip, 
-      meta=self.meta,
-      cache=self.cache,
-      parallel=1,
-      fill_missing=self.fill_missing,
-      progress=self.config.progress,
-      compress=self.config.compress,
-      green=self.config.green,
-      secrets=self.config.secrets,
-      background_color=int(self.background_color),
-    )
+      scale = self.meta.scale(mip)
+      spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
+      return rx.unique_sharded(
+        bbox, mip, 
+        self.meta, self.cache, spec,
+        compress=self.config.compress,
+        progress=self.config.progress,
+        fill_missing=self.fill_missing,
+        background_color=int(self.background_color),
+      )
+    else:
+      return rx.unique_unsharded(
+        bbox, mip, 
+        meta=self.meta,
+        cache=self.cache,
+        parallel=1,
+        fill_missing=self.fill_missing,
+        progress=self.config.progress,
+        compress=self.config.compress,
+        green=self.config.green,
+        secrets=self.config.secrets,
+        background_color=int(self.background_color),
+      )
 
   @readonlyguard
   def upload(

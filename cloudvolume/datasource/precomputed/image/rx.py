@@ -488,3 +488,72 @@ def unique_unsharded(
 
   return all_labels
 
+def unique_sharded(
+  requested_bbox, mip,
+  meta, cache, spec,
+  compress, progress,
+  fill_missing, background_color
+):
+  """
+  Accumulate all unique labels within the requested
+  bounding box.
+  """
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  core_bbox = requested_bbox.shrink_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  core_bbox = Bbox.clamp(core_bbox, meta.bounds(mip))
+
+  compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+
+  chunk_size = meta.chunk_size(mip)
+  grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
+
+  reader = sharding.ShardReader(meta, cache, spec)
+  bounds = meta.bounds(mip)
+
+  all_gpts = list(gridpoints(full_bbox, bounds, chunk_size))
+  core_gpts = list(gridpoints(core_bbox, bounds, chunk_size))
+
+  code_map = {}
+  all_morton_codes = compressed_morton_code(all_gpts, grid_size)
+  for gridpoint, morton_code in zip(all_gpts, all_morton_codes):
+    cutout_bbox = Bbox(
+      bounds.minpt + gridpoint * chunk_size,
+      min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
+    )
+    code_map[morton_code] = cutout_bbox
+  
+  core_morton_codes = compressed_morton_code(core_gpts, grid_size)
+
+  all_labels = set()
+  
+  core_chunkdata = reader.get_data(core_morton_codes, meta.key(mip), progress=progress)
+  for zcode, chunkdata in core_chunkdata.items():
+    cutout_bbox = code_map[zcode]
+    labels = decode_unique(
+      meta, cutout_bbox, 
+      chunkdata, fill_missing, mip,
+      background_color=background_color
+    )
+    all_labels |= set(labels)
+
+  shell_morton_codes = set(all_morton_codes) - set(core_morton_codes)
+  shell_chunkdata = reader.get_data(shell_morton_codes, meta.key(mip), progress=progress)
+  for zcode, chunkdata in shell_chunkdata.items():
+    cutout_bbox = code_map[zcode]
+    labels = decode(
+      meta, cutout_bbox, 
+      chunkdata, fill_missing, mip,
+      background_color=background_color
+    )
+    crop_bbox = Bbox.intersection(requested_bbox, cutout_bbox)
+    crop_bbox -= cutout_bbox.minpt
+    labels = fastremap.unique(labels[ crop_bbox.to_slices() ])
+    all_labels |= set(labels)
+
+  return all_labels
+
