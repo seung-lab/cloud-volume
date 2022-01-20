@@ -292,7 +292,8 @@ def download_chunk(
     cloudpath, mip,
     filename, fill_missing,
     enable_cache, compress_cache,
-    secrets, background_color
+    secrets, background_color,
+    extract_labels=False
   ):
   (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
   content = file['content']
@@ -312,26 +313,30 @@ def download_chunk(
     content = compression.decompress(content, file['compress'])
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
-  img3d = decode(meta, filename, content, fill_missing, mip, 
+  
+  fn = decode_unique if extract_labels else decode
+  img3d = fn(meta, filename, content, fill_missing, mip, 
                        background_color=background_color)
   return img3d, bbox
 
 def download_chunks_threaded(
     meta, cache, mip, cloudpaths, fn, 
     fill_missing, progress, compress_cache,
-    green=False, secrets=None, background_color=0
+    green=False, secrets=None, background_color=0,
+    extract_labels=False
   ):
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
 
   def process(cloudpath, filename, enable_cache):
-    img3d, bbox = download_chunk(
+    labels, bbox = download_chunk(
       meta, cache, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache,
-      secrets, background_color
+      secrets, background_color,
+      extract_labels
     )
-    fn(img3d, bbox)
+    fn(labels, bbox)
 
   local_downloads = ( 
     partial(process, cachedir, os.path.basename(filename), False) for filename in locations['local'] 
@@ -353,7 +358,11 @@ def download_chunks_threaded(
     green=green,
   )
 
-def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
+def decode(
+  meta, input_bbox, 
+  content, fill_missing, 
+  mip, background_color=0
+):
   """
   Decode content from bytes into a numpy array using the 
   dataset metadata.
@@ -364,6 +373,31 @@ def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
 
   Returns: ndarray
   """
+  return _decode_helper(  
+    chunks.decode, 
+    meta, input_bbox, 
+    content, fill_missing, 
+    mip, background_color,
+  )
+
+def decode_unique(
+  meta, input_bbox, 
+  content, fill_missing, 
+  mip, background_color=0
+):
+  """Gets the unique labels present in a given chunk."""
+  return _decode_helper(  
+    chunks.labels, 
+    meta, input_bbox, 
+    content, fill_missing, 
+    mip, background_color,
+  )
+
+def _decode_helper(  
+  fn, meta, input_bbox, 
+  content, fill_missing, 
+  mip, background_color=0,
+):
   bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
 
@@ -376,7 +410,7 @@ def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
   try:
-    return chunks.decode(
+    return fn(
       content, 
       encoding=meta.encoding(mip), 
       shape=shape, 
@@ -388,4 +422,138 @@ def decode(meta, input_bbox, content, fill_missing, mip, background_color=0):
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
         content_len, bbox, input_bbox, error)))
     raise
+
+def unique_unsharded(
+  requested_bbox, mip, 
+  meta, cache,
+  fill_missing, progress,
+  parallel,
+  compress, 
+  green=False, secrets=None,
+  background_color=0
+):
+  """
+  Accumulate all unique labels within the requested
+  bounding box.
+  """
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  all_chunks = set(chunknames(
+    full_bbox, meta.bounds(mip), 
+    meta.key(mip), meta.chunk_size(mip), 
+    protocol=meta.path.protocol
+  ))
+  retracted_bbox = requested_bbox.shrink_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  retracted_bbox = Bbox.clamp(retracted_bbox, meta.bounds(mip))
+  core_chunks = set(chunknames(retracted_bbox, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
+  shell_chunks = all_chunks.difference(core_chunks)
+
+  shape = list(requested_bbox.size3()) + [ meta.num_channels ]
+
+  compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+
+  all_labels = set()
+  def process_core(labels, bbox):
+    nonlocal all_labels
+    all_labels |= set(labels)
+
+  def process_shell(labels, bbox):
+    nonlocal all_labels
+    nonlocal requested_bbox
+    crop_bbox = Bbox.intersection(requested_bbox, bbox)
+    crop_bbox -= bbox.minpt
+    labels = labels[ crop_bbox.to_slices() ]
+    all_labels |= set(fastremap.unique(labels))
+
+  download_chunks_threaded(
+    meta, cache, mip, core_chunks, 
+    fn=process_core, fill_missing=fill_missing,
+    progress=progress, compress_cache=compress_cache, 
+    green=green, secrets=secrets, background_color=background_color,
+    extract_labels=True
+  )
+
+  if len(shell_chunks) > 0:
+    download_chunks_threaded(
+      meta, cache, mip, shell_chunks, 
+      fn=process_shell, fill_missing=fill_missing,
+      progress=progress, compress_cache=compress_cache, 
+      green=green, secrets=secrets, background_color=background_color,
+      extract_labels=False
+    )
+
+  return all_labels
+
+def unique_sharded(
+  requested_bbox, mip,
+  meta, cache, spec,
+  compress, progress,
+  fill_missing, background_color
+):
+  """
+  Accumulate all unique labels within the requested
+  bounding box.
+  """
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  core_bbox = requested_bbox.shrink_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  core_bbox = Bbox.clamp(core_bbox, meta.bounds(mip))
+
+  compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+
+  chunk_size = meta.chunk_size(mip)
+  grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
+
+  reader = sharding.ShardReader(meta, cache, spec)
+  bounds = meta.bounds(mip)
+
+  all_gpts = list(gridpoints(full_bbox, bounds, chunk_size))
+  core_gpts = list(gridpoints(core_bbox, bounds, chunk_size))
+
+  code_map = {}
+  all_morton_codes = compressed_morton_code(all_gpts, grid_size)
+  for gridpoint, morton_code in zip(all_gpts, all_morton_codes):
+    cutout_bbox = Bbox(
+      bounds.minpt + gridpoint * chunk_size,
+      min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
+    )
+    code_map[morton_code] = cutout_bbox
+  
+  core_morton_codes = compressed_morton_code(core_gpts, grid_size)
+
+  all_labels = set()
+  
+  core_chunkdata = reader.get_data(core_morton_codes, meta.key(mip), progress=progress)
+  for zcode, chunkdata in core_chunkdata.items():
+    cutout_bbox = code_map[zcode]
+    labels = decode_unique(
+      meta, cutout_bbox, 
+      chunkdata, fill_missing, mip,
+      background_color=background_color
+    )
+    all_labels |= set(labels)
+
+  shell_morton_codes = set(all_morton_codes) - set(core_morton_codes)
+  shell_chunkdata = reader.get_data(shell_morton_codes, meta.key(mip), progress=progress)
+  for zcode, chunkdata in shell_chunkdata.items():
+    cutout_bbox = code_map[zcode]
+    labels = decode(
+      meta, cutout_bbox, 
+      chunkdata, fill_missing, mip,
+      background_color=background_color
+    )
+    crop_bbox = Bbox.intersection(requested_bbox, cutout_bbox)
+    crop_bbox -= cutout_bbox.minpt
+    labels = fastremap.unique(labels[ crop_bbox.to_slices() ])
+    all_labels |= set(labels)
+
+  return all_labels
 

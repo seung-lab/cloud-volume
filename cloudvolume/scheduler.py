@@ -86,7 +86,7 @@ def schedule_jobs(
   all complete. 
 
   fns: iterable of functions
-  concurrency: number of threads
+  concurrency: number of threads (0: no threads)
   progress: Falsey (no progress), String: Progress + description
   total: If fns is a generator, this is the number of items to be generated.
   green: If True, use green threads.
@@ -96,7 +96,7 @@ def schedule_jobs(
   if concurrency < 0:
     raise ValueError("concurrency value cannot be negative: {}".format(concurrency))
   elif concurrency == 0:
-    return [ fn() for fn in tqdm(fns, disable=(not progress), desc=progress) ]
+    return [ fn() for fn in tqdm(fns, disable=(not progress), desc=progress, total=total) ]
 
   if green:
     return schedule_green_jobs(fns, concurrency, progress, total)

@@ -18,7 +18,7 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
-from ....lib import Bbox, Vec, sip, first
+from ....lib import Bbox, Vec, sip, first, BboxLikeType
 from .... import sharedmemory, chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
@@ -142,11 +142,11 @@ class PrecomputedImageSource(ImageSourceInterface):
     if location is None:
       location = self.shared_memory_id
 
-    scale = self.meta.scale(mip)
-    if 'sharding' in scale:
+    if self.is_sharded(mip):
       if renumber:
         raise ValueError("renumber is only supported for non-shared volumes.")
 
+      scale = self.meta.scale(mip)
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_sharded(
         bbox, mip, 
@@ -174,6 +174,40 @@ class PrecomputedImageSource(ImageSourceInterface):
         green=self.config.green,
         secrets=self.config.secrets,
         renumber=renumber,
+        background_color=int(self.background_color),
+      )
+
+  def unique(self, bbox:BboxLikeType, mip:int) -> set:
+    """Extract unique values in an efficient way."""
+    bbox = Bbox.create(bbox, context=self.meta.bounds(mip))
+    
+    if self.autocrop:
+      bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
+
+    self.check_bounded(bbox, mip)
+
+    if self.is_sharded(mip):
+      scale = self.meta.scale(mip)
+      spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
+      return rx.unique_sharded(
+        bbox, mip, 
+        self.meta, self.cache, spec,
+        compress=self.config.compress,
+        progress=self.config.progress,
+        fill_missing=self.fill_missing,
+        background_color=int(self.background_color),
+      )
+    else:
+      return rx.unique_unsharded(
+        bbox, mip, 
+        meta=self.meta,
+        cache=self.cache,
+        parallel=1,
+        fill_missing=self.fill_missing,
+        progress=self.config.progress,
+        compress=self.config.compress,
+        green=self.config.green,
+        secrets=self.config.secrets,
         background_color=int(self.background_color),
       )
 

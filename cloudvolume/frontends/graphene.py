@@ -1,3 +1,5 @@
+from typing import Optional, List, Any
+
 from collections import defaultdict
 from datetime import datetime
 import math
@@ -16,7 +18,7 @@ import numpy as np
 from .. import compression
 from .. import exceptions
 from ..cacheservice import CacheService
-from ..lib import Bbox, Vec, toiter
+from ..lib import Bbox, Vec, toiter, BboxLikeType
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
 from ..datasource.graphene.metadata import GrapheneApiVersion
@@ -118,6 +120,74 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       parallel = self.parallel
 
     return self.download(bbox, mip, parallel=parallel, **kwargs)
+
+  def unique(
+    self, 
+    bbox:BboxLikeType, 
+    mip:Optional[int] = None, 
+    segids:Optional[List[int]] = None,
+    preserve_zeros:bool = False,
+    agglomerate:Optional[bool] = None, 
+    timestamp:Optional[int] = None,
+    stop_layer:Optional[int] = None,
+  ) -> set:
+    agglomerate = agglomerate if agglomerate is not None else self.agglomerate
+    
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=self.bounded, 
+      autocrop=self.autocrop
+    )
+  
+    if bbox.subvoxel():
+      raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
+
+    if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
+      raise ValueError(
+        f"Stop layer {stop_layer} must be "
+        f"1 <= stop_layer <= {self.meta.n_layers} or None."
+      )
+
+    if mip is None:
+      mip = self.mip
+
+    mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
+    # Only ever necessary to make requests within the bounding box
+    # to the server. We can fill black in other situations.
+    mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
+
+    labels = super().unique(bbox, mip=mip)
+
+    if agglomerate:
+      return set(self.get_roots(
+        list(labels), 
+        timestamp=timestamp, 
+        binary=True, 
+        stop_layer=stop_layer
+      ))
+
+    labels = set(labels)
+
+    for segid in segids:
+      leaves = set(self.get_leaves(segid, mip0_bbox, 0))
+      if labels.isdisjoint(leaves):
+        continue
+      labels -= leaves
+      labels.add(segid)
+
+    mask_value = 0
+    if preserve_zeros:
+      mask_value = np.inf
+      if np.issubdtype(self.dtype, np.integer):
+        mask_value = np.iinfo(self.dtype).max
+
+      segids.append(0)
+
+    segids = set(segids)
+    final_labels = set([ label for label in labels if label in segids ])
+    if len(final_labels) < len(labels):
+      final_labels.add(mask_value)
+    return final_labels
 
   def download(
     self, bbox, mip=None, 
@@ -296,7 +366,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     base_remap = { 0: 0 }
     # skip ids that are already root IDs
     for segid in segids:
-      if self.meta.decode_layer_id(segid) == self.meta.n_layers:
+      layer_id = self.meta.decode_layer_id(segid)
+      if layer_id in (stop_layer, self.meta.n_layers):
         base_remap[segid] = segid
 
     segids = np.array(

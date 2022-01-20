@@ -15,8 +15,10 @@
 import zlib
 import io
 import numpy as np
+
 import simplejpeg
 import compresso
+import fastremap
 
 from .lib import yellow
 
@@ -63,8 +65,11 @@ def encode(img_chunk, encoding, block_size=None):
   else:
     raise NotImplementedError(encoding)
 
-def decode(filedata, encoding, shape=None, dtype=None, block_size=None, 
-                     background_color=0):
+def decode(
+  filedata, encoding, 
+  shape=None, dtype=None, 
+  block_size=None, background_color=0
+):
   if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed'):
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
@@ -203,4 +208,32 @@ def decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_s
   chunk = np.empty(shape=shape[::-1], dtype=dtype)
   csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)
   return chunk.T
+
+def labels(
+  filedata, encoding, 
+  shape=None, dtype=None, 
+  block_size=None, background_color=0
+):
+  """
+  Extract unique labels from a chunk using
+  the most efficient means possible for the
+  encoding type.
+
+  Returns: numpy array of unique values
+  """
+  if filedata is None or len(filedata) == 0:
+    return np.zeros((0,), dtype=dtype)
+  elif encoding == "raw":
+    img = decode(filedata, encoding, shape, dtype, block_size, background_color)
+    return fastremap.unique(img)
+  elif encoding == "compressed_segmentation":
+    return cseg.labels(
+      filedata, shape=shape[:3], 
+      dtype=dtype, block_size=block_size
+    )
+  elif encoding == "compresso":
+    return compresso.labels(filedata)
+  else:
+    raise NotImplementedError(f"Encoding {encoding} is not supported. Try: raw, compressed_segmentation, or compresso.")
+
 

@@ -343,6 +343,22 @@ def test_non_aligned_read():
   assert data[19:74:2, 15:190:3, 11:21,:].shape == (28,59,10,1) 
   assert np.all(cv[22:77:2, 22:197:3, 22:32] == data[19:74:2, 15:190:3, 11:21,:])
 
+@pytest.mark.parametrize("encoding", [ "raw", "compressed_segmentation", "compresso" ])
+def test_unique(encoding):
+  delete_layer()
+  cv, data = create_layer(size=(128,128,50,1), offset=(0,0,0), encoding=encoding, dtype=np.uint32)
+
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
+
+  slc = np.s_[10:40,50:90,:50]
+  uniq = cv.unique(slc)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data[slc]))
+
 def test_autocropped_read():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
