@@ -528,6 +528,32 @@ class CloudVolumePrecomputed(object):
     img = self.download(requested_bbox, self.mip)
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
+  def unique(
+    self, bbox, mip=None, parallel=None,
+    # Absorbing polymorphic Graphene calls
+    agglomerate=None, timestamp=None, stop_layer=None,
+  ):
+    """
+    Downloads segmentation and extracts unique
+    labels from it without rendering a full image.
+    Faster and saves memory.
+    """
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=self.bounded, 
+      autocrop=self.autocrop
+    )
+
+    if mip is None:
+      mip = self.mip
+
+    if parallel is None:
+      parallel = self.parallel
+
+    return self.image.unique(
+      bbox.astype(np.int64), mip#, parallel=parallel,
+    )
+
   def download(
       self, bbox, mip=None, parallel=None,
       segids=None, preserve_zeros=False,
