@@ -1,4 +1,4 @@
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Sequence
 
 from collections import defaultdict
 from datetime import datetime
@@ -130,15 +130,25 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     agglomerate:Optional[bool] = None, 
     timestamp:Optional[int] = None,
     stop_layer:Optional[int] = None,
+    coord_resolution:Optional[Sequence[int]] = None,
   ) -> set:
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
     
     bbox = Bbox.create(
       bbox, context=self.bounds, 
-      bounded=self.bounded, 
+      bounded=(self.bounded and coord_resolution is None), 
       autocrop=self.autocrop
     )
   
+    if mip is None:
+      mip = self.mip
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(mip) / coord_resolution
+      bbox /= factor
+      if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
+        raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
+
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
 
@@ -147,9 +157,6 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         f"Stop layer {stop_layer} must be "
         f"1 <= stop_layer <= {self.meta.n_layers} or None."
       )
-
-    if mip is None:
-      mip = self.mip
 
     mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
     # Only ever necessary to make requests within the bounding box

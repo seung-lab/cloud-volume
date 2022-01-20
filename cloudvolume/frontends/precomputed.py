@@ -529,9 +529,17 @@ class CloudVolumePrecomputed(object):
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
   def unique(
-    self, bbox, mip=None,
+    self, 
+    bbox:BboxLikeType, 
+    mip:Optional[int] = None,
+    
     # Absorbing polymorphic Graphene calls
-    agglomerate=None, timestamp=None, stop_layer=None,
+    agglomerate:Optional[bool] = None, 
+    timestamp:Optional[int] = None, 
+    stop_layer:Optional[int] = None,
+
+    # new download arguments
+    coord_resolution:Optional[Sequence[int]] = None,
   ):
     """
     Downloads segmentation and extracts unique
@@ -540,12 +548,18 @@ class CloudVolumePrecomputed(object):
     """
     bbox = Bbox.create(
       bbox, context=self.bounds, 
-      bounded=self.bounded, 
+      bounded=(self.bounded and coord_resolution is None), 
       autocrop=self.autocrop
     )
 
     if mip is None:
       mip = self.mip
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(mip) / coord_resolution
+      bbox /= factor
+      if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
+        raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
 
     return self.image.unique(
       bbox.astype(np.int64), mip
@@ -608,7 +622,6 @@ class CloudVolumePrecomputed(object):
       bbox /= factor
       if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
         raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
-
 
     if parallel is None:
       parallel = self.parallel
