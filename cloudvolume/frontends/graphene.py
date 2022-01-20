@@ -243,7 +243,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     
     bbox = Bbox.create(
       bbox, context=self.bounds, 
-      bounded=self.bounded, 
+      bounded=(self.bounded and coord_resolution is None), 
       autocrop=self.autocrop
     )
 
@@ -251,7 +251,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       mip = self.mip
 
     if coord_resolution is not None:
-      bbox = self.bbox_to_mip(bbox, self.meta.to_mip(coord_resolution), mip)
+      factor = self.meta.resolution(mip) / coord_resolution
+      bbox /= factor
+      if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
+        raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
 
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
