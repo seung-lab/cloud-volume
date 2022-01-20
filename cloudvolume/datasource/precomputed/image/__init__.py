@@ -177,7 +177,9 @@ class PrecomputedImageSource(ImageSourceInterface):
         background_color=int(self.background_color),
       )
 
-  def unique(self, bbox, mip=None):
+  def unique(self, bbox, mip):
+    bbox = Bbox.create(bbox, context=self.meta.bounds(mip))
+    
     if self.autocrop:
       bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
 

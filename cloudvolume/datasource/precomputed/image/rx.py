@@ -440,27 +440,51 @@ def unique_unsharded(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
   full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
-  cloudpaths = chunknames(
+  all_chunks = set(chunknames(
     full_bbox, meta.bounds(mip), 
     meta.key(mip), meta.chunk_size(mip), 
     protocol=meta.path.protocol
+  ))
+  retracted_bbox = requested_bbox.shrink_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
+  retracted_bbox = Bbox.clamp(retracted_bbox, meta.bounds(mip))
+  core_chunks = set(chunknames(retracted_bbox, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
+  shell_chunks = all_chunks.difference(core_chunks)
+
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
   all_labels = set()
-  def process(labels, bbox):
+  def process_core(labels, bbox):
     nonlocal all_labels
     all_labels |= set(labels)
 
+  def process_shell(labels, bbox):
+    nonlocal all_labels
+    nonlocal requested_bbox
+    crop_bbox = Bbox.intersection(requested_bbox, bbox)
+    crop_bbox -= bbox.minpt
+    labels = labels[ crop_bbox.to_slices() ]
+    all_labels |= set(fastremap.unique(labels))
+
   download_chunks_threaded(
-    meta, cache, mip, cloudpaths, 
-    fn=process, fill_missing=fill_missing,
+    meta, cache, mip, core_chunks, 
+    fn=process_core, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache, 
     green=green, secrets=secrets, background_color=background_color,
     extract_labels=True
   )
+
+  if len(shell_chunks) > 0:
+    download_chunks_threaded(
+      meta, cache, mip, shell_chunks, 
+      fn=process_shell, fill_missing=fill_missing,
+      progress=progress, compress_cache=compress_cache, 
+      green=green, secrets=secrets, background_color=background_color,
+      extract_labels=False
+    )
 
   return all_labels
 
