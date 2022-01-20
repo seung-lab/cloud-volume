@@ -1,4 +1,4 @@
-from __future__ import print_function
+from typing import Optional, Sequence
 
 import itertools
 import gevent.socket
@@ -20,7 +20,7 @@ from ..cacheservice import CacheService
 from .. import exceptions 
 from ..lib import ( 
   colorize, red, mkdir, 
-  Vec, Bbox, jsonify
+  Vec, Bbox, jsonify, BboxLikeType,
 )
 
 from ..datasource import autocropfn
@@ -552,15 +552,22 @@ class CloudVolumePrecomputed(object):
     )
 
   def download(
-      self, bbox, mip=None, parallel=None,
-      segids=None, preserve_zeros=False,
-      
-      # Absorbing polymorphic Graphene calls
-      agglomerate=None, timestamp=None, stop_layer=None,
+    self, 
+    bbox:BboxLikeType, 
+    mip:Optional[int] = None, 
+    parallel:Optional[int] = None,
+    segids:Optional[Sequence[int]] = None, 
+    preserve_zeros:bool = False,
+    
+    # Absorbing polymorphic Graphene calls
+    agglomerate:Optional[bool] = None, 
+    timestamp:Optional[int] = None, 
+    stop_layer:Optional[int] = None,
 
-      # new download arguments
-      renumber=False
-    ):
+    # new download arguments
+    renumber:bool = False, 
+    coord_resolution:Optional[Sequence[int]] = None,
+  ) -> VolumeCutout:
     """
     Downloads segmentation from the indicated cutout
     region.
@@ -578,6 +585,9 @@ class CloudVolumePrecomputed(object):
     renumber: dynamically rewrite downloaded segmentation into
       a more compact data type. Only compatible with single-process
       non-sharded download.
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
 
     agglomerate, timestamp, and stop_layer are just there to 
     absorb arguments to what could be a graphene frontend.
@@ -592,6 +602,9 @@ class CloudVolumePrecomputed(object):
 
     if mip is None:
       mip = self.mip
+
+    if coord_resolution is not None:
+      bbox = self.bbox_to_mip(bbox, self.meta.to_mip(coord_resolution), mip)
 
     if parallel is None:
       parallel = self.parallel

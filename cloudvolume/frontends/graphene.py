@@ -194,7 +194,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     parallel=None, segids=None,
     preserve_zeros=False,
     agglomerate=None, timestamp=None,
-    stop_layer=None, renumber=False
+    stop_layer=None, renumber=False,
+    coord_resolution=None,
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -203,6 +204,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     bbox: specifies cutout to fetch
     mip: which resolution level to get (default self.mip)
     parallel: what parallel level to use (default self.parallel)
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
 
     agglomerate: if true, remap all watershed ids in the volume
       and return a flat segmentation.
@@ -235,9 +239,6 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     Returns: img as a VolumeCutout
     """
-    if type(bbox) is Vec:
-      bbox = Bbox(bbox, bbox+1)
-
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
     
     bbox = Bbox.create(
@@ -245,15 +246,18 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       bounded=self.bounded, 
       autocrop=self.autocrop
     )
-  
+
+    if mip is None:
+      mip = self.mip
+
+    if coord_resolution is not None:
+      bbox = self.bbox_to_mip(bbox, self.meta.to_mip(coord_resolution), mip)
+
     if bbox.subvoxel():
       raise exceptions.EmptyRequestException("Requested {} is smaller than a voxel.".format(bbox))
 
     if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
       raise ValueError("Stop layer {} must be 1 <= stop_layer <= {} or None.".format(stop_layer, self.meta.n_layers))
-
-    if mip is None:
-      mip = self.mip
 
     mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
     # Only ever necessary to make requests within the bounding box
