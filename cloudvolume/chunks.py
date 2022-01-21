@@ -256,7 +256,7 @@ def read_voxel(
   dtype:Any = None, 
   block_size:Optional[Sequence[int]] = None,
   background_color:int = 0
-) -> int:
+) -> np.ndarray:
   if encoding != "compressed_segmentation":
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
