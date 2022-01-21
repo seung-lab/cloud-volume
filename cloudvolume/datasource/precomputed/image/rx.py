@@ -14,7 +14,7 @@ from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, check_bounds, 
-  jsonify, red, sip
+  jsonify, red, sip, first
 )
 from .... import chunks
 
@@ -37,12 +37,12 @@ progress_queue = None # defined in common.initialize_synchronization
 fs_lock = None # defined in common.initialize_synchronization
 
 def download_sharded(
-    requested_bbox, mip,
-    meta, cache, spec,
-    compress, progress,
-    fill_missing, 
-    order, background_color
-  ):
+  requested_bbox, mip,
+  meta, cache, spec,
+  compress, progress,
+  fill_missing, 
+  order, background_color
+):
 
   full_bbox = requested_bbox.expand_to_chunk_size(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
@@ -87,15 +87,15 @@ def download_sharded(
   )
 
 def download(
-    requested_bbox, mip, 
-    meta, cache,
-    fill_missing, progress,
-    parallel, location, 
-    retain, use_shared_memory, 
-    use_file, compress, order='F',
-    green=False, secrets=None,
-    renumber=False, background_color=0
-  ):
+  requested_bbox, mip, 
+  meta, cache,
+  fill_missing, progress,
+  parallel, location, 
+  retain, use_shared_memory, 
+  use_file, compress, order='F',
+  green=False, secrets=None,
+  renumber=False, background_color=0
+):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
   full_bbox = requested_bbox.expand_to_chunk_size(
@@ -121,7 +121,19 @@ def download(
 
   dtype = np.uint16 if renumber else meta.dtype
 
-  if parallel == 1:
+  if requested_bbox.volume() == 1:
+    filename = first(cloudpaths)
+    chunk_bbx = Bbox.from_filename(filename)
+    label, _ = download_chunk(
+      meta, cache, 
+      meta.cloudpath, mip,
+      filename, fill_missing,
+      cache.enabled, compress_cache,
+      secrets, background_color,
+      partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt)
+    )
+    return label
+  elif parallel == 1:
     if use_shared_memory: # write to shared memory
       handle, renderbuffer = shm.ndarray(
         shape, dtype=dtype, order=order,
@@ -170,7 +182,7 @@ def download(
 
     download_chunks_threaded(
       meta, cache, mip, cloudpaths, 
-      fn=fn, fill_missing=fill_missing,
+      fn=fn, decode_fn=decode, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
       green=green, secrets=secrets, background_color=background_color
     )
@@ -278,7 +290,7 @@ def child_process_download(
 
   download_chunks_threaded(
     meta, cache, mip, cloudpaths,
-    fn=process, fill_missing=fill_missing,
+    fn=process, decode_fn=decode, fill_missing=fill_missing,
     progress=False, compress_cache=compress_cache,
     green=green, secrets=secrets, background_color=background_color
   )
@@ -288,13 +300,13 @@ def child_process_download(
   return len(cloudpaths)
 
 def download_chunk(
-    meta, cache, 
-    cloudpath, mip,
-    filename, fill_missing,
-    enable_cache, compress_cache,
-    secrets, background_color,
-    extract_labels=False
-  ):
+  meta, cache, 
+  cloudpath, mip,
+  filename, fill_missing,
+  enable_cache, compress_cache,
+  secrets, background_color,
+  decode_fn
+):
   (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
   content = file['content']
 
@@ -313,18 +325,16 @@ def download_chunk(
     content = compression.decompress(content, file['compress'])
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
-  
-  fn = decode_unique if extract_labels else decode
-  img3d = fn(meta, filename, content, fill_missing, mip, 
+  img3d = decode_fn(meta, filename, content, fill_missing, mip, 
                        background_color=background_color)
   return img3d, bbox
 
 def download_chunks_threaded(
-    meta, cache, mip, cloudpaths, fn, 
+    meta, cache, mip, cloudpaths, fn, decode_fn,
     fill_missing, progress, compress_cache,
     green=False, secrets=None, background_color=0,
-    extract_labels=False
   ):
+  """fn is the postprocess callback. decode_fn is a decode fn."""
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
 
@@ -334,7 +344,7 @@ def download_chunks_threaded(
       filename, fill_missing,
       enable_cache, compress_cache,
       secrets, background_color,
-      extract_labels
+      decode_fn
     )
     fn(labels, bbox)
 
@@ -388,6 +398,25 @@ def decode_unique(
   """Gets the unique labels present in a given chunk."""
   return _decode_helper(  
     chunks.labels, 
+    meta, input_bbox, 
+    content, fill_missing, 
+    mip, background_color,
+  )
+
+def decode_single_voxel(
+  xyz, meta, input_bbox, 
+  content, fill_missing, 
+  mip, background_color=0
+):
+  """
+  Specialized decode that for some file formats
+  will be faster than regular decode when fetching
+  a single voxel. Single voxel fetches are a common
+  operation when e.g. people are querying the identity
+  of a synapse or organelle location to build a database.
+  """
+  return _decode_helper(  
+    partial(chunks.read_voxel, xyz),
     meta, input_bbox, 
     content, fill_missing, 
     mip, background_color,
@@ -471,19 +500,17 @@ def unique_unsharded(
 
   download_chunks_threaded(
     meta, cache, mip, core_chunks, 
-    fn=process_core, fill_missing=fill_missing,
+    fn=process_core, decode_fn=decode_unique, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache, 
     green=green, secrets=secrets, background_color=background_color,
-    extract_labels=True
   )
 
   if len(shell_chunks) > 0:
     download_chunks_threaded(
       meta, cache, mip, shell_chunks, 
-      fn=process_shell, fill_missing=fill_missing,
+      fn=process_shell, decode_fn=decode, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
       green=green, secrets=secrets, background_color=background_color,
-      extract_labels=False
     )
 
   return all_labels
