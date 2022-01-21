@@ -295,7 +295,7 @@ def cv_supervoxels(N=64, blockN=16):
     num_channels=1,
     layer_type='segmentation',
     data_type='uint64',
-    encoding='raw',
+    encoding="compressed_segmentation",
     resolution=[4, 4, 40],  # Voxel scaling, units are in nanometers
     voxel_offset=[0, 0, 0],  # x,y,z offset in voxels from the origin
     # Pick a convenient size for your underlying chunk representation
