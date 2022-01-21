@@ -14,7 +14,7 @@ from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, check_bounds, 
-  jsonify, red
+  jsonify, red, sip
 )
 from .... import chunks
 
@@ -531,15 +531,18 @@ def unique_sharded(
 
   all_labels = set()
   
-  core_chunkdata = reader.get_data(core_morton_codes, meta.key(mip), progress=progress)
-  for zcode, chunkdata in core_chunkdata.items():
-    cutout_bbox = code_map[zcode]
-    labels = decode_unique(
-      meta, cutout_bbox, 
-      chunkdata, fill_missing, mip,
-      background_color=background_color
-    )
-    all_labels |= set(labels)
+  for mcs in sip(core_morton_codes, 10000):
+    core_chunkdata = reader.get_data(mcs, meta.key(mip), progress=progress)
+    for zcode, chunkdata in core_chunkdata.items():
+      cutout_bbox = code_map[zcode]
+      labels = decode_unique(
+        meta, cutout_bbox, 
+        chunkdata, fill_missing, mip,
+        background_color=background_color
+      )
+      all_labels |= set(labels)
+
+  del core_chunkdata
 
   shell_morton_codes = set(all_morton_codes) - set(core_morton_codes)
   shell_chunkdata = reader.get_data(shell_morton_codes, meta.key(mip), progress=progress)
