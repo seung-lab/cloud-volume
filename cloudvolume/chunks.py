@@ -264,8 +264,9 @@ def read_voxel(
   arr = cseg.CompressedSegmentationArray(
     filedata, shape=shape[:3], dtype=dtype, block_size=block_size
   )
-  label = arr[tuple(xyz)]
-  return np.array([[[[label]]]], dtype=dtype, order="F")
+  out = np.empty((1,1,1,1), dtype=dtype, order="F")
+  out[0,0,0,0] = arr[xyz]
+  return out
 
 
 
