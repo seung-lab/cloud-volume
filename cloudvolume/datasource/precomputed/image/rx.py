@@ -122,17 +122,12 @@ def download(
   dtype = np.uint16 if renumber else meta.dtype
 
   if requested_bbox.volume() == 1:
-    filename = first(cloudpaths)
-    chunk_bbx = Bbox.from_filename(filename)
-    label, _ = download_chunk(
+    return download_single_voxel_unsharded(
       meta, cache, 
-      meta.cloudpath, mip,
-      filename, fill_missing,
-      cache.enabled, compress_cache,
-      secrets, background_color,
-      partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt)
+      requested_bbox, first(cloudpaths), 
+      mip, fill_missing, compress_cache,
+      secrets, renumber, background_color,
     )
-    return label
   elif parallel == 1:
     if use_shared_memory: # write to shared memory
       handle, renderbuffer = shm.ndarray(
@@ -206,6 +201,34 @@ def download(
   if renumber:
     return (out, remap)
   return out
+
+def download_single_voxel_unsharded(
+  meta, cache, 
+  requested_bbox, filename, 
+  mip, fill_missing, compress_cache,
+  secrets, renumber, background_color, 
+):
+  """Specialized function for rapidly extracting a single voxel."""
+  chunk_bbx = Bbox.from_filename(filename)
+  label, _ = download_chunk(
+    meta, cache, 
+    meta.cloudpath, mip,
+    filename, fill_missing,
+    cache.enabled, compress_cache,
+    secrets, background_color,
+    partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt)
+  )
+
+  if renumber:
+    lbl = label[0,0,0,0]
+    if lbl == background_color:
+      return label, { lbl: lbl }
+    else:
+      remap = { lbl: 1 }
+      label[0,0,0,0] = 1
+      return label, remap
+
+  return label
 
 def multiprocess_download(
     requested_bbox, mip, cloudpaths,
