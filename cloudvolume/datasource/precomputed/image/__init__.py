@@ -505,7 +505,10 @@ class PrecomputedImageSource(ImageSourceInterface):
       cutout_bbx -= pt_anchor
 
       chunk = img[ cutout_bbx.to_slices() ]
-      labels[morton_code] = chunks.encode(chunk, self.meta.encoding(mip))
+      labels[morton_code] = chunks.encode(
+        chunk, self.meta.encoding(mip),
+        block_size=self.meta.compressed_segmentation_block_size(mip),
+      )
 
     shard_filename = reader.get_filename(first(labels.keys()))
 
