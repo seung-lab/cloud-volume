@@ -209,12 +209,22 @@ def download_single_voxel_unsharded(
   secrets, renumber, background_color, 
 ):
   """Specialized function for rapidly extracting a single voxel."""
+  locations = cache.compute_data_locations([ filename ])
+  cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
+
+  if locations["local"]:
+    cloudpath = cachedir
+    cache_enabled = False
+  else:
+    cloudpath = meta.cloudpath
+    cache_enabled = cache.enabled
+
   chunk_bbx = Bbox.from_filename(filename)
   label, _ = download_chunk(
     meta, cache, 
-    meta.cloudpath, mip,
+    cloudpath, mip,
     filename, fill_missing,
-    cache.enabled, compress_cache,
+    cache_enabled, compress_cache,
     secrets, background_color,
     partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt)
   )
