@@ -336,10 +336,9 @@ class ShardReader(object):
     minishard_index = np.copy(np.frombuffer(minishard_index, dtype=np.uint64))
     minishard_index = minishard_index.reshape( (3, len(minishard_index) // 3), order='C' ).T
 
-    for i in range(1, minishard_index.shape[0]):
-      minishard_index[i, 0] += minishard_index[i-1, 0]
-      minishard_index[i, 1] += minishard_index[i-1, 1] + minishard_index[i-1, 2]
-
+    minishard_index[:,0] = np.cumsum(minishard_index[:,0])
+    minishard_index[:,1] = np.cumsum(minishard_index[:,1])
+    minishard_index[1:,1] += np.cumsum(minishard_index[:-1,2])
     minishard_index[:,1] += self.spec.index_length()
 
     return minishard_index 
