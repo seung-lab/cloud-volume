@@ -70,16 +70,25 @@ def download_sharded(
     )
     code_map[morton_code] = cutout_bbox
 
+  single_voxel = requested_bbox.volume() == 1
+
+  decode_fn = decode
+  if single_voxel:
+    decode_fn = partial(decode_single_voxel, requested_bbox.minpt - full_bbox.minpt)
+
   all_chunkdata = reader.get_data(list(code_map.keys()), meta.key(mip), progress=progress)
   for zcode, chunkdata in all_chunkdata.items():
     cutout_bbox = code_map[zcode]
-    img3d = decode(
+    img3d = decode_fn(
       meta, cutout_bbox, 
       chunkdata, fill_missing, mip,
       background_color=background_color
     )
-
-    shade(renderbuffer, requested_bbox, img3d, cutout_bbox)
+    
+    if single_voxel:
+      renderbuffer[:] = img3d
+    else:
+      shade(renderbuffer, requested_bbox, img3d, cutout_bbox)
 
   return VolumeCutout.from_volume(
     meta, mip, renderbuffer, 
