@@ -95,7 +95,7 @@ def schedule_jobs(
   """
   if concurrency < 0:
     raise ValueError("concurrency value cannot be negative: {}".format(concurrency))
-  elif concurrency == 0:
+  elif concurrency == 0 or (hasattr(fns, "len") and len(fns) == 1):
     return [ fn() for fn in tqdm(fns, disable=(not progress), desc=progress, total=total) ]
 
   if green:
