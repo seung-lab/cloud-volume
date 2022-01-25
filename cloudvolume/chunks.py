@@ -268,7 +268,7 @@ def read_voxel(
     arr = compresso.CompressoArray(filedata)
     out = np.empty((1,1,1,1), dtype=dtype, order="F")
     out[0,0,0,0] = arr[tuple(xyz)]
-    return out    
+    return out
   else:
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
