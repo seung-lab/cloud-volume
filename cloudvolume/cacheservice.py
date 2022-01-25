@@ -416,7 +416,8 @@ class CacheService(object):
       parallel=self.config.parallel,
     )
     remote_fragments = cf.get(
-      ( { 'path': p[0], 'start': p[1], 'end': p[2] } for p in remote_path_tuples )
+      ( { 'path': p[0], 'start': p[1], 'end': p[2] } for p in remote_path_tuples ),
+      total=len(remote_path_tuples),
     )
 
     for frag in remote_fragments:

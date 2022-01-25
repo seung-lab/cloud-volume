@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Any, Optional, Sequence
 
 import zlib
 import io
@@ -42,7 +43,11 @@ except ImportError:
     def decompress(cls, content):
       raise NotImplementedError(fpziperrormsg)
 
-def encode(img_chunk, encoding, block_size=None):
+def encode(
+  img_chunk:np.ndarray, 
+  encoding:str, 
+  block_size:Optional[Sequence[int]] = None
+) -> bytes:
   if encoding == "raw":
     return encode_raw(img_chunk)
   elif encoding == "kempressed":
@@ -66,10 +71,13 @@ def encode(img_chunk, encoding, block_size=None):
     raise NotImplementedError(encoding)
 
 def decode(
-  filedata, encoding, 
-  shape=None, dtype=None, 
-  block_size=None, background_color=0
-):
+  filedata:bytes, 
+  encoding:str, 
+  shape:Optional[Sequence[int]] = None, 
+  dtype:Any = None, 
+  block_size:Optional[Sequence[int]] = None, 
+  background_color:int = 0
+) -> np.ndarray:
   if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed'):
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
@@ -137,7 +145,11 @@ def encode_npz(subvol):
   cdz = zlib.compress(fileobj.getvalue())
   return cdz
 
-def encode_compressed_segmentation(subvol, block_size, accelerated=ACCELERATED_CSEG):
+def encode_compressed_segmentation(
+  subvol:np.ndarray, 
+  block_size:Sequence[int], 
+  accelerated:bool = ACCELERATED_CSEG
+) -> bytes:
   assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
 
   if accelerated:
@@ -213,7 +225,7 @@ def labels(
   filedata, encoding, 
   shape=None, dtype=None, 
   block_size=None, background_color=0
-):
+) -> np.ndarray:
   """
   Extract unique labels from a chunk using
   the most efficient means possible for the
@@ -235,5 +247,35 @@ def labels(
     return compresso.labels(filedata)
   else:
     raise NotImplementedError(f"Encoding {encoding} is not supported. Try: raw, compressed_segmentation, or compresso.")
+
+def read_voxel(
+  xyz:Sequence[int], 
+  filedata:bytes, 
+  encoding:str, 
+  shape:Optional[Sequence[int]] = None, 
+  dtype:Any = None, 
+  block_size:Optional[Sequence[int]] = None,
+  background_color:int = 0
+) -> np.ndarray:
+  if encoding == "compressed_segmentation":
+    arr = cseg.CompressedSegmentationArray(
+      filedata, shape=shape[:3], dtype=dtype, block_size=block_size
+    )
+    out = np.empty((1,1,1,1), dtype=dtype, order="F")
+    out[0,0,0,0] = arr[tuple(xyz)]
+    return out
+  elif encoding == "compresso":
+    arr = compresso.CompressoArray(filedata)
+    out = np.empty((1,1,1,1), dtype=dtype, order="F")
+    out[0,0,0,0] = arr[tuple(xyz)]
+    return out
+  else:
+    img = decode(filedata, encoding, shape, dtype, block_size, background_color)
+    return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
+
+
+
+
+
 
 
