@@ -257,17 +257,21 @@ def read_voxel(
   block_size:Optional[Sequence[int]] = None,
   background_color:int = 0
 ) -> np.ndarray:
-  if encoding != "compressed_segmentation":
+  if encoding == "compressed_segmentation":
+    arr = cseg.CompressedSegmentationArray(
+      filedata, shape=shape[:3], dtype=dtype, block_size=block_size
+    )
+    out = np.empty((1,1,1,1), dtype=dtype, order="F")
+    out[0,0,0,0] = arr[xyz]
+    return out
+  elif encoding == "compresso":
+    arr = compresso.CompressoArray(filedata)
+    out = np.empty((1,1,1,1), dtype=dtype, order="F")
+    out[0,0,0,0] = arr[xyz]
+    return out    
+  else:
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
-
-  arr = cseg.CompressedSegmentationArray(
-    filedata, shape=shape[:3], dtype=dtype, block_size=block_size
-  )
-  out = np.empty((1,1,1,1), dtype=dtype, order="F")
-  out[0,0,0,0] = arr[xyz]
-  return out
-
 
 
 
