@@ -102,6 +102,10 @@ def test_npz():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
   encode_decode(random_data, 'npz')
 
+def test_png():
+  random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
+  encode_decode(random_data, 'png')
+
 @pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50), (128,128,16), ))
 @pytest.mark.parametrize("num_channels", (1,3))
 def test_jpeg(shape, num_channels):

@@ -21,6 +21,8 @@ import simplejpeg
 import compresso
 import fastremap
 
+from PIL import Image
+
 from .lib import yellow
 
 try:
@@ -61,6 +63,8 @@ def encode(
     return compresso.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
     return encode_jpeg(img_chunk)
+  elif encoding == "png":
+    return encode_png(img_chunk)
   elif encoding == "npz":
     return encode_npz(img_chunk)
   elif encoding == "npz_uint8":
@@ -95,15 +99,14 @@ def decode(
     return compresso.decompress(filedata).reshape(shape)
   elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
+  elif encoding == "png":
+    return decode_png(filedata, shape=shape, dtype=dtype)
   elif encoding == "npz":
     return decode_npz(filedata)
   else:
     raise NotImplementedError(encoding)
 
-def encode_jpeg(arr, quality=85):
-  if not np.issubdtype(arr.dtype, np.uint8):
-    raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
-
+def as2d(arr):
   # simulate multi-channel array for single channel arrays
   while arr.ndim < 4:
     arr = arr[..., np.newaxis] # add channels to end of x,y,z
@@ -114,20 +117,47 @@ def encode_jpeg(arr, quality=85):
   reshaped = reshaped.reshape(
     reshaped.shape[0] * reshaped.shape[1], reshaped.shape[2], num_channel
   )
+  return reshaped, num_channel
+
+def encode_jpeg(arr, quality=85):
+  if not np.issubdtype(arr.dtype, np.uint8):
+    raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
+
+  arr, num_channel = as2d(arr)
+  arr = np.ascontiguousarray(arr)
+
   if num_channel == 1:
     return simplejpeg.encode_jpeg(
-      np.ascontiguousarray(reshaped), 
+      arr, 
       colorspace="GRAY",
       colorsubsampling="GRAY",
       quality=quality,
     )
   elif num_channel == 3:
     return simplejpeg.encode_jpeg(
-      np.ascontiguousarray(reshaped),
+      arr,
       colorspace="RGB",
       quality=quality,
     )
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
+
+def encode_png(arr, compress_level=9, optimize=True):
+  if not np.issubdtype(arr.dtype, np.uint8):
+    raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
+
+  arr, num_channel = as2d(arr)
+  arr = np.ascontiguousarray(arr)
+
+  if num_channel == 1:
+    img = Image.fromarray(arr[:,:,0], mode='L')
+  elif num_channel == 3:
+    img = Image.fromarray(arr, mode='RGB')
+  else:
+    raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
+
+  f = io.BytesIO()
+  img.save(f, "PNG", compress_level=compress_level, optimize=True)
+  return f.getvalue()
 
 def encode_npz(subvol):
   """
@@ -199,6 +229,12 @@ def decode_jpeg(bytestring, shape, dtype):
     bytestring, 
     colorspace=colorspace,
   ).ravel()
+  return data.reshape(shape, order='F')
+
+def decode_png(bytestring, shape, dtype):
+  img = Image.open(io.BytesIO(bytestring))
+  data = np.array(img.getdata(), dtype=dtype)
+
   return data.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
