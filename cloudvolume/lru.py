@@ -1,3 +1,5 @@
+import threading
+
 class DoublyLinkedListIterator(object):
   def __init__(self, node, reverse=False):
     self.node = ListNode(None, node, node)
@@ -172,6 +174,7 @@ class LRU(object):
     self.size = size
     self.queue = DoublyLinkedList()
     self.hash = {}
+    self.lock = threading.Lock()
 
   def __len__(self):
     return self.queue.size
@@ -186,61 +189,66 @@ class LRU(object):
     return ( (key, node.val) for key, node in self.hash.items() )
 
   def clear(self):
-    self.queue = DoublyLinkedList()
-    self.hash = {}
+    with self.lock:
+      self.queue = DoublyLinkedList()
+      self.hash = {}
 
   def resize(self, new_size):
-    if new_size < 0:
-      raise ValueError("The LRU limit must be a positive number. Got: " + str(new_size))
+    with self.lock:
+      if new_size < 0:
+        raise ValueError("The LRU limit must be a positive number. Got: " + str(new_size))
 
-    if new_size == 0:
-      self.clear()
-      return
+      if new_size == 0:
+        self.clear()
+        return
 
-    if new_size >= self.size:
-      self.size = new_size
-      return 
+      if new_size >= self.size:
+        self.size = new_size
+        return 
 
-    while len(self.queue) > new_size:
-      (key,val) = self.queue.delete_tail()
-      del self.hash[key]
+      while len(self.queue) > new_size:
+        (key,val) = self.queue.delete_tail()
+        del self.hash[key]
 
   def delete(self, key):
-    if key not in self.hash:
-      raise KeyError("{} not in cache.".format(key))
+    with self.lock:
+      if key not in self.hash:
+        raise KeyError("{} not in cache.".format(key))
 
-    node = self.hash[key]
-    self.queue.delete(node)
-    del self.hash[key]
+      node = self.hash[key]
+      self.queue.delete(node)
+      del self.hash[key]
 
   def get(self, key, default=None):
-    if key not in self.hash:
-      if default is None:
-        raise KeyError("{} not in cache.".format(key))
-      return default
+    with self.lock:
+      if key not in self.hash:
+        if default is None:
+          raise KeyError("{} not in cache.".format(key))
+        return default
 
-    node = self.hash[key]
-    self.queue.promote_to_head(node)
+      node = self.hash[key]
+      self.queue.promote_to_head(node)
 
-    return node.val[1]
+      return node.val[1]
 
   def set(self, key, val):
-    if self.size == 0:
-      return
+    with self.lock:
+      if self.size == 0:
+        return
 
-    pair = (key,val)
-    if key in self.hash:
-      node = self.hash[key]
-      node.val = pair
-      self.queue.promote_to_head(node)
-      return
+      pair = (key,val)
+      if key in self.hash:
+        node = self.hash[key]
+        node.val = pair
+        self.queue.promote_to_head(node)
+        return
 
-    self.queue.prepend(pair)
-    self.hash[key] = self.queue.head
+      self.queue.prepend(pair)
+      self.hash[key] = self.queue.head
 
-    while len(self.queue) > self.size:
-      (tkey,tval) = self.queue.delete_tail()
-      del self.hash[tkey]     
+      while len(self.queue) > self.size:
+        (tkey,tval) = self.queue.delete_tail()
+        del self.hash[tkey]     
 
   def __contains__(self, key):
     return key in self.hash
