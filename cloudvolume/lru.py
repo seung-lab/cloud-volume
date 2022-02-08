@@ -1,6 +1,6 @@
 import threading
 
-class DoublyLinkedListIterator(object):
+class DoublyLinkedListIterator:
   def __init__(self, node, reverse=False):
     self.node = ListNode(None, node, node)
     self.reverse = reverse
@@ -19,7 +19,7 @@ class DoublyLinkedListIterator(object):
   def __reversed__(self):
     return DoublyLinkedListIterator(self.node, not self.reverse)
 
-class ListNode(object):
+class ListNode:
   def __init__(self, val, next, prev):
     self.val = val
     self.next = next
@@ -41,7 +41,7 @@ class ListNode(object):
   def clone(self):
     return ListNode(self.val, self.next, self.prev)
 
-class DoublyLinkedList(object):
+class DoublyLinkedList:
   def __init__(self):
     self.head = None
     self.tail = None
@@ -169,7 +169,7 @@ class DoublyLinkedList(object):
   def __str__(self):
     return str([ n.val for n in self ])
 
-class LRU(object):
+class LRU:
   def __init__(self, size=100):
     self.size = size
     self.queue = DoublyLinkedList()
