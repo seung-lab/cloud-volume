@@ -72,7 +72,7 @@ class CloudVolume:
     background_color:int=0, green_threads:bool=False, use_https:bool=False,
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
     agglomerate:bool=False, secrets:SecretsType=None, 
-    spatial_index_db:Optional[str]=None
+    spatial_index_db:Optional[str]=None, image_lru_cache_bytes:int = 0
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -173,7 +173,8 @@ class CloudVolume:
 
             import gevent.monkey
             gevent.monkey.patch_all(threads=False)
-
+      image_lru_cache_bytes: (int) number of bytes used to cache recently used image 
+        tiles in memory.
       info: (dict) In lieu of fetching a neuroglancer info file, use this one.
           This is useful when creating new datasets and for repeatedly initializing
           a new cloudvolume instance.

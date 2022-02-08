@@ -128,7 +128,7 @@ def upload(
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
   download_chunks_threaded(
-    meta, cache, mip, shell_chunks, 
+    meta, cache, None, mip, shell_chunks, 
     fn=shade_and_upload, decode_fn=decode,
     fill_missing=fill_missing, 
     progress=("Shading Border" if progress else None), 
