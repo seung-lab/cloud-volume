@@ -24,7 +24,9 @@ def create_graphene(
     delete_black_uploads:bool=False, background_color:int=0,
     green_threads:bool=False, use_https:bool=False,
     mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
-    agglomerate:bool=False, secrets:SecretsType=None, spatial_index_db:Optional[str]=None, **kwargs
+    agglomerate:bool=False, secrets:SecretsType=None, 
+    spatial_index_db:Optional[str]=None, cave_secret:SecretsType=None, 
+    **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
     
@@ -52,7 +54,7 @@ def create_graphene(
       cloudpath, config=config, cache=mkcache(cloudpath),
       info=info, provenance=provenance, 
       use_https=use_https, agglomerate=agglomerate,
-      auth_token=config.secrets,
+      auth_token=cave_secret,
     )
     # Resetting the cache is necessary because
     # graphene retrieves a data_dir from the info file

@@ -72,7 +72,7 @@ class CloudVolume:
     background_color:int=0, green_threads:bool=False, use_https:bool=False,
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
     agglomerate:bool=False, secrets:SecretsType=None, 
-    spatial_index_db:Optional[str]=None
+    spatial_index_db:Optional[str]=None, cave_secret:SecretsType=None
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -132,7 +132,8 @@ class CloudVolume:
 
           After initialization, you can adjust this setting via:
           `cv.cache.enabled = ...` which accepts the same values.
-
+      cave_secret: (json str, bare token str, dict, graphene only) Provides the 
+        auth token needed to access a graphene server (same as used by CAVE client).
       cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
         image files. Most cloud providers perform some kind of caching. As of 
         this writing, Google defaults to 3600 seconds. Most of the time you'll 
@@ -200,8 +201,9 @@ class CloudVolume:
           Defaults to True in interactive python, False in script execution mode.
       provenance: (string, dict) In lieu of fetching a provenance 
           file, use this one. 
-      secrets: (dict) provide per-instance authorization tokens. If not provided,
-        defaults to looking in .cloudvolume/secrets for necessary tokens.
+      secrets: (dict) provide per-instance authorization tokens for accessing the
+        storage provider. If not provided, defaults to looking in .cloudvolume/secrets 
+        for necessary tokens. For the graphene server, see cave_secret.
       skel_dir: (str) if not None, override the info['skeletons'] key before 
         pulling the skeleton info file.
       spatial_index_db: (str) A path to an sqlite3 or mysql database that follows 
