@@ -45,6 +45,12 @@ except ImportError:
     def decompress(cls, content):
       raise NotImplementedError(fpziperrormsg)
 
+SUPPORTED_ENCODINGS = (
+  "raw", "kempressed", "fpzip",
+  "compressed_segmentation", "compresso",
+  "jpeg", "png"
+)
+
 def encode(
   img_chunk:np.ndarray, 
   encoding:str, 
