@@ -272,7 +272,11 @@ class Vec(np.ndarray):
 
     @classmethod
     def clamp(cls, val, minvec, maxvec):
-      return Vec(*min2(max2(val, minvec), maxvec))
+      x = np.minimum.reduce([
+        np.maximum.reduce([val,minvec]), 
+        maxvec
+      ])
+      return Vec(*x)
 
     def clone(self):
       return Vec(*self[:], dtype=self.dtype)
@@ -692,7 +696,7 @@ class Bbox(object):
     """
     chunk_size = np.array(chunk_size, dtype=np.float32)
     result = self.clone()
-    result = result - offset
+    result -= offset
     result.minpt = np.floor(result.minpt / chunk_size) * chunk_size
     result.maxpt = np.ceil(result.maxpt / chunk_size) * chunk_size 
     return (result + offset).astype(self.dtype)
