@@ -22,6 +22,7 @@ import compresso
 import fastremap
 
 from PIL import Image
+import pyspng
 
 from .lib import yellow
 
@@ -238,10 +239,10 @@ def decode_jpeg(bytestring, shape, dtype):
   return data.reshape(shape, order='F')
 
 def decode_png(bytestring, shape, dtype):
-  img = Image.open(io.BytesIO(bytestring))
-  data = np.array(img.getdata(), dtype=dtype)
-
-  return data.reshape(shape, order='F')
+  colorspace = "RGB" if len(shape) > 3 and shape[3] > 1 else "L"
+  img = pyspng.load(bytestring, colorspace)
+  img = img.reshape((img.size,))
+  return img.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
   return np.frombuffer(bytearray(bytestring), dtype=dtype).reshape(shape, order='F')
