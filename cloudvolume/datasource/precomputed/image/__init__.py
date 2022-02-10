@@ -54,7 +54,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     self.shared_memory_id = self.generate_shared_memory_location()
 
-    self.lru = LRU(lru_bytes)
+    self.lru = LRU(lru_bytes, size_in_bytes=True)
 
   def generate_shared_memory_location(self):
     return 'precomputed-shm-' + str(uuid.uuid4())
