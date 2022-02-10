@@ -174,7 +174,8 @@ class CloudVolume:
             import gevent.monkey
             gevent.monkey.patch_all(threads=False)
       image_lru_cache_bytes: (int) number of bytes used to cache recently used image 
-        tiles in memory.
+        tiles in memory. This is an in-memory cache and is completely separate from
+        the `cache` parameter that handles disk IO.
       info: (dict) In lieu of fetching a neuroglancer info file, use this one.
           This is useful when creating new datasets and for repeatedly initializing
           a new cloudvolume instance.
