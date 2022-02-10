@@ -176,6 +176,21 @@ class LRU:
   a dict + a doubly linked list.
   """
   def __init__(self, size:int = 100, size_in_bytes:bool = False):
+    """
+    size specifies the upper inclusive limit to the size of the
+    LRU.
+
+    If size_in_bytes is False, this refers to the number of elements
+    in the LRU.
+    If size_in_bytes is True, this refers to the size in bytes of the
+    stored elements (not counting internal data structures of the LRU)
+    as measured by sys.getsizeof which does not handle nested objects
+    (unless they implement a __sizeof__ handler).
+
+    Therefore, size_in_bytes is most easily used with Python base types.
+    It was designed for with byte strings in mind that represent file
+    content.
+    """
     self.size = size
     self.size_in_bytes = size_in_bytes
     self.nbytes = 0
