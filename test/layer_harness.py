@@ -30,12 +30,16 @@ def create_image(size, layer_type="image", dtype=None):
         high = np.array([0], dtype=default(np.uint32)) - 1
         return np.random.randint(high[0], size=size, dtype=default(np.uint32))
 
-def create_layer(size, offset, layer_type="image", layer_name='layer', dtype=None, encoding='raw'):
+def create_layer(
+    size, offset, layer_type="image", 
+    layer_name='layer', dtype=None, encoding='raw',
+    image_lru_cache_bytes=0
+):
     random_data = create_image(size, layer_type, dtype)
-    vol = upload_image(random_data, offset, layer_type, layer_name, encoding)
+    vol = upload_image(random_data, offset, layer_type, layer_name, encoding, image_lru_cache_bytes)
     return vol, random_data
 
-def upload_image(image, offset, layer_type, layer_name, encoding):
+def upload_image(image, offset, layer_type, layer_name, encoding, image_lru_cache_bytes):
     lpath = 'file://{}'.format(os.path.join(layer_path, layer_name))
     
     neuroglancer_chunk_size = find_closest_divisor(image.shape[:3], closest_to=[64,64,64])
@@ -48,7 +52,7 @@ def upload_image(image, offset, layer_type, layer_name, encoding):
       voxel_offset=offset, 
       chunk_size=neuroglancer_chunk_size, 
       layer_type=layer_type, 
-      encoding=encoding, 
+      encoding=encoding,
     )
     
     return vol

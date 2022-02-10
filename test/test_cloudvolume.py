@@ -135,10 +135,12 @@ def image_equal(arr1, arr2, encoding):
 
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'jpeg'))
-def test_aligned_read(green, encoding):
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_aligned_read(green, encoding, lru_bytes):
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0), encoding=encoding)
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   # the last dimension is the number of channels
   assert cv[0:50,0:50,0:50].shape == (50,50,50,1)
   assert image_equal(cv[0:50,0:50,0:50], data, encoding)
@@ -154,6 +156,7 @@ def test_aligned_read(green, encoding):
   delete_layer()
   cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0), encoding=encoding)
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   cutout = cv[10:74,20:84,0:64]
   # the last dimension is the number of channels
   assert cutout.shape == (64,64,64,1) 
