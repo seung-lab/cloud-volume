@@ -191,7 +191,7 @@ class LRU:
     It was designed for with byte strings in mind that represent file
     content.
     """
-    self.size = size
+    self.size = int(size)
     self.size_in_bytes = size_in_bytes
     self.nbytes = 0
     self.queue = DoublyLinkedList()
@@ -222,14 +222,14 @@ class LRU:
       self.nbytes = 0
 
   def resize(self, new_size):
+    if new_size < 0:
+      raise ValueError("The LRU limit must be a positive number. Got: " + str(new_size))
+
+    if new_size == 0:
+      self.clear()
+      return
+
     with self.lock:
-      if new_size < 0:
-        raise ValueError("The LRU limit must be a positive number. Got: " + str(new_size))
-
-      if new_size == 0:
-        self.clear()
-        return
-
       try:
         if new_size >= self.size:
           return
