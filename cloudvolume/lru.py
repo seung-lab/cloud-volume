@@ -1,3 +1,4 @@
+import sys
 import threading
 
 class DoublyLinkedListIterator:
@@ -170,8 +171,14 @@ class DoublyLinkedList:
     return str([ n.val for n in self ])
 
 class LRU:
-  def __init__(self, size=100):
+  """
+  A Least Recently Used dict implementation based on
+  a dict + a doubly linked list.
+  """
+  def __init__(self, size:int = 100, size_in_bytes:bool = False):
     self.size = size
+    self.size_in_bytes = size_in_bytes
+    self.nbytes = 0
     self.queue = DoublyLinkedList()
     self.hash = {}
     self.lock = threading.Lock()
@@ -188,10 +195,16 @@ class LRU:
   def items(self):
     return ( (key, node.val) for key, node in self.hash.items() )
 
+  def is_oversized(self):
+    if self.size_in_bytes:
+      return self.nbytes > self.size
+    return len(self.queue) > self.size
+
   def clear(self):
     with self.lock:
       self.queue = DoublyLinkedList()
       self.hash = {}
+      self.nbytes = 0
 
   def resize(self, new_size):
     with self.lock:
@@ -202,13 +215,16 @@ class LRU:
         self.clear()
         return
 
-      if new_size >= self.size:
+      try:
+        if new_size >= self.size:
+          return
+      finally:
         self.size = new_size
-        return 
 
-      while len(self.queue) > new_size:
+      while self.is_oversized():
         (key,val) = self.queue.delete_tail()
         del self.hash[key]
+        self.nbytes -= sys.getsizeof(val)
 
   def delete(self, key):
     with self.lock:
@@ -218,6 +234,7 @@ class LRU:
       node = self.hash[key]
       self.queue.delete(node)
       del self.hash[key]
+      self.nbytes -= sys.getsizeof(node.val)
 
   def get(self, key, default=None):
     with self.lock:
@@ -245,10 +262,12 @@ class LRU:
 
       self.queue.prepend(pair)
       self.hash[key] = self.queue.head
+      self.nbytes += sys.getsizeof(val)
 
-      while len(self.queue) > self.size:
+      while self.is_oversized():
         (tkey,tval) = self.queue.delete_tail()
-        del self.hash[tkey]     
+        del self.hash[tkey]
+        self.nbytes -= sys.getsizeof(tval)
 
   def __contains__(self, key):
     return key in self.hash
