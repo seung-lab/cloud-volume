@@ -222,7 +222,7 @@ info = CloudVolume.create_new_info(
     num_channels    = 1,
     layer_type      = 'segmentation',
     data_type       = 'uint64', # Channel images might be 'uint8'
-    # raw, jpeg, compressed_segmentation, fpzip, kempressed, compresso
+    # raw, png, jpeg, compressed_segmentation, fpzip, kempressed, compresso
     encoding        = 'raw', 
     resolution      = [4, 4, 40], # Voxel scaling, units are in nanometers
     voxel_offset    = [0, 0, 0], # x,y,z offset in voxels from the origin
@@ -239,6 +239,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | Encoding                | Image Type                 | Lossless | Neuroglancer Viewable | Description                                                                              |
 |-------------------------|----------------------------|----------|-------------|------------------------------------------------------------------------------------------|
 | raw                     | Any                        | Y        | Y           | Serialized numpy arrays.                                                                 |
+| png                     | Image                      | Y        | Y           | Multiple slices stiched into a single PNG.                                               |
 | jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              |
 | compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      |
 | compresso               | Segmentation               | Y        | Y           | Lossless high compression algorithm for connectomics segmentation.                       |
