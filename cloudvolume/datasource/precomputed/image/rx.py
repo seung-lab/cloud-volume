@@ -430,7 +430,7 @@ def download_chunks_threaded(
   ):
   """fn is the postprocess callback. decode_fn is a decode fn."""
   locations = cache.compute_data_locations(cloudpaths)
-  cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
+  cachedir = 'file://' + cache.path
 
   def process(cloudpath, filename, enable_cache):
     labels, bbox = download_chunk(
@@ -442,8 +442,19 @@ def download_chunks_threaded(
     )
     fn(labels, bbox)
 
+  # If there's an LRU sort the fetches so that the LRU ones are first
+  # otherwise the new downloads can kick out the cached ones and make the
+  # lru useless.
+  if lru is not None and lru.size > 0:
+    if not isinstance(locations['remote'], list):
+      locations['remote'] = list(locations['remote'])  
+    locations['local'].sort(key=lambda fname: fname in lru, reverse=True)  
+    locations['remote'].sort(key=lambda fname: fname in lru, reverse=True)
+
+  qualify = lambda fname: os.path.join(meta.key(mip), os.path.basename(fname))
+
   local_downloads = ( 
-    partial(process, cachedir, os.path.basename(filename), False) for filename in locations['local'] 
+    partial(process, cachedir, qualify(filename), False) for filename in locations['local'] 
   )
   remote_downloads = ( 
     partial(process, meta.cloudpath, filename, cache.enabled) for filename in locations['remote'] 
@@ -595,6 +606,15 @@ def unique_unsharded(
     crop_bbox -= bbox.minpt
     labels = labels[ crop_bbox.to_slices() ]
     all_labels |= set(fastremap.unique(labels))
+
+  # If there's an LRU sort the fetches so that the LRU ones are first
+  # otherwise the new downloads can kick out the cached ones and make the
+  # lru useless.
+  if lru.size > 0:
+    core_chunks = list(core_chunks)
+    shell_chunks = list(shell_chunks)
+    core_chunks.sort(key=lambda fname: fname in lru, reverse=True)
+    shell_chunks.sort(key=lambda fname: fname in lru, reverse=True)
 
   download_chunks_threaded(
     meta, cache, lru, mip, core_chunks, 
