@@ -229,7 +229,7 @@ def download_single_voxel_unsharded(
 ):
   """Specialized function for rapidly extracting a single voxel."""
   locations = cache.compute_data_locations([ filename ])
-  cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
+  cachedir = 'file://' + cache.path
 
   if locations["local"]:
     cloudpath = cachedir
