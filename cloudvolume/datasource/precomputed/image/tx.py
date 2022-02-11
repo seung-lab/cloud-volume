@@ -83,6 +83,14 @@ def upload(
     "secrets": secrets,  
   }
 
+  expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
+  all_chunks = lambda: set(chunknames(expanded, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip), protocol=meta.path.protocol))
+
+  if parallel > 1:
+    all_chunks = all_chunks()
+    for chunk in all_chunks:
+      lru.pop(chunk, None)
+
   if is_aligned:
     upload_aligned(
       meta, cache, lru,
@@ -92,7 +100,6 @@ def upload(
     return
 
   # Upload the aligned core
-  expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
   retracted = bounds.shrink_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
   core_bbox = retracted.clone() - bounds.minpt
 
@@ -105,8 +112,9 @@ def upload(
     )
 
   # Download the shell, paint, and upload
-  all_chunks = set(chunknames(expanded, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
-  core_chunks = set(chunknames(retracted, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
+  if parallel == 1:
+    all_chunks = all_chunks()
+  core_chunks = set(chunknames(retracted, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip), protocol=meta.path.protocol))
   shell_chunks = all_chunks.difference(core_chunks)
 
   def shade_and_upload(img3d, bbox):
