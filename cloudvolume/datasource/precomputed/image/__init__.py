@@ -257,8 +257,8 @@ class PrecomputedImageSource(ImageSourceInterface):
       return
 
     return tx.upload(
-      self.meta, self.cache,
-      image, offset, mip,
+      self.meta, self.cache, self.lru,
+      image, offset, mip, 
       compress=self.config.compress,
       compress_level=self.config.compress_level,
       cdn_cache=self.config.cdn_cache,
@@ -292,10 +292,17 @@ class PrecomputedImageSource(ImageSourceInterface):
       protocol=self.meta.path.protocol
     )
 
-    return CloudFiles(
+    exists = CloudFiles(
       self.meta.cloudpath, progress=self.config.progress,
       secrets=self.config.secrets
     ).exists(cloudpaths)
+
+    if len(self.lru):
+      for k,v in exists.items():
+        if v == False:
+          self.lru.pop(k, None)
+
+    return exists
 
   @readonlyguard
   def delete(self, bbox, mip=None):
@@ -329,6 +336,10 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     CloudFiles(self.meta.cloudpath, progress=self.config.progress, secrets=self.config.secrets) \
       .delete(cloudpaths())
+
+    if len(self.lru) > 0:
+      for path in cloudpaths():
+        lru.pop(path, None)
 
     if self.cache.enabled:
       CloudFiles('file://' + self.cache.path, progress=self.config.progress, secrets=self.config.secrets) \

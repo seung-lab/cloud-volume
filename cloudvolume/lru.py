@@ -250,7 +250,16 @@ class LRU:
       self.queue.delete(node)
       del self.hash[key]
       self.nbytes -= sys.getsizeof(node.val)
+      return node.val
 
+  def pop(self, key, *args):
+    try:
+      return self.delete(key)
+    except KeyError:
+      if len(args):
+        return args[0]
+      raise
+  
   def get(self, key, default=None):
     with self.lock:
       if key not in self.hash:

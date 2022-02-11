@@ -425,10 +425,12 @@ def test_numpy_memmap():
 
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'jpeg'))
-def test_write(green, encoding):
+@pytest.mark.parametrize('lru_bytes', (0,1024,1e6,10e6))
+def test_write(green, encoding, lru_bytes):
   delete_layer()
   cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
 
   replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
   cv[0:50,0:50,0:50] = replacement_data
@@ -447,6 +449,7 @@ def test_write(green, encoding):
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   with pytest.raises(ValueError):
     cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
   
@@ -454,6 +457,7 @@ def test_write(green, encoding):
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   with pytest.raises(ValueError):
     cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
@@ -461,14 +465,17 @@ def test_write(green, encoding):
   delete_layer()
   cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
   cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
-def test_non_aligned_write():
+@pytest.mark.parametrize('lru_bytes', (0,1024,1e6,10e6))
+def test_non_aligned_write(lru_bytes):
   delete_layer()
   offset = Vec(5,7,13)
   cv, _ = create_layer(size=(1024, 1024, 5, 1), offset=offset)
-
+  cv.image.lru.resize(lru_bytes)
+  
   cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
 
   # Write inside a single chunk
