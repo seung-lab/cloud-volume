@@ -234,7 +234,7 @@ class LRU:
         if new_size >= self.size:
           return
       finally:
-        self.size = new_size
+        self.size = int(new_size)
 
       while self.is_oversized():
         (key,val) = self.queue.delete_tail()
