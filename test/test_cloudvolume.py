@@ -229,11 +229,13 @@ def test_ellipsis_read():
 
 @pytest.mark.parametrize('protocol', ('gs', 's3'))
 @pytest.mark.parametrize('parallel', (2, True))
-def test_parallel_read(protocol, parallel):
+@pytest.mark.parametrize('lru_bytes', (1e6,10e6,100e6))
+def test_parallel_read(protocol, parallel, lru_bytes):
   cloudpath = "{}://seunglab-test/test_v0/image".format(protocol)
 
   vol1 = CloudVolume(cloudpath, parallel=1)
   vol2 = CloudVolume(cloudpath, parallel=parallel)
+  vol2.image.lru.resize(lru_bytes)
 
   data1 = vol1[:512,:512,:50]
   img = vol2[:512,:512,:50]
