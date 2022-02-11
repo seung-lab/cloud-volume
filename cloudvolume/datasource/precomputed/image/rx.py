@@ -268,12 +268,17 @@ def multiprocess_download(
     green, secrets=None, background_color=0,
   ):
   cpd = partial(child_process_download, 
-    meta, cache, mip, compress_cache, 
-    requested_bbox, 
+    meta, cache, 
+    mip, compress_cache, requested_bbox, 
     fill_missing, progress,
     location, use_shared_memory,
     green, secrets, background_color
   )
+
+  if lru.size > 0:
+    for path in cloudpaths:
+      lru.pop(path, None)
+
   parallel_execution(
     cpd, cloudpaths, parallel, 
     progress=progress, 
@@ -294,7 +299,10 @@ def multiprocess_download(
       shape, dtype=meta.dtype, order=order,
       location=location, lock=fs_lock,
       emulate_shm=False
-    )    
+    )
+
+  if meta.encoding == "raw":
+    repopulate_lru_from_shm(meta, mip, lru, renderbuffer, requested_bbox)
 
   if not retain:
     if use_shared_memory:
@@ -303,6 +311,34 @@ def multiprocess_download(
       os.unlink(location)
 
   return mmap_handle, renderbuffer
+
+def repopulate_lru_from_shm(
+  meta, mip, lru, 
+  renderbuffer, requested_bbox
+):
+  """
+  Used for repopulating the LRU from the shared memory buffer
+  after a multiprocess download. This can't be done in process
+  due to the communication overhead between processes.
+  """
+  if lru.size == 0:
+    return
+
+  retracted_bbox = requested_bbox.shrink_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  retracted_bbox = Bbox.clamp(retracted_bbox, meta.bounds(mip))
+  delta = retracted_bbox.minpt - requested_bbox.minpt
+  core_chunks = list(chunknames(
+    retracted_bbox, 
+    meta.bounds(mip), meta.key(mip), meta.chunk_size(mip),
+    protocol=meta.path.protocol,
+  ))
+
+  for chunkname in core_chunks[-lru.size:]:
+    bbx = Bbox.from_filename(chunkname)
+    bbx -= requested_bbox.minpt
+    lru[chunkname] = np.copy(renderbuffer[ bbx.to_slices() ], order="F")
 
 def child_process_download(
     meta, cache, 
