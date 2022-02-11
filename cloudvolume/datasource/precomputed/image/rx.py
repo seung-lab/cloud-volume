@@ -572,7 +572,11 @@ def unique_unsharded(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
   retracted_bbox = Bbox.clamp(retracted_bbox, meta.bounds(mip))
-  core_chunks = set(chunknames(retracted_bbox, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
+  core_chunks = set(chunknames(
+    retracted_bbox, 
+    meta.bounds(mip), meta.key(mip), meta.chunk_size(mip),
+    protocol=meta.path.protocol,
+  ))
   shell_chunks = all_chunks.difference(core_chunks)
 
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
