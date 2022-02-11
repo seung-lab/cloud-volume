@@ -2,7 +2,6 @@ from functools import partial
 import os
 
 import numpy as np
-from six.moves import range
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles, reset_connection_pools, compression
