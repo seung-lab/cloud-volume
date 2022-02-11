@@ -301,7 +301,7 @@ def multiprocess_download(
       emulate_shm=False
     )
 
-  if meta.encoding == "raw":
+  if meta.encoding(mip) == "raw":
     repopulate_lru_from_shm(meta, mip, lru, renderbuffer, requested_bbox)
 
   if not retain:
