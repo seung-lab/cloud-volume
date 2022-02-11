@@ -163,7 +163,7 @@ You can create the `google-secret.json` file [here](https://console.cloud.google
 
 *Note: used to be called chunkedgraph-secret.json. This is still supported but deprecated.*
 
-If you have a token from Graphene/Chunkedgraph server, create the `cave-secret.json` file as shown in the example below. You may also pass the token to `CloudVolume(..., secrets=token)`.
+If you have a token from Graphene/Chunkedgraph server, create the `cave-secret.json` file as shown in the example below. You may also pass the token to `CloudVolume(..., cave_secret=token)` as a bare token string, json, or a dict containing the "token" field.
 
 ```json
 {
