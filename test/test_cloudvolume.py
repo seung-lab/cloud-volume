@@ -347,10 +347,19 @@ def test_non_aligned_read():
   assert np.all(cv[22:77:2, 22:197:3, 22:32] == data[19:74:2, 15:190:3, 11:21,:])
 
 @pytest.mark.parametrize("encoding", [ "raw", "compressed_segmentation", "compresso" ])
-def test_unique(encoding):
+@pytest.mark.parametrize("lru_bytes", [0,1e6,10e6,100e6])
+def test_unique(encoding, lru_bytes):
   delete_layer()
   cv, data = create_layer(size=(128,128,50,1), offset=(0,0,0), encoding=encoding, dtype=np.uint32)
+  cv.image.lru.resize(lru_bytes)
 
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
+
+  # Test it again to make sure the lru cache
+  # didn't screw up.
   uniq = cv.unique(cv.bounds)
   uniq = np.array(list(uniq))
   uniq.sort()
@@ -361,6 +370,16 @@ def test_unique(encoding):
   uniq = np.array(list(uniq))
   uniq.sort()
   assert np.all(uniq == np.unique(data[slc]))
+
+  data[:50,:50,:50] = 0
+  cv[:] = data
+
+  # Test it again to make sure the lru cache
+  # didn't screw up.
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
 
 def test_autocropped_read():
   delete_layer()
@@ -475,7 +494,7 @@ def test_non_aligned_write(lru_bytes):
   offset = Vec(5,7,13)
   cv, _ = create_layer(size=(1024, 1024, 5, 1), offset=offset)
   cv.image.lru.resize(lru_bytes)
-  
+
   cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
 
   # Write inside a single chunk
