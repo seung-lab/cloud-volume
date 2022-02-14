@@ -416,6 +416,33 @@ def test_unique(encoding, lru_bytes):
   uniq.sort()
   assert np.all(uniq == np.unique(data))
 
+@pytest.mark.parametrize("lru_bytes", [0,1e6,10e6,100e6])
+def test_unique_sharded(lru_bytes):
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  test_dir = os.path.join(test_dir, "test_cv_sharded")
+  print(test_dir)
+  cv = CloudVolume("file://" + test_dir)
+  data = cv[:]
+  cv.image.lru.resize(lru_bytes)
+
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
+
+  # Test it again to make sure the lru cache
+  # didn't screw up.
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
+
+  slc = np.s_[10:40,50:90,:50]
+  uniq = cv.unique(slc)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data[slc]))
+
 def test_autocropped_read():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
