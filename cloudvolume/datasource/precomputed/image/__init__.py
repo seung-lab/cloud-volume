@@ -339,7 +339,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     if len(self.lru) > 0:
       for path in cloudpaths():
-        lru.pop(path, None)
+        self.lru.pop(path, None)
 
     if self.cache.enabled:
       CloudFiles('file://' + self.cache.path, progress=self.config.progress, secrets=self.config.secrets) \
