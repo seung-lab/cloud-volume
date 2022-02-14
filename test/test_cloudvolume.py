@@ -879,8 +879,8 @@ def test_create_new_info():
   ]
 
 
-
-def test_caching():
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_caching(lru_bytes):
   image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
   image[0:64,0:64,0:64] = 1
   image[64:128,0:64,0:64] = 2
@@ -903,7 +903,7 @@ def test_caching():
     encoding='raw',
     chunk_size=(64,64,64),
   )
-
+  vol.image.lru.resize(lru_bytes)
   vol.cache.enabled = True
   vol.cache.flush()
 
@@ -948,6 +948,7 @@ def test_caching():
   assert np.all(vol[:,:,:] == image)
 
   vol.cache.flush()
+  vol.image.lru.clear()
 
   # Test that partial reads work too
   result = vol[0:64,0:64,:]
