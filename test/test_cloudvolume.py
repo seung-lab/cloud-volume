@@ -168,6 +168,39 @@ def test_aligned_read(green, encoding, lru_bytes):
 
   assert cv[25, 25, 25].shape == (1,1,1,1)
 
+@pytest.mark.parametrize('green', (True, False))
+@pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_point_reads(green, encoding, lru_bytes):
+  delete_layer()
+  cv, data = create_layer(
+    size=(256,256,100,1), offset=(0,0,0), 
+    encoding=encoding, layer_type="segmentation"
+  )
+  cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)  
+
+  N = 200
+
+  x = np.random.randint(cv.bounds.minpt[0]+1, cv.bounds.maxpt[0]-1, size=(200,))
+  y = np.random.randint(cv.bounds.minpt[1]+1, cv.bounds.maxpt[1]-1, size=(200,))
+  z = np.random.randint(cv.bounds.minpt[2]+1, cv.bounds.maxpt[2]-1, size=(200,))
+  pts = np.stack([x,y,z]).T
+
+  for pt in pts:
+    assert cv[tuple(pt)] == data[tuple(pt)]
+
+  cv[:] = 62
+
+  for pt in pts:
+    assert cv[tuple(pt)] == 62
+
+  cv.config.parallel = 2
+  cv[:] = 17  
+
+  for pt in pts:
+    assert cv[tuple(pt)] == 17
+
 def test_save_images():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))  
@@ -1171,11 +1204,14 @@ def test_exists():
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == False
 
-def test_delete():
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_delete(lru_bytes):
 
   # Bbox version
   delete_layer()
-  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv.image.lru.resize(lru_bytes)
+  cv.image.fill_missing = True
 
   defexists = Bbox( (0,0,0), (128,64,64) )
   results = cv.exists(defexists)
@@ -1183,8 +1219,10 @@ def test_delete():
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == True
 
+  assert np.all(cv[:] == data)
 
   cv.delete(defexists)
+  assert np.all(cv[:] == 0)
   results = cv.exists(defexists)
   assert len(results) == 2
   assert results['1_1_1/0-64_0-64_0-64'] == False
