@@ -1164,10 +1164,13 @@ def test_multiprocess():
 
   delete_layer()
 
-def test_exists():
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_exists(lru_bytes):
   # Bbox version
   delete_layer()
-  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv.image.lru.resize(lru_bytes)
+  cv.image.fill_missing = True
 
   defexists = Bbox( (0,0,0), (128,64,64) )
   results = cv.exists(defexists)
@@ -1175,11 +1178,19 @@ def test_exists():
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == True
 
+  cv[:] # fill LRU
+
   fpath = os.path.join(cv.cloudpath, cv.key, '64-128_0-64_0-64')
   fpath = fpath.replace('file://', '') + '.gz'
   os.remove(fpath)
+  
+  if lru_bytes > 0:
+    assert np.all(cv[:] == data) # cache wasn't updated so should still work
+  else:
+    assert not np.all(cv[:] == data)
 
   results = cv.exists(defexists)
+  assert not np.all(cv[:] == data) # now the cache should be updated
   assert len(results) == 2
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == False
