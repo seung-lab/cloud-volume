@@ -20,6 +20,21 @@ from layer_harness import (
 from cloudvolume.datasource.precomputed.common import cdn_cache_control
 from cloudvolume.datasource.precomputed.image.tx import generate_chunks
 
+@pytest.fixture
+def shard_vol():
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  test_dir = os.path.join(test_dir, "test_cv_sharded")
+  return CloudVolume("file://" + test_dir)
+
+@pytest.fixture
+def shard_vol_data_cpso():
+  import compresso
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  test_dir = os.path.join(test_dir, "test_cv_sharded")
+  with open(os.path.join(test_dir, "connectomics_mip_1.npy.cpso"), "rb") as f:
+    data = f.read()
+  return compresso.CompressoArray(data)
+
 def test_from_numpy():
   arr = np.random.randint(0, high=256, size=(128,128, 128))
   arr = np.asarray(arr, dtype=np.uint8)
@@ -167,6 +182,25 @@ def test_aligned_read(green, encoding, lru_bytes):
   assert image_equal(cutout2, data[64:128,:64,:64,:], encoding)
 
   assert cv[25, 25, 25].shape == (1,1,1,1)
+
+@pytest.mark.parametrize('green', (True, False))
+@pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_point_reads_sharded(shard_vol, shard_vol_data_cpso, green, encoding, lru_bytes):
+  cv = shard_vol
+  data = shard_vol_data_cpso
+  cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
+
+  N = 25
+
+  x = np.random.randint(cv.bounds.minpt[0]+1, cv.bounds.maxpt[0]-1, size=(200,))
+  y = np.random.randint(cv.bounds.minpt[1]+1, cv.bounds.maxpt[1]-1, size=(200,))
+  z = np.random.randint(cv.bounds.minpt[2]+1, cv.bounds.maxpt[2]-1, size=(200,))
+  pts = np.stack([x,y,z]).T
+
+  for pt in pts:
+    assert cv[tuple(pt)] == data[tuple(pt)]
 
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
@@ -416,12 +450,9 @@ def test_unique(encoding, lru_bytes):
   uniq.sort()
   assert np.all(uniq == np.unique(data))
 
-@pytest.mark.parametrize("lru_bytes", [0,1e6,10e6,100e6])
-def test_unique_sharded(lru_bytes):
-  test_dir = os.path.dirname(os.path.abspath(__file__))
-  test_dir = os.path.join(test_dir, "test_cv_sharded")
-  print(test_dir)
-  cv = CloudVolume("file://" + test_dir)
+@pytest.mark.parametrize("lru_bytes", [0,1e6,100e6])
+def test_unique_sharded(shard_vol, lru_bytes):
+  cv = shard_vol
   data = cv[:]
   cv.image.lru.resize(lru_bytes)
 
