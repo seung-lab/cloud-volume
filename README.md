@@ -346,7 +346,15 @@ vol = CloudVolume('gs://mybucket/retina/image', cache=True) # Basic Example
 image = vol[0:10,0:10,0:10] # Download partial image and cache
 vol[0:10,0:10,0:10] = image # Upload partial image and cache
 
-# Evaluating the Cache
+# Resizing and clearing the LRU in-memory cache
+vol = CloudVolume(..., lru_bytes=num_bytes) # >= 0, 0 means disabled
+vol.image.lru.resize(num_bytes) # same
+vol.image.lru.clear()
+len(vol.image.lru) # number of items in lru
+vol.image.lru.nbytes # size in bytes (not counting LRU structures, nor recursive)
+vol.image.lru.items() # etc, also functions as a dict
+
+# Evaluating the on-disk Cache
 vol.cache.list() # list files in cache at this mip level
 vol.cache.list(mip=1) # list files in cache at mip 1
 vol.cache.list_meshes()
@@ -390,7 +398,7 @@ CloudVolume(cloudpath,
      delete_black_uploads=False, background_color=0,
      green_threads=False, use_https=False,
      max_redirects=10, mesh_dir=None, skel_dir=None,
-     secrets=None)
+     secrets=None, lru_bytes=0)
 ```
 
 * mip - Which mip level to access
@@ -415,7 +423,8 @@ CloudVolume(cloudpath,
 * max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).
 * mesh_dir - str. If specified, override the mesh directory specified in the info file.
 * skel_dir - str. If specified, override the skeletons directory specified in the info file.
-* secrets - str, JSON string, or dict. If specified, use this credential to access the dataset. You can pass it in the same form as the various *-secret.json files appear. If not provided, the various secret files will be consulted.
+* secrets - str, JSON string, or dict. If specified, use this credential to access the dataset. You can pass it in the same form as the various *-secret.json files appear. If not provided, the various secret files will be consulted.*
+* lru_bytes - int >= 0. A least recently used (LRU) cache for images whose size is measured in bytes of data stored. This cache can help accelerate sequences of operations that have a high degree of spatial locality such as accessing voxels corresponding to skeleton nodes. Images are stored decompressed but not decoded. This means that formats that compress well and are approximately random access (e.g. `compresso`, `compressed_segmentation`) can be stored in great quantity and still have high performance. `raw` is stored as fully decoded numpy arrays and so is very fast but also very memory intensive.
 
 ### CloudVolume Methods
 
