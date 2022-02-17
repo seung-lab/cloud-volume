@@ -24,7 +24,10 @@ def create_graphene(
     delete_black_uploads:bool=False, background_color:int=0,
     green_threads:bool=False, use_https:bool=False,
     mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
-    agglomerate:bool=False, secrets:SecretsType=None, spatial_index_db:Optional[str]=None, **kwargs
+    agglomerate:bool=False, secrets:SecretsType=None, 
+    spatial_index_db:Optional[str]=None, 
+    lru_bytes:int = 0,
+    **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
     
@@ -74,6 +77,7 @@ def create_graphene(
       fill_missing=bool(fill_missing),
       delete_black_uploads=bool(delete_black_uploads),
       background_color=background_color,
+      lru_bytes=lru_bytes,
     )
 
     mesh = GrapheneMeshSource(meta, cache_service, config)

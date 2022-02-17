@@ -2,7 +2,6 @@ from functools import partial
 import os
 
 import numpy as np
-from six.moves import range
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles, reset_connection_pools, compression
@@ -33,7 +32,7 @@ progress_queue = None # defined in common.initialize_synchronization
 fs_lock = None # defined in common.initialize_synchronization
 
 def upload(
-    meta, cache,
+    meta, cache, lru,
     image, offset, mip,
     compress=None,
     compress_level=None,
@@ -84,30 +83,38 @@ def upload(
     "secrets": secrets,  
   }
 
+  expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
+  all_chunks = lambda: set(chunknames(expanded, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip), protocol=meta.path.protocol))
+
+  if parallel > 1:
+    all_chunks = all_chunks()
+    for chunk in all_chunks:
+      lru.pop(chunk, None)
+
   if is_aligned:
     upload_aligned(
-      meta, cache, 
+      meta, cache, lru,
       image, offset, mip,
       **options
     )
     return
 
   # Upload the aligned core
-  expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
   retracted = bounds.shrink_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
   core_bbox = retracted.clone() - bounds.minpt
 
   if not core_bbox.subvoxel():
     core_img = image[ core_bbox.to_slices() ] 
     upload_aligned(
-      meta, cache, 
+      meta, cache, lru,
       core_img, retracted.minpt, mip,
       **options
     )
 
   # Download the shell, paint, and upload
-  all_chunks = set(chunknames(expanded, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
-  core_chunks = set(chunknames(retracted, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
+  if parallel == 1:
+    all_chunks = all_chunks()
+  core_chunks = set(chunknames(retracted, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip), protocol=meta.path.protocol))
   shell_chunks = all_chunks.difference(core_chunks)
 
   def shade_and_upload(img3d, bbox):
@@ -116,7 +123,7 @@ def upload(
     img3d.setflags(write=1) 
     shade(img3d, bbox, image, bounds)
     threaded_upload_chunks(
-      meta, cache, 
+      meta, cache, lru,
       img3d, mip,
       (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), 
       compress=compress, cdn_cache=cdn_cache,
@@ -128,7 +135,7 @@ def upload(
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
   download_chunks_threaded(
-    meta, cache, mip, shell_chunks, 
+    meta, cache, None, mip, shell_chunks, 
     fn=shade_and_upload, decode_fn=decode,
     fill_missing=fill_missing, 
     progress=("Shading Border" if progress else None), 
@@ -137,7 +144,7 @@ def upload(
   )
 
 def upload_aligned(
-    meta, cache,
+    meta, cache, lru,
     img, offset, mip,
     compress=None,
     compress_level=None,
@@ -160,7 +167,7 @@ def upload_aligned(
 
   if parallel == 1:
     threaded_upload_chunks(
-      meta, cache, 
+      meta, cache, lru,
       img, mip, chunk_ranges, 
       progress=progress,
       compress=compress, cdn_cache=cdn_cache,
@@ -245,7 +252,7 @@ def child_upload_process(
       renderbuffer = renderbuffer[ delta_box.to_slices() ]
 
     return threaded_upload_chunks(
-      meta, cache, 
+      meta, cache, None,
       renderbuffer, mip, chunk_ranges, 
       compress=compress, cdn_cache=cdn_cache, progress=updatefn,
       delete_black_uploads=delete_black_uploads, 
@@ -257,7 +264,7 @@ def child_upload_process(
     array_like.close()
 
 def threaded_upload_chunks(
-    meta, cache, 
+    meta, cache, lru,
     img, mip, chunk_ranges, 
     compress, cdn_cache, progress,
     n_threads=DEFAULT_THREADS,
@@ -279,6 +286,9 @@ def threaded_upload_chunks(
 
   def do_upload(imgchunk, cloudpath):
     encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
+
+    if lru is not None:
+      lru[cloudpath] = encoded
 
     remote_compress = should_compress(meta.encoding(mip), compress, cache)
     cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)

@@ -72,7 +72,7 @@ class CloudVolume:
     background_color:int=0, green_threads:bool=False, use_https:bool=False,
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
     agglomerate:bool=False, secrets:SecretsType=None, 
-    spatial_index_db:Optional[str]=None
+    spatial_index_db:Optional[str]=None, lru_bytes:int = 0
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -133,6 +133,9 @@ class CloudVolume:
           After initialization, you can adjust this setting via:
           `cv.cache.enabled = ...` which accepts the same values.
 
+          Note: This cache is totally separate from the LRU controlled by 
+          lru_bytes.
+
       cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
         image files. Most cloud providers perform some kind of caching. As of 
         this writing, Google defaults to 3600 seconds. Most of the time you'll 
@@ -173,7 +176,9 @@ class CloudVolume:
 
             import gevent.monkey
             gevent.monkey.patch_all(threads=False)
-
+      lru_bytes: (int) number of bytes used to cache recently used image 
+        tiles in memory. This is an in-memory cache and is completely separate from
+        the `cache` parameter that handles disk IO.
       info: (dict) In lieu of fetching a neuroglancer info file, use this one.
           This is useful when creating new datasets and for repeatedly initializing
           a new cloudvolume instance.

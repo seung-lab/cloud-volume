@@ -171,7 +171,7 @@ def gridpoints(bbox, volume_bbox, chunk_size):
     yield Vec(x,y,z)
 
 def compressed_morton_code(gridpt, grid_size):
-  if hasattr(gridpt, "len") and len(gridpt) == 0: # generators don't have len
+  if hasattr(gridpt, "__len__") and len(gridpt) == 0: # generators don't have len
     return np.zeros((0,), dtype=np.uint32)
 
   gridpt = np.asarray(gridpt, dtype=np.uint32)

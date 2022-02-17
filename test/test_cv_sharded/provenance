@@ -1,0 +1,133 @@
+{
+  "description": "",
+  "owners": [],
+  "processing": [
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-02-14 18:04 EST",
+      "method": {
+        "bounds": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            2048,
+            2048,
+            512
+          ]
+        ],
+        "dest": "file:///Users/wms/datasets/pinky40subvol_sharded",
+        "fill_missing": false,
+        "mip": 0,
+        "shape": [
+          1024,
+          1024,
+          512
+        ],
+        "src": "file:///Users/wms/datasets/pinky40subvol",
+        "task": "ImageShardTransferTask",
+        "translate": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-02-14 18:25 EST",
+      "method": {
+        "axis": "z",
+        "background_color": 0,
+        "bounds": "Bbox([0, 0, 0],[2048, 2048, 512], dtype=int32)",
+        "chunk_size": null,
+        "compress": null,
+        "delete_black_uploads": false,
+        "dest_path": null,
+        "encoding": "raw",
+        "factor": [
+          2,
+          2,
+          1
+        ],
+        "fill_missing": false,
+        "method": "downsample_segmentation",
+        "mip": 0,
+        "num_mips": 1,
+        "preserve_chunk_size": true,
+        "shape": [
+          256,
+          256,
+          64
+        ],
+        "sparse": false,
+        "task": "DownsampleTask"
+      }
+    },
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-02-14 18:25 EST",
+      "method": {
+        "agglomerate": false,
+        "bounds": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            2048,
+            2048,
+            512
+          ]
+        ],
+        "cloudpath": "file:///Users/wms/code/cloud-volume/test/test_cv_sharded",
+        "fill_missing": false,
+        "mip": 0,
+        "shape": [
+          2048,
+          2048,
+          512
+        ],
+        "sparse": false,
+        "task": "ImageShardDownsampleTask",
+        "timestamp": null
+      }
+    },
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-02-14 18:28 EST",
+      "method": {
+        "agglomerate": false,
+        "bounds": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            2048,
+            2048,
+            512
+          ]
+        ],
+        "cloudpath": "file:///Users/wms/code/cloud-volume/test/test_cv_sharded",
+        "fill_missing": false,
+        "mip": 0,
+        "shape": [
+          2048,
+          2048,
+          512
+        ],
+        "sparse": false,
+        "task": "ImageShardDownsampleTask",
+        "timestamp": null
+      }
+    }
+  ],
+  "sources": [
+    "file:///Users/wms/code/cloud-volume/test/test_cv_sharded"
+  ]
+}

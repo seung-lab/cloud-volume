@@ -38,7 +38,7 @@ fs_lock = None # defined in common.initialize_synchronization
 
 def download_sharded(
   requested_bbox, mip,
-  meta, cache, spec,
+  meta, cache, lru, spec,
   compress, progress,
   fill_missing, 
   order, background_color
@@ -76,8 +76,18 @@ def download_sharded(
   if single_voxel:
     decode_fn = partial(decode_single_voxel, requested_bbox.minpt - full_bbox.minpt)
 
-  all_chunkdata = reader.get_data(list(code_map.keys()), meta.key(mip), progress=progress)
-  for zcode, chunkdata in all_chunkdata.items():
+  all_keys = set(code_map.keys())
+  lru_keys = set([ key for key in all_keys if key in lru ])
+  io_keys = all_keys - lru_keys
+  del all_keys
+
+  lru_chunkdata = [ (zcode, lru[zcode]) for zcode in lru_keys ]
+  io_chunkdata = reader.get_data(io_keys, meta.key(mip), progress=progress)
+  
+  for zcode, chunkdata in io_chunkdata.items():
+    lru[zcode] = chunkdata
+
+  for zcode, chunkdata in itertools.chain(io_chunkdata.items(), lru_chunkdata):
     cutout_bbox = code_map[zcode]
     img3d = decode_fn(
       meta, cutout_bbox, 
@@ -97,7 +107,7 @@ def download_sharded(
 
 def download(
   requested_bbox, mip, 
-  meta, cache,
+  meta, cache, lru,
   fill_missing, progress,
   parallel, location, 
   retain, use_shared_memory, 
@@ -132,7 +142,7 @@ def download(
 
   if requested_bbox.volume() == 1:
     return download_single_voxel_unsharded(
-      meta, cache, 
+      meta, cache, lru,
       requested_bbox, first(cloudpaths), 
       mip, fill_missing, compress_cache,
       secrets, renumber, background_color,
@@ -185,7 +195,7 @@ def download(
       fn = process_renumber  
 
     download_chunks_threaded(
-      meta, cache, mip, cloudpaths, 
+      meta, cache, lru, mip, cloudpaths, 
       fn=fn, decode_fn=decode, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
       green=green, secrets=secrets, background_color=background_color
@@ -193,7 +203,7 @@ def download(
   else:
     handle, renderbuffer = multiprocess_download(
       requested_bbox, mip, cloudpaths,
-      meta, cache, compress_cache,
+      meta, cache, lru, compress_cache,
       fill_missing, progress,
       parallel, location, retain, 
       use_shared_memory=(use_file == False),
@@ -212,14 +222,14 @@ def download(
   return out
 
 def download_single_voxel_unsharded(
-  meta, cache, 
+  meta, cache, lru,
   requested_bbox, filename, 
   mip, fill_missing, compress_cache,
   secrets, renumber, background_color, 
 ):
   """Specialized function for rapidly extracting a single voxel."""
   locations = cache.compute_data_locations([ filename ])
-  cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
+  cachedir = 'file://' + cache.path
 
   if locations["local"]:
     cloudpath = cachedir
@@ -230,7 +240,7 @@ def download_single_voxel_unsharded(
 
   chunk_bbx = Bbox.from_filename(filename)
   label, _ = download_chunk(
-    meta, cache, 
+    meta, cache, lru,
     cloudpath, mip,
     filename, fill_missing,
     cache_enabled, compress_cache,
@@ -251,19 +261,24 @@ def download_single_voxel_unsharded(
 
 def multiprocess_download(
     requested_bbox, mip, cloudpaths,
-    meta, cache, compress_cache,
+    meta, cache, lru, compress_cache,
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, order,
     green, secrets=None, background_color=0,
   ):
   cpd = partial(child_process_download, 
-    meta, cache, mip, compress_cache, 
-    requested_bbox, 
+    meta, cache, 
+    mip, compress_cache, requested_bbox, 
     fill_missing, progress,
     location, use_shared_memory,
     green, secrets, background_color
   )
+
+  if lru.size > 0:
+    for path in cloudpaths:
+      lru.pop(path, None)
+
   parallel_execution(
     cpd, cloudpaths, parallel, 
     progress=progress, 
@@ -284,7 +299,10 @@ def multiprocess_download(
       shape, dtype=meta.dtype, order=order,
       location=location, lock=fs_lock,
       emulate_shm=False
-    )    
+    )
+
+  if meta.encoding(mip) == "raw":
+    repopulate_lru_from_shm(meta, mip, lru, renderbuffer, requested_bbox)
 
   if not retain:
     if use_shared_memory:
@@ -294,9 +312,37 @@ def multiprocess_download(
 
   return mmap_handle, renderbuffer
 
+def repopulate_lru_from_shm(
+  meta, mip, lru, 
+  renderbuffer, requested_bbox
+):
+  """
+  Used for repopulating the LRU from the shared memory buffer
+  after a multiprocess download. This can't be done in process
+  due to the communication overhead between processes.
+  """
+  if lru.size == 0:
+    return
+
+  retracted_bbox = requested_bbox.shrink_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  retracted_bbox = Bbox.clamp(retracted_bbox, meta.bounds(mip))
+  delta = retracted_bbox.minpt - requested_bbox.minpt
+  core_chunks = list(chunknames(
+    retracted_bbox, 
+    meta.bounds(mip), meta.key(mip), meta.chunk_size(mip),
+    protocol=meta.path.protocol,
+  ))
+
+  for chunkname in core_chunks[-lru.size:]:
+    bbx = Bbox.from_filename(chunkname)
+    bbx -= requested_bbox.minpt
+    lru[chunkname] = np.copy(renderbuffer[ bbx.to_slices() ], order="F")
+
 def child_process_download(
-    meta, cache, mip, compress_cache, 
-    dest_bbox, 
+    meta, cache, 
+    mip, compress_cache, dest_bbox, 
     fill_missing, progress,
     location, use_shared_memory, green,
     secrets, background_color, cloudpaths
@@ -331,7 +377,7 @@ def child_process_download(
       progress_queue.put(1)
 
   download_chunks_threaded(
-    meta, cache, mip, cloudpaths,
+    meta, cache, None, mip, cloudpaths,
     fn=process, decode_fn=decode, fill_missing=fill_missing,
     progress=False, compress_cache=compress_cache,
     green=green, secrets=secrets, background_color=background_color
@@ -342,29 +388,35 @@ def child_process_download(
   return len(cloudpaths)
 
 def download_chunk(
-  meta, cache, 
+  meta, cache, lru,
   cloudpath, mip,
   filename, fill_missing,
   enable_cache, compress_cache,
   secrets, background_color,
   decode_fn
 ):
-  (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
-  content = file['content']
+  if lru is not None and filename in lru:
+    content = lru[filename]
+  else:
+    (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
+    content = file['content']
 
-  if enable_cache:
-    cache_content = next(compression.transcode(file, compress_cache))['content'] 
-    CloudFiles('file://' + cache.path).put(
-      path=filename, 
-      content=(cache_content or b''), 
-      content_type=content_type(meta.encoding(mip)), 
-      compress=compress_cache,
-      raw=bool(cache_content),
-    )
-    del cache_content
+    if enable_cache:
+      cache_content = next(compression.transcode(file, compress_cache))['content'] 
+      CloudFiles('file://' + cache.path).put(
+        path=filename, 
+        content=(cache_content or b''), 
+        content_type=content_type(meta.encoding(mip)), 
+        compress=compress_cache,
+        raw=bool(cache_content),
+      )
+      del cache_content
 
-  if content is not None:
-    content = compression.decompress(content, file['compress'])
+    if content is not None:
+      content = compression.decompress(content, file['compress'])
+
+    if lru is not None:
+      lru[filename] = content
 
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
   img3d = decode_fn(meta, filename, content, fill_missing, mip, 
@@ -372,17 +424,17 @@ def download_chunk(
   return img3d, bbox
 
 def download_chunks_threaded(
-    meta, cache, mip, cloudpaths, fn, decode_fn,
+    meta, cache, lru, mip, cloudpaths, fn, decode_fn,
     fill_missing, progress, compress_cache,
     green=False, secrets=None, background_color=0,
   ):
   """fn is the postprocess callback. decode_fn is a decode fn."""
   locations = cache.compute_data_locations(cloudpaths)
-  cachedir = 'file://' + os.path.join(cache.path, meta.key(mip))
+  cachedir = 'file://' + cache.path
 
   def process(cloudpath, filename, enable_cache):
     labels, bbox = download_chunk(
-      meta, cache, cloudpath, mip,
+      meta, cache, lru, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache,
       secrets, background_color,
@@ -390,8 +442,19 @@ def download_chunks_threaded(
     )
     fn(labels, bbox)
 
+  # If there's an LRU sort the fetches so that the LRU ones are first
+  # otherwise the new downloads can kick out the cached ones and make the
+  # lru useless.
+  if lru is not None and lru.size > 0:
+    if not isinstance(locations['remote'], list):
+      locations['remote'] = list(locations['remote'])  
+    locations['local'].sort(key=lambda fname: fname in lru, reverse=True)  
+    locations['remote'].sort(key=lambda fname: fname in lru, reverse=True)
+
+  qualify = lambda fname: os.path.join(meta.key(mip), os.path.basename(fname))
+
   local_downloads = ( 
-    partial(process, cachedir, os.path.basename(filename), False) for filename in locations['local'] 
+    partial(process, cachedir, qualify(filename), False) for filename in locations['local'] 
   )
   remote_downloads = ( 
     partial(process, meta.cloudpath, filename, cache.enabled) for filename in locations['remote'] 
@@ -459,7 +522,7 @@ def decode_single_voxel(
   """
   return _decode_helper(  
     partial(chunks.read_voxel, xyz),
-    meta, input_bbox, 
+    meta, input_bbox,
     content, fill_missing, 
     mip, background_color,
   )
@@ -496,7 +559,7 @@ def _decode_helper(
 
 def unique_unsharded(
   requested_bbox, mip, 
-  meta, cache,
+  meta, cache, lru,
   fill_missing, progress,
   parallel,
   compress, 
@@ -520,7 +583,11 @@ def unique_unsharded(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
   retracted_bbox = Bbox.clamp(retracted_bbox, meta.bounds(mip))
-  core_chunks = set(chunknames(retracted_bbox, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip)))
+  core_chunks = set(chunknames(
+    retracted_bbox, 
+    meta.bounds(mip), meta.key(mip), meta.chunk_size(mip),
+    protocol=meta.path.protocol,
+  ))
   shell_chunks = all_chunks.difference(core_chunks)
 
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
@@ -540,8 +607,17 @@ def unique_unsharded(
     labels = labels[ crop_bbox.to_slices() ]
     all_labels |= set(fastremap.unique(labels))
 
+  # If there's an LRU sort the fetches so that the LRU ones are first
+  # otherwise the new downloads can kick out the cached ones and make the
+  # lru useless.
+  if lru.size > 0:
+    core_chunks = list(core_chunks)
+    shell_chunks = list(shell_chunks)
+    core_chunks.sort(key=lambda fname: fname in lru, reverse=True)
+    shell_chunks.sort(key=lambda fname: fname in lru, reverse=True)
+
   download_chunks_threaded(
-    meta, cache, mip, core_chunks, 
+    meta, cache, lru, mip, core_chunks, 
     fn=process_core, decode_fn=decode_unique, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache, 
     green=green, secrets=secrets, background_color=background_color,
@@ -549,7 +625,7 @@ def unique_unsharded(
 
   if len(shell_chunks) > 0:
     download_chunks_threaded(
-      meta, cache, mip, shell_chunks, 
+      meta, cache, lru, mip, shell_chunks, 
       fn=process_shell, decode_fn=decode, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
       green=green, secrets=secrets, background_color=background_color,
@@ -559,7 +635,7 @@ def unique_unsharded(
 
 def unique_sharded(
   requested_bbox, mip,
-  meta, cache, spec,
+  meta, cache, lru, spec,
   compress, progress,
   fill_missing, background_color
 ):
@@ -595,27 +671,48 @@ def unique_sharded(
       min2(bounds.minpt + (gridpoint + 1) * chunk_size, bounds.maxpt)
     )
     code_map[morton_code] = cutout_bbox
+
+  lru_codes = set([ code for code in all_morton_codes if code in lru ])
+  lru_chunkdata = { code: lru[code] for code in lru_codes }
   
-  core_morton_codes = compressed_morton_code(core_gpts, grid_size)
+  core_morton_codes = set(compressed_morton_code(core_gpts, grid_size))
+  io_core_morton_codes = core_morton_codes - lru_codes
+  lru_core_morton_codes = core_morton_codes.intersection(lru_codes)
+
+  def iterate_core():
+    for mcs in sip(io_core_morton_codes, 10000):
+      core_chunkdata = reader.get_data(mcs, meta.key(mip), progress=progress)
+      for zcode, chunkdata in core_chunkdata.items():
+        yield (zcode, chunkdata)
+        lru[zcode] = chunkdata
+    for code in lru_core_morton_codes:
+      yield (code, lru_chunkdata[code])
+      del lru_chunkdata[code]
 
   all_labels = set()
-  
-  for mcs in sip(core_morton_codes, 10000):
-    core_chunkdata = reader.get_data(mcs, meta.key(mip), progress=progress)
-    for zcode, chunkdata in core_chunkdata.items():
-      cutout_bbox = code_map[zcode]
-      labels = decode_unique(
-        meta, cutout_bbox, 
-        chunkdata, fill_missing, mip,
-        background_color=background_color
-      )
-      all_labels |= set(labels)
-
-  del core_chunkdata
+  for zcode, chunkdata in iterate_core():
+    cutout_bbox = code_map[zcode]
+    labels = decode_unique(
+      meta, cutout_bbox, 
+      chunkdata, fill_missing, mip,
+      background_color=background_color
+    )
+    all_labels |= set(labels)
 
   shell_morton_codes = set(all_morton_codes) - set(core_morton_codes)
-  shell_chunkdata = reader.get_data(shell_morton_codes, meta.key(mip), progress=progress)
-  for zcode, chunkdata in shell_chunkdata.items():
+  io_shell_morton_codes = shell_morton_codes - lru_codes
+  lru_shell_morton_codes = shell_morton_codes.intersection(lru_codes)
+
+  def iterate_shell():
+    shell_chunkdata = reader.get_data(io_shell_morton_codes, meta.key(mip), progress=progress)
+    for zcode, chunkdata in shell_chunkdata.items():
+      yield (zcode, chunkdata)
+      lru[zcode] = chunkdata
+    for code in lru_shell_morton_codes:
+      yield (code, lru_chunkdata[code])
+      del lru_chunkdata[code]    
+
+  for zcode, chunkdata in iterate_shell():
     cutout_bbox = code_map[zcode]
     labels = decode(
       meta, cutout_bbox, 

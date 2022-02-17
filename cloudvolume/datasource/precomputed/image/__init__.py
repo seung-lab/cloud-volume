@@ -18,6 +18,7 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
+from cloudvolume.lru import LRU
 from ....lib import Bbox, Vec, sip, first, BboxLikeType
 from .... import sharedmemory, chunks
 
@@ -29,12 +30,14 @@ from . import tx, rx
 class PrecomputedImageSource(ImageSourceInterface):
   def __init__(
     self, config, meta, cache,
-    autocrop=False, bounded=True,
-    non_aligned_writes=False,
-    fill_missing=False, 
-    delete_black_uploads=False,
-    background_color=0,
-    readonly=False,
+    autocrop:bool = False, 
+    bounded:bool = True,
+    non_aligned_writes:bool = False,
+    fill_missing:bool = False, 
+    delete_black_uploads:bool = False,
+    background_color:int = 0,
+    readonly:bool = False,
+    lru_bytes:int = 0,
   ):
     self.config = config
     self.meta = meta 
@@ -50,6 +53,8 @@ class PrecomputedImageSource(ImageSourceInterface):
     self.background_color = background_color
 
     self.shared_memory_id = self.generate_shared_memory_location()
+
+    self.lru = LRU(lru_bytes, size_in_bytes=True)
 
   def generate_shared_memory_location(self):
     return 'precomputed-shm-' + str(uuid.uuid4())
@@ -150,7 +155,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_sharded(
         bbox, mip, 
-        self.meta, self.cache, spec,
+        self.meta, self.cache, self.lru, spec,
         compress=self.config.compress,
         progress=self.config.progress,
         fill_missing=self.fill_missing,
@@ -162,6 +167,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         bbox, mip, 
         meta=self.meta,
         cache=self.cache,
+        lru=self.lru,
         parallel=parallel,
         location=location,
         retain=retain,
@@ -191,7 +197,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.unique_sharded(
         bbox, mip, 
-        self.meta, self.cache, spec,
+        self.meta, self.cache, self.lru, spec,
         compress=self.config.compress,
         progress=self.config.progress,
         fill_missing=self.fill_missing,
@@ -202,6 +208,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         bbox, mip, 
         meta=self.meta,
         cache=self.cache,
+        lru=self.lru,
         parallel=1,
         fill_missing=self.fill_missing,
         progress=self.config.progress,
@@ -250,8 +257,8 @@ class PrecomputedImageSource(ImageSourceInterface):
       return
 
     return tx.upload(
-      self.meta, self.cache,
-      image, offset, mip,
+      self.meta, self.cache, self.lru,
+      image, offset, mip, 
       compress=self.config.compress,
       compress_level=self.config.compress_level,
       cdn_cache=self.config.cdn_cache,
@@ -285,10 +292,17 @@ class PrecomputedImageSource(ImageSourceInterface):
       protocol=self.meta.path.protocol
     )
 
-    return CloudFiles(
+    exists = CloudFiles(
       self.meta.cloudpath, progress=self.config.progress,
       secrets=self.config.secrets
     ).exists(cloudpaths)
+
+    if len(self.lru):
+      for k,v in exists.items():
+        if v == False:
+          self.lru.pop(k, None)
+
+    return exists
 
   @readonlyguard
   def delete(self, bbox, mip=None):
@@ -322,6 +336,10 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     CloudFiles(self.meta.cloudpath, progress=self.config.progress, secrets=self.config.secrets) \
       .delete(cloudpaths())
+
+    if len(self.lru) > 0:
+      for path in cloudpaths():
+        self.lru.pop(path, None)
 
     if self.cache.enabled:
       CloudFiles('file://' + self.cache.path, progress=self.config.progress, secrets=self.config.secrets) \

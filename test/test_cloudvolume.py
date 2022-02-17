@@ -20,6 +20,21 @@ from layer_harness import (
 from cloudvolume.datasource.precomputed.common import cdn_cache_control
 from cloudvolume.datasource.precomputed.image.tx import generate_chunks
 
+@pytest.fixture
+def shard_vol():
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  test_dir = os.path.join(test_dir, "test_cv_sharded")
+  return CloudVolume("file://" + test_dir)
+
+@pytest.fixture
+def shard_vol_data_cpso():
+  import compresso
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  test_dir = os.path.join(test_dir, "test_cv_sharded")
+  with open(os.path.join(test_dir, "connectomics_mip_1.npy.cpso"), "rb") as f:
+    data = f.read()
+  return compresso.CompressoArray(data)
+
 def test_from_numpy():
   arr = np.random.randint(0, high=256, size=(128,128, 128))
   arr = np.asarray(arr, dtype=np.uint8)
@@ -135,10 +150,12 @@ def image_equal(arr1, arr2, encoding):
 
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'jpeg'))
-def test_aligned_read(green, encoding):
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_aligned_read(green, encoding, lru_bytes):
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0), encoding=encoding)
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   # the last dimension is the number of channels
   assert cv[0:50,0:50,0:50].shape == (50,50,50,1)
   assert image_equal(cv[0:50,0:50,0:50], data, encoding)
@@ -154,6 +171,7 @@ def test_aligned_read(green, encoding):
   delete_layer()
   cv, data = create_layer(size=(128,64,64,1), offset=(10,20,0), encoding=encoding)
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   cutout = cv[10:74,20:84,0:64]
   # the last dimension is the number of channels
   assert cutout.shape == (64,64,64,1) 
@@ -164,6 +182,58 @@ def test_aligned_read(green, encoding):
   assert image_equal(cutout2, data[64:128,:64,:64,:], encoding)
 
   assert cv[25, 25, 25].shape == (1,1,1,1)
+
+@pytest.mark.parametrize('green', (True, False))
+@pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_point_reads_sharded(shard_vol, shard_vol_data_cpso, green, encoding, lru_bytes):
+  cv = shard_vol
+  data = shard_vol_data_cpso
+  cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
+
+  N = 25
+
+  x = np.random.randint(cv.bounds.minpt[0]+1, cv.bounds.maxpt[0]-1, size=(200,))
+  y = np.random.randint(cv.bounds.minpt[1]+1, cv.bounds.maxpt[1]-1, size=(200,))
+  z = np.random.randint(cv.bounds.minpt[2]+1, cv.bounds.maxpt[2]-1, size=(200,))
+  pts = np.stack([x,y,z]).T
+
+  for pt in pts:
+    assert cv[tuple(pt)] == data[tuple(pt)]
+
+@pytest.mark.parametrize('green', (True, False))
+@pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_point_reads(green, encoding, lru_bytes):
+  delete_layer()
+  cv, data = create_layer(
+    size=(256,256,100,1), offset=(0,0,0), 
+    encoding=encoding, layer_type="segmentation"
+  )
+  cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)  
+
+  N = 200
+
+  x = np.random.randint(cv.bounds.minpt[0]+1, cv.bounds.maxpt[0]-1, size=(200,))
+  y = np.random.randint(cv.bounds.minpt[1]+1, cv.bounds.maxpt[1]-1, size=(200,))
+  z = np.random.randint(cv.bounds.minpt[2]+1, cv.bounds.maxpt[2]-1, size=(200,))
+  pts = np.stack([x,y,z]).T
+
+  for pt in pts:
+    assert cv[tuple(pt)] == data[tuple(pt)]
+
+  cv[:] = 62
+
+  for pt in pts:
+    assert cv[tuple(pt)] == 62
+
+  cv.config.parallel = 2
+  cv[:] = 17  
+
+  for pt in pts:
+    assert cv[tuple(pt)] == 17
 
 def test_save_images():
   delete_layer()
@@ -226,11 +296,13 @@ def test_ellipsis_read():
 
 @pytest.mark.parametrize('protocol', ('gs', 's3'))
 @pytest.mark.parametrize('parallel', (2, True))
-def test_parallel_read(protocol, parallel):
+@pytest.mark.parametrize('lru_bytes', (1e6,10e6,100e6))
+def test_parallel_read(protocol, parallel, lru_bytes):
   cloudpath = "{}://seunglab-test/test_v0/image".format(protocol)
 
   vol1 = CloudVolume(cloudpath, parallel=1)
   vol2 = CloudVolume(cloudpath, parallel=parallel)
+  vol2.image.lru.resize(lru_bytes)
 
   data1 = vol1[:512,:512,:50]
   img = vol2[:512,:512,:50]
@@ -344,10 +416,53 @@ def test_non_aligned_read():
   assert np.all(cv[22:77:2, 22:197:3, 22:32] == data[19:74:2, 15:190:3, 11:21,:])
 
 @pytest.mark.parametrize("encoding", [ "raw", "compressed_segmentation", "compresso" ])
-def test_unique(encoding):
+@pytest.mark.parametrize("lru_bytes", [0,1e6,10e6,100e6])
+def test_unique(encoding, lru_bytes):
   delete_layer()
   cv, data = create_layer(size=(128,128,50,1), offset=(0,0,0), encoding=encoding, dtype=np.uint32)
+  cv.image.lru.resize(lru_bytes)
 
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
+
+  # Test it again to make sure the lru cache
+  # didn't screw up.
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
+
+  slc = np.s_[10:40,50:90,:50]
+  uniq = cv.unique(slc)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data[slc]))
+
+  data[:50,:50,:50] = 0
+  cv[:] = data
+
+  # Test it again to make sure the lru cache
+  # didn't screw up.
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
+
+@pytest.mark.parametrize("lru_bytes", [0,1e6,100e6])
+def test_unique_sharded(shard_vol, lru_bytes):
+  cv = shard_vol
+  data = cv[:]
+  cv.image.lru.resize(lru_bytes)
+
+  uniq = cv.unique(cv.bounds)
+  uniq = np.array(list(uniq))
+  uniq.sort()
+  assert np.all(uniq == np.unique(data))
+
+  # Test it again to make sure the lru cache
+  # didn't screw up.
   uniq = cv.unique(cv.bounds)
   uniq = np.array(list(uniq))
   uniq.sort()
@@ -422,10 +537,12 @@ def test_numpy_memmap():
 
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'jpeg'))
-def test_write(green, encoding):
+@pytest.mark.parametrize('lru_bytes', (0,1024,1e6,10e6))
+def test_write(green, encoding, lru_bytes):
   delete_layer()
   cv, _ = create_layer(size=(50,50,50,1), offset=(0,0,0))
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
 
   replacement_data = np.zeros(shape=(50,50,50,1), dtype=np.uint8)
   cv[0:50,0:50,0:50] = replacement_data
@@ -444,6 +561,7 @@ def test_write(green, encoding):
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   with pytest.raises(ValueError):
     cv[74:150,20:84,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
   
@@ -451,6 +569,7 @@ def test_write(green, encoding):
   delete_layer()
   cv, _ = create_layer(size=(128,64,64,1), offset=(10,20,0))
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   with pytest.raises(ValueError):
     cv[21:85,0:64,0:64] = np.ones(shape=(64,64,64,1), dtype=np.uint8)
 
@@ -458,13 +577,16 @@ def test_write(green, encoding):
   delete_layer()
   cv, _ = create_layer(size=(25,25,25,1), offset=(1,3,5))
   cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
   cv.info['scales'][0]['chunk_sizes'] = [[ 11,11,11 ]]
   cv[:] = np.ones(shape=(25,25,25,1), dtype=np.uint8)
 
-def test_non_aligned_write():
+@pytest.mark.parametrize('lru_bytes', (0,1024,1e6,10e6))
+def test_non_aligned_write(lru_bytes):
   delete_layer()
   offset = Vec(5,7,13)
   cv, _ = create_layer(size=(1024, 1024, 5, 1), offset=offset)
+  cv.image.lru.resize(lru_bytes)
 
   cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
 
@@ -815,8 +937,8 @@ def test_create_new_info():
   ]
 
 
-
-def test_caching():
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_caching(lru_bytes):
   image = np.zeros(shape=(128,128,128,1), dtype=np.uint8)
   image[0:64,0:64,0:64] = 1
   image[64:128,0:64,0:64] = 2
@@ -839,7 +961,7 @@ def test_caching():
     encoding='raw',
     chunk_size=(64,64,64),
   )
-
+  vol.image.lru.resize(lru_bytes)
   vol.cache.enabled = True
   vol.cache.flush()
 
@@ -884,6 +1006,7 @@ def test_caching():
   assert np.all(vol[:,:,:] == image)
 
   vol.cache.flush()
+  vol.image.lru.clear()
 
   # Test that partial reads work too
   result = vol[0:64,0:64,:]
@@ -1100,10 +1223,13 @@ def test_multiprocess():
 
   delete_layer()
 
-def test_exists():
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_exists(lru_bytes):
   # Bbox version
   delete_layer()
-  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv.image.lru.resize(lru_bytes)
+  cv.image.fill_missing = True
 
   defexists = Bbox( (0,0,0), (128,64,64) )
   results = cv.exists(defexists)
@@ -1111,11 +1237,19 @@ def test_exists():
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == True
 
+  cv[:] # fill LRU
+
   fpath = os.path.join(cv.cloudpath, cv.key, '64-128_0-64_0-64')
   fpath = fpath.replace('file://', '') + '.gz'
   os.remove(fpath)
+  
+  if lru_bytes > 0:
+    assert np.all(cv[:] == data) # cache wasn't updated so should still work
+  else:
+    assert not np.all(cv[:] == data)
 
   results = cv.exists(defexists)
+  assert not np.all(cv[:] == data) # now the cache should be updated
   assert len(results) == 2
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == False
@@ -1140,11 +1274,14 @@ def test_exists():
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == False
 
-def test_delete():
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_delete(lru_bytes):
 
   # Bbox version
   delete_layer()
-  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv, data = create_layer(size=(128,64,64,1), offset=(0,0,0))
+  cv.image.lru.resize(lru_bytes)
+  cv.image.fill_missing = True
 
   defexists = Bbox( (0,0,0), (128,64,64) )
   results = cv.exists(defexists)
@@ -1152,8 +1289,10 @@ def test_delete():
   assert results['1_1_1/0-64_0-64_0-64'] == True
   assert results['1_1_1/64-128_0-64_0-64'] == True
 
+  assert np.all(cv[:] == data)
 
   cv.delete(defexists)
+  assert np.all(cv[:] == 0)
   results = cv.exists(defexists)
   assert len(results) == 2
   assert results['1_1_1/0-64_0-64_0-64'] == False
