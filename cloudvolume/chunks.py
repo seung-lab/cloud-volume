@@ -17,6 +17,7 @@ import zlib
 import io
 import numpy as np
 
+import pyspng
 import simplejpeg
 import compresso
 import fastremap
@@ -147,23 +148,12 @@ def encode_jpeg(arr, quality=85):
     )
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
-def encode_png(arr, compress_level=9, optimize=True):
-  if not np.issubdtype(arr.dtype, np.uint8):
-    raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
+def encode_png(arr, compress_level=9):
+  if arr.dtype not in (np.uint8, np.uint16):
+    raise ValueError("Only accepts uint8 and uint16 arrays. Got: " + str(arr.dtype))
 
   arr, num_channel = as2d(arr)
-  arr = np.ascontiguousarray(arr)
-
-  if num_channel == 1:
-    img = Image.fromarray(arr[:,:,0], mode='L')
-  elif num_channel == 3:
-    img = Image.fromarray(arr, mode='RGB')
-  else:
-    raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
-
-  f = io.BytesIO()
-  img.save(f, "PNG", compress_level=compress_level, optimize=True)
-  return f.getvalue()
+  return pyspng.encode(arr, compress_level=compress_level)
 
 def encode_npz(subvol):
   """
@@ -237,11 +227,10 @@ def decode_jpeg(bytestring, shape, dtype):
   ).ravel()
   return data.reshape(shape, order='F')
 
-def decode_png(bytestring, shape, dtype):
-  img = Image.open(io.BytesIO(bytestring))
-  data = np.array(img.getdata(), dtype=dtype)
-
-  return data.reshape(shape, order='F')
+def decode_png(bytestring: bytes, shape, dtype):
+  img = pyspng.load(bytestring).reshape(-1)
+  img = img.astype(dtype, copy=False)
+  return img.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
   return np.frombuffer(bytearray(bytestring), dtype=dtype).reshape(shape, order='F')
