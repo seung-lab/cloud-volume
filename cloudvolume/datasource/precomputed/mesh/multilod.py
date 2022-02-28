@@ -157,6 +157,9 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
 
     return meshdata
 
+  def put(self, *args, **kwargs):
+    raise NotImplementedError("put is not implemented for multi-res meshes.")
+
 class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSource):
   def __init__(self, meta, cache, config, readonly=False):
     super(ShardedMultiLevelPrecomputedMeshSource, self).__init__(meta, cache, config, readonly)
@@ -262,6 +265,9 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
         meshdata[segid] = Mesh.concatenate(*meshdata[segid])
 
     return meshdata
+
+  def put(self, *args, **kwargs):
+    raise NotImplementedError("put is not implemented for multi-res meshes.")
 
 class MultiLevelPrecomputedMeshManifest:
   # Parse the multi-resolution mesh manifest file format:

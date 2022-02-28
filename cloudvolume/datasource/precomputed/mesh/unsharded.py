@@ -2,7 +2,7 @@ import six
 
 from collections import defaultdict
 import itertools
-import json
+import pysimdjson
 import re
 import os
 
@@ -70,7 +70,7 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     contents = {}
     for filename, content in fragments.items():
       content = content.decode('utf8')
-      content = json.loads(content)
+      content = pysimdjson.loads(content)
       segid = filename_to_segid(filename)
       contents[segid] = content['fragments']
 
@@ -197,6 +197,44 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       chunk_size * resolution, is_draco=False,
       offset=(chunk_offset * resolution)
     )
+
+  def put(
+    self, meshes:Mesh, 
+    batch_size:int = 200,
+    compress:CompressType = "gzip", 
+    compression_level:int = 6,
+    progress=False,
+    total=None,
+  ):
+    meshes = toiter(meshes)
+
+    # using this odd structuring to ensure generators will
+    # work correctly
+    toupload = ( 
+      (
+        f"{m.segid}:0", { "fragments": [ f"{m.segid}:0:1" ] }, # manifest
+        f"{m.segid}:0:1", m.to_precomputed() # fragment file
+      )
+      for m in meshes
+    )
+
+    cf = CloudFiles(self.meta.layerpath)
+    for mshs in sip(toupload, batch_size):
+      cf.put_jsons([ m[:2] for m in mshs ])
+      cf.puts(
+        [ m[2:4] for m in mshs ],
+        content_type="application/octet-stream",
+        compress=compress,
+        compression_level=compress_level,
+      )
+
+  def delete(self, segids):
+    manifests = self._get_manifests(segids)
+
+    cf = CloudFiles(self)
+    for segid, filenames in  manifests.items():
+
+
 
   def save(self, segids, filepath=None, file_format='ply'):
     """
