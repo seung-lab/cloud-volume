@@ -2,7 +2,14 @@ import os
 import numpy as np
 import pytest 
 
+from cloudfiles import CloudFiles
 from cloudvolume import Vec, Bbox, CloudVolume, Storage, Mesh
+
+@pytest.fixture
+def mesh_vol():
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  test_dir = os.path.join(test_dir, "test_cv")
+  return CloudVolume("file://" + test_dir)
 
 @pytest.mark.parametrize(("use_https"),[True, False])
 def test_mesh_fragment_download(use_https):
@@ -51,6 +58,20 @@ def test_get_mesh():
   double_mesh = vol.mesh.get(18)
 
   assert (2 * mesh.vertices + 1 == double_mesh.vertices).all()
+
+def test_put(mesh_vol):
+  mesh = Mesh(vertices=[[0,0,0], [1,1,1], [2,2,2]], faces=[0,1,2])
+  mesh.segid = 777
+
+  cf = CloudFiles(mesh_vol.mesh.meta.layerpath)
+
+  mesh_vol.mesh.put(mesh)
+  assert list(cf) == ["777:0", "777:0:1"]
+  m = mesh_vol.mesh.get(777, fuse=False)[777]
+  assert len(m.faces) == 1
+  assert m.segid == 777
+  mesh_vol.mesh.delete(777)
+  assert list(cf) == []
 
 def test_duplicate_vertices():
   verts = np.array([

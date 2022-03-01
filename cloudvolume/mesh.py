@@ -146,7 +146,7 @@ class Mesh(object):
     return tris
 
   @classmethod
-  def concatenate(cls, *meshes):
+  def concatenate(cls, *meshes, segid=None):
     vertex_ct = np.zeros(len(meshes) + 1, np.uint32)
     vertex_ct[1:] = np.cumsum([ len(mesh) for mesh in meshes ])
 
@@ -162,7 +162,7 @@ class Mesh(object):
     if len(encoding_type) == 1:
       encoding_type = encoding_type[0]
 
-    return Mesh(vertices, faces, normals, encoding_type=encoding_type)
+    return Mesh(vertices, faces, normals, encoding_type=encoding_type, segid=segid)
 
   def consolidate(self):
     """Remove duplicate vertices and faces. Returns a new mesh object."""

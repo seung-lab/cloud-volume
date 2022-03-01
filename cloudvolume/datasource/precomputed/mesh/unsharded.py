@@ -2,7 +2,7 @@ import six
 
 from collections import defaultdict
 import itertools
-import pysimdjson
+import simdjson
 import re
 import os
 
@@ -13,8 +13,9 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles
 
 from .... import exceptions
-from ....lib import yellow, red, toiter
+from ....lib import yellow, red, toiter, sip
 from ....mesh import Mesh
+from ....types import CompressType
 from ..spatial_index import CachedSpatialIndex
 from .common import apply_transform
 
@@ -62,16 +63,23 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     mesh_json_file_name = str(segid) + ':0'
     return self.meta.join(self.path, mesh_json_file_name)
 
-  def _get_manifests(self, segids):
+  def _get_manifests(self, segids, allow_missing=False):
     segids = toiter(segids)    
     paths = [ self.manifest_path(segid) for segid in segids ]
     fragments = self.cache.download(paths)
 
     contents = {}
     for filename, content in fragments.items():
-      content = content.decode('utf8')
-      content = pysimdjson.loads(content)
       segid = filename_to_segid(filename)
+      if content is None:
+        if allow_missing:
+          contents[segid] = None
+          continue
+        else:
+          raise ValueError(f"manifest is missing for {filename}")
+
+      content = content.decode('utf8')
+      content = simdjson.loads(content)
       contents[segid] = content['fragments']
 
     return contents
@@ -163,7 +171,10 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       meshdata[segid].append(mesh)
 
     if not fuse:
-      return { segid: Mesh.concatenate(*meshes) for segid, meshes in six.iteritems(meshdata) }
+      return { 
+        segid: Mesh.concatenate(*meshes, segid=segid) 
+        for segid, meshes in six.iteritems(meshdata) 
+      }
 
     meshdata = [ (segid, mesh) for segid, mesh in six.iteritems(meshdata) ]
     meshdata = sorted(meshdata, key=lambda sm: sm[0])
@@ -171,7 +182,6 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
     mesh = Mesh.concatenate(*meshdata)
     mesh.vertices = apply_transform(mesh.vertices, self.transform)
-
 
     if not remove_duplicate_vertices:
       return mesh 
@@ -203,10 +213,12 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     batch_size:int = 200,
     compress:CompressType = "gzip", 
     compression_level:int = 6,
+    cdn_cache=None,
     progress=False,
     total=None,
   ):
-    meshes = toiter(meshes)
+    if isinstance(meshes, Mesh):
+      meshes = [ meshes ]
 
     # using this odd structuring to ensure generators will
     # work correctly
@@ -218,6 +230,8 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       for m in meshes
     )
 
+    self.delete(( m.segid for m in meshes ))
+
     cf = CloudFiles(self.meta.layerpath)
     for mshs in sip(toupload, batch_size):
       cf.put_jsons([ m[:2] for m in mshs ])
@@ -225,16 +239,21 @@ class UnshardedLegacyPrecomputedMeshSource(object):
         [ m[2:4] for m in mshs ],
         content_type="application/octet-stream",
         compress=compress,
-        compression_level=compress_level,
+        compression_level=compression_level,
+        cache_control=cdn_cache,
       )
 
   def delete(self, segids):
-    manifests = self._get_manifests(segids)
+    manifests = self._get_manifests(segids, allow_missing=True)
 
-    cf = CloudFiles(self)
-    for segid, filenames in  manifests.items():
+    cf = CloudFiles(self.meta.layerpath)
+    for segid, filenames in manifests.items():
+      if segid is None:
+        raise ValueError("Cannot delete segid None")
 
-
+      if filenames is None:
+        continue
+      cf.delete(filenames + [ f"{segid}:0" ])
 
   def save(self, segids, filepath=None, file_format='ply'):
     """
