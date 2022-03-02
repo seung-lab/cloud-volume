@@ -1,4 +1,4 @@
-import six
+from typing import Union, Iterable, Optional
 
 from collections import defaultdict
 import itertools
@@ -173,10 +173,10 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     if not fuse:
       return { 
         segid: Mesh.concatenate(*meshes, segid=segid) 
-        for segid, meshes in six.iteritems(meshdata) 
+        for segid, meshes in meshdata.items()
       }
 
-    meshdata = [ (segid, mesh) for segid, mesh in six.iteritems(meshdata) ]
+    meshdata = [ (segid, mesh) for segid, mesh in meshdata.items() ]
     meshdata = sorted(meshdata, key=lambda sm: sm[0])
     meshdata = [ mesh for segid, mesh in meshdata ]
     meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
@@ -209,14 +209,23 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     )
 
   def put(
-    self, meshes:Mesh, 
+    self, 
+    meshes:Union[Mesh,Iterable[Mesh]], 
     batch_size:int = 200,
     compress:CompressType = "gzip", 
     compression_level:int = 6,
-    cdn_cache=None,
-    progress=False,
-    total=None,
+    cdn_cache:Optional[str] = None,
+    skip_delete:bool = False,
   ):
+    """
+    Upload a pre-existing mesh. 
+
+    batch_size: affects performance, controls size of each upload batch
+    skip_delete: Since meshes consist of an arbitrary number of files, 
+      a simple upload won't necessarily replace the old mesh. Therefore,
+      we read the manifest and delete the old mesh if it exists before
+      uploading. You can skip this step by stetting this flag to True.
+    """
     if isinstance(meshes, Mesh):
       meshes = [ meshes ]
 
@@ -230,7 +239,9 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       for m in meshes
     )
 
-    self.delete(( m.segid for m in meshes ))
+    # need to clear out pre-existing meshes
+    if not skip_delete:
+      self.delete(( m.segid for m in meshes ))
 
     cf = CloudFiles(self.meta.layerpath)
     for mshs in sip(toupload, batch_size):
@@ -253,7 +264,11 @@ class UnshardedLegacyPrecomputedMeshSource(object):
 
       if filenames is None:
         continue
-      cf.delete(filenames + [ f"{segid}:0" ])
+      filenames += [ f"{segid}:0" ]
+      cf.delete(filenames)
+
+      if self.cache.enabled:
+        self.cache.delete(filenames)
 
   def save(self, segids, filepath=None, file_format='ply'):
     """
