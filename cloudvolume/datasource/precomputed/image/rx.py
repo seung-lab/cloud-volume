@@ -105,6 +105,65 @@ def download_sharded(
     requested_bbox
   )
 
+def download_raw_sharded(
+  requested_bbox, mip, 
+  meta, cache, spec,
+  decompress, progress
+):
+  """
+  Download all the chunks without rendering.
+  """
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+
+  chunk_size = meta.chunk_size(mip)
+  grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
+
+  reader = sharding.ShardReader(meta, cache, spec)
+  bounds = meta.bounds(mip)
+
+  gpts = list(gridpoints(full_bbox, bounds, chunk_size))
+  morton_codes = compressed_morton_code(gpts, grid_size)
+  io_chunkdata = reader.get_data(
+    morton_codes, meta.key(mip), 
+    progress=progress,
+    raw=(not decompress),
+  )
+  return io_chunkdata
+
+def download_raw_unsharded(
+  requested_bbox, mip, 
+  meta, cache, 
+  decompress, 
+  progress, parallel, 
+  secrets, green
+):
+  """
+  Download all the chunks without rendering.
+
+  decompress: strip bytestream compression like gzip or br
+    leaving the image encoding untouched.
+  """
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  cloudpaths = chunknames(
+    full_bbox, meta.bounds(mip), 
+    meta.key(mip), meta.chunk_size(mip), 
+    protocol=meta.path.protocol
+  )
+
+  return CloudFiles(meta.cloudpath, secrets=secrets, green=green).get(
+    cloudpaths, 
+    raw=(not decompress),
+    return_dict=True,
+    parallel=parallel, 
+    progress=progress,
+  )
+
 def download(
   requested_bbox, mip, 
   meta, cache, lru,
