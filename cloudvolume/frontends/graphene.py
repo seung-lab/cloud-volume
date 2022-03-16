@@ -15,6 +15,7 @@ import dateutil.parser
 import fastremap
 import numpy as np
 
+from .. import chunks
 from .. import compression
 from .. import exceptions
 from ..cacheservice import CacheService
@@ -241,6 +242,84 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if len(final_labels) < len(labels):
       final_labels.add(mask_value)
     return final_labels
+
+  def download_files(
+    self, bbox, mip=None, 
+    parallel=None, 
+    agglomerate=None, timestamp=None,
+    stop_layer=None,
+    coord_resolution=None,
+  ):
+    agglomerate = agglomerate if agglomerate is not None else self.agglomerate
+    
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=(self.bounded and coord_resolution is None), 
+      autocrop=self.autocrop
+    )
+
+    if mip is None:
+      mip = self.mip
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(mip) / coord_resolution
+      bbox /= factor
+      if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
+        raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
+
+    if bbox.subvoxel():
+      raise exceptions.EmptyRequestException(f"Requested {bbox} is smaller than a voxel.")
+
+    if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
+      raise ValueError("Stop layer {} must be 1 <= stop_layer <= {} or None.".format(stop_layer, self.meta.n_layers))
+
+    mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
+    # Only ever necessary to make requests within the bounding box
+    # to the server. We can fill black in other situations.
+    mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
+
+    files = self.image.download_files(
+      bbox, mip=mip, 
+      decompress=True, parallel=parallel
+    )
+
+    labels = set([])
+    for file in files.items():
+      chunks.labels(file)
+
+    if agglomerate:
+      img = self.agglomerate_cutout(img, timestamp=timestamp, stop_layer=stop_layer)
+      img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
+
+    if segids is None or agglomerate:
+      if renumber_return: 
+        return img, renumber_remap
+      return img
+
+    segids = list(toiter(segids))
+
+    remapping = {}
+    for segid in segids:
+      leaves = self.get_leaves(segid, mip0_bbox, 0)
+      remapping.update({ leaf: segid for leaf in leaves })
+    
+    # Issue #434: Do not write img = fastremap.FN(in_place=True) as this allows
+    # the underlying buffer to get garbage collected. Make sure to carefully
+    # manage the buffer's references when making any changes.
+    fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
+
+    mask_value = 0
+    if preserve_zeros:
+      mask_value = np.inf
+      if np.issubdtype(self.dtype, np.integer):
+        mask_value = np.iinfo(self.dtype).max
+
+      segids.append(0)
+
+    fastremap.mask_except(img, segids, in_place=True, value=mask_value)
+    if renumber_return:
+      return img, renumber_remap
+    return img
 
   def download(
     self, bbox, mip=None, 
