@@ -245,7 +245,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   def download_files(
     self, bbox, mip=None, 
-    parallel=None, 
+    parallel=None, segids=None,
     agglomerate=None, timestamp=None,
     stop_layer=None,
     coord_resolution=None,
@@ -284,17 +284,24 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     )
 
     labels = set([])
-    for file in files.items():
-      chunks.labels(file)
+    for file in files.values():
+      labels.update(chunks.labels(file))
+
+    def apply_mapping(mapping):
+      for key in files:
+        files[key] = chunks.remap(
+          files[key], self.meta.encoding(mip), 
+          mapping=mapping,
+          preserve_missing_labels=True,
+        )
+      return files
 
     if agglomerate:
-      img = self.agglomerate_cutout(img, timestamp=timestamp, stop_layer=stop_layer)
-      img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
-
-    if segids is None or agglomerate:
-      if renumber_return: 
-        return img, renumber_remap
-      return img
+      labels = list(labels)
+      roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
+      return apply_mapping({ segid: root for segid, root in zip(labels, roots) })
+    elif segids is None:
+      return files
 
     segids = list(toiter(segids))
 
@@ -303,23 +310,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       leaves = self.get_leaves(segid, mip0_bbox, 0)
       remapping.update({ leaf: segid for leaf in leaves })
     
-    # Issue #434: Do not write img = fastremap.FN(in_place=True) as this allows
-    # the underlying buffer to get garbage collected. Make sure to carefully
-    # manage the buffer's references when making any changes.
-    fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
-
-    mask_value = 0
-    if preserve_zeros:
-      mask_value = np.inf
-      if np.issubdtype(self.dtype, np.integer):
-        mask_value = np.iinfo(self.dtype).max
-
-      segids.append(0)
-
-    fastremap.mask_except(img, segids, in_place=True, value=mask_value)
-    if renumber_return:
-      return img, renumber_remap
-    return img
+    return apply_mapping(remapping)
 
   def download(
     self, bbox, mip=None, 
