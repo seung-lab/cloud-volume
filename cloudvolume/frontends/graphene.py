@@ -285,12 +285,22 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     labels = set([])
     for file in files.values():
-      labels.update(chunks.labels(file))
+      labels.update(chunks.labels(
+        file, 
+        encoding=self.meta.encoding(mip),
+        shape=self.meta.chunk_size(mip),
+        dtype=self.meta.dtype,
+        block_size=self.meta.compressed_segmentation_block_size(mip),
+      ))
 
     def apply_mapping(mapping):
       for key in files:
         files[key] = chunks.remap(
-          files[key], self.meta.encoding(mip), 
+          files[key], 
+          encoding=self.meta.encoding(mip), 
+          shape=self.meta.chunk_size(mip),
+          dtype=self.meta.dtype,
+          block_size=self.meta.compressed_segmentation_block_size(mip),
           mapping=mapping,
           preserve_missing_labels=True,
         )
