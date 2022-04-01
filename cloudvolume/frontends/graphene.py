@@ -132,6 +132,50 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     stop_layer:Optional[int] = None,
     coord_resolution:Optional[Sequence[int]] = None,
   ) -> set:
+    """
+    Extracts unique labels from segmentation and optionally agglomerates
+    labels based on information in the graph server.
+
+    This operation can be done with download and np.unique but this
+    version scales to much larger sizes and is faster.
+
+    bbox: specifies cutout to fetch
+    mip: which resolution level to get (default self.mip)
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
+
+    agglomerate: if true, remap all watershed ids in the volume
+      and return a flat segmentation.
+
+    if agglomerate is true these options are available:
+
+    timestamp: (agglomerate only) get the roots from this date and time
+      formats accepted:
+        int: unix timestamp
+        datetime: self explainatory
+        string: ISO 8601 date
+    stop_layer: (agglomerate only) (int) if specified, return the lowest 
+      parent at or above that layer. If not specified, go all the way 
+      to the root id. 
+        Layer 1: Watershed
+        Layer 2: Within-Chunk Agglomeration
+        Layer 2+: Between chunk interconnections (skip connections possible)
+
+    If agglomerate is None, then the cv.meta.agglomerate controls
+    its value.
+
+    If agglomerate is false, these other options come into play:
+
+    segids: agglomerate the leaves of these segids from the graph 
+      server and label them with the given segid.
+    preserve_zeros: If segids is not None:
+      False: mask other segids with zero
+      True: mask other segids with the largest integer value
+        contained by the image data type and leave zero as is.
+
+    Returns: set of integers
+    """
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
     
     bbox = Bbox.create(
