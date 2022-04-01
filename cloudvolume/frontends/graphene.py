@@ -174,6 +174,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       ))
 
     labels = set(labels)
+    if segids is None:
+      return labels
 
     for segid in segids:
       leaves = set(self.get_leaves(segid, mip0_bbox, 0))
