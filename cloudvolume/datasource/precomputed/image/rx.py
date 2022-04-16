@@ -242,7 +242,7 @@ def download_single_voxel_unsharded(
     if fill_missing:
       label = np.zeros((1,1,1,1), dtype=meta.dtype)
     else:
-      raise OutOfBoundsError()
+      raise EmptyVolumeException(requested_bbox)
   else:
     chunk_bbx = Bbox.from_filename(filename)
     label, _ = download_chunk(
