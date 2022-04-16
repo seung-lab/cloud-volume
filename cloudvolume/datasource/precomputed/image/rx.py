@@ -238,15 +238,21 @@ def download_single_voxel_unsharded(
     cloudpath = meta.cloudpath
     cache_enabled = cache.enabled
 
-  chunk_bbx = Bbox.from_filename(filename)
-  label, _ = download_chunk(
-    meta, cache, lru,
-    cloudpath, mip,
-    filename, fill_missing,
-    cache_enabled, compress_cache,
-    secrets, background_color,
-    partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt)
-  )
+  if filename is None:
+    if fill_missing:
+      label = np.zeros((1,1,1,1), dtype=meta.dtype)
+    else:
+      raise OutOfBoundsError()
+  else:
+    chunk_bbx = Bbox.from_filename(filename)
+    label, _ = download_chunk(
+      meta, cache, lru,
+      cloudpath, mip,
+      filename, fill_missing,
+      cache_enabled, compress_cache,
+      secrets, background_color,
+      partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt)
+    )
 
   if renumber:
     lbl = label[0,0,0,0]
