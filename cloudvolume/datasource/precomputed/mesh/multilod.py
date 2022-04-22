@@ -353,7 +353,10 @@ class MultiLevelPrecomputedMeshManifest:
     ).reshape((self.num_lods,), order="C")
 
     # frag positions and offsets must be provided in morton order
-    fragment_positions = np.array(self.fragment_positions, dtype=np.uint32)
+    fragment_positions = [ 
+      np.array(fpos, dtype="<I").tobytes(order='C') 
+      for fpos in self.fragment_positions 
+    ]
     fragment_offsets = np.array(self.fragment_offsets, dtype=np.uint32)
     lod_scales = np.array(self.lod_scales, dtype=np.float32)
 
@@ -364,7 +367,8 @@ class MultiLevelPrecomputedMeshManifest:
       lod_scales.astype('<f').tobytes(),
       vertex_offsets.astype('<f').tobytes(order='C'),
       num_fragments_per_lod.astype('<I').tobytes(),
-      fragment_positions.astype('<I').tobytes(order='C'),
+      b''.join(fragment_positions),
+      # fragment_positions.astype('<I').tobytes(order='C'),
       fragment_offsets.astype('<I').tobytes(order='C')
     ]
 
