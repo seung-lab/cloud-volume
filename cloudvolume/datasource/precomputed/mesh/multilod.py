@@ -310,7 +310,7 @@ class MultiLevelPrecomputedMeshManifest:
       # Read fragment positions
       pos_size =  3 * 4 * num_fragments_per_lod[lod]
       fragment_positions.append(
-        np.frombuffer(binary[offset:offset + pos_size], dtype=np.uint32).reshape((3,num_fragments_per_lod[lod]))
+        np.frombuffer(binary[offset:offset + pos_size], dtype=np.uint32).reshape((num_fragments_per_lod[lod],3), order="C")
       )
       offset += pos_size
 
@@ -367,10 +367,18 @@ class MultiLevelPrecomputedMeshManifest:
       lod_scales.astype('<f').tobytes(),
       vertex_offsets.astype('<f').tobytes(order='C'),
       num_fragments_per_lod.astype('<I').tobytes(),
-      b''.join(fragment_positions),
-      # fragment_positions.astype('<I').tobytes(order='C'),
-      fragment_offsets.astype('<I').tobytes(order='C')
     ]
+
+    offset = 0
+    for lod in range(self.num_lods):
+      manifest.append(
+        fragment_positions[lod]
+      )
+      manifest.append(
+        fragment_offsets[offset:offset+num_fragments_per_lod[lod]]
+          .astype('<I').tobytes(order='C')
+      )
+      offset += num_fragments_per_lod[lod]
 
     return b''.join(manifest)
 
@@ -424,7 +432,7 @@ def from_stored_model_space(
     manifest.grid_origin + 
     manifest.vertex_offsets[lod] + (
       manifest.chunk_shape * (2 ** lod) * (
-        manifest.fragment_positions[lod][:,frag] + 
+        manifest.fragment_positions[lod][frag,:] + 
         (vertices / (2.0 ** vertex_quantization_bits - 1))
       )
     )
@@ -443,7 +451,7 @@ def to_stored_model_space(
 
   stored_model = vertices - manifest.grid_origin - manifest.vertex_offsets[lod]
   stored_model /= manifest.chunk_shape * (2 ** lod)
-  stored_model -= manifest.fragment_positions[lod][:,frag]
+  stored_model -= manifest.fragment_positions[lod][frag,:]
   stored_model *= quant_factor
   stored_model = np.round(stored_model, out=stored_model)
   stored_model = np.clip(
