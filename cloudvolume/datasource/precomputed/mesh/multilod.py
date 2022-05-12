@@ -310,7 +310,7 @@ class MultiLevelPrecomputedMeshManifest:
       # Read fragment positions
       pos_size =  3 * 4 * num_fragments_per_lod[lod]
       fragment_positions.append(
-        np.frombuffer(binary[offset:offset + pos_size], dtype=np.uint32).reshape((num_fragments_per_lod[lod],3), order="C")
+        np.frombuffer(binary[offset:offset + pos_size], dtype=np.uint32).reshape((3,num_fragments_per_lod[lod]), order="F")
       )
       offset += pos_size
 
@@ -354,7 +354,7 @@ class MultiLevelPrecomputedMeshManifest:
 
     # frag positions and offsets must be provided in morton order
     fragment_positions = [ 
-      np.array(fpos, dtype="<I").tobytes(order='C') 
+      np.array(fpos, dtype="<I").tobytes(order='F') 
       for fpos in self.fragment_positions 
     ]
     fragment_offsets = np.array(self.fragment_offsets, dtype=np.uint32)
