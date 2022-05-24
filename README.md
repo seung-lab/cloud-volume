@@ -33,7 +33,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 - Multi-threaded, supports multi-process and green threads.
 - Memory optimized, supports shared memory.
-- Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`compresso`](https://github.com/seung-lab/compresso), [`fpzip`](https://github.com/seung-lab/fpzip/), [`brotli`](https://en.wikipedia.org/wiki/Brotli))
+- Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`compresso`](https://github.com/seung-lab/compresso), [`fpzip`](https://github.com/seung-lab/fpzip/), [`png`](https://en.wikipedia.org/wiki/Portable_Network_Graphics), and [`brotli`](https://en.wikipedia.org/wiki/Brotli))
 - Understands image hierarchies & anisotropic pixel resolutions.
 - Accomodates downloading missing tiles (`fill_missing=True`).
 - Accomodates uploading compressed black tiles to erasure coded file systems (`delete_black_uploads=True`).
@@ -41,8 +41,6 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 - Includes viewers for small images, meshes, and skeletons.
 - Only 3 dimensions + RBG channels currently supported for images.
 - No data versioning.
-
-\* fpzip compressed data, used for 32-bit per pixel vectors, is not currently visualizable.
 
 ## Setup
 
@@ -243,11 +241,11 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              |
 | compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      |
 | compresso               | Segmentation               | Y        | Y           | Lossless high compression algorithm for connectomics segmentation.                       |
-| fpzip                   | Floating Point             | Y        | N*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  |
-| kempressed              | Anisotropic Z Floating Point | N        | N*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
+| fpzip                   | Floating Point             | Y        | Y*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  |
+| kempressed              | Anisotropic Z Floating Point | N**      | Y*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
 
-\* Coming soon.
-
+\* Not integrated into official Neuroglancer yet, but available [on a branch](https://github.com/william-silversmith/neuroglancer/tree/wms_fpzip).
+\*\* Lossless if your data can handle adding and then subtracting 2.
 
 ### Examples
 
