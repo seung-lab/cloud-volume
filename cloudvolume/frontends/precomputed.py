@@ -581,7 +581,16 @@ class CloudVolumePrecomputed(object):
     cache_only:bool = False,
     decompress:bool = True,
   ):
-    """Downloads files without rendering to an image."""
+    """
+    Downloads files without rendering to an image.
+
+    decompress: automatically decompress downloaded
+      files. If False, returns the raw bytes.
+    cache_only: discard downloaded files to avoid
+      inflating memory. (you must enable the cache separately)
+
+    Returns: { filename: binary }
+    """
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=(self.bounded and coord_resolution is None), 
@@ -600,12 +609,40 @@ class CloudVolumePrecomputed(object):
     if parallel is None:
       parallel = self.parallel
 
-    return self.image.download_files(
+    files = self.image.download_files(
       bbox.astype(np.int64), mip, 
       parallel=parallel,
       decompress=decompress, 
       cache_only=cache_only
     )
+
+    if not segids:
+      return files
+
+    for key in files:
+      val = files[key]
+      labels = set(chunks.labels(val))
+      mask_labels = labels - set(segids)
+      remap = { lbl: lbl for lbl in segids }
+      if preserve_zeros:
+        mask_value = np.inf
+        if np.issubdtype(self.dtype, np.integer):
+          mask_value = np.iinfo(self.dtype).max        
+      remap.update({ mask_labels: mask_value for lbl in mask_labels })
+      if preserve_zeros:
+        remap[0] = 0
+
+      files[key] = chunks.remap(
+        files[key], 
+        encoding=self.meta.encoding(mip), 
+        shape=self.meta.chunk_size(mip),
+        dtype=self.meta.dtype,
+        block_size=self.meta.compressed_segmentation_block_size(mip),
+        mapping=remap,
+        preserve_missing_labels=True,
+      )
+
+    return files
     
   def download(
     self, 
