@@ -226,6 +226,9 @@ class PrecomputedImageSource(ImageSourceInterface):
         parallel=parallel, 
         green=self.config.green,
         secrets=self.config.secrets,
+        fill_missing=self.fill_missing,
+        compress_type=self.config.compress,
+        background_color=int(self.background_color),
       )
 
   def unique(self, bbox:BboxLikeType, mip:int) -> set:

@@ -138,7 +138,8 @@ def download_raw_unsharded(
   meta, cache, 
   decompress, 
   progress, parallel, 
-  secrets, green
+  secrets, green, fill_missing,
+  compress_type, background_color
 ):
   """
   Download all the chunks without rendering.
@@ -156,13 +157,30 @@ def download_raw_unsharded(
     protocol=meta.path.protocol
   )
 
-  return CloudFiles(meta.cloudpath, secrets=secrets, green=green).get(
-    cloudpaths, 
-    raw=(not decompress),
-    return_dict=True,
-    parallel=parallel, 
-    progress=progress,
+  results = {}
+  def store_result(binary, bbox):
+    nonlocal results
+    key = meta.join(meta.key(mip), bbox.to_filename())
+    results[key] = binary
+
+  def noop_decode(
+    meta, input_bbox, 
+    content, fill_missing, 
+    mip, background_color=0
+  ):
+    return content
+
+  compress_cache = should_compress(meta.encoding(mip), compress_type, cache, iscache=True)
+
+  download_chunks_threaded(
+    meta, cache, 
+    lru=None, mip=mip, cloudpaths=cloudpaths, 
+    fn=store_result, decode_fn=noop_decode, fill_missing=fill_missing,
+    progress=progress, compress_cache=compress_cache, 
+    green=green, secrets=secrets, background_color=background_color
   )
+
+  return results
 
 def download(
   requested_bbox, mip, 
@@ -458,7 +476,7 @@ def download_chunk(
   filename, fill_missing,
   enable_cache, compress_cache,
   secrets, background_color,
-  decode_fn
+  decode_fn, decompress=True
 ):
   if lru is not None and filename in lru:
     content = lru[filename]
@@ -477,7 +495,7 @@ def download_chunk(
       )
       del cache_content
 
-    if content is not None:
+    if content is not None and decompress:
       content = compression.decompress(content, file['compress'])
 
     if lru is not None:
@@ -492,6 +510,7 @@ def download_chunks_threaded(
     meta, cache, lru, mip, cloudpaths, fn, decode_fn,
     fill_missing, progress, compress_cache,
     green=False, secrets=None, background_color=0,
+    decompress=True,
   ):
   """fn is the postprocess callback. decode_fn is a decode fn."""
   locations = cache.compute_data_locations(cloudpaths)
@@ -503,7 +522,7 @@ def download_chunks_threaded(
       filename, fill_missing,
       enable_cache, compress_cache,
       secrets, background_color,
-      decode_fn
+      decode_fn, decompress
     )
     fn(labels, bbox)
 
