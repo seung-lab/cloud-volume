@@ -149,7 +149,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     if self.is_sharded(mip):
       if renumber:
-        raise ValueError("renumber is only supported for non-shared volumes.")
+        raise ValueError("renumber is only supported for non-sharded volumes.")
 
       scale = self.meta.scale(mip)
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
@@ -181,6 +181,58 @@ class PrecomputedImageSource(ImageSourceInterface):
         secrets=self.config.secrets,
         renumber=renumber,
         background_color=int(self.background_color),
+      )
+
+  def download_files(
+    self, bbox:Bbox, mip:int, 
+    decompress:bool = True, 
+    parallel:int = 1, 
+    cache_only:bool = False
+  ):
+    """
+    Download the files that comprise a cutout image from the dataset
+    without rendering them into an image. 
+
+    bbox: a Bbox object describing what region to download
+    mip: which resolution to fetch, 0 is the highest resolution
+    parallel: how many processes to use for downloading 
+    cache_only: write downloaded files to cache and discard
+      the result to save memory
+
+    Returns: 
+      If sharded:
+        { morton_code: binary }
+      else:
+        { path: binary }
+    """
+    if self.autocrop:
+      bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
+
+    self.check_bounded(bbox, mip)
+
+    if self.is_sharded(mip):
+      scale = self.meta.scale(mip)
+      spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
+      return rx.download_raw_sharded(
+        bbox, mip, 
+        self.meta, self.cache, spec,
+        decompress=decompress,
+        progress=self.config.progress,
+      )
+    else:
+      return rx.download_raw_unsharded(
+        bbox, mip,
+        meta=self.meta,
+        cache=self.cache,
+        decompress=decompress,
+        progress=self.config.progress,
+        parallel=parallel, 
+        green=self.config.green,
+        secrets=self.config.secrets,
+        fill_missing=self.fill_missing,
+        compress_type=self.config.compress,
+        background_color=int(self.background_color),
+        cache_only=cache_only,
       )
 
   def unique(self, bbox:BboxLikeType, mip:int) -> set:
@@ -445,7 +497,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       for srcpaths in sip(cloudpaths, step):
         files = check(cfsrc.get(srcpaths, raw=True))
         cfdest.puts(
-          compression.transcode(files, encoding=compress, level=compress_level), 
+          compression.transcode(files, encoding=compress, level=compress_level, in_place=True), 
           compress=compress,
           content_type=tx.content_type(destvol),
           raw=True

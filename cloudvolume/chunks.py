@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Dict
 
 import zlib
 import io
@@ -253,9 +253,9 @@ def decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_s
   return chunk.T
 
 def labels(
-  filedata, encoding, 
+  filedata:bytes, encoding:str, 
   shape=None, dtype=None, 
-  block_size=None, background_color=0
+  block_size=None, background_color:int = 0
 ) -> np.ndarray:
   """
   Extract unique labels from a chunk using
@@ -278,6 +278,27 @@ def labels(
     return compresso.labels(filedata)
   else:
     raise NotImplementedError(f"Encoding {encoding} is not supported. Try: raw, compressed_segmentation, or compresso.")
+
+def remap(
+  filedata:bytes, encoding:str, 
+  mapping:Dict[int,int],
+  preserve_missing_labels=False,
+  shape=None, dtype=None,
+  block_size=None
+) -> bytes:
+  if filedata is None or len(filedata) == 0:
+    return filedata
+  elif encoding == "compressed_segmentation":
+    return cseg.remap(
+      filedata, shape, dtype, mapping, 
+      preserve_missing_labels=preserve_missing_labels, block_size=block_size
+    )
+  elif encoding == "compresso":
+    return compresso.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
+  else:
+    img = decode(filedata, encoding, shape, dtype, block_size)
+    fastremap.remap(img, mapping, preserve_missing_labels=preserve_missing_labels, in_place=True)
+    return encode(img, encoding, block_size)
 
 def read_voxel(
   xyz:Sequence[int], 

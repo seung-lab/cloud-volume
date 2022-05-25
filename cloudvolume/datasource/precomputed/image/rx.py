@@ -105,6 +105,86 @@ def download_sharded(
     requested_bbox
   )
 
+def download_raw_sharded(
+  requested_bbox, mip, 
+  meta, cache, spec,
+  decompress, progress
+):
+  """
+  Download all the chunks without rendering.
+  """
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+
+  chunk_size = meta.chunk_size(mip)
+  grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
+
+  reader = sharding.ShardReader(meta, cache, spec)
+  bounds = meta.bounds(mip)
+
+  gpts = list(gridpoints(full_bbox, bounds, chunk_size))
+  morton_codes = compressed_morton_code(gpts, grid_size)
+  io_chunkdata = reader.get_data(
+    morton_codes, meta.key(mip), 
+    progress=progress,
+    raw=(not decompress),
+  )
+  return io_chunkdata
+
+def download_raw_unsharded(
+  requested_bbox, mip, 
+  meta, cache, 
+  decompress, 
+  progress, parallel, 
+  secrets, green, fill_missing,
+  compress_type, background_color,
+  cache_only
+):
+  """
+  Download all the chunks without rendering.
+
+  decompress: strip bytestream compression like gzip or br
+    leaving the image encoding untouched.
+  """
+  full_bbox = requested_bbox.expand_to_chunk_size(
+    meta.chunk_size(mip), offset=meta.voxel_offset(mip)
+  )
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  cloudpaths = chunknames(
+    full_bbox, meta.bounds(mip), 
+    meta.key(mip), meta.chunk_size(mip), 
+    protocol=meta.path.protocol
+  )
+
+  results = {}
+  def store_result(binary, bbox):
+    nonlocal results
+    if cache_only:
+      return
+    key = meta.join(meta.key(mip), bbox.to_filename())
+    results[key] = binary
+
+  def noop_decode(
+    meta, input_bbox, 
+    content, fill_missing, 
+    mip, background_color=0
+  ):
+    return content
+
+  compress_cache = should_compress(meta.encoding(mip), compress_type, cache, iscache=True)
+
+  download_chunks_threaded(
+    meta, cache, 
+    lru=None, mip=mip, cloudpaths=cloudpaths, 
+    fn=store_result, decode_fn=noop_decode, fill_missing=fill_missing,
+    progress=progress, compress_cache=compress_cache, 
+    green=green, secrets=secrets, background_color=background_color
+  )
+
+  return results
+
 def download(
   requested_bbox, mip, 
   meta, cache, lru,
@@ -399,7 +479,7 @@ def download_chunk(
   filename, fill_missing,
   enable_cache, compress_cache,
   secrets, background_color,
-  decode_fn
+  decode_fn, decompress=True
 ):
   if lru is not None and filename in lru:
     content = lru[filename]
@@ -418,7 +498,7 @@ def download_chunk(
       )
       del cache_content
 
-    if content is not None:
+    if content is not None and decompress:
       content = compression.decompress(content, file['compress'])
 
     if lru is not None:
@@ -433,6 +513,7 @@ def download_chunks_threaded(
     meta, cache, lru, mip, cloudpaths, fn, decode_fn,
     fill_missing, progress, compress_cache,
     green=False, secrets=None, background_color=0,
+    decompress=True,
   ):
   """fn is the postprocess callback. decode_fn is a decode fn."""
   locations = cache.compute_data_locations(cloudpaths)
@@ -444,7 +525,7 @@ def download_chunks_threaded(
       filename, fill_missing,
       enable_cache, compress_cache,
       secrets, background_color,
-      decode_fn
+      decode_fn, decompress
     )
     fn(labels, bbox)
 

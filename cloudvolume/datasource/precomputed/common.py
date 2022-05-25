@@ -1,7 +1,7 @@
 def content_type(encoding):
   if encoding == 'jpeg':
     return 'image/jpeg'
-  elif encoding in ('compressed_segmentation', 'fpzip', 'kempressed'):
+  elif encoding in ('compresso', 'compressed_segmentation', 'fpzip', 'kempressed'):
     return 'image/x.' + encoding 
   return 'application/octet-stream'
 

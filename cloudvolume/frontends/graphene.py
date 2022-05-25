@@ -15,6 +15,7 @@ import dateutil.parser
 import fastremap
 import numpy as np
 
+from .. import chunks
 from .. import compression
 from .. import exceptions
 from ..cacheservice import CacheService
@@ -241,6 +242,87 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if len(final_labels) < len(labels):
       final_labels.add(mask_value)
     return final_labels
+
+  def download_files(
+    self, bbox, mip=None, 
+    parallel=None, segids=None,
+    agglomerate=None, timestamp=None,
+    stop_layer=None,
+    coord_resolution=None,
+    cache_only=False,
+  ):
+    agglomerate = agglomerate if agglomerate is not None else self.agglomerate
+    
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=(self.bounded and coord_resolution is None), 
+      autocrop=self.autocrop
+    )
+
+    if mip is None:
+      mip = self.mip
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(mip) / coord_resolution
+      bbox /= factor
+      if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
+        raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
+
+    if bbox.subvoxel():
+      raise exceptions.EmptyRequestException(f"Requested {bbox} is smaller than a voxel.")
+
+    if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
+      raise ValueError("Stop layer {} must be 1 <= stop_layer <= {} or None.".format(stop_layer, self.meta.n_layers))
+
+    mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
+    # Only ever necessary to make requests within the bounding box
+    # to the server. We can fill black in other situations.
+    mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
+
+    files = self.image.download_files(
+      bbox, mip=mip, 
+      decompress=True, parallel=parallel,
+      cache_only=cache_only,
+    )
+
+    labels = set([])
+    for file in files.values():
+      labels.update(chunks.labels(
+        file, 
+        encoding=self.meta.encoding(mip),
+        shape=self.meta.chunk_size(mip),
+        dtype=self.meta.dtype,
+        block_size=self.meta.compressed_segmentation_block_size(mip),
+      ))
+
+    def apply_mapping(mapping):
+      for key in files:
+        files[key] = chunks.remap(
+          files[key], 
+          encoding=self.meta.encoding(mip), 
+          shape=self.meta.chunk_size(mip),
+          dtype=self.meta.dtype,
+          block_size=self.meta.compressed_segmentation_block_size(mip),
+          mapping=mapping,
+          preserve_missing_labels=True,
+        )
+      return files
+
+    if agglomerate:
+      labels = list(labels)
+      roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
+      return apply_mapping({ segid: root for segid, root in zip(labels, roots) })
+    elif segids is None:
+      return files
+
+    segids = list(toiter(segids))
+
+    remapping = {}
+    for segid in segids:
+      leaves = self.get_leaves(segid, mip0_bbox, 0)
+      remapping.update({ leaf: segid for leaf in leaves })
+    
+    return apply_mapping(remapping)
 
   def download(
     self, bbox, mip=None, 
