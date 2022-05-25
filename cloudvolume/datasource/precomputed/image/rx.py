@@ -139,7 +139,8 @@ def download_raw_unsharded(
   decompress, 
   progress, parallel, 
   secrets, green, fill_missing,
-  compress_type, background_color
+  compress_type, background_color,
+  cache_only
 ):
   """
   Download all the chunks without rendering.
@@ -160,6 +161,8 @@ def download_raw_unsharded(
   results = {}
   def store_result(binary, bbox):
     nonlocal results
+    if cache_only:
+      return
     key = meta.join(meta.key(mip), bbox.to_filename())
     results[key] = binary
 

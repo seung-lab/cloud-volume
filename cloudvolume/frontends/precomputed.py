@@ -565,6 +565,48 @@ class CloudVolumePrecomputed(object):
       bbox.astype(np.int64), mip
     )
 
+  def download_files(
+    self,
+    bbox:BboxLikeType, 
+    mip:Optional[int] = None, 
+    parallel:Optional[int] = None,
+    segids:Optional[Sequence[int]] = None, 
+    
+    # Absorbing polymorphic Graphene calls
+    agglomerate:Optional[bool] = None, 
+    timestamp:Optional[int] = None, 
+    stop_layer:Optional[int] = None,
+
+    coord_resolution:Optional[Sequence[int]] = None,
+    cache_only:bool = False,
+    decompress:bool = True,
+  ):
+    """Downloads files without rendering to an image."""
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=(self.bounded and coord_resolution is None), 
+      autocrop=self.autocrop
+    )
+
+    if mip is None:
+      mip = self.mip
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(mip) / coord_resolution
+      bbox /= factor
+      if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
+        raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
+
+    if parallel is None:
+      parallel = self.parallel
+
+    return self.image.download_files(
+      bbox.astype(np.int64), mip, 
+      parallel=parallel,
+      decompress=decompress, 
+      cache_only=cache_only
+    )
+    
   def download(
     self, 
     bbox:BboxLikeType, 

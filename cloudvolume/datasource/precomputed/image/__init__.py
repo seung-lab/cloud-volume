@@ -186,7 +186,8 @@ class PrecomputedImageSource(ImageSourceInterface):
   def download_files(
     self, bbox:Bbox, mip:int, 
     decompress:bool = True, 
-    parallel:int = 1
+    parallel:int = 1, 
+    cache_only:bool = False
   ):
     """
     Download the files that comprise a cutout image from the dataset
@@ -195,6 +196,8 @@ class PrecomputedImageSource(ImageSourceInterface):
     bbox: a Bbox object describing what region to download
     mip: which resolution to fetch, 0 is the highest resolution
     parallel: how many processes to use for downloading 
+    cache_only: write downloaded files to cache and discard
+      the result to save memory
 
     Returns: 
       If sharded:
@@ -229,6 +232,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         fill_missing=self.fill_missing,
         compress_type=self.config.compress,
         background_color=int(self.background_color),
+        cache_only=cache_only,
       )
 
   def unique(self, bbox:BboxLikeType, mip:int) -> set:

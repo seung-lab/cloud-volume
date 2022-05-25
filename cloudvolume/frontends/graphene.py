@@ -249,6 +249,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     agglomerate=None, timestamp=None,
     stop_layer=None,
     coord_resolution=None,
+    cache_only=False,
   ):
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
     
@@ -280,7 +281,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     files = self.image.download_files(
       bbox, mip=mip, 
-      decompress=True, parallel=parallel
+      decompress=True, parallel=parallel,
+      cache_only=cache_only,
     )
 
     labels = set([])
