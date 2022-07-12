@@ -475,33 +475,35 @@ class SpatialIndex(object):
       return labels
 
     index_files = self.index_file_paths_for_bbox(bbox)
-    results = self.fetch_index_files(index_files)
 
-    parser = simdjson.Parser()
-    for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
-      if content is None:
-        if allow_missing:
-          continue
+    for index_files_subset in sip(index_files, 10000):
+      results = self.fetch_index_files(index_files_subset)
+
+      parser = simdjson.Parser()
+      for filename, content in tqdm(results.items(), desc="Decoding Labels", disable=(not self.config.progress)):
+        if content is None:
+          if allow_missing:
+            continue
+          else:
+            raise SpatialIndexGapError(filename + " was not found.")
+
+        # The bbox test saps performance a lot
+        # but we can skip it if we know 100% that
+        # the labels are going to be inside. This
+        # optimization is important for querying 
+        # entire datasets, which is contemplated
+        # for shard generation.
+        if fast_path:
+          res = parser.parse(content).keys()
+          labels.update( (int(label) for label in res ) ) # fast path: 16% CPU
         else:
-          raise SpatialIndexGapError(filename + " was not found.")
+          res = simdjson.loads(content)
+          for label, label_bbx in res.items():
+            label = int(label)
+            label_bbx = Bbox.from_list(label_bbx)
 
-      # The bbox test saps performance a lot
-      # but we can skip it if we know 100% that
-      # the labels are going to be inside. This
-      # optimization is important for querying 
-      # entire datasets, which is contemplated
-      # for shard generation.
-      if fast_path:
-        res = parser.parse(content).keys()
-        labels.update( (int(label) for label in res ) ) # fast path: 16% CPU
-      else:
-        res = simdjson.loads(content)
-        for label, label_bbx in res.items():
-          label = int(label)
-          label_bbx = Bbox.from_list(label_bbx)
-
-          if Bbox.intersects(label_bbx, original_bbox):
-            labels.add(label)
+            if Bbox.intersects(label_bbx, original_bbox):
+              labels.add(label)
 
     return labels
 
