@@ -476,7 +476,8 @@ class SpatialIndex(object):
 
     index_files = self.index_file_paths_for_bbox(bbox)
 
-    for index_files_subset in sip(index_files, 10000):
+    num_blocks = int(np.ceil(len(index_files) / 10000))
+    for index_files_subset in tqdm(sip(index_files, 10000), total=num_blocks, desc="Block", disable=((not self.config.progress) or (num_blocks == 1))):
       results = self.fetch_index_files(index_files_subset)
 
       parser = simdjson.Parser()
