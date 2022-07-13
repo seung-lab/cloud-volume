@@ -21,6 +21,7 @@ import pyspng
 import simplejpeg
 import compresso
 import fastremap
+import pyzfp
 
 from PIL import Image
 
@@ -49,7 +50,7 @@ except ImportError:
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
   "compressed_segmentation", "compresso",
-  "jpeg", "png"
+  "jpeg", "png", "zfp"
 )
 
 def encode(
@@ -64,6 +65,10 @@ def encode(
   elif encoding == "fpzip":
     img_chunk = np.asfortranarray(img_chunk)
     return fpzip.compress(img_chunk, order='F')
+  elif encoding == "zfp":
+    # arguments: tolerance, precision, rate, parallel
+    # will need to figure out how to integrate into CV
+    return pyfpz.compress(np.asfortranarray(img_chunk))
   elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
   elif encoding == "compresso":
@@ -100,6 +105,8 @@ def decode(
     return decode_kempressed(filedata)
   elif encoding == "fpzip":
     return fpzip.decompress(filedata, order='F')
+  elif encoding == "zfp":
+    return pyfpz.decompress(filedata)
   elif encoding == "compressed_segmentation":
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
   elif encoding == "compresso":
