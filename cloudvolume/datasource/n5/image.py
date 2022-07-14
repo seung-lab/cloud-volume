@@ -49,8 +49,14 @@ class N5ImageSource(ImageSourceInterface):
     toint = lambda n: int.from_bytes(n, byteorder="big", signed=False)
 
     mode = toint(binary[0:2])
-    ndim = toint(binary[2:4])
 
+    if mode != 0:
+      raise exceptions.DecodingError(
+        f"This implementation cannot read volumes "
+        f"with mode != 0. Got mode: {mode}"
+      )
+
+    ndim = toint(binary[2:4])
     dims = [ toint(binary[4+4*i:4+4*(i+1)]) for i in range(ndim) ]
     while len(dims) < 4:
       dims.append(1)
