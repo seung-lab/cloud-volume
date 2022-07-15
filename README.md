@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume) [![PyPI version](https://badge.fury.io/py/cloud-volume.svg)](https://badge.fury.io/py/cloud-volume) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi) [![codecov](https://img.shields.io/badge/codecov-link-%23d819a6)](https://codecov.io/gh/seung-lab/cloud-volume) [![DOI](https://zenodo.org/badge/98333149.svg)](https://zenodo.org/badge/latestdoi/98333149)
 
-# CloudVolume
+# CloudVolume: IO for Neuroglancer Datasets
 
 ```python3
 from cloudvolume import CloudVolume
@@ -38,13 +38,14 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 - Accomodates downloading missing tiles (`fill_missing=True`).
 - Accomodates uploading compressed black tiles to erasure coded file systems (`delete_black_uploads=True`).
 - Growing support for the Neuroglancer [sharded format](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) which dramatically condenses the number of files required to represent petascale datasets, similar to [Cloud Optimized GeoTIFF](https://www.cogeo.org/), which can result in [dramatic cost savings](https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People).
+- Reads Precomputed meshes and skeletons.
 - Includes viewers for small images, meshes, and skeletons.
 - Only 3 dimensions + RBG channels currently supported for images.
 - No data versioning.
 
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with 3.6, 3.7, 3.8, and 3.9. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
+Cloud-volume is regularly tested on Ubuntu with 3.7, 3.8, 3.9 and 3.10. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
 
 #### `pip` Binary Installation
 
@@ -186,14 +187,16 @@ The format or protocol fields may be omitted where required. In the case of the 
 | precomputed | gs, s3, http, https, file, matrix, tigerdata | Yes     | gs://mybucket/dataset/layer            |
 | graphene    | gs, s3, http, https, file, matrix, tigerdata |         | graphene://gs://mybucket/dataset/layer |
 | boss        | N/A                                          |         | boss://collection/experiment/channel   |
+| n5          | gs, s3, http, https, file, matrix, tigerdata |         | n5://mybucket/dataset/layer                          |
 
 ### Supported Formats
 
 * precomputed: Neuroglancer's native format. ([specification](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed))
 * graphene: Precomputed based format used by the PyChunkGraph server.
 * boss: The BOSS (https://docs.theboss.io/docs)
+* n5: Not HDF5 (https://github.com/saalfeldlab/n5)  
 
-We currently support reading the sharded skeleton format within Precomputed that is used in some newer datasets. Other data types are forthcoming.
+We currently support reading the sharded format within Precomputed. Support for annotations is forthcoming.
 
 ### Supported Protocols
 
