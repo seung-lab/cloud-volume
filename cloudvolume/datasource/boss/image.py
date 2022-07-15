@@ -14,6 +14,7 @@ from ...lib import (
 )
 from ...secrets import boss_credentials
 from ...volumecutout import VolumeCutout
+from ..precomputed.image.common import shade
 
 class BossImageSource(ImageSourceInterface):
   def __init__(
@@ -78,7 +79,7 @@ class BossImageSource(ImageSourceInterface):
     # is needed.
     shape = list(bbox.size3()) + [ cutout.shape[3] ]
     renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order='F')
-    txrx.shade(renderbuffer, bbox, cutout, bounds)
+    shade(renderbuffer, bbox, cutout, bounds)
     return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
 
   @readonlyguard

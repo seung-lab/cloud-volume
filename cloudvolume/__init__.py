@@ -83,6 +83,11 @@ try:
 except ImportError:
   pass
 
+try:
+  from .datasource.n5 import register as register_n5
+  register_n5()
+except ImportError:
+  pass
 
 
 
