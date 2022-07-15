@@ -194,9 +194,7 @@ The format or protocol fields may be omitted where required. In the case of the 
 * precomputed: Neuroglancer's native format. ([specification](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed))
 * graphene: Precomputed based format used by the PyChunkGraph server.
 * boss: The BOSS (https://docs.theboss.io/docs)
-* n5: Not HDF5 (https://github.com/saalfeldlab/n5)  
-
-We currently support reading the sharded format within Precomputed. Support for annotations is forthcoming.
+* n5: Not HDF5 (https://github.com/saalfeldlab/n5) Read-only support. Supports raw, gzip, bz2, and xz but not lz4 compression. mode 0 datasets only.
 
 ### Supported Protocols
 
