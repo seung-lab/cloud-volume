@@ -187,7 +187,7 @@ The format or protocol fields may be omitted where required. In the case of the 
 | precomputed | gs, s3, http, https, file, matrix, tigerdata | Yes     | gs://mybucket/dataset/layer            |
 | graphene    | gs, s3, http, https, file, matrix, tigerdata |         | graphene://gs://mybucket/dataset/layer |
 | boss        | N/A                                          |         | boss://collection/experiment/channel   |
-| n5          | gs, s3, http, https, file, matrix, tigerdata |         | n5://mybucket/dataset/layer                          |
+| n5          | gs, s3, http, https, file, matrix, tigerdata |         | n5://gs://mybucket/dataset/layer       |
 
 ### Supported Formats
 
