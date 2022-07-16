@@ -3,6 +3,8 @@ from cloudfiles import CloudFiles
 from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
 from cloudvolume.lib import jsonify, Vec, Bbox
 
+from ...provenance import DataLayerProvenance
+
 class N5Metadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache, info=None):
     
@@ -22,6 +24,7 @@ class N5Metadata(PrecomputedMetadata):
     }
 
     self.info = self.fetch_info()
+    self.provenance = DataLayerProvenance()
 
   def commit_info(self):
     """We only are supporing read-only."""
