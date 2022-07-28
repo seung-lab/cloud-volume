@@ -730,6 +730,37 @@ def test_write_compressed_segmentation():
   
   assert np.all(data == data2)
 
+def test_write_zfpc():
+  delete_layer()
+  cv, data = create_layer(
+    size=(128,64,64,1), offset=(0,0,0), 
+    layer_type="affinities", dtype=np.float32
+  )
+
+  # delete gzipped data (.gz) files
+  # which will take precedence over
+  # the non-gzipped zfpc files with 
+  # no extension
+  cv.delete(cv.bounds) 
+
+  cv.info['num_channels'] = 1
+  cv.info['data_type'] = 'float32'
+  cv.scale['encoding'] = 'zfpc'
+  cv.commit_info()
+
+  cv[:] = data.astype(np.float32)
+  data2 = cv[:]
+
+  assert np.all(data == data2)
+
+  cv.info['data_type'] = 'float64'
+  cv.commit_info()
+
+  cv[:] = data.astype(np.float64)
+  data2 = cv[:]
+  
+  assert np.all(data == data2)
+
 # def test_reader_negative_indexing():
 #     """negative indexing is supported"""
 #     delete_layer()
