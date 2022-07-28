@@ -521,6 +521,31 @@ Hops:
 
     return encoding
 
+  def compression_params(self, mip):
+    encoding = self.encoding(mip)
+    if encoding == 'zfpc':
+      return self.zfpc_encoding_params(mip)
+    elif encoding == 'compressed_segmentation':
+      return { "block_size": self.compressed_segmentation_block_size(mip) }
+    else:
+      return {}
+
+  def zfpc_encoding_params(self, mip):
+    """
+    Returns tuning arguments for zfpc.compress.
+
+    Reads parameters from scale:
+    zfpc_rate, zfpc_precision, zfpc_tolerance, 
+    and zfpc_correlated_dims ([bool x 4])
+    """
+    scale = self.scale(mip)
+    return {
+      'rate': scale.get('zfpc_rate', -1),
+      'precision': scale.get('zfpc_precision', -1),
+      'tolerance': scale.get('zfpc_tolerance', -1),
+      'correlated_dims': scale.get('zfpc_correlated_dims', [True]*4),
+    }
+
   def compressed_segmentation_block_size(self, mip):
     if 'compressed_segmentation_block_size' in self.info['scales'][mip]:
       return self.info['scales'][mip]['compressed_segmentation_block_size']

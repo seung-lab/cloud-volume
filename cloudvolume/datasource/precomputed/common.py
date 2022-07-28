@@ -1,14 +1,14 @@
 def content_type(encoding):
   if encoding == 'jpeg':
     return 'image/jpeg'
-  elif encoding in ('compresso', 'compressed_segmentation', 'fpzip', 'kempressed'):
+  elif encoding in ('compresso', 'compressed_segmentation', 'fpzip', 'kempressed', 'zfpc'):
     return 'image/x.' + encoding 
   return 'application/octet-stream'
 
 def should_compress(encoding, compress, cache, iscache=False):
   if iscache and cache.compress != None:
     return cache.compress
-
+  
   if compress is None:
     return 'gzip' if encoding in ('raw', 'compressed_segmentation', 'compresso') else None
   elif compress == True:

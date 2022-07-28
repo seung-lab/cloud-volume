@@ -578,6 +578,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       labels[morton_code] = chunks.encode(
         chunk, self.meta.encoding(mip),
         block_size=self.meta.compressed_segmentation_block_size(mip),
+        compression_params=self.meta.compression_params(mip),
       )
 
     shard_filename = reader.get_filename(first(labels.keys()))

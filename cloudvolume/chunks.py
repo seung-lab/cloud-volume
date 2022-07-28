@@ -21,7 +21,7 @@ import pyspng
 import simplejpeg
 import compresso
 import fastremap
-import pyzfp
+import zfpc
 
 from PIL import Image
 
@@ -50,13 +50,14 @@ except ImportError:
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
   "compressed_segmentation", "compresso",
-  "jpeg", "png", "zfp"
+  "jpeg", "png", "zfpc"
 )
 
 def encode(
   img_chunk:np.ndarray, 
   encoding:str, 
-  block_size:Optional[Sequence[int]] = None
+  block_size:Optional[Sequence[int]] = None,
+  compression_params:dict = {},
 ) -> bytes:
   if encoding == "raw":
     return encode_raw(img_chunk)
@@ -65,10 +66,8 @@ def encode(
   elif encoding == "fpzip":
     img_chunk = np.asfortranarray(img_chunk)
     return fpzip.compress(img_chunk, order='F')
-  elif encoding == "zfp":
-    # arguments: tolerance, precision, rate, parallel
-    # will need to figure out how to integrate into CV
-    return pyfpz.compress(np.asfortranarray(img_chunk))
+  elif encoding == "zfpc":
+    return zfpc.compress(np.asfortranarray(img_chunk), **compression_params)
   elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
   elif encoding == "compresso":
@@ -105,8 +104,8 @@ def decode(
     return decode_kempressed(filedata)
   elif encoding == "fpzip":
     return fpzip.decompress(filedata, order='F')
-  elif encoding == "zfp":
-    return pyfpz.decompress(filedata)
+  elif encoding == "zfpc":
+    return zfpc.decompress(filedata)
   elif encoding == "compressed_segmentation":
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
   elif encoding == "compresso":
@@ -331,10 +330,4 @@ def read_voxel(
   else:
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
-
-
-
-
-
-
 
