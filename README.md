@@ -33,7 +33,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 - Multi-threaded, supports multi-process and green threads.
 - Memory optimized, supports shared memory.
-- Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`compresso`](https://github.com/seung-lab/compresso), [`fpzip`](https://github.com/seung-lab/fpzip/), [`png`](https://en.wikipedia.org/wiki/Portable_Network_Graphics), and [`brotli`](https://en.wikipedia.org/wiki/Brotli))
+- Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`compresso`](https://github.com/seung-lab/compresso), [`fpzip`](https://github.com/seung-lab/fpzip/), [`zfpc`](https://github.com/seung-lab/zfpc), [`png`](https://en.wikipedia.org/wiki/Portable_Network_Graphics), and [`brotli`](https://en.wikipedia.org/wiki/Brotli))
 - Understands image hierarchies & anisotropic pixel resolutions.
 - Accomodates downloading missing tiles (`fill_missing=True`).
 - Accomodates uploading compressed black tiles to erasure coded file systems (`delete_black_uploads=True`).
@@ -220,7 +220,7 @@ info = CloudVolume.create_new_info(
     num_channels    = 1,
     layer_type      = 'segmentation',
     data_type       = 'uint64', # Channel images might be 'uint8'
-    # raw, png, jpeg, compressed_segmentation, fpzip, kempressed, compresso
+    # raw, png, jpeg, compressed_segmentation, fpzip, kempressed, zfpc, compresso
     encoding        = 'raw', 
     resolution      = [4, 4, 40], # Voxel scaling, units are in nanometers
     voxel_offset    = [0, 0, 0], # x,y,z offset in voxels from the origin
@@ -243,9 +243,11 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | compresso               | Segmentation               | Y        | Y           | Lossless high compression algorithm for connectomics segmentation.                       |
 | fpzip                   | Floating Point             | Y        | Y*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  |
 | kempressed              | Anisotropic Z Floating Point | N**      | Y*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
+| zfpc                    | Alignment Vector Fields    | N***     | N           | zfp stream container.                        |
 
 \* Not integrated into official Neuroglancer yet, but available [on a branch](https://github.com/william-silversmith/neuroglancer/tree/wms_fpzip).
 \*\* Lossless if your data can handle adding and then subtracting 2.
+\*\*\* Lossless by default, but you probably want to use the lossy mode.
 
 ### Examples
 
@@ -569,6 +571,7 @@ Python 2.7 is no longer supported by CloudVolume. Updated versions of `pip` will
 4. [compressed_segmentation](https://github.com/seung-lab/compressedseg): A Python Package wrapping the code for the compressed_segmentation format developed by Jeremy Maitin-Shepard and Stephen Plaza.
 5. [Kimimaro](https://github.com/seung-lab/kimimaro): High performance skeletonization of densely labeled 3D volumes.
 6. [compresso](https://github.com/seung-lab/compresso): High lossless compression of connectomics segmentation. Algorithm by and code derived from Matejek et al.
+7. [zfpc](https://github.com/seung-lab/zfpc): Optimized zfp multi-stream container for alignment vector fields (and similar floating point data).
 
 ## Acknowledgments
 
