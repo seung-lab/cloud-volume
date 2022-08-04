@@ -285,7 +285,11 @@ def threaded_upload_chunks(
   local = CloudFiles('file://' + cache.path, secrets=secrets)
 
   def do_upload(imgchunk, cloudpath):
-    encoded = chunks.encode(imgchunk, meta.encoding(mip), meta.compressed_segmentation_block_size(mip))
+    encoded = chunks.encode(
+      imgchunk, meta.encoding(mip), 
+      meta.compressed_segmentation_block_size(mip),
+      compression_params=meta.compression_params(mip),
+    )
 
     if lru is not None:
       lru[cloudpath] = encoded
@@ -294,7 +298,7 @@ def threaded_upload_chunks(
     cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)
     remote_compress = compression.normalize_encoding(remote_compress)
     cache_compress = compression.normalize_encoding(cache_compress)
-
+    
     encoded = compression.compress(encoded, remote_compress)
     cache_encoded = encoded
     if remote_compress != cache_compress:
