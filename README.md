@@ -250,6 +250,11 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 \*\* Lossless if your data can handle adding and then subtracting 2.
 \*\*\* Lossless by default, but you probably want to use the lossy mode.
 
+Note on `compressed_segmentation`: To use, make sure `compressed_segmentation_block_size` is specified (usually `[8,8,8]`. This field will appear in the `info` file in the relevant scale.
+
+Note on `zfpc`: To configure, use the fields `zfpc_rate`, `zfpc_precision`, `zfpc_tolerance`, `zfpc_correlated_dims` in the relevant scale of the `info` file.
+
+
 ### Examples
 
 ```python
