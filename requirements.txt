@@ -26,5 +26,5 @@ simplejpeg
 six>=1.10.0
 tenacity>=4.10.0
 tqdm
-urllib3[secure,brotli]>=1.25.7
+urllib3[brotli]>=1.25.7
 zfpc
