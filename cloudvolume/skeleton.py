@@ -74,14 +74,14 @@ class Skeleton(object):
     self.space = space
 
     if vertices is None:
-      self.vertices = np.array([[]], dtype=np.float32)
+      self.vertices = np.array([[]], dtype=np.float32).reshape(0,3)
     elif type(vertices) is list:
       self.vertices = np.array(vertices, dtype=np.float32)
     else:
       self.vertices = vertices.astype(np.float32)
 
     if edges is None:
-      self.edges = np.array([[]], dtype=np.uint32)
+      self.edges = np.array([[]], dtype=np.uint32).reshape(0,2)
     elif type(edges) is list:
       self.edges = np.array(edges, dtype=np.uint32)
     else:
