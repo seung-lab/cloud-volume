@@ -1,3 +1,5 @@
+from typing import List
+
 from collections.abc import Iterable
 import json
 import os
