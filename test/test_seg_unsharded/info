@@ -1,0 +1,86 @@
+{
+  "data_type": "uint32",
+  "mesh": "mesh_mip_2_err_40",
+  "num_channels": 1,
+  "scales": [
+    {
+      "chunk_sizes": [
+        [
+          256,
+          256,
+          64
+        ]
+      ],
+      "encoding": "compresso",
+      "key": "8_8_40",
+      "resolution": [
+        8,
+        8,
+        40
+      ],
+      "size": [
+        1024,
+        1024,
+        512
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          256,
+          256,
+          64
+        ]
+      ],
+      "encoding": "compresso",
+      "key": "16_16_40",
+      "resolution": [
+        16,
+        16,
+        40
+      ],
+      "size": [
+        512,
+        512,
+        512
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          256,
+          256,
+          64
+        ]
+      ],
+      "encoding": "compresso",
+      "key": "32_32_40",
+      "resolution": [
+        32,
+        32,
+        40
+      ],
+      "size": [
+        256,
+        256,
+        512
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "type": "segmentation"
+}
