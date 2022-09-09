@@ -1,0 +1,1 @@
+{"@type":"neuroglancer_legacy_mesh","mip":2,"chunk_size":[448,448,448],"spatial_index":{"resolution":[32,32,40],"chunk_size":[14336,14336,17920]}}

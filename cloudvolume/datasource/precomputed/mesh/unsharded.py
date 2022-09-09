@@ -76,15 +76,18 @@ class UnshardedLegacyPrecomputedMeshSource(object):
 
     return contents
 
-  def _get_mesh_fragments(self, paths):
-    paths = [ self.meta.join(self.path, path) for path in paths ]
+  def _get_mesh_fragments(self, path_id_map):
+    paths = [ self.meta.join(self.path, path) for path in path_id_map.keys() ] 
 
     compress = self.config.compress
     if compress is None:
       compress = True
 
     fragments = self.cache.download(paths, compress=compress)
-    fragments = [ (filename, content) for filename, content in fragments.items() ]
+    fragments = [ 
+      (filename, content, path_id_map[os.path.basename(filename)]) 
+      for filename, content in fragments.items() 
+    ]
     fragments = sorted(fragments, key=lambda frag: frag[0]) # make decoding deterministic
     return fragments
 
@@ -147,23 +150,27 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       ))
 
     fragments = self._get_manifests(segids)
-    fragments = fragments.values()
-    fragments = list(itertools.chain.from_iterable(fragments)) # flatten
-    fragments = self._get_mesh_fragments(fragments)
+    path_id_map = {}
+    for segid, paths in fragments.items():
+      for path in paths:
+        path_id_map[path] = segid
+    fragments = self._get_mesh_fragments(path_id_map)
 
     # decode all the fragments
     meshdata = defaultdict(list)
-    for frag in tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer"):
-      segid = filename_to_segid(frag[0])
+    for filename, contents, segid in tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer"):
       try:
-        mesh = Mesh.from_precomputed(frag[1])
+        mesh = Mesh.from_precomputed(contents)
       except Exception:
-        print(frag[0], 'had a problem.')
+        print(filename, 'had a problem.')
         raise
       meshdata[segid].append(mesh)
 
     if not fuse:
-      return { segid: Mesh.concatenate(*meshes) for segid, meshes in six.iteritems(meshdata) }
+      meshdata = { segid: Mesh.concatenate(*meshes) for segid, meshes in meshdata.items() }
+      for mesh in meshdata.values():
+        mesh.vertices = apply_transform(mesh.vertices, self.transform)
+      return meshdata
 
     meshdata = [ (segid, mesh) for segid, mesh in six.iteritems(meshdata) ]
     meshdata = sorted(meshdata, key=lambda sm: sm[0])

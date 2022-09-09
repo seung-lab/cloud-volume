@@ -1,0 +1,160 @@
+{
+  "description": "",
+  "owners": [],
+  "processing": [
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-09-08 19:04 EDT",
+      "method": {
+        "agglomerate": false,
+        "background_color": 0,
+        "bounds": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            2048,
+            2048,
+            512
+          ]
+        ],
+        "compress": "gzip",
+        "delete_black_uploads": false,
+        "dest": "file:///Users/wms/datasets/test_segmentation",
+        "encoding": "compresso",
+        "factor": [
+          2,
+          2,
+          1
+        ],
+        "fill_missing": false,
+        "memory_target": 3500000000,
+        "mip": 0,
+        "shape": [
+          2048,
+          2048,
+          64
+        ],
+        "skip_downsamples": false,
+        "sparse": false,
+        "src": "file:///Users/wms/datasets/pinky40subvol",
+        "task": "TransferTask",
+        "timestamp": null,
+        "translate": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-09-08 19:08 EDT",
+      "method": {
+        "cdn_cache": false,
+        "closed_dataset_edges": true,
+        "compress": "gzip",
+        "dust_threshold": null,
+        "encoding": "precomputed",
+        "fill_missing": false,
+        "layer_path": "file:///Users/wms/datasets/test_segmentation",
+        "max_simplification_error": 40,
+        "mesh_dir": "mesh_mip_0_err_40",
+        "mip": 0,
+        "object_ids": null,
+        "shape": [
+          448,
+          448,
+          448
+        ],
+        "sharded": false,
+        "simplification": true,
+        "spatial_index": true,
+        "task": "MeshTask"
+      }
+    },
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-09-08 19:13 EDT",
+      "method": {
+        "cdn_cache": false,
+        "closed_dataset_edges": true,
+        "compress": "gzip",
+        "dust_threshold": null,
+        "encoding": "precomputed",
+        "fill_missing": false,
+        "layer_path": "file:///Users/wms/datasets/test_segmentation",
+        "max_simplification_error": 40,
+        "mesh_dir": "mesh_mip_0_err_40",
+        "mip": 0,
+        "object_ids": null,
+        "shape": [
+          448,
+          448,
+          448
+        ],
+        "sharded": false,
+        "simplification": true,
+        "spatial_index": true,
+        "task": "MeshTask"
+      }
+    },
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-09-08 19:14 EDT",
+      "method": {
+        "cdn_cache": false,
+        "closed_dataset_edges": true,
+        "compress": "gzip",
+        "dust_threshold": null,
+        "encoding": "precomputed",
+        "fill_missing": false,
+        "layer_path": "file:///Users/wms/datasets/test_segmentation",
+        "max_simplification_error": 40,
+        "mesh_dir": "mesh_mip_2_err_40",
+        "mip": 2,
+        "object_ids": null,
+        "shape": [
+          448,
+          448,
+          448
+        ],
+        "sharded": false,
+        "simplification": true,
+        "spatial_index": true,
+        "task": "MeshTask"
+      }
+    },
+    {
+      "by": "b'william.silversmith@gmail.com'",
+      "date": "2022-09-08 19:25 EDT",
+      "method": {
+        "cdn_cache": false,
+        "closed_dataset_edges": true,
+        "compress": "gzip",
+        "dust_threshold": null,
+        "encoding": "precomputed",
+        "fill_missing": false,
+        "layer_path": "file:///Users/wms/datasets/test_segmentation",
+        "max_simplification_error": 40,
+        "mesh_dir": "mesh_mip_3_err_40",
+        "mip": 3,
+        "object_ids": null,
+        "shape": [
+          448,
+          448,
+          448
+        ],
+        "sharded": false,
+        "simplification": true,
+        "spatial_index": true,
+        "task": "MeshTask"
+      }
+    }
+  ],
+  "sources": [
+    "file:///Users/wms/datasets/pinky40subvol"
+  ]
+}
