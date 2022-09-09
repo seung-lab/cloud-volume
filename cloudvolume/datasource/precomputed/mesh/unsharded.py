@@ -167,7 +167,10 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       meshdata[segid].append(mesh)
 
     if not fuse:
-      return { segid: Mesh.concatenate(*meshes) for segid, meshes in six.iteritems(meshdata) }
+      meshdata = { segid: Mesh.concatenate(*meshes) for segid, meshes in meshdata.items() }
+      for mesh in meshdata.values():
+        mesh.vertices = apply_transform(mesh.vertices, self.transform)
+      return meshdata
 
     meshdata = [ (segid, mesh) for segid, mesh in six.iteritems(meshdata) ]
     meshdata = sorted(meshdata, key=lambda sm: sm[0])
