@@ -231,12 +231,17 @@ class SpatialIndex(object):
     parser = simdjson.Parser()
 
     for index_files in self.fetch_all_index_files(progress=progress):
+      values = ( (os.path.basename(filename),) for filename in index_files.keys() )
+      if mysql_syntax:
+        values = list(values) # doesn't support generators in v8.0.26
+      cur.executemany(f"INSERT INTO index_files(filename) VALUES ({BIND})", values)
+      cur.execute(f"SELECT filename,id from index_files ORDER BY id desc LIMIT {len(index_files)}")
+      filename_id_map = { fname: int(row_id)  for fname, row_id in cur.fetchall() }
+
       for filename, content in index_files.items():
         index_labels = parser.parse(content).keys()
         filename = os.path.basename(filename)
-        cur.execute(f"INSERT INTO index_files(filename) VALUES ({BIND})", (filename,))
-        cur.execute(f"SELECT id from index_files where filename = {BIND}", (filename,))
-        fid = cur.fetchone()[0]
+        fid = filename_id_map[filename]
         values = ( (int(label), fid) for label in index_labels )
         if mysql_syntax:
           values = list(values) # doesn't support generators in v8.0.26
