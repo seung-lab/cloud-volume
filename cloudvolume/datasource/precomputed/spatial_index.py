@@ -1,9 +1,14 @@
 from collections import defaultdict
+import itertools
 import re
 import urllib.parse
 import os 
+import queue
 import sqlite3
+import threading
+import time
 
+import tenacity
 import numpy as np
 import simdjson
 from tqdm import tqdm
@@ -18,9 +23,11 @@ from ...lib import (
   toiter, sip, nvl, getprecision
 )
 
-import threading
-import queue
-import time
+retry = tenacity.retry(
+  reraise=True, 
+  stop=tenacity.stop_after_attempt(7), 
+  wait=tenacity.wait_random_exponential(0.5, 60.0),
+)
 
 def parse_db_path(path):
   """
@@ -56,7 +63,7 @@ def parse_db_path(path):
     "path": path,
   }
 
-def connect(path):
+def connect(path, use_database=True):
   result = parse_db_path(path)
 
   if result["scheme"] == "sqlite":
@@ -81,7 +88,7 @@ def connect(path):
     user=result["username"],
     passwd=result["password"],
     port=(result["port"] or 3306), # default MySQL port
-    database=result["path"]
+    database=(result["path"] if use_database else None),
   )
 
 class SpatialIndex(object):
@@ -242,10 +249,8 @@ class SpatialIndex(object):
     finished_loading_evt = threading.Event()
     query_lock = threading.Lock()
 
-    # if parallel > 1 and mysql_syntax:
     if parallel > 1:
       qu = queue.Queue(maxsize=(2 * parallel + 1))
-      # thread_safe_insert(path, finished_loading_evt, qu, progress, mysql_syntax)
       threads = [ 
         threading.Thread(
           target=thread_safe_insert, 
@@ -305,7 +310,7 @@ class SpatialIndex(object):
     """
     progress = nvl(progress, self.config.progress)
     parse = parse_db_path(path)
-    conn = connect(path)
+    conn = connect(path, use_database=False) # in case no DB exists yet
     cur = conn.cursor()
 
     database_name = parse["path"] or "spatial_index"
@@ -350,8 +355,7 @@ class SpatialIndex(object):
     """
     conn = sqlite3.connect(path)
     cur = conn.cursor()
-    cur.execute("PRAGMA journal_mode = MEMORY")
-    cur.execute("PRAGMA synchronous = OFF")
+    set_journaling_to_performance_mode(cur, mysql_syntax=False)
     self._to_sql_common(conn, cur, path, create_indices, progress, mysql_syntax=False)
     cur.execute("PRAGMA journal_mode = DELETE")
     cur.execute("PRAGMA synchronous = FULL")
@@ -548,6 +552,9 @@ class SpatialIndex(object):
 def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
   conn = connect(path)
   cur = conn.cursor()
+
+  set_journaling_to_performance_mode(cur, mysql_syntax)
+
   print("started thread", threading.current_thread().native_id)
   try:
     while not evt.is_set() or not qu.empty():
@@ -583,22 +590,38 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
   with lock:
     cur.executemany(f"INSERT INTO index_files(filename) VALUES ({BIND})", values)
     cur.execute(f"SELECT filename,id from index_files ORDER BY id desc LIMIT {len(index_files)}")
-  
-  filename_id_map = { fname: int(row_id) for fname, row_id in cur.fetchall() }
+
+  filename_id_map = { 
+    bytes(fname).decode("utf8"): int(row_id) 
+    for fname, row_id in cur.fetchall() 
+  }
 
   parser = simdjson.Parser()
 
   all_values = []
   for filename, content in index_files.items():
+    if content is None:
+      continue
     index_labels = parser.parse(content).keys()
     filename = os.path.basename(filename)
     fid = filename_id_map[filename]
     all_values.extend(( (int(label), fid) for label in index_labels ))
   
-  for chunked_values in sip(all_values, 500000):
+  @retry
+  def insert_file_lookup_values(cur, chunked_values):
     cur.executemany(f"INSERT INTO file_lookup(label, fid) VALUES ({BIND},{BIND})", chunked_values)
 
-  conn.commit()
+  for chunked_values in sip(all_values, 500000):
+    insert_file_lookup_values(cur, chunked_values)
+    conn.commit()
+
+def set_journaling_to_performance_mode(cur, mysql_syntax):
+  if mysql_syntax:
+    cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+  else: # sqlite
+    cur.execute("PRAGMA journal_mode = MEMORY")
+    cur.execute("PRAGMA synchronous = OFF")
+  return cur
 
 class CachedSpatialIndex(SpatialIndex):
   def __init__(
