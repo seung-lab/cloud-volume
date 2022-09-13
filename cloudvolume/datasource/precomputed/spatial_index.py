@@ -18,6 +18,10 @@ from ...lib import (
   toiter, sip, nvl, getprecision
 )
 
+import threading
+import queue
+import time
+
 def parse_db_path(path):
   """
   sqlite paths: filename.db
@@ -202,13 +206,20 @@ class SpatialIndex(object):
 
     return IndexPathIterator()
 
-  def _to_sql_common(self, conn, cur, create_indices, progress, mysql_syntax=False):
+  def _to_sql_common(
+    self, conn, cur, path,
+    create_indices, allow_missing, 
+    progress, mysql_syntax=False, parallel=1
+  ):
     # handle SQLite vs MySQL syntax quirks
     BIND = '%s' if mysql_syntax else '?'
     AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
     INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
 
     progress = nvl(progress, self.config.progress)
+    if parallel < 1 or parallel != int(parallel):
+      raise ValueError(f"parallel must be an integer >= 1. Got: {parallel}")
+
     cur.execute("""DROP TABLE IF EXISTS index_files""")
     cur.execute("""DROP TABLE IF EXISTS file_lookup""")
 
@@ -228,25 +239,32 @@ class SpatialIndex(object):
       )
     """)
 
-    parser = simdjson.Parser()
+    finished_loading_evt = threading.Event()
+    query_lock = threading.Lock()
 
-    for index_files in self.fetch_all_index_files(progress=progress):
-      values = ( (os.path.basename(filename),) for filename in index_files.keys() )
-      if mysql_syntax:
-        values = list(values) # doesn't support generators in v8.0.26
-      cur.executemany(f"INSERT INTO index_files(filename) VALUES ({BIND})", values)
-      cur.execute(f"SELECT filename,id from index_files ORDER BY id desc LIMIT {len(index_files)}")
-      filename_id_map = { fname: int(row_id)  for fname, row_id in cur.fetchall() }
+    # if parallel > 1 and mysql_syntax:
+    if parallel > 1:
+      qu = queue.Queue(maxsize=(2 * parallel + 1))
+      # thread_safe_insert(path, finished_loading_evt, qu, progress, mysql_syntax)
+      threads = [ 
+        threading.Thread(
+          target=thread_safe_insert, 
+          args=(path, query_lock, finished_loading_evt, qu, progress, mysql_syntax)
+        )
+        for i in range(parallel) 
+      ]
+      for t in threads:
+        t.start()
 
-      for filename, content in index_files.items():
-        index_labels = parser.parse(content).keys()
-        filename = os.path.basename(filename)
-        fid = filename_id_map[filename]
-        values = ( (int(label), fid) for label in index_labels )
-        if mysql_syntax:
-          values = list(values) # doesn't support generators in v8.0.26
-        cur.executemany(f"INSERT INTO file_lookup(label, fid) VALUES ({BIND},{BIND})", values)
-      conn.commit()
+      for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing):
+        print("put index files... qsize: ", qu.qsize())
+        qu.put(index_files)
+
+      finished_loading_evt.set()
+      qu.join()
+    else:
+      for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing):
+        insert_index_files(index_files, query_lock, conn, cur, progress, mysql_syntax)
 
     if create_indices:
       if progress:
@@ -257,20 +275,30 @@ class SpatialIndex(object):
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
 
-  def to_sql(self, path=None, create_indices=True, progress=None):
+  def to_sql(
+    self, path=None, create_indices=True, 
+    allow_missing=False,
+    progress=None, parallel=1
+  ):
     path = path or self.sql_db
     parse = parse_db_path(path)
     if parse["scheme"] == "sqlite":
-      return self.to_sqlite(parse["path"], create_indices, progress)
+      if parallel != 1:
+        raise ValueError("sqlite supports only one writer at a time.")
+      return self.to_sqlite(parse["path"], create_indices, progress, allow_missing)
     elif parse["scheme"] == "mysql":
-      return self.to_mysql(path, create_indices, progress)
+      return self.to_mysql(path, create_indices, allow_missing, progress, parallel)
     else:
       raise ValueError(
         f"Unsupported database type. {path}\n"
         "Supported types: sqlite:// and mysql://"
       )
 
-  def to_mysql(self, path, create_indices=True, progress=None):
+  def to_mysql(
+    self, path, 
+    create_indices=True, allow_missing=False, 
+    progress=None, parallel=1
+  ):
     """
     Create a mysql database of labels and filenames
     from the JSON spatial_index for faster performance.
@@ -299,7 +327,11 @@ class SpatialIndex(object):
     """)
     cur.execute(f"use {database_name}")
 
-    self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=True)
+    self._to_sql_common(
+      conn, cur, path, 
+      create_indices, allow_missing, progress, 
+      mysql_syntax=True, parallel=parallel,
+    )
     
     cur.close()
     conn.close()
@@ -320,7 +352,7 @@ class SpatialIndex(object):
     cur = conn.cursor()
     cur.execute("PRAGMA journal_mode = MEMORY")
     cur.execute("PRAGMA synchronous = OFF")
-    self._to_sql_common(conn, cur, create_indices, progress, mysql_syntax=False)
+    self._to_sql_common(conn, cur, path, create_indices, progress, mysql_syntax=False)
     cur.execute("PRAGMA journal_mode = DELETE")
     cur.execute("PRAGMA synchronous = FULL")
     cur.close()
@@ -512,6 +544,61 @@ class SpatialIndex(object):
               labels.add(label)
 
     return labels
+
+def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
+  conn = connect(path)
+  cur = conn.cursor()
+  print("started thread", threading.current_thread().native_id)
+  try:
+    while not evt.is_set() or not qu.empty():
+      try:
+        index_files = qu.get(block=False)
+      except queue.Empty:
+        time.sleep(0.1)
+        continue
+      insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax)
+      qu.task_done()
+  finally:
+    cur.close()
+    conn.close()
+
+  print('finished', threading.current_thread().native_id)
+
+def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
+  # handle SQLite vs MySQL syntax quirks
+  BIND = '%s' if mysql_syntax else '?'
+  AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
+  INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
+
+  values = ( (os.path.basename(filename),) for filename in index_files.keys() )
+  if mysql_syntax:
+    values = list(values) # doesn't support generators in v8.0.26
+
+  # This is a critical region as if multiple inserts and queries occur outside
+  # a transaction, you could crash the following code. Fortunately, these 
+  # take much less time than the final insert, so shouldn't be a problem
+  # if a thread blocks.
+  # The select could be rewritten to be order independent at the cost of 
+  # sending more data for a (probably) slower query.
+  with lock:
+    cur.executemany(f"INSERT INTO index_files(filename) VALUES ({BIND})", values)
+    cur.execute(f"SELECT filename,id from index_files ORDER BY id desc LIMIT {len(index_files)}")
+  
+  filename_id_map = { fname: int(row_id) for fname, row_id in cur.fetchall() }
+
+  parser = simdjson.Parser()
+
+  all_values = []
+  for filename, content in index_files.items():
+    index_labels = parser.parse(content).keys()
+    filename = os.path.basename(filename)
+    fid = filename_id_map[filename]
+    all_values.extend(( (int(label), fid) for label in index_labels ))
+  
+  for chunked_values in sip(all_values, 500000):
+    cur.executemany(f"INSERT INTO file_lookup(label, fid) VALUES ({BIND},{BIND})", chunked_values)
+
+  conn.commit()
 
 class CachedSpatialIndex(SpatialIndex):
   def __init__(
