@@ -262,7 +262,6 @@ class SpatialIndex(object):
         t.start()
 
       for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing):
-        print("put index files... qsize: ", qu.qsize())
         qu.put(index_files)
 
       finished_loading_evt.set()
