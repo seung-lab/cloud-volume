@@ -248,27 +248,23 @@ class SpatialIndex(object):
 
     finished_loading_evt = threading.Event()
     query_lock = threading.Lock()
+    
+    qu = queue.Queue(maxsize=(2 * parallel + 1))
+    threads = [ 
+      threading.Thread(
+        target=thread_safe_insert, 
+        args=(path, query_lock, finished_loading_evt, qu, progress, mysql_syntax)
+      )
+      for i in range(parallel) 
+    ]
+    for t in threads:
+      t.start()
 
-    if parallel > 1:
-      qu = queue.Queue(maxsize=(2 * parallel + 1))
-      threads = [ 
-        threading.Thread(
-          target=thread_safe_insert, 
-          args=(path, query_lock, finished_loading_evt, qu, progress, mysql_syntax)
-        )
-        for i in range(parallel) 
-      ]
-      for t in threads:
-        t.start()
+    for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing):
+      qu.put(index_files)
 
-      for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing):
-        qu.put(index_files)
-
-      finished_loading_evt.set()
-      qu.join()
-    else:
-      for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing):
-        insert_index_files(index_files, query_lock, conn, cur, progress, mysql_syntax)
+    finished_loading_evt.set()
+    qu.join()
 
     if create_indices:
       if progress:
