@@ -342,7 +342,8 @@ class SpatialIndex(object):
 
   def to_sqlite(
     self, path="spatial_index.db", 
-    create_indices=True, progress=None
+    create_indices=True, allow_missing=False,
+    progress=None
   ):
     """
     Create a sqlite database of labels and filenames
@@ -355,7 +356,11 @@ class SpatialIndex(object):
     conn = sqlite3.connect(path)
     cur = conn.cursor()
     set_journaling_to_performance_mode(cur, mysql_syntax=False)
-    self._to_sql_common(conn, cur, path, create_indices, progress, mysql_syntax=False)
+    self._to_sql_common(
+      conn, cur, path, 
+      create_indices, allow_missing, progress, 
+      mysql_syntax=False
+    )
     cur.execute("PRAGMA journal_mode = DELETE")
     cur.execute("PRAGMA synchronous = FULL")
     cur.close()
@@ -590,8 +595,16 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
     cur.executemany(f"INSERT INTO index_files(filename) VALUES ({BIND})", values)
     cur.execute(f"SELECT filename,id from index_files ORDER BY id desc LIMIT {len(index_files)}")
 
+  def tostr(x):
+    if isinstance(x, bytearray):
+      return bytes(x).decode("utf8")
+    elif isinstance(x, bytes):
+      return x.decode("utf8")
+    else:
+      return x
+
   filename_id_map = { 
-    bytes(fname).decode("utf8"): int(row_id) 
+    tostr(fname): int(row_id) 
     for fname, row_id in cur.fetchall() 
   }
 
