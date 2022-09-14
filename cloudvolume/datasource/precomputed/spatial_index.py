@@ -248,7 +248,7 @@ class SpatialIndex(object):
 
     finished_loading_evt = threading.Event()
     query_lock = threading.Lock()
-    
+
     qu = queue.Queue(maxsize=(2 * parallel + 1))
     threads = [ 
       threading.Thread(
@@ -503,7 +503,7 @@ class SpatialIndex(object):
     if self.sql_db and fast_path:
       conn = connect(self.sql_db)
       cur = conn.cursor()
-      cur.execute("select label from file_lookup")
+      cur.execute("select distinct label from file_lookup")
       while True:
         rows = cur.fetchmany(size=2**20)
         if len(rows) == 0:
