@@ -29,6 +29,14 @@ retry = tenacity.retry(
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
+def tostr(x):
+  if isinstance(x, bytearray):
+    return bytes(x).decode("utf8")
+  elif isinstance(x, bytes):
+    return x.decode("utf8")
+  else:
+    return x
+
 def parse_db_path(path):
   """
   sqlite paths: filename.db
@@ -476,7 +484,7 @@ class SpatialIndex(object):
       if len(rows) == 0:
         break
       for label, filename in rows:
-        locations[int(label)].append(filename)
+        locations[int(label)].append(tostr(filename))
     conn.close()
     return locations      
 
@@ -590,14 +598,6 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
   with lock:
     cur.executemany(f"INSERT INTO index_files(filename) VALUES ({BIND})", values)
     cur.execute(f"SELECT filename,id from index_files ORDER BY id desc LIMIT {len(index_files)}")
-
-  def tostr(x):
-    if isinstance(x, bytearray):
-      return bytes(x).decode("utf8")
-    elif isinstance(x, bytes):
-      return x.decode("utf8")
-    else:
-      return x
 
   filename_id_map = { 
     tostr(fname): int(row_id) 
