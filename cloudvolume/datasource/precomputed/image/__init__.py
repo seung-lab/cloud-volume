@@ -324,6 +324,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       delete_black_uploads=self.delete_black_uploads,
       background_color=self.background_color,
       non_aligned_writes=self.non_aligned_writes,
+      secrets=self.config.secrets,
       green=self.config.green,
       fill_missing=self.fill_missing, # applies only to unaligned writes
     )
