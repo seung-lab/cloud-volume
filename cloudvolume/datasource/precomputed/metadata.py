@@ -529,6 +529,8 @@ Hops:
       return self.zfpc_encoding_params(mip)
     elif encoding == 'compressed_segmentation':
       return { "block_size": self.compressed_segmentation_block_size(mip) }
+    elif encoding in ('png', 'jpeg', 'fpzip'):
+      return { "level": self.config.encoding_level }
     else:
       return {}
 

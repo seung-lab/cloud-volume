@@ -25,7 +25,7 @@ import zfpc
 
 from PIL import Image
 
-from .lib import yellow
+from .lib import yellow, nvl
 
 try:
   import compressed_segmentation as cseg
@@ -59,13 +59,15 @@ def encode(
   block_size:Optional[Sequence[int]] = None,
   compression_params:dict = {},
 ) -> bytes:
+  level = compression_params.get("level", None)
+
   if encoding == "raw":
     return encode_raw(img_chunk)
   elif encoding == "kempressed":
     return encode_kempressed(img_chunk)
   elif encoding == "fpzip":
     img_chunk = np.asfortranarray(img_chunk)
-    return fpzip.compress(img_chunk, order='F')
+    return fpzip.compress(img_chunk, order='F', precision=nvl(level, 0))
   elif encoding == "zfpc":
     return zfpc.compress(np.asfortranarray(img_chunk), **compression_params)
   elif encoding == "compressed_segmentation":
@@ -73,9 +75,9 @@ def encode(
   elif encoding == "compresso":
     return compresso.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
-    return encode_jpeg(img_chunk)
+    return encode_jpeg(img_chunk, nvl(level, 85))
   elif encoding == "png":
-    return encode_png(img_chunk)
+    return encode_png(img_chunk, nvl(level, 9))
   elif encoding == "npz":
     return encode_npz(img_chunk)
   elif encoding == "npz_uint8":

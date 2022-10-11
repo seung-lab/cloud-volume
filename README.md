@@ -400,40 +400,138 @@ res = cloudvolume.dask.to_cloudvolume(arr, cloudpath, compute=bool, return_store
 ### CloudVolume Constructor
 
 ```python3
-CloudVolume(cloudpath,
-     mip=0, bounded=True, fill_missing=False, autocrop=False,
-     cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None,
-     compress=None, non_aligned_writes=False, parallel=1,
-     delete_black_uploads=False, background_color=0,
-     green_threads=False, use_https=False,
-     max_redirects=10, mesh_dir=None, skel_dir=None,
-     secrets=None, lru_bytes=0)
+CloudVolume(
+    cloudpath:str, mip:int=0, bounded:bool=True, 
+    autocrop:bool=False, fill_missing:bool=False, cache:CacheType=False, 
+    compress_cache:CompressType=None, cdn_cache:bool=True, 
+    progress:bool=INTERACTIVE, info:dict=None, provenance:dict=None,
+    compress:CompressType=None, compress_level:Optional[int]=None, 
+    non_aligned_writes:bool=False, parallel:ParallelType=1, delete_black_uploads:bool=False, 
+    background_color:int=0, green_threads:bool=False, use_https:bool=False,
+    max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
+    agglomerate:bool=False, secrets:SecretsType=None, 
+    spatial_index_db:Optional[str]=None, lru_bytes:int = 0,
+    encoding_level:Optional[int]=None,
+)
 ```
 
-* mip - Which mip level to access
-* bounded - Whether access is allowed outside the bounds defined in the info file
-* fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException? Note that under conditions of high load, it's possible for fill_missing to be activated for existing files. Set to false for extra safety.
-* cache - Save uploads/downloads to disk. You can also provide a string path instead of a boolean to specify a custom cache location.
-* compress_cache - Override default cache compression behavior if set to a boolean.
-* autocrop - If bounded is False, automatically crop requested uploads and downloads to the volume boundary.
-* cdn_cache - Set the HTTP Cache-Control header on uploaded image chunks.
-* progress - Show progress bars. Defaults to True if in python interactive mode else default False.
-* info - Use this info object rather than pulling from the cloud (useful for creating new layers).
-* provenance - Use this object as the provenance file.
-* compress - None, 'gzip' or 'br', force this compression algorithm to be used for upload
-* non_aligned_writes - True/False. If False, non-chunk-aligned writes will trigger an error with a helpful message. If True,
-    Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes)
-* parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading
-   that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
-* delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all background (usually all zeros). This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
-* background_color - Number. Determines the background color that `delete_black_uploads` will scan for (typically zero).
-* green_threads - True/False. If True, use the gevent cooperative threading library instead of preemptive threads. This requires monkey patching your program which may be undesirable. However, for certain workloads this can be a significant performance improvement on multi-core devices.
-* use_https - True/False. If True, use the same read-only access urls that neuroglancer does that may be cached vs the secured read/write strongly consistent API. Use this when you do not have credentials.
-* max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).
-* mesh_dir - str. If specified, override the mesh directory specified in the info file.
-* skel_dir - str. If specified, override the skeletons directory specified in the info file.
-* secrets - str, JSON string, or dict. If specified, use this credential to access the dataset. You can pass it in the same form as the various *-secret.json files appear. If not provided, the various secret files will be consulted.*
-* lru_bytes - int >= 0. A least recently used (LRU) cache for images whose size is measured in bytes of data stored. This cache can help accelerate sequences of operations that have a high degree of spatial locality such as accessing voxels corresponding to skeleton nodes. Images are stored decompressed but not decoded. This means that formats that compress well and are approximately random access (e.g. `compresso`, `compressed_segmentation`) can be stored in great quantity and still have high performance. `raw` is stored as fully decoded numpy arrays and so is very fast but also very memory intensive.
+
+*      agglomerate: (bool, graphene only) sets the default mode for downloading
+        images to agglomerated (True) vs watershed (False).
+*      autocrop: (bool) If the specified retrieval bounding box exceeds the
+          volume bounds, process only the area contained inside the volume. 
+          This can be useful way to ensure that you are staying inside the 
+          bounds when `bounded=False`.
+*      background_color: (number) Specifies what the "background value" of the
+        volume is (traditionally 0). This is mainly for changing the behavior
+        of delete_black_uploads.
+*      bounded: (bool) If a region outside of volume bounds is accessed:
+          True: Throw an error
+          False: Allow accessing the region. If no files are present, an error 
+              will still be thrown. Consider combining this option with 
+              `fill_missing=True`. However, this can be dangrous as it allows
+              missing files and potentially network errors to be intepreted as 
+              zeros.
+*      cache: (bool or str) Store downs and uploads in a cache on disk
+            and preferentially read from it before redownloading.
+          - falsey value: no caching will occur.
+          - True: cache will be located in a standard location.
+          - non-empty string: cache is located at this file path
+
+          After initialization, you can adjust this setting via:
+          `cv.cache.enabled = ...` which accepts the same values.
+
+          Note: This cache is totally separate from the LRU controlled by 
+          lru_bytes.
+
+*      cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
+        image files. Most cloud providers perform some kind of caching. As of 
+        this writing, Google defaults to 3600 seconds. Most of the time you'll 
+        want to go with the default. 
+        - int: number of seconds for cache to be considered fresh (max-age)
+        - bool: True: max-age=3600, False: no-cache
+        - str: set the header manually
+*      compress: (bool, str, None) pick which compression method to use.
+*          None: (default) gzip for raw arrays and no additional compression
+            for compressed_segmentation and fpzip.
+          bool: 
+            True=gzip, 
+            False=no compression, Overrides defaults
+          str: 
+            'gzip': Extension so that we can add additional methods in the future 
+                    like lz4 or zstd. 
+            'br': Brotli compression, better compression rate than gzip
+            '': no compression (same as False).
+*      compress_level: (int, None) level for compression. Higher number results
+          in better compression but takes longer.
+        Defaults to 9 for gzip (ranges from 0 to 9).
+        Defaults to 5 for brotli (ranges from 0 to 11).
+*      compress_cache: (None or bool) If not None, override default compression 
+          behavior for the cache.
+*      delete_black_uploads: (bool) If True, on uploading an entirely black chunk,
+          issue a DELETE request instead of a PUT. This can be useful for avoiding storing
+          tiny files in the region around an ROI. Some storage systems using erasure coding 
+          don't do well with tiny file sizes.
+*      encoding_level: (int, None) For some encoding methods (e.g. png, jpeg, fpzip) a
+        scalar parameter (level/quality/precision) can affect the compression efficiency.
+        For more complex schemes such as zfp, parameters must be embedded in the info file.
+*      fill_missing: (bool) If a chunk file is unable to be fetched:
+          True: Use a block of zeros
+          False: Throw an error
+*      green_threads: (bool) Use green threads instead of preemptive threads. This
+        can result in higher download performance for some compression types. Preemptive
+        threads seem to reduce performance on multi-core machines that aren't densely
+        loaded as the CPython threads are assigned to multiple cores and the thrashing
+        + GIL reduces performance. You'll need to add the following code to the top
+        of your program to use green threads:
+
+            import gevent.monkey
+            gevent.monkey.patch_all(threads=False)
+*      lru_bytes: (int) number of bytes used to cache recently used image 
+        tiles in memory. This is an in-memory cache and is completely separate from
+        the `cache` parameter that handles disk IO.
+*      info: (dict) In lieu of fetching a neuroglancer info file, use this one.
+          This is useful when creating new datasets and for repeatedly initializing
+          a new cloudvolume instance.
+*      max_redirects: (int) if > 0, allow up to this many redirects via info file 'redirect'
+          data fields. If <= 0, allow no redirections and access the current info file directly
+          without raising an error.
+*      mesh_dir: (str) if not None, override the info['mesh'] key before pulling the
+        mesh info file.
+*      mip: (int or iterable) Which level of downsampling to read and write from.
+          0 is the highest resolution. You can also specify the voxel resolution
+          like mip=[6,6,30] which will search for the appropriate mip level.
+*      non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing 
+          safe without careful design. When not enabled, a 
+          cloudvolume.exceptions.AlignmentError is thrown for non-aligned writes. 
+          
+          https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
+
+      parallel (int: 1, bool): Number of extra processes to launch, 1 means only 
+          use the main process. If parallel is True use the number of CPUs 
+          returned by multiprocessing.cpu_count(). When parallel > 1, shared
+          memory (Linux) or emulated shared memory via files (other platforms) 
+          is used by the underlying download.
+*      progress: (bool) Show progress bars. 
+          Defaults to True in interactive python, False in script execution mode.
+*      provenance: (string, dict) In lieu of fetching a provenance 
+          file, use this one. 
+*      secrets: (dict) provide per-instance authorization tokens. If not provided,
+        defaults to looking in .cloudvolume/secrets for necessary tokens.
+*      skel_dir: (str) if not None, override the info['skeletons'] key before 
+        pulling the skeleton info file.
+*      spatial_index_db: (str) A path to an sqlite3 or mysql database that follows 
+        the following uri schema. sqlite is assumed if no scheme is present in 
+        the uri.
+          [sqlite://]filename.db
+          mysql://<username>:<password>@<host>:<port>/<db_name>
+
+        Igneous generated datasets include a JSON based spatial
+        database that tiles the dataset. This can be fast enough up to about 100 TVx
+        datasets. Above that, a proper database is required for efficient queries.
+        We provide multiple SQL database types that the index can be hosted on.
+*      use_https: (bool) maps gs:// and s3:// to their respective https paths. The 
+        https paths hit a cached, read-only version of the data and may be faster.
 
 ### CloudVolume Methods
 

@@ -7,8 +7,9 @@ import numpy as np
 from cloudvolume.chunks import encode, decode
 from cloudvolume import chunks
 
-def encode_decode(data, format, shape=(64,64,64), num_chan=1):
-  encoded = encode(data, format)
+def encode_decode(data, format, shape=(64,64,64), num_chan=1, level=None):
+  compression_params = { "level": level }
+  encoded = encode(data, format, compression_params)
   result = decode(encoded, format, shape=list(shape) + [ num_chan ], dtype=np.uint8)
 
   assert np.all(result.shape == data.shape)
@@ -102,23 +103,25 @@ def test_npz():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
   encode_decode(random_data, 'npz')
 
-def test_png():
+@pytest.mark.parametrize("level", (None,0,5,9))
+def test_png(level):
   size = [64,64,64]
   random_data = np.random.randint(255, size=size + [1], dtype=np.uint8)
-  encode_decode(random_data, 'png', shape=size)
+  encode_decode(random_data, 'png', shape=size, level=level)
 
 @pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50), (128,128,16), ))
 @pytest.mark.parametrize("num_channels", (1,3))
-def test_jpeg(shape, num_channels):
+@pytest.mark.parametrize("quality", (None,85,75))
+def test_jpeg(shape, num_channels, quality):
   import simplejpeg
 
   xshape = list(shape) + [ num_channels ]
   data = np.zeros(shape=xshape, dtype=np.uint8)
-  encode_decode(data, 'jpeg', shape, num_channels)
-  encode_decode(data + 255, 'jpeg', shape, num_channels)
+  encode_decode(data, 'jpeg', shape, num_channels, level=quality)
+  encode_decode(data + 255, 'jpeg', shape, num_channels, level=quality)
 
   jpg = simplejpeg.decode_jpeg(
-    encode(data, 'jpeg'), 
+    encode(data, 'jpeg', compression_params={ "level": quality }), 
     colorspace="GRAY",
   )
   assert jpg.shape[0] == shape[1] * shape[2]
