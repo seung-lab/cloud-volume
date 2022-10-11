@@ -39,7 +39,7 @@ class SharedConfiguration(object):
     self, cdn_cache:bool, compress:CompressType, 
     compress_level:Optional[int], green:bool,
     mip:int, parallel:ParallelType, progress:bool, secrets:SecretsType,
-    spatial_index_db:Optional[str], encoding_level:Optional[int],
+    spatial_index_db:Optional[str],
     *args, **kwargs
   ):
     if type(parallel) == bool:
@@ -52,7 +52,6 @@ class SharedConfiguration(object):
     self.cdn_cache = cdn_cache
     self.compress = compress
     self.compress_level = compress_level
-    self.encoding_level = encoding_level
     self.green = bool(green)
     self.mip = mip
     self.parallel = parallel 
@@ -73,8 +72,7 @@ class CloudVolume:
     background_color:int=0, green_threads:bool=False, use_https:bool=False,
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
     agglomerate:bool=False, secrets:SecretsType=None, 
-    spatial_index_db:Optional[str]=None, lru_bytes:int = 0,
-    encoding_level:Optional[int]=None,
+    spatial_index_db:Optional[str]=None, lru_bytes:int = 0
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -166,9 +164,6 @@ class CloudVolume:
           issue a DELETE request instead of a PUT. This can be useful for avoiding storing
           tiny files in the region around an ROI. Some storage systems using erasure coding 
           don't do well with tiny file sizes.
-      encoding_level: (int, None) For some encoding methods (e.g. png, jpeg, fpzip) a
-        scalar parameter (level/quality/precision) can affect the compression efficiency.
-        For more complex schemes such as zfp, parameters must be embedded in the info file.
       fill_missing: (bool) If a chunk file is unable to be fetched:
           True: Use a block of zeros
           False: Throw an error

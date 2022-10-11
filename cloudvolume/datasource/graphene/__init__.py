@@ -42,7 +42,6 @@ def create_graphene(
       progress=progress,
       secrets=secrets,
       spatial_index_db=spatial_index_db,
-      encoding_level=None,
     )
 
     def mkcache(cloudpath):

@@ -37,7 +37,6 @@ class PrecomputedMeshSource(object):
       mip=0,
       parallel=1,
       progress=progress,
-      encoding_level=None,
     )
 
     cache = CacheService(

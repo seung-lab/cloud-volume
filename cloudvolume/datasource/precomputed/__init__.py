@@ -27,7 +27,7 @@ def create_precomputed(
     green_threads:bool=False, use_https:bool=False,
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None,
     secrets:SecretsType=None, spatial_index_db:Optional[str]=None, 
-    lru_bytes:int = 0, encoding_level:Optional[int] = None,
+    lru_bytes:int = 0,
     **kwargs # absorb graphene arguments
   ):
     path = strict_extract(cloudpath)
@@ -41,7 +41,6 @@ def create_precomputed(
       progress=progress,
       secrets=secrets,
       spatial_index_db=spatial_index_db,
-      encoding_level=encoding_level,
     )
 
     cache_service = CacheService(
