@@ -255,6 +255,9 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       )
 
   def delete(self, segids):
+    """
+    Removes fragment and manifest files for each segid specified.
+    """
     manifests = self._get_manifests(segids, allow_missing=True)
 
     cf = CloudFiles(self.meta.layerpath)
