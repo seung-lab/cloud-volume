@@ -289,6 +289,8 @@ vol.mesh.save(12345, file_format='obj') # 'ply' and 'obj' are both supported
 vol.mesh.get(12345) # return the mesh as vertices and faces instead of writing to disk
 vol.mesh.get([ 12345, 12346 ]) # return these two segids fused into a single mesh
 vol.mesh.get([ 12345, 12346 ], fuse=False) # return { 12345: mesh, 12346: mesh }
+vol.mesh.put(meshes) # works for unsharded legacy only
+vol.mesh.delete(segids) # works for unsharded meshes only
 
 mesh.viewer() # Opens GUI. Requires vtk.
 
