@@ -75,12 +75,16 @@ def test_put(unsharded_vol):
   cf = CloudFiles(unsharded_vol.mesh.meta.layerpath)
 
   unsharded_vol.mesh.put(mesh)
-  assert list(cf) == ["777:0", "777:0:1"]
+  lst = list(cf)
+  assert "777:0" in lst
+  assert "777:0:1" in lst
   m = unsharded_vol.mesh.get(777, fuse=False)[777]
   assert len(m.faces) == 1
   assert m.segid == 777
   unsharded_vol.mesh.delete(777)
-  assert list(cf) == []
+  lst = list(cf)
+  assert "777:0" not in lst
+  assert "777:0:1" not in lst
 
 def test_duplicate_vertices():
   verts = np.array([

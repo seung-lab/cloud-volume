@@ -176,7 +176,7 @@ class UnshardedLegacyPrecomputedMeshSource(object):
 
     if not fuse:
       meshdata = { 
-          segid: Mesh.concatenate(*meshes) 
+          segid: Mesh.concatenate(*meshes, segid=segid) 
           for segid, meshes in meshdata.items() 
       }
       for mesh in meshdata.values():
