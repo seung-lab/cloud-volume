@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Dict
 
 import zlib
 import io
@@ -21,10 +21,11 @@ import pyspng
 import simplejpeg
 import compresso
 import fastremap
+import zfpc
 
 from PIL import Image
 
-from .lib import yellow
+from .lib import yellow, nvl
 
 try:
   import compressed_segmentation as cseg
@@ -49,29 +50,34 @@ except ImportError:
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
   "compressed_segmentation", "compresso",
-  "jpeg", "png"
+  "jpeg", "png", "zfpc"
 )
 
 def encode(
   img_chunk:np.ndarray, 
   encoding:str, 
-  block_size:Optional[Sequence[int]] = None
+  block_size:Optional[Sequence[int]] = None,
+  compression_params:dict = {},
 ) -> bytes:
+  level = compression_params.get("level", None)
+
   if encoding == "raw":
     return encode_raw(img_chunk)
   elif encoding == "kempressed":
     return encode_kempressed(img_chunk)
   elif encoding == "fpzip":
     img_chunk = np.asfortranarray(img_chunk)
-    return fpzip.compress(img_chunk, order='F')
+    return fpzip.compress(img_chunk, order='F', precision=nvl(level, 0))
+  elif encoding == "zfpc":
+    return zfpc.compress(np.asfortranarray(img_chunk), **compression_params)
   elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
   elif encoding == "compresso":
     return compresso.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
-    return encode_jpeg(img_chunk)
+    return encode_jpeg(img_chunk, nvl(level, 85))
   elif encoding == "png":
-    return encode_png(img_chunk)
+    return encode_png(img_chunk, nvl(level, 9))
   elif encoding == "npz":
     return encode_npz(img_chunk)
   elif encoding == "npz_uint8":
@@ -100,6 +106,8 @@ def decode(
     return decode_kempressed(filedata)
   elif encoding == "fpzip":
     return fpzip.decompress(filedata, order='F')
+  elif encoding == "zfpc":
+    return zfpc.decompress(filedata)
   elif encoding == "compressed_segmentation":
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
   elif encoding == "compresso":
@@ -253,9 +261,9 @@ def decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_s
   return chunk.T
 
 def labels(
-  filedata, encoding, 
+  filedata:bytes, encoding:str, 
   shape=None, dtype=None, 
-  block_size=None, background_color=0
+  block_size=None, background_color:int = 0
 ) -> np.ndarray:
   """
   Extract unique labels from a chunk using
@@ -278,6 +286,27 @@ def labels(
     return compresso.labels(filedata)
   else:
     raise NotImplementedError(f"Encoding {encoding} is not supported. Try: raw, compressed_segmentation, or compresso.")
+
+def remap(
+  filedata:bytes, encoding:str, 
+  mapping:Dict[int,int],
+  preserve_missing_labels=False,
+  shape=None, dtype=None,
+  block_size=None
+) -> bytes:
+  if filedata is None or len(filedata) == 0:
+    return filedata
+  elif encoding == "compressed_segmentation":
+    return cseg.remap(
+      filedata, shape, dtype, mapping, 
+      preserve_missing_labels=preserve_missing_labels, block_size=block_size
+    )
+  elif encoding == "compresso":
+    return compresso.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
+  else:
+    img = decode(filedata, encoding, shape, dtype, block_size)
+    fastremap.remap(img, mapping, preserve_missing_labels=preserve_missing_labels, in_place=True)
+    return encode(img, encoding, block_size)
 
 def read_voxel(
   xyz:Sequence[int], 
@@ -303,10 +332,4 @@ def read_voxel(
   else:
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
-
-
-
-
-
-
 

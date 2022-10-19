@@ -15,6 +15,7 @@ import dateutil.parser
 import fastremap
 import numpy as np
 
+from .. import chunks
 from .. import compression
 from .. import exceptions
 from ..cacheservice import CacheService
@@ -132,6 +133,50 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     stop_layer:Optional[int] = None,
     coord_resolution:Optional[Sequence[int]] = None,
   ) -> set:
+    """
+    Extracts unique labels from segmentation and optionally agglomerates
+    labels based on information in the graph server.
+
+    This operation can be done with download and np.unique but this
+    version scales to much larger sizes and is faster.
+
+    bbox: specifies cutout to fetch
+    mip: which resolution level to get (default self.mip)
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
+
+    agglomerate: if true, remap all watershed ids in the volume
+      and return a flat segmentation.
+
+    if agglomerate is true these options are available:
+
+    timestamp: (agglomerate only) get the roots from this date and time
+      formats accepted:
+        int: unix timestamp
+        datetime: self explainatory
+        string: ISO 8601 date
+    stop_layer: (agglomerate only) (int) if specified, return the lowest 
+      parent at or above that layer. If not specified, go all the way 
+      to the root id. 
+        Layer 1: Watershed
+        Layer 2: Within-Chunk Agglomeration
+        Layer 2+: Between chunk interconnections (skip connections possible)
+
+    If agglomerate is None, then the cv.meta.agglomerate controls
+    its value.
+
+    If agglomerate is false, these other options come into play:
+
+    segids: agglomerate the leaves of these segids from the graph 
+      server and label them with the given segid.
+    preserve_zeros: If segids is not None:
+      False: mask other segids with zero
+      True: mask other segids with the largest integer value
+        contained by the image data type and leave zero as is.
+
+    Returns: set of integers
+    """
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
     
     bbox = Bbox.create(
@@ -174,6 +219,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       ))
 
     labels = set(labels)
+    if segids is None:
+      return labels
 
     for segid in segids:
       leaves = set(self.get_leaves(segid, mip0_bbox, 0))
@@ -195,6 +242,87 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if len(final_labels) < len(labels):
       final_labels.add(mask_value)
     return final_labels
+
+  def download_files(
+    self, bbox, mip=None, 
+    parallel=None, segids=None,
+    agglomerate=None, timestamp=None,
+    stop_layer=None,
+    coord_resolution=None,
+    cache_only=False,
+  ):
+    agglomerate = agglomerate if agglomerate is not None else self.agglomerate
+    
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=(self.bounded and coord_resolution is None), 
+      autocrop=self.autocrop
+    )
+
+    if mip is None:
+      mip = self.mip
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(mip) / coord_resolution
+      bbox /= factor
+      if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
+        raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
+
+    if bbox.subvoxel():
+      raise exceptions.EmptyRequestException(f"Requested {bbox} is smaller than a voxel.")
+
+    if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
+      raise ValueError("Stop layer {} must be 1 <= stop_layer <= {} or None.".format(stop_layer, self.meta.n_layers))
+
+    mip0_bbox = self.bbox_to_mip(bbox, mip=mip, to_mip=0)
+    # Only ever necessary to make requests within the bounding box
+    # to the server. We can fill black in other situations.
+    mip0_bbox = bbox.intersection(self.meta.bounds(0), mip0_bbox)
+
+    files = self.image.download_files(
+      bbox, mip=mip, 
+      decompress=True, parallel=parallel,
+      cache_only=cache_only,
+    )
+
+    labels = set([])
+    for file in files.values():
+      labels.update(chunks.labels(
+        file, 
+        encoding=self.meta.encoding(mip),
+        shape=self.meta.chunk_size(mip),
+        dtype=self.meta.dtype,
+        block_size=self.meta.compressed_segmentation_block_size(mip),
+      ))
+
+    def apply_mapping(mapping):
+      for key in files:
+        files[key] = chunks.remap(
+          files[key], 
+          encoding=self.meta.encoding(mip), 
+          shape=self.meta.chunk_size(mip),
+          dtype=self.meta.dtype,
+          block_size=self.meta.compressed_segmentation_block_size(mip),
+          mapping=mapping,
+          preserve_missing_labels=True,
+        )
+      return files
+
+    if agglomerate:
+      labels = list(labels)
+      roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
+      return apply_mapping({ segid: root for segid, root in zip(labels, roots) })
+    elif segids is None:
+      return files
+
+    segids = list(toiter(segids))
+
+    remapping = {}
+    for segid in segids:
+      leaves = self.get_leaves(segid, mip0_bbox, 0)
+      remapping.update({ leaf: segid for leaf in leaves })
+    
+    return apply_mapping(remapping)
 
   def download(
     self, bbox, mip=None, 

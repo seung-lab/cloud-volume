@@ -18,8 +18,8 @@ try:
 except PermissionError: # allow operation in read-only mode
   pass
 
-def secretpath(filepath):
-  preferred = os.path.join(CLOUD_VOLUME_DIR, filepath)
+def secretpath(*filepaths):
+  preferred = os.path.join(CLOUD_VOLUME_DIR, *filepaths)
   
   if os.path.exists(preferred):
     return preferred
@@ -29,7 +29,7 @@ def secretpath(filepath):
     '/' # original
   ]
 
-  backcompat = [ os.path.join(path, filepath) for path in backcompat ] 
+  backcompat = [ os.path.join(path, *filepaths) for path in backcompat ] 
 
   for path in backcompat:
     if os.path.exists(path):
@@ -39,7 +39,7 @@ def secretpath(filepath):
   return preferred
 
 project_name_paths = [ 
-  secretpath('secrets/project_name'),
+  secretpath('secrets','project_name'),
   secretpath('project_name')
 ]
 
@@ -52,7 +52,7 @@ def default_google_project_name():
         with open(path, 'r') as f:
           return f.read().strip()
 
-  default_credentials_path = secretpath('secrets/google-secret.json')
+  default_credentials_path = secretpath('secrets','google-secret.json')
   if os.path.exists(default_credentials_path):
     with open(default_credentials_path, 'rt') as f:
       return json.loads(f.read())['project_id']
@@ -64,7 +64,7 @@ CredentialCacheType = Dict[str,CredentialType]
 
 PROJECT_NAME = default_google_project_name()
 GOOGLE_CREDENTIALS_CACHE:CredentialCacheType = {}
-google_credentials_path = secretpath('secrets/google-secret.json')
+google_credentials_path = secretpath('secrets','google-secret.json')
 
 def google_credentials(bucket = ''):
   global PROJECT_NAME
@@ -74,11 +74,11 @@ def google_credentials(bucket = ''):
     return GOOGLE_CREDENTIALS_CACHE[bucket]
 
   paths = [
-    secretpath('secrets/google-secret.json')
+    secretpath('secrets','google-secret.json')
   ]
 
   if bucket:
-    paths = [ secretpath('secrets/{}-google-secret.json'.format(bucket)) ] + paths
+    paths = [ secretpath('secrets', f'{bucket}-google-secret.json') ] + paths
 
   google_credentials = None
   project_name = PROJECT_NAME
@@ -99,7 +99,7 @@ def google_credentials(bucket = ''):
   return project_name, google_credentials
 
 AWS_CREDENTIALS_CACHE:CredentialCacheType = defaultdict(dict)
-aws_credentials_path = secretpath('secrets/aws-secret.json')
+aws_credentials_path = secretpath('secrets','aws-secret.json')
 def aws_credentials(bucket = '', service = 'aws'):
   global AWS_CREDENTIALS_CACHE
 
@@ -109,14 +109,14 @@ def aws_credentials(bucket = '', service = 'aws'):
   if bucket in AWS_CREDENTIALS_CACHE.keys():
     return AWS_CREDENTIALS_CACHE[bucket]
 
-  default_file_path = 'secrets/{}-secret.json'.format(service)
+  default_file_path = os.path.join('secrets', f'{service}-secret.json')
 
   paths = [
     secretpath(default_file_path)
   ]
 
   if bucket:
-    paths = [ secretpath('secrets/{}-{}-secret.json'.format(bucket, service)) ] + paths
+    paths = [ secretpath('secrets', f'{bucket}-{service}-secret.json') ] + paths
 
   aws_credentials = {}
   aws_credentials_path = secretpath(default_file_path)
@@ -140,7 +140,7 @@ def aws_credentials(bucket = '', service = 'aws'):
   return aws_credentials
     
 
-boss_credentials_path = secretpath('secrets/boss-secret.json')
+boss_credentials_path = secretpath('secrets','boss-secret.json')
 if os.path.exists(boss_credentials_path):
   with open(boss_credentials_path, 'r') as f:
     boss_credentials = json.loads(f.read())
@@ -157,13 +157,13 @@ def cave_credentials(domain=""):
   if domain in CAVE_CREDENTIALS_CACHE.keys():
     return CAVE_CREDENTIALS_CACHE[domain]
 
-  default_file_path = secretpath('secrets/cave-secret.json')
-  legacy_file_path = secretpath('secrets/chunkedgraph-secret.json')
+  default_file_path = secretpath('secrets','cave-secret.json')
+  legacy_file_path = secretpath('secrets','chunkedgraph-secret.json')
 
   paths = [ default_file_path, legacy_file_path ]
 
   if domain:
-    paths = [ secretpath('secrets/{}-cave-secret.json'.format(domain)) ] + paths
+    paths = [ secretpath('secrets',f'{domain}-cave-secret.json') ] + paths
 
   credentials = {}
   for path in paths:
@@ -184,12 +184,12 @@ def mysql_credentials(domain=""):
   if domain in MYSQL_CREDENTIALS_CACHE.keys():
     return MYSQL_CREDENTIALS_CACHE[domain]
 
-  default_file_path = secretpath('secrets/mysql-secret.json')
+  default_file_path = secretpath('secrets','mysql-secret.json')
 
   paths = [ default_file_path ]
 
   if domain:
-    paths = [ secretpath(f"secrets/{domain}-mysql-secret.json") ] + paths
+    paths = [ secretpath("secrets",f"{domain}-mysql-secret.json") ] + paths
 
   credentials = {}
   for path in paths:

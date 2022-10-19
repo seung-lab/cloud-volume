@@ -1,3 +1,5 @@
+from typing import Optional
+
 from collections import namedtuple, defaultdict
 import copy
 import json
@@ -540,8 +542,9 @@ class ShardReader(object):
     return shattered
 
   def get_data(
-    self, label, path="", 
-    progress=None, parallel=1
+    self, label:int, path:str = "", 
+    progress:Optional[bool] = None, parallel:int = 1,
+    raw:bool = False
   ):
     """Fetches data from shards.
 
@@ -549,6 +552,7 @@ class ShardReader(object):
     path: subdirectory path
     progress: display progress bars
     parallel: (int >= 0) use multiple processes
+    raw: if true, don't decompress or decode stream
 
     Return: 
       if label is a scalar:
@@ -635,7 +639,7 @@ class ShardReader(object):
     del bundles
     del bundles_resp
 
-    if self.spec.data_encoding != 'raw':
+    if not raw and self.spec.data_encoding != 'raw':
       for filepath, binary in tqdm(binaries.items(), desc="Decompressing", disable=(not progress)):
         if binary is None:
           continue

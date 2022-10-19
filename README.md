@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/seung-lab/cloud-volume.svg?branch=master)](https://travis-ci.org/seung-lab/cloud-volume) [![PyPI version](https://badge.fury.io/py/cloud-volume.svg)](https://badge.fury.io/py/cloud-volume) [![SfN 2018 Poster](https://img.shields.io/badge/poster-SfN%202018-blue.svg)](https://drive.google.com/open?id=1RKtaAGV2f7F13opnkQfbp6YBqmoD3fZi) [![codecov](https://img.shields.io/badge/codecov-link-%23d819a6)](https://codecov.io/gh/seung-lab/cloud-volume) [![DOI](https://zenodo.org/badge/98333149.svg)](https://zenodo.org/badge/latestdoi/98333149)
 
-# CloudVolume
+# CloudVolume: IO for Neuroglancer Datasets
 
 ```python3
 from cloudvolume import CloudVolume
@@ -33,20 +33,19 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 - Multi-threaded, supports multi-process and green threads.
 - Memory optimized, supports shared memory.
-- Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`compresso`](https://github.com/seung-lab/compresso), [`fpzip`](https://github.com/seung-lab/fpzip/), [`brotli`](https://en.wikipedia.org/wiki/Brotli))
+- Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`compresso`](https://github.com/seung-lab/compresso), [`fpzip`](https://github.com/seung-lab/fpzip/), [`zfpc`](https://github.com/seung-lab/zfpc), [`png`](https://en.wikipedia.org/wiki/Portable_Network_Graphics), and [`brotli`](https://en.wikipedia.org/wiki/Brotli))
 - Understands image hierarchies & anisotropic pixel resolutions.
 - Accomodates downloading missing tiles (`fill_missing=True`).
 - Accomodates uploading compressed black tiles to erasure coded file systems (`delete_black_uploads=True`).
 - Growing support for the Neuroglancer [sharded format](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) which dramatically condenses the number of files required to represent petascale datasets, similar to [Cloud Optimized GeoTIFF](https://www.cogeo.org/), which can result in [dramatic cost savings](https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People).
+- Reads Precomputed meshes and skeletons.
 - Includes viewers for small images, meshes, and skeletons.
 - Only 3 dimensions + RBG channels currently supported for images.
 - No data versioning.
 
-\* fpzip compressed data, used for 32-bit per pixel vectors, is not currently visualizable.
-
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with 3.6, 3.7, 3.8, and 3.9. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
+Cloud-volume is regularly tested on Ubuntu with 3.7, 3.8, 3.9 and 3.10. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
 
 #### `pip` Binary Installation
 
@@ -188,14 +187,14 @@ The format or protocol fields may be omitted where required. In the case of the 
 | precomputed | gs, s3, http, https, file, matrix, tigerdata | Yes     | gs://mybucket/dataset/layer            |
 | graphene    | gs, s3, http, https, file, matrix, tigerdata |         | graphene://gs://mybucket/dataset/layer |
 | boss        | N/A                                          |         | boss://collection/experiment/channel   |
+| n5          | gs, s3, http, https, file, matrix, tigerdata |         | n5://gs://mybucket/dataset/layer       |
 
 ### Supported Formats
 
 * precomputed: Neuroglancer's native format. ([specification](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed))
 * graphene: Precomputed based format used by the PyChunkGraph server.
 * boss: The BOSS (https://docs.theboss.io/docs)
-
-We currently support reading the sharded skeleton format within Precomputed that is used in some newer datasets. Other data types are forthcoming.
+* n5: Not HDF5 (https://github.com/saalfeldlab/n5) Read-only support. Supports raw, gzip, bz2, and xz but not lz4 compression. mode 0 datasets only.
 
 ### Supported Protocols
 
@@ -222,7 +221,7 @@ info = CloudVolume.create_new_info(
     num_channels    = 1,
     layer_type      = 'segmentation',
     data_type       = 'uint64', # Channel images might be 'uint8'
-    # raw, png, jpeg, compressed_segmentation, fpzip, kempressed, compresso
+    # raw, png, jpeg, compressed_segmentation, fpzip, kempressed, zfpc, compresso
     encoding        = 'raw', 
     resolution      = [4, 4, 40], # Voxel scaling, units are in nanometers
     voxel_offset    = [0, 0, 0], # x,y,z offset in voxels from the origin
@@ -243,15 +242,22 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              |
 | compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      |
 | compresso               | Segmentation               | Y        | Y           | Lossless high compression algorithm for connectomics segmentation.                       |
-| fpzip                   | Floating Point             | Y        | N*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  |
-| kempressed              | Anisotropic Z Floating Point | N        | N*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
+| fpzip                   | Floating Point             | Y        | Y*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  |
+| kempressed              | Anisotropic Z Floating Point | N**      | Y*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
+| zfpc                    | Alignment Vector Fields    | N***     | N           | zfp stream container.                        |
 
-\* Coming soon.
+\* Not integrated into official Neuroglancer yet, but available [on a branch](https://github.com/william-silversmith/neuroglancer/tree/wms_fpzip).
+\*\* Lossless if your data can handle adding and then subtracting 2.
+\*\*\* Lossless by default, but you probably want to use the lossy mode.
+
+Note on `compressed_segmentation`: To use, make sure `compressed_segmentation_block_size` is specified (usually `[8,8,8]`. This field will appear in the `info` file in the relevant scale.
+
+Note on `zfpc`: To configure, use the fields `zfpc_rate`, `zfpc_precision`, `zfpc_tolerance`, `zfpc_correlated_dims` in the relevant scale of the `info` file.
 
 
 ### Examples
 
-```python3
+```python
 # Basic Examples
 vol = CloudVolume('gs://mybucket/retina/image')
 vol = CloudVolume('gs://mybucket/retina/image', secrets=token, dict or json)
@@ -266,6 +272,8 @@ exists = vol.image.has_data(mip=0) # boolean check to see if any data is there
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
+# download image files without decompressing or rendering them. Good for caching!
+files = vol.download_files(bbox, mip, decompress=False) 
 
 # Server
 vol.viewer() # launches neuroglancer compatible web server on http://localhost:1337
@@ -392,40 +400,135 @@ res = cloudvolume.dask.to_cloudvolume(arr, cloudpath, compute=bool, return_store
 ### CloudVolume Constructor
 
 ```python3
-CloudVolume(cloudpath,
-     mip=0, bounded=True, fill_missing=False, autocrop=False,
-     cache=False, compress_cache=None, cdn_cache=False, progress=INTERACTIVE, info=None, provenance=None,
-     compress=None, non_aligned_writes=False, parallel=1,
-     delete_black_uploads=False, background_color=0,
-     green_threads=False, use_https=False,
-     max_redirects=10, mesh_dir=None, skel_dir=None,
-     secrets=None, lru_bytes=0)
+CloudVolume(
+    cloudpath:str, mip:int=0, bounded:bool=True, 
+    autocrop:bool=False, fill_missing:bool=False, cache:CacheType=False, 
+    compress_cache:CompressType=None, cdn_cache:bool=True, 
+    progress:bool=INTERACTIVE, info:dict=None, provenance:dict=None,
+    compress:CompressType=None, compress_level:Optional[int]=None, 
+    non_aligned_writes:bool=False, parallel:ParallelType=1, delete_black_uploads:bool=False, 
+    background_color:int=0, green_threads:bool=False, use_https:bool=False,
+    max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
+    agglomerate:bool=False, secrets:SecretsType=None, 
+    spatial_index_db:Optional[str]=None, lru_bytes:int = 0
+)
 ```
 
-* mip - Which mip level to access
-* bounded - Whether access is allowed outside the bounds defined in the info file
-* fill_missing - If a chunk is missing, should it be zero filled or throw an EmptyVolumeException? Note that under conditions of high load, it's possible for fill_missing to be activated for existing files. Set to false for extra safety.
-* cache - Save uploads/downloads to disk. You can also provide a string path instead of a boolean to specify a custom cache location.
-* compress_cache - Override default cache compression behavior if set to a boolean.
-* autocrop - If bounded is False, automatically crop requested uploads and downloads to the volume boundary.
-* cdn_cache - Set the HTTP Cache-Control header on uploaded image chunks.
-* progress - Show progress bars. Defaults to True if in python interactive mode else default False.
-* info - Use this info object rather than pulling from the cloud (useful for creating new layers).
-* provenance - Use this object as the provenance file.
-* compress - None, 'gzip' or 'br', force this compression algorithm to be used for upload
-* non_aligned_writes - True/False. If False, non-chunk-aligned writes will trigger an error with a helpful message. If True,
-    Non-aligned writes will proceed. Be careful, non-aligned writes are wasteful in memory and bandwidth, and in a mulitprocessing environment, are subject to an ugly race condition. (c.f. https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes)
-* parallel - True/False/(int > 0), If False or 1, use a single process. If > 1, use that number of processes for downloading
-   that coordinate over shared memory. If True, use a number of processes equal to the number of available cores.
-* delete_black_uploads - True/False. If True, issue a DELETE http request instead of a PUT when an individual uploaded chunk is all background (usually all zeros). This is useful for avoiding creating many tiny files, which some storage system designs do not handle well.
-* background_color - Number. Determines the background color that `delete_black_uploads` will scan for (typically zero).
-* green_threads - True/False. If True, use the gevent cooperative threading library instead of preemptive threads. This requires monkey patching your program which may be undesirable. However, for certain workloads this can be a significant performance improvement on multi-core devices.
-* use_https - True/False. If True, use the same read-only access urls that neuroglancer does that may be cached vs the secured read/write strongly consistent API. Use this when you do not have credentials.
-* max_redirects - Integer. If > 0, allow info files containing a 'redirect' field to forward the CloudVolume instance across this many hops before raising an error. If set to <= 0, then do not allow redirection, but also do not raise an error (which allows for easy editing of info files with a redirect in them).
-* mesh_dir - str. If specified, override the mesh directory specified in the info file.
-* skel_dir - str. If specified, override the skeletons directory specified in the info file.
-* secrets - str, JSON string, or dict. If specified, use this credential to access the dataset. You can pass it in the same form as the various *-secret.json files appear. If not provided, the various secret files will be consulted.*
-* lru_bytes - int >= 0. A least recently used (LRU) cache for images whose size is measured in bytes of data stored. This cache can help accelerate sequences of operations that have a high degree of spatial locality such as accessing voxels corresponding to skeleton nodes. Images are stored decompressed but not decoded. This means that formats that compress well and are approximately random access (e.g. `compresso`, `compressed_segmentation`) can be stored in great quantity and still have high performance. `raw` is stored as fully decoded numpy arrays and so is very fast but also very memory intensive.
+
+*      agglomerate: (bool, graphene only) sets the default mode for downloading
+        images to agglomerated (True) vs watershed (False).
+*      autocrop: (bool) If the specified retrieval bounding box exceeds the
+          volume bounds, process only the area contained inside the volume. 
+          This can be useful way to ensure that you are staying inside the 
+          bounds when `bounded=False`.
+*      background_color: (number) Specifies what the "background value" of the
+        volume is (traditionally 0). This is mainly for changing the behavior
+        of delete_black_uploads.
+*      bounded: (bool) If a region outside of volume bounds is accessed:
+          True: Throw an error
+          False: Allow accessing the region. If no files are present, an error 
+              will still be thrown. Consider combining this option with 
+              `fill_missing=True`. However, this can be dangrous as it allows
+              missing files and potentially network errors to be intepreted as 
+              zeros.
+*      cache: (bool or str) Store downs and uploads in a cache on disk
+            and preferentially read from it before redownloading.
+          - falsey value: no caching will occur.
+          - True: cache will be located in a standard location.
+          - non-empty string: cache is located at this file path
+
+          After initialization, you can adjust this setting via:
+          `cv.cache.enabled = ...` which accepts the same values.
+
+          Note: This cache is totally separate from the LRU controlled by 
+          lru_bytes.
+
+*      cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
+        image files. Most cloud providers perform some kind of caching. As of 
+        this writing, Google defaults to 3600 seconds. Most of the time you'll 
+        want to go with the default. 
+        - int: number of seconds for cache to be considered fresh (max-age)
+        - bool: True: max-age=3600, False: no-cache
+        - str: set the header manually
+*      compress: (bool, str, None) pick which compression method to use.
+*          None: (default) gzip for raw arrays and no additional compression
+            for compressed_segmentation and fpzip.
+          bool: 
+            True=gzip, 
+            False=no compression, Overrides defaults
+          str: 
+            'gzip': Extension so that we can add additional methods in the future 
+                    like lz4 or zstd. 
+            'br': Brotli compression, better compression rate than gzip
+            '': no compression (same as False).
+*      compress_level: (int, None) level for compression. Higher number results
+          in better compression but takes longer.
+        Defaults to 9 for gzip (ranges from 0 to 9).
+        Defaults to 5 for brotli (ranges from 0 to 11).
+*      compress_cache: (None or bool) If not None, override default compression 
+          behavior for the cache.
+*      delete_black_uploads: (bool) If True, on uploading an entirely black chunk,
+          issue a DELETE request instead of a PUT. This can be useful for avoiding storing
+          tiny files in the region around an ROI. Some storage systems using erasure coding 
+          don't do well with tiny file sizes.
+*      fill_missing: (bool) If a chunk file is unable to be fetched:
+          True: Use a block of zeros
+          False: Throw an error
+*      green_threads: (bool) Use green threads instead of preemptive threads. This
+        can result in higher download performance for some compression types. Preemptive
+        threads seem to reduce performance on multi-core machines that aren't densely
+        loaded as the CPython threads are assigned to multiple cores and the thrashing
+        + GIL reduces performance. You'll need to add the following code to the top
+        of your program to use green threads:
+
+            import gevent.monkey
+            gevent.monkey.patch_all(threads=False)
+*      lru_bytes: (int) number of bytes used to cache recently used image 
+        tiles in memory. This is an in-memory cache and is completely separate from
+        the `cache` parameter that handles disk IO. Tiles are stripped over only their
+        second stage compression.
+*      info: (dict) In lieu of fetching a neuroglancer info file, use this one.
+          This is useful when creating new datasets and for repeatedly initializing
+          a new cloudvolume instance.
+*      max_redirects: (int) if > 0, allow up to this many redirects via info file 'redirect'
+          data fields. If <= 0, allow no redirections and access the current info file directly
+          without raising an error.
+*      mesh_dir: (str) if not None, override the info['mesh'] key before pulling the
+        mesh info file.
+*      mip: (int or iterable) Which level of downsampling to read and write from.
+          0 is the highest resolution. You can also specify the voxel resolution
+          like mip=[6,6,30] which will search for the appropriate mip level.
+*      non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing 
+          safe without careful design. When not enabled, a 
+          cloudvolume.exceptions.AlignmentError is thrown for non-aligned writes. 
+          
+          https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
+
+      parallel (int: 1, bool): Number of extra processes to launch, 1 means only 
+          use the main process. If parallel is True use the number of CPUs 
+          returned by multiprocessing.cpu_count(). When parallel > 1, shared
+          memory (Linux) or emulated shared memory via files (other platforms) 
+          is used by the underlying download.
+*      progress: (bool) Show progress bars. 
+          Defaults to True in interactive python, False in script execution mode.
+*      provenance: (string, dict) In lieu of fetching a provenance 
+          file, use this one. 
+*      secrets: (dict) provide per-instance authorization tokens. If not provided,
+        defaults to looking in .cloudvolume/secrets for necessary tokens.
+*      skel_dir: (str) if not None, override the info['skeletons'] key before 
+        pulling the skeleton info file.
+*      spatial_index_db: (str) A path to an sqlite3 or mysql database that follows 
+        the following uri schema. sqlite is assumed if no scheme is present in 
+        the uri.
+          [sqlite://]filename.db
+          mysql://<username>:<password>@<host>:<port>/<db_name>
+
+        Igneous generated datasets include a JSON based spatial
+        database that tiles the dataset. This can be fast enough up to about 100 TVx
+        datasets. Above that, a proper database is required for efficient queries.
+        We provide multiple SQL database types that the index can be hosted on.
+*      use_https: (bool) maps gs:// and s3:// to their respective https paths. The 
+        https paths hit a cached, read-only version of the data and may be faster.
 
 ### CloudVolume Methods
 
@@ -569,6 +672,7 @@ Python 2.7 is no longer supported by CloudVolume. Updated versions of `pip` will
 4. [compressed_segmentation](https://github.com/seung-lab/compressedseg): A Python Package wrapping the code for the compressed_segmentation format developed by Jeremy Maitin-Shepard and Stephen Plaza.
 5. [Kimimaro](https://github.com/seung-lab/kimimaro): High performance skeletonization of densely labeled 3D volumes.
 6. [compresso](https://github.com/seung-lab/compresso): High lossless compression of connectomics segmentation. Algorithm by and code derived from Matejek et al.
+7. [zfpc](https://github.com/seung-lab/zfpc): Optimized zfp multi-stream container for alignment vector fields (and similar floating point data).
 
 ## Acknowledgments
 

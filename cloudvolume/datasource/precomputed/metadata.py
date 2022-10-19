@@ -1,3 +1,5 @@
+from typing import List
+
 from collections.abc import Iterable
 import json
 import os
@@ -521,6 +523,38 @@ Hops:
 
     return encoding
 
+  def compression_params(self, mip):
+    encoding = self.encoding(mip)
+    scale = self.scale(mip)
+    if encoding == 'zfpc':
+      return self.zfpc_encoding_params(mip)
+    elif encoding == 'compressed_segmentation':
+      return { "block_size": self.compressed_segmentation_block_size(mip) }
+    elif encoding == 'png':
+      return { "level": scale.get("png_level", None) }
+    elif encoding == 'jpeg':
+      return { "level": scale.get("jpeg_quality", None) }
+    elif encoding == 'fpzip':
+      return { "level": scale.get("fpzip_precision", None) }
+    else:
+      return {}
+
+  def zfpc_encoding_params(self, mip):
+    """
+    Returns tuning arguments for zfpc.compress.
+
+    Reads parameters from scale:
+    zfpc_rate, zfpc_precision, zfpc_tolerance, 
+    and zfpc_correlated_dims ([bool x 4])
+    """
+    scale = self.scale(mip)
+    return {
+      'rate': scale.get('zfpc_rate', -1),
+      'precision': scale.get('zfpc_precision', -1),
+      'tolerance': scale.get('zfpc_tolerance', -1),
+      'correlated_dims': scale.get('zfpc_correlated_dims', [True]*4),
+    }
+
   def compressed_segmentation_block_size(self, mip):
     if 'compressed_segmentation_block_size' in self.info['scales'][mip]:
       return self.info['scales'][mip]['compressed_segmentation_block_size']
@@ -626,15 +660,26 @@ Hops:
     """Used for manually resetting downsamples if something messed up."""
     self.info['scales'] = self.info['scales'][0:1]
 
-  def add_resolution(self, res, encoding=None, chunk_size=None, info=None):
+  def add_resolution(
+    self, res, encoding=None, 
+    chunk_size=None, info=None,
+    encoding_level=None,
+  ):
     if lib.floating(res):
       factor = Vec(*res, dtype=float) / self.resolution(0)
     else:
       factor = Vec(*res) // self.resolution(0)
 
-    return self.add_scale(factor, encoding, chunk_size, info)
+    return self.add_scale(
+      factor, encoding, chunk_size, info, 
+      encoding_level=encoding_level
+    )
 
-  def add_scale(self, factor, encoding=None, chunk_size=None, info=None):
+  def add_scale(
+    self, factor, 
+    encoding=None, chunk_size=None, info=None,
+    encoding_level=None,
+  ):
     """
     Generate a new downsample scale to for the info file and return an updated dictionary.
     You'll still need to call self.commit_info() to make it permenant.
@@ -682,6 +727,14 @@ Hops:
       u"voxel_offset": downscale(fullres.get('voxel_offset', (0,0,0)), factor, np.floor),
       u"size": downscale(fullres['size'], factor, np.ceil),
     }
+
+    if encoding_level is not None:
+      if encoding == "jpeg":
+        newscale["jpeg_quality"] = int(encoding_level)
+      elif encoding == "png":
+        newscale["png_level"] = int(encoding_level)
+      elif encoding == "fpzip":
+        newscale["fpzip_precision"] = int(encoding_level)
 
     if newscale['encoding'] == 'compressed_segmentation':
       if 'compressed_segmentation_block_size' in fullres:

@@ -319,7 +319,8 @@ Vec.a = Vec.w
 def floating(lst):
   return any(( isinstance(x, float) for x in lst ))
 
-FILENAME_RE = re.compile(r'(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)_(-?\d+)-(-?\d+)(?:\.gz|\.br)?$')
+FLT_RE = r'(-?\d+(?:\.\d+)?)' # floating point regexp
+FILENAME_RE = re.compile(fr'{FLT_RE}-{FLT_RE}_{FLT_RE}-{FLT_RE}_{FLT_RE}-{FLT_RE}(?:\.gz|\.br|\.zstd)?$')
 
 class Bbox(object):
   __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
@@ -432,14 +433,18 @@ class Bbox(object):
 
   @classmethod
   def from_filename(cls, filename, dtype=int):
-    match = FILENAME_RE.search(os.path.basename(filename))
+    fname = os.path.basename(filename)
+    match = FILENAME_RE.search(fname)
 
     if match is None:
       raise ValueError("Unable to decode bounding box from: " + str(filename))
 
+    root, ext = os.path.splitext(fname)
+    parse_type = float if '.' in root else int
+
     (xmin, xmax,
      ymin, ymax,
-     zmin, zmax) = map(int, match.groups())
+     zmin, zmax) = map(parse_type, match.groups())
 
     return Bbox( (xmin, ymin, zmin), (xmax, ymax, zmax), dtype=dtype)
 

@@ -565,6 +565,85 @@ class CloudVolumePrecomputed(object):
       bbox.astype(np.int64), mip
     )
 
+  def download_files(
+    self,
+    bbox:BboxLikeType, 
+    mip:Optional[int] = None, 
+    parallel:Optional[int] = None,
+    segids:Optional[Sequence[int]] = None, 
+    
+    # Absorbing polymorphic Graphene calls
+    agglomerate:Optional[bool] = None, 
+    timestamp:Optional[int] = None, 
+    stop_layer:Optional[int] = None,
+
+    coord_resolution:Optional[Sequence[int]] = None,
+    cache_only:bool = False,
+    decompress:bool = True,
+  ):
+    """
+    Downloads files without rendering to an image.
+
+    decompress: automatically decompress downloaded
+      files. If False, returns the raw bytes.
+    cache_only: discard downloaded files to avoid
+      inflating memory. (you must enable the cache separately)
+
+    Returns: { filename: binary }
+    """
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=(self.bounded and coord_resolution is None), 
+      autocrop=self.autocrop
+    )
+
+    if mip is None:
+      mip = self.mip
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(mip) / coord_resolution
+      bbox /= factor
+      if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
+        raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
+
+    if parallel is None:
+      parallel = self.parallel
+
+    files = self.image.download_files(
+      bbox.astype(np.int64), mip, 
+      parallel=parallel,
+      decompress=decompress, 
+      cache_only=cache_only
+    )
+
+    if not segids:
+      return files
+
+    for key in files:
+      val = files[key]
+      labels = set(chunks.labels(val))
+      mask_labels = labels - set(segids)
+      remap = { lbl: lbl for lbl in segids }
+      if preserve_zeros:
+        mask_value = np.inf
+        if np.issubdtype(self.dtype, np.integer):
+          mask_value = np.iinfo(self.dtype).max        
+      remap.update({ mask_labels: mask_value for lbl in mask_labels })
+      if preserve_zeros:
+        remap[0] = 0
+
+      files[key] = chunks.remap(
+        files[key], 
+        encoding=self.meta.encoding(mip), 
+        shape=self.meta.chunk_size(mip),
+        dtype=self.meta.dtype,
+        block_size=self.meta.compressed_segmentation_block_size(mip),
+        mapping=remap,
+        preserve_missing_labels=True,
+      )
+
+    return files
+    
   def download(
     self, 
     bbox:BboxLikeType, 

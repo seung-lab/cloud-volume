@@ -235,7 +235,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     chunk_aligned_masks = []
     for mesh in meshes:
       level = meta.decode_layer_id(mesh.segid)
-      chunk_size = (lvl_2_size_nm * (2 ** (level-2))).astype(np.int32)
+      chunk_size = lvl_2_size_nm * (2 ** (level-2))
       verts = mesh.vertices - offset
       # find all vertices that are exactly on chunk_size boundaries
       is_chunk_aligned = is_draco_chunk_aligned(

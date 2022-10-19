@@ -108,13 +108,18 @@ class UnshardedPrecomputedSkeletonSource(object):
     
   @readonlyguard
   def upload(self, skeletons):
+
+    compress = self.config.compress 
+    if compress is None:
+      compress = True
+
     if type(skeletons) == Skeleton:
       skeletons = [ skeletons ]
 
     files = [ (self.meta.join(self.meta.skeleton_path, str(skel.id)), skel.to_precomputed()) for skel in skeletons ]
     self.cache.upload(
       files=files, 
-      compress='gzip', 
+      compress=compress, 
       cache_control=cdn_cache_control(self.config.cdn_cache)
     )
 

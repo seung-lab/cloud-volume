@@ -10,7 +10,7 @@ import sys
 
 from cloudvolume import exceptions
 from cloudvolume.exceptions import AlignmentError, ReadOnlyException
-from cloudvolume import CloudVolume, chunks
+from cloudvolume import CloudVolume, chunks, compression
 from cloudvolume.lib import Bbox, Vec, yellow, mkdir
 import cloudvolume.sharedmemory as shm
 from layer_harness import (
@@ -521,6 +521,26 @@ def test_download_upload_file(green):
   assert np.all(cv2[:] == cv[:])
   shutil.rmtree('/tmp/file/')
 
+def test_download_files():
+  delete_layer()
+  cv, img = create_layer(size=(50,50,50,1), offset=(0,0,0))
+
+  files = cv.download_files(cv.bounds)
+  assert list(files.keys()) == [ '1_1_1/0-50_0-50_0-50' ]
+
+  chunk = chunks.decode(files['1_1_1/0-50_0-50_0-50'], 'raw', shape=(50,50,50,1), dtype=img.dtype)
+  assert np.all(chunk == img)
+
+  files = cv.download_files(cv.bounds, decompress=False)
+  assert list(files.keys()) == [ '1_1_1/0-50_0-50_0-50' ]
+
+  chunk = files['1_1_1/0-50_0-50_0-50']
+  binary = chunks.encode(img, "raw")
+  assert chunk == binary
+
+  files = cv.download_files(cv.bounds, cache_only=True)
+  assert files == {}
+
 def test_numpy_memmap():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))
@@ -706,6 +726,37 @@ def test_write_compressed_segmentation():
   cv.commit_info()
 
   cv[:] = data.astype(np.uint64)
+  data2 = cv[:]
+  
+  assert np.all(data == data2)
+
+def test_write_zfpc():
+  delete_layer()
+  cv, data = create_layer(
+    size=(128,64,64,1), offset=(0,0,0), 
+    layer_type="affinities", dtype=np.float32
+  )
+
+  # delete gzipped data (.gz) files
+  # which will take precedence over
+  # the non-gzipped zfpc files with 
+  # no extension
+  cv.delete(cv.bounds) 
+
+  cv.info['num_channels'] = 1
+  cv.info['data_type'] = 'float32'
+  cv.scale['encoding'] = 'zfpc'
+  cv.commit_info()
+
+  cv[:] = data.astype(np.float32)
+  data2 = cv[:]
+
+  assert np.all(data == data2)
+
+  cv.info['data_type'] = 'float64'
+  cv.commit_info()
+
+  cv[:] = data.astype(np.float64)
   data2 = cv[:]
   
   assert np.all(data == data2)
