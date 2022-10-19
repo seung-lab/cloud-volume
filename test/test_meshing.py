@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pytest 
 
+from cloudfiles import CloudFiles
 from cloudvolume import Vec, Bbox, CloudVolume, Storage, Mesh
 
 @pytest.fixture
@@ -66,6 +67,20 @@ def test_get_mesh(unsharded_vol):
   mesh = vol.mesh.get(1)
   mesh_orig = vol.mesh.get(94081437)
   assert mesh == mesh_orig
+
+def test_put(unsharded_vol):
+  mesh = Mesh(vertices=[[0,0,0], [1,1,1], [2,2,2]], faces=[0,1,2])
+  mesh.segid = 777
+
+  cf = CloudFiles(unsharded_vol.mesh.meta.layerpath)
+
+  unsharded_vol.mesh.put(mesh)
+  assert list(cf) == ["777:0", "777:0:1"]
+  m = unsharded_vol.mesh.get(777, fuse=False)[777]
+  assert len(m.faces) == 1
+  assert m.segid == 777
+  unsharded_vol.mesh.delete(777)
+  assert list(cf) == []
 
 def test_duplicate_vertices():
   verts = np.array([

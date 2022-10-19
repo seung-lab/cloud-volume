@@ -1,8 +1,8 @@
-import six
+from typing import Union, Iterable, Optional
 
 from collections import defaultdict
 import itertools
-import json
+import simdjson
 import re
 import os
 
@@ -13,8 +13,9 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles
 
 from .... import exceptions
-from ....lib import yellow, red, toiter
+from ....lib import yellow, red, toiter, sip
 from ....mesh import Mesh
+from ....types import CompressType
 from ..spatial_index import CachedSpatialIndex
 from .common import apply_transform
 
@@ -62,16 +63,23 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     mesh_json_file_name = str(segid) + ':0'
     return self.meta.join(self.path, mesh_json_file_name)
 
-  def _get_manifests(self, segids):
+  def _get_manifests(self, segids, allow_missing=False):
     segids = toiter(segids)    
     paths = [ self.manifest_path(segid) for segid in segids ]
     fragments = self.cache.download(paths)
 
     contents = {}
     for filename, content in fragments.items():
-      content = content.decode('utf8')
-      content = json.loads(content)
       segid = filename_to_segid(filename)
+      if content is None:
+        if allow_missing:
+          contents[segid] = None
+          continue
+        else:
+          raise ValueError(f"manifest is missing for {filename}")
+
+      content = content.decode('utf8')
+      content = simdjson.loads(content)
       contents[segid] = content['fragments']
 
     return contents
@@ -167,18 +175,20 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       meshdata[segid].append(mesh)
 
     if not fuse:
-      meshdata = { segid: Mesh.concatenate(*meshes) for segid, meshes in meshdata.items() }
+      meshdata = { 
+          segid: Mesh.concatenate(*meshes) 
+          for segid, meshes in meshdata.items() 
+      }
       for mesh in meshdata.values():
         mesh.vertices = apply_transform(mesh.vertices, self.transform)
       return meshdata
 
-    meshdata = [ (segid, mesh) for segid, mesh in six.iteritems(meshdata) ]
+    meshdata = [ (segid, mesh) for segid, mesh in meshdata.items() ]
     meshdata = sorted(meshdata, key=lambda sm: sm[0])
     meshdata = [ mesh for segid, mesh in meshdata ]
     meshdata = list(itertools.chain.from_iterable(meshdata)) # flatten
     mesh = Mesh.concatenate(*meshdata)
     mesh.vertices = apply_transform(mesh.vertices, self.transform)
-
 
     if not remove_duplicate_vertices:
       return mesh 
@@ -204,6 +214,71 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       chunk_size * resolution, is_draco=False,
       offset=(chunk_offset * resolution)
     )
+
+  def put(
+    self, 
+    meshes:Union[Mesh,Iterable[Mesh]], 
+    batch_size:int = 200,
+    compress:CompressType = "gzip", 
+    compression_level:int = 6,
+    cdn_cache:Optional[str] = None,
+    skip_delete:bool = False,
+  ):
+    """
+    Upload a pre-existing mesh. 
+
+    batch_size: affects performance, controls size of each upload batch
+    skip_delete: Since meshes consist of an arbitrary number of files, 
+      a simple upload won't necessarily replace the old mesh. Therefore,
+      we read the manifest and delete the old mesh if it exists before
+      uploading. You can skip this step by stetting this flag to True.
+    """
+    if isinstance(meshes, Mesh):
+      meshes = [ meshes ]
+
+    # using this odd structuring to ensure generators will
+    # work correctly
+    toupload = ( 
+      (
+        f"{m.segid}:0", { "fragments": [ f"{m.segid}:0:1" ] }, # manifest
+        f"{m.segid}:0:1", m.to_precomputed() # fragment file
+      )
+      for m in meshes
+    )
+
+    # need to clear out pre-existing meshes
+    if not skip_delete:
+      self.delete(( m.segid for m in meshes ))
+
+    cf = CloudFiles(self.meta.layerpath)
+    for mshs in sip(toupload, batch_size):
+      cf.put_jsons([ m[:2] for m in mshs ])
+      cf.puts(
+        [ m[2:4] for m in mshs ],
+        content_type="application/octet-stream",
+        compress=compress,
+        compression_level=compression_level,
+        cache_control=cdn_cache,
+      )
+
+  def delete(self, segids):
+    """
+    Removes fragment and manifest files for each segid specified.
+    """
+    manifests = self._get_manifests(segids, allow_missing=True)
+
+    cf = CloudFiles(self.meta.layerpath)
+    for segid, filenames in manifests.items():
+      if segid is None:
+        raise ValueError("Cannot delete segid None")
+
+      if filenames is None:
+        continue
+      filenames += [ f"{segid}:0" ]
+      cf.delete(filenames)
+
+      if self.cache.enabled:
+        self.cache.delete(filenames)
 
   def save(self, segids, filepath=None, file_format='ply'):
     """
