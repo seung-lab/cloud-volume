@@ -31,6 +31,10 @@ def test_path_extraction():
   shoulderror('s3://dataset')
 
   # don't error
+  assert (strict_extract("precomputed://gs://bucket32_24")
+    == ExtractedPath(
+      "precomputed", "gs", "bucket32_24", "", "" ,"bucket32_24", "bucket32_24"))
+
   assert (strict_extract('graphene://http://localhost:8080/segmentation/1.0/testvol')
     == ExtractedPath(
       'graphene', 'http', 'localhost:8080', 

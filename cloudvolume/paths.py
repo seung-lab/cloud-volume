@@ -136,7 +136,7 @@ def extract(cloudpath, windows=None, disable_toabs=False):
     return ExtractedPath('','','','','','','')
 
   windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+)')
-  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)/') # posix /what/a/great/path
+  bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)(?:\b|$)') # posix /what/a/great/path
   
   error = UnsupportedProtocolError(cloudpath_error(cloudpath))
 
