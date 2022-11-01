@@ -36,6 +36,10 @@ class PrecomputedMeshMetadata(object):
 
     mip, = matches.groups()
     return int(mip)
+
+  @mip.setter
+  def mip(self, val):
+    self.info["mip"] = int(val)
   
   @property
   def spatial_index(self):
