@@ -90,13 +90,18 @@ class Mesh(object):
     return (equality and np.all(self.normals == other.normals))
 
   def __sizeof__(self):
-    return sum(( 
+    attr_bytes = sum(( 
       sys.getsizeof(x)
       for x in [
-        self.vertices, self.faces, self.normals,
         self.segid, self.encoding_type, self.encoding_options
       ]
     ))
+    npy_bytes = sum([
+      (x.nbytes if isinstance(x, np.ndarray) else sys.getsizeof(x))
+      for x in [ self.vertices, self.faces, self.normals ]
+    ])
+    return attr_bytes + npy_bytes
+
 
   def __repr__(self):
     return "Mesh(vertices<{}>, faces<{}>, normals<{}>, segid={}, encoding_type=<{}>)".format(
