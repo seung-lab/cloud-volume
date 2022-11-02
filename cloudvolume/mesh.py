@@ -1,6 +1,7 @@
 import copy
 import re
 import struct
+import sys
 
 import numpy as np
 
@@ -87,6 +88,15 @@ class Mesh(object):
       return equality
 
     return (equality and np.all(self.normals == other.normals))
+
+  def __sizeof__(self):
+    return sum(( 
+      sys.getsizeof(x)
+      for x in [
+        self.vertices, self.faces, self.normals,
+        self.segid, self.encoding_type, self.encoding_options
+      ]
+    ))
 
   def __repr__(self):
     return "Mesh(vertices<{}>, faces<{}>, normals<{}>, segid={}, encoding_type=<{}>)".format(
