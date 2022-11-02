@@ -9,6 +9,7 @@ import networkx as nx
 import fastremap
 import numpy as np
 import struct
+import sys
 
 from . import lib
 from .exceptions import (
@@ -1189,6 +1190,21 @@ class Skeleton(object):
 
   def __repr__(self):
     return str(self)
+
+  def __sizeof__(self):
+    npy_attrs = [ getattr(self, attr['id']) for attr in self.extra_attributes ]
+    npy_attrs += [ self.vertices, self.edges, self.transform ]
+
+    npy_bytes = sum([ x.nbytes for x in npy_attrs ])
+
+    attrs = [
+      self.id, self.space, self.extra_attributes
+    ]
+    attr_bytes = sum(( 
+      sys.getsizeof(x) for x in attrs
+    ))
+
+    return npy_bytes + attr_bytes
 
 
 PrecomputedSkeleton = Skeleton # backwards compatibility
