@@ -244,9 +244,9 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | compresso               | Segmentation               | Y        | Y           | Lossless high compression algorithm for connectomics segmentation.                       |
 | fpzip                   | Floating Point             | Y        | Y*           | Takes advantage of IEEE 754 structure + L1 Lorenzo predictor to get higher compression.  |
 | kempressed              | Anisotropic Z Floating Point | N**      | Y*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
-| zfpc                    | Alignment Vector Fields    | N***     | N           | zfp stream container.                        |
+| zfpc                    | Alignment Vector Fields    | N***     | Y*          | zfp stream container.                        |
 
-\* Not integrated into official Neuroglancer yet, but available [on a branch](https://github.com/william-silversmith/neuroglancer/tree/wms_fpzip).
+\* Not integrated into official Neuroglancer yet, but available on a branch ([fpzip](https://github.com/william-silversmith/neuroglancer/tree/wms_fpzip), [zfpc](https://github.com/william-silversmith/neuroglancer/tree/wms_zfpc)).
 \*\* Lossless if your data can handle adding and then subtracting 2.
 \*\*\* Lossless by default, but you probably want to use the lossy mode.
 
