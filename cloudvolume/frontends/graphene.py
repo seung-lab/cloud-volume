@@ -136,9 +136,14 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       return results
 
     labels = np.array(list(results.values()), dtype=np.uint64)
-    roots = self.agglomerate_cutout(labels, timestamp=timestamp, stop_layer=stop_layer)
+    roots = self.agglomerate_cutout(
+      labels, 
+      timestamp=timestamp, 
+      stop_layer=stop_layer,
+      in_place=False,
+    )
     mapping = { segid: root for segid, root in zip(labels, roots) }
-    return { pt: mapping[label] for pt, label in result.items() }
+    return { pt: mapping[label] for pt, label in results.items() }
 
   def download_point(
     self, pt, size=256, 
@@ -513,10 +518,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       return img, renumber_remap
     return img
   
-  def agglomerate_cutout(self, img, timestamp=None, stop_layer=None):
+  def agglomerate_cutout(self, img, timestamp=None, stop_layer=None, in_place=True):
     """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
     if np.all(img == self.image.background_color) or stop_layer == 1:
-      return img
+      if not in_place:
+        return np.copy(img)
+      else:
+        return img
 
     labels = fastremap.unique(img)
     if labels.size and labels[0] == 0:
@@ -524,7 +532,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
     mapping = { segid: root for segid, root in zip(labels, roots) }
-    return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=True)
+    return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
 
   def __getitem__(self, slices):
     return self.download(
