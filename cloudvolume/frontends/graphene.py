@@ -112,7 +112,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     
       { (x,y,z): label, ... }
     """
-    pts = toiter(pts)
+    pts = list(pts)
+    if isinstance(pts[0], int):
+      pts = [ pts ]
 
     if mip is None:
       mip = self.mip

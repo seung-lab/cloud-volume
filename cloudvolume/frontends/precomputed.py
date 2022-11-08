@@ -753,6 +753,10 @@ class CloudVolumePrecomputed(object):
     Returns:     
       { (x,y,z): label, ... }
     """
+    pts = list(pts)
+    if isinstance(pts[0], int):
+      pts = [ pts ]
+
     if mip is None:
       mip = self.mip
     mip = self.meta.to_mip(mip)
