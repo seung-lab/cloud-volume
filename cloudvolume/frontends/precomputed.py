@@ -735,6 +735,34 @@ class CloudVolumePrecomputed(object):
     else:
       return img
 
+  def scattered_points(
+    self, pts, 
+    mip=None, coord_resolution=None
+  ):
+    """
+    Download one or more single voxel values that may be scattered
+    across the dataset. You can accelerate this query with an LRU
+    if there is some spatial localization.
+
+    pts: iterable of triples
+
+    Returns: 
+    
+      { (x,y,z): label, ... }
+    """
+    pts = toiter(pts)
+
+    if mip is None:
+      mip = self.mip
+    mip = self.meta.to_mip(mip)
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(0) / Vec(*coord_resolution)
+      pts = [ Vec(*pt) / factor for pt in pts ]
+
+    pts = [ self.point_to_mip(pt, mip=0, to_mip=mip) for pt in pts ]
+    return self.image.download_points(pts, mip)
+
   def download_point(
     self, pt, size=256, 
     mip=None, parallel=None, 

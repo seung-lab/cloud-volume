@@ -7,6 +7,7 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
+from typing import Dict, Tuple, Sequence, Union
 from functools import reduce, partial
 import itertools
 import operator
@@ -19,7 +20,7 @@ from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
 from cloudvolume.lru import LRU
-from cloudvolume.scheduler import schedule_jobs
+from cloudvolume.scheduler import schedule_jobs, DEFAULT_THREADS
 from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
 from .... import sharedmemory, chunks
 
@@ -105,7 +106,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     key = self.meta.key(mip)
     return first(cf.list(prefix=key)) is not None
 
-  def download_points(self, points, mip):
+  def download_points(
+    self, points, mip:int
+  ) -> Dict[Tuple[int,int,int], int]:
     """For accessing a list of individual voxels."""
     total = len(points) if hasattr(points, "__len__") else None
     points = toiter(points)
@@ -122,8 +125,13 @@ class PrecomputedImageSource(ImageSourceInterface):
     if progress and not isinstance(progress, str):
       progress = "Downloading"
 
+    concurrency = DEFAULT_THREADS
+    if self.meta.path.protocol == "file":
+      concurrency = 0
+
     schedule_jobs(
       fns, 
+      concurrency=concurrency,
       progress=progress, 
       total=total, 
       green=self.config.green,
