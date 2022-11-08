@@ -750,8 +750,6 @@ class CloudVolumePrecomputed(object):
     
       { (x,y,z): label, ... }
     """
-    pts = toiter(pts)
-
     if mip is None:
       mip = self.mip
     mip = self.meta.to_mip(mip)
