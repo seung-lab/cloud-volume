@@ -761,7 +761,7 @@ class CloudVolumePrecomputed(object):
       factor = self.meta.resolution(0) / Vec(*coord_resolution)
       pts = [ Vec(*pt) / factor for pt in pts ]
 
-    pts = [ self.point_to_mip(pt, mip=0, to_mip=mip) for pt in pts ]
+    pts = set([ self.point_to_mip(pt, mip=0, to_mip=mip) for pt in pts ])
     return self.image.download_points(pts, mip)
 
   def download_point(
