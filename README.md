@@ -272,6 +272,7 @@ exists = vol.image.has_data(mip=0) # boolean check to see if any data is there
 listing = vol.delete( np.s_[0:64, 0:128, 0:64] ) # delete this region (bbox must be chunk aligned)
 vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
+pts = vol.scattered_points([ (x1,y1,z1), (x2,y2,z2) ]) # download voxel labels located at indicated points
 # download image files without decompressing or rendering them. Good for caching!
 files = vol.download_files(bbox, mip, decompress=False) 
 

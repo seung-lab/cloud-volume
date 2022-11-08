@@ -541,6 +541,33 @@ def test_download_files():
   files = cv.download_files(cv.bounds, cache_only=True)
   assert files == {}
 
+def test_download_points():
+  delete_layer()
+  cv, img = create_layer(size=(256,256,256,1), offset=(0,0,0))
+
+  pts = np.random.randint(0,256, size=(20,3), dtype=np.uint64)
+  res = cv.image.download_points(pts, mip=0)
+
+  for pt in pts:
+    pt = tuple(pt)
+    label = cv[pt]
+    assert label == res[pt]
+
+def test_scattered_points():
+  delete_layer()
+  cv, img = create_layer(size=(256,256,256,1), offset=(0,0,0))
+
+  pts = np.random.randint(0,256, size=(20,3), dtype=np.uint64)
+  res = cv.scattered_points(pts)
+
+  for pt in pts:
+    pt = tuple(pt)
+    label = cv[pt]
+    assert label == res[pt]
+
+  res = cv.scattered_points([0,0,0])
+  assert res[(0,0,0)] == cv[0,0,0]
+
 def test_numpy_memmap():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))

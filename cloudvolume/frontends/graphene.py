@@ -71,7 +71,82 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
   def mesh_chunk_size(self):
     # TODO: add this as new parameter to the info as it can be different from the chunkedgraph chunksize
     return self.meta.mesh_chunk_size
-  
+
+  def scattered_points(
+    self, pts, 
+    mip=None, coord_resolution=None,
+    agglomerate=None, timestamp=None, stop_layer=None,
+  ):
+    """
+    Download one or more single voxel values that may be scattered
+    across the dataset. You can accelerate this query with an LRU
+    if there is some spatial localization.
+
+    pts: iterable of triples
+    mip: which resolution level to get (default self.mip)
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
+
+    agglomerate: if true, remap all watershed ids in the volume
+      and return a flat segmentation.
+
+    if agglomerate is true these options are available:
+
+    timestamp: (agglomerate only) get the roots from this date and time
+      formats accepted:
+        int: unix timestamp
+        datetime: self explainatory
+        string: ISO 8601 date
+    stop_layer: (agglomerate only) (int) if specified, return the lowest 
+      parent at or above that layer. If not specified, go all the way 
+      to the root id. 
+        Layer 1: Watershed
+        Layer 2: Within-Chunk Agglomeration
+        Layer 2+: Between chunk interconnections (skip connections possible)
+
+    If agglomerate is None, then the cv.meta.agglomerate controls
+    its value.
+
+    Returns: 
+    
+      { (x,y,z): label, ... }
+    """
+    pts = list(pts)
+    if isinstance(pts[0], int):
+      pts = [ pts ]
+
+    if mip is None:
+      mip = self.mip
+    mip = self.meta.to_mip(mip)
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(0) / Vec(*coord_resolution)
+      pts = [ Vec(*pt) / factor for pt in pts ]
+
+    pts = set([ tuple(self.point_to_mip(pt, mip=0, to_mip=mip)) for pt in pts ])
+    results = self.image.download_points(pts, mip)
+
+    agglomerate = agglomerate if agglomerate is not None else self.agglomerate
+    if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
+      raise ValueError(
+        f"Stop layer {stop_layer} must be "
+        f"1 <= stop_layer <= {self.meta.n_layers} or None."
+      )
+
+    if not agglomerate:
+      return results
+
+    labels = np.array(list(results.values()), dtype=np.uint64)
+    roots = self.agglomerate_cutout(
+      labels, 
+      timestamp=timestamp, 
+      stop_layer=stop_layer,
+      in_place=False,
+    )
+    mapping = { segid: root for segid, root in zip(labels, roots) }
+    return { pt: mapping[label] for pt, label in results.items() }
+
   def download_point(
     self, pt, size=256, 
     mip=None, parallel=None, 
@@ -445,10 +520,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       return img, renumber_remap
     return img
   
-  def agglomerate_cutout(self, img, timestamp=None, stop_layer=None):
+  def agglomerate_cutout(self, img, timestamp=None, stop_layer=None, in_place=True):
     """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
     if np.all(img == self.image.background_color) or stop_layer == 1:
-      return img
+      if not in_place:
+        return np.copy(img)
+      else:
+        return img
 
     labels = fastremap.unique(img)
     if labels.size and labels[0] == 0:
@@ -456,7 +534,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
     mapping = { segid: root for segid, root in zip(labels, roots) }
-    return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=True)
+    return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
 
   def __getitem__(self, slices):
     return self.download(
@@ -476,7 +554,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   def get_root(self, segid, *args, **kwargs):
     """Deprecated. Get a single root id for a single segid."""
-    return get_roots(segid, *args, **kwargs)[0]
+    return self.get_roots(segid, *args, **kwargs)[0]
 
   def get_roots(self, segids, timestamp=None, binary=True, stop_layer=None):
     """

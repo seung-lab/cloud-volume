@@ -632,7 +632,7 @@ Hops:
   def point_to_mip(self, pt, mip, to_mip):
     pt = Vec(*pt)
     downsample_ratio = self.resolution(mip).astype(np.float32) / self.resolution(to_mip).astype(np.float32)
-    return np.floor(pt * downsample_ratio)
+    return np.floor(pt * downsample_ratio).astype(np.int64)
 
   def bbox_to_mip(self, bbox, mip, to_mip):
     """Convert bbox or slices from one mip level to another."""
