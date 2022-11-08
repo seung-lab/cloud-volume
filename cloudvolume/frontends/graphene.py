@@ -544,7 +544,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   def get_root(self, segid, *args, **kwargs):
     """Deprecated. Get a single root id for a single segid."""
-    return get_roots(segid, *args, **kwargs)[0]
+    return self.get_roots(segid, *args, **kwargs)[0]
 
   def get_roots(self, segids, timestamp=None, binary=True, stop_layer=None):
     """
