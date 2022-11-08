@@ -745,9 +745,12 @@ class CloudVolumePrecomputed(object):
     if there is some spatial localization.
 
     pts: iterable of triples
+    mip: which resolution level to get (default self.mip)
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
 
-    Returns: 
-    
+    Returns:     
       { (x,y,z): label, ... }
     """
     if mip is None:
