@@ -402,8 +402,8 @@ class GrapheneMetadata(PrecomputedMetadata):
     The highest level in the ChunkedGraph that we create meshes for in this dataset.
     """
     if self.mesh_metadata and 'max_meshed_layer' in self.mesh_metadata:
-      return self.mesh_metadata["max_meshed_layer"]
-    return None
+      return self.mesh_metadata.get("max_meshed_layer", self.n_layers)
+    return self.n_layers
 
   @property
   def unsharded_mesh_dir(self):
@@ -423,12 +423,10 @@ class GrapheneMetadata(PrecomputedMetadata):
       raise ValueError('This layer is not draco meshed')
     if self.uniform_draco_grid_size is not None:
       return self.uniform_draco_grid_size
-    if self.mesh_metadata["max_meshed_layer"] < level:
+    if self.max_meshed_layer < level:
       raise ValueError(
-        "Request level",
-        level,
-        ". But the maximum meshed level is ",
-        self.mesh_metadata["max_meshed_layer"],
+        f"Request level {level}. However, the maximum meshed "
+        f"level is {self.max_meshed_layer}."
       )
     return self.mesh_metadata["draco_grid_sizes"][str(level)]
 
