@@ -406,6 +406,11 @@ class GrapheneMetadata(PrecomputedMetadata):
     return None
 
   @property
+  def unsharded_mesh_dir(self):
+    mesh_meta = self.info.get("mesh_metadata", {})
+    return mesh_meta.get("unsharded_mesh_dir", "dynamic")
+
+  @property
   def watershed_mip(self):
     """mip level of the base segmentation that all chunk graph operations remap."""
     return self.info["graph"]["cv_mip"]
