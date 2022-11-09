@@ -99,6 +99,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       bbox = Bbox.create(bbox)
       query_d['bounds'] = bbox.to_filename()
 
+    level = min(level, self.meta.max_meshed_layer)
+
     url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, segid, lod)
     if level is not None:
       res = requests.get(
