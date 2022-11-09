@@ -526,7 +526,7 @@ class CloudVolumePrecomputed(object):
     """
     pts = [ (x,y,z) for x,y,z in zip(slices[0],slices[1],slices[2]) ]
     res = self.scattered_points(pts)
-    return np.array([ res[pt] for pt in res ], dtype=self.dtype)
+    return np.array([ res[tuple(pt)] for pt in pts ], dtype=self.dtype)
 
   def __getitem__(self, slices):
     if type(slices) == Bbox:
