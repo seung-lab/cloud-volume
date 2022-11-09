@@ -536,7 +536,20 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     mapping = { segid: root for segid, root in zip(labels, roots) }
     return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
 
+  def coordinate_indexing(self, slices):
+    res = super().coordinate_indexing(slices)
+    if not self.agglomerate:
+      return res
+    return self.agglomerate_cutout(res)
+
   def __getitem__(self, slices):
+    if (
+      hasattr(slices, "__len__") 
+      and len(slices) == 3
+      and all([ isinstance(slc, (list, tuple, np.ndarray)) for slc in slices ])
+    ):
+      return self.coordinate_indexing(slices)
+
     return self.download(
       slices, mip=self.mip,
       preserve_zeros=True,

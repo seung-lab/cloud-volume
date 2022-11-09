@@ -565,6 +565,16 @@ def test_scattered_points():
     label = cv[pt]
     assert label == res[pt]
 
+  x = pts[:,0]
+  y = pts[:,1]
+  z = pts[:,2]
+
+  res = cv[x,y,z]
+  for i, pt in enumerate(pts):
+    pt = tuple(pt)
+    label = cv[pt]
+    assert label == res[i]
+
   res = cv.scattered_points([0,0,0])
   assert res[(0,0,0)] == cv[0,0,0]
 
