@@ -401,7 +401,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     """
     The highest level in the ChunkedGraph that we create meshes for in this dataset.
     """
-    if self.mesh_metadata and 'max_meshed_layer' in self.mesh_metadata:
+    if self.mesh_metadata:
       return self.mesh_metadata.get("max_meshed_layer", self.n_layers)
     return self.n_layers
 
