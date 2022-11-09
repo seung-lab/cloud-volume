@@ -131,8 +131,10 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       an error.
     """
     import DracoPy
-
-    level = self.meta.meta.decode_layer_id(seg_id)
+    if bounding_box is not None:
+      level = 2
+    else:
+      level = self.meta.meta.decode_layer_id(seg_id)
     fragment_filenames = self.get_fragment_filenames(
       seg_id, level=level, bbox=bounding_box, bypass=bypass
     )
