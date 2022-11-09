@@ -536,7 +536,7 @@ class CloudVolumePrecomputed(object):
       and len(slices) == 3
       and all([ isinstance(slc, (list, tuple, np.ndarray)) for slc in slices ])
     ):
-        return coordinate_indexing(slices)
+        return self.coordinate_indexing(slices)
 
     slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
     steps = Vec(*[ slc.step for slc in slices ])
