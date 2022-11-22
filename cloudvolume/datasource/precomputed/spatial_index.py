@@ -585,7 +585,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
   AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
   INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
 
-  values = ( (os.path.basename(filename),) for filename in index_files.keys() )
+  values = ( os.path.basename(filename) for filename in index_files.keys() )
   if mysql_syntax:
     values = list(values) # doesn't support generators in v8.0.26
 
@@ -596,7 +596,8 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
   # The select could be rewritten to be order independent at the cost of 
   # sending more data for a (probably) slower query.
   with lock:
-    cur.executemany(f"INSERT INTO index_files(filename) VALUES ({BIND})", values)
+    bindlist = ",".join([f"({BIND})"] * len(values))
+    cur.execute(f"INSERT INTO index_files(filename) VALUES {bindlist}", values)
     cur.execute(f"SELECT filename,id from index_files ORDER BY id desc LIMIT {len(index_files)}")
 
   filename_id_map = { 
@@ -617,11 +618,25 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
   
   @retry
   def insert_file_lookup_values(cur, chunked_values):
-    cur.executemany(f"INSERT INTO file_lookup(label, fid) VALUES ({BIND},{BIND})", chunked_values)
+    nonlocal BIND
+    bindlist = ",".join([f"({BIND},{BIND})"] * len(chunked_values))
+    flattened_values = []
+    for label, fid in chunked_values:
+      flattened_values.append(label)
+      flattened_values.append(fid)
+    cur.execute(f"INSERT INTO file_lookup(label, fid) VALUES {bindlist}", flattened_values)
 
-  for chunked_values in sip(all_values, 500000):
-    insert_file_lookup_values(cur, chunked_values)
-    conn.commit()
+  pbar = tqdm(
+    desc="Inserting File Lookups", 
+    disable=(not progress), 
+    total=len(all_values)
+  )
+
+  with pbar:
+    for chunked_values in tqdm(sip(all_values, 500000)):
+      insert_file_lookup_values(cur, chunked_values)
+      conn.commit()
+      pbar.update(len(chunked_values))
 
 def set_journaling_to_performance_mode(cur, mysql_syntax):
   if mysql_syntax:
