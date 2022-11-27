@@ -318,7 +318,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=True):    
     """See GrapheneUnshardedMeshSource.get for the user facing function."""
     level = self.meta.meta.decode_layer_id(seg_id)
-    level = min(level, self.meta.meta.max_meshed_layer)
+    level = min(level, self.meta.max_meshed_layer)
     if level not in self.readers:
       raise KeyError("There is no shard configuration in the mesh info file for level {}.".format(level))
 
