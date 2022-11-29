@@ -68,6 +68,10 @@ class PrecomputedMetadata(object):
     else:
       self.provenance = self._cast_provenance(provenance)
 
+  def check_for_placeholder_scale(self, mip:int):
+    key = self.key(mip).lower()
+    return 'placeholder' in key
+
   @classmethod
   def create_info(cls, 
     num_channels, layer_type, data_type, encoding, 

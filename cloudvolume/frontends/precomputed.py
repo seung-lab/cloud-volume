@@ -19,7 +19,7 @@ from .. import lib
 from ..cacheservice import CacheService
 from .. import exceptions 
 from ..lib import ( 
-  colorize, red, mkdir, 
+  colorize, yellow, red, mkdir, 
   Vec, Bbox, jsonify, BboxLikeType,
 )
 
@@ -54,6 +54,10 @@ class CloudVolumePrecomputed(object):
     # its setter is based off of scales
     self.mip = mip
     self.pid = os.getpid()
+
+    is_placeholder = self.meta.check_for_placeholder_scale(self.mip)
+    if is_placeholder:
+      print(yellow("Warning: The currently selected mip level is marked as a placeholder and likely has no associated image data."))
 
   @property 
   def autocrop(self):
