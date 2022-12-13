@@ -585,9 +585,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
   AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
   INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
 
-  values = ( os.path.basename(filename) for filename in index_files.keys() )
-  if mysql_syntax:
-    values = list(values) # doesn't support generators in v8.0.26
+  values = [ os.path.basename(filename) for filename in index_files.keys() ]
 
   # This is a critical region as if multiple inserts and queries occur outside
   # a transaction, you could crash the following code. Fortunately, these 
