@@ -293,9 +293,19 @@ class SpatialIndex(object):
     if parse["scheme"] == "sqlite":
       if parallel != 1:
         raise ValueError("sqlite supports only one writer at a time.")
-      return self.to_sqlite(parse["path"], create_indices, progress, allow_missing)
+      return self.to_sqlite(
+        parse["path"], 
+        create_indices=create_indices, 
+        allow_missing=allow_missing, 
+        progress=progress,
+      )
     elif parse["scheme"] == "mysql":
-      return self.to_mysql(path, create_indices, allow_missing, progress, parallel)
+      return self.to_mysql(path, 
+        create_indices=create_indices, 
+        allow_missing=allow_missing, 
+        progress=progress,
+        parallel=parallel,
+      )
     else:
       raise ValueError(
         f"Unsupported database type. {path}\n"
@@ -630,8 +640,10 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
     total=len(all_values)
   )
 
+  block_size = 500000 if mysql_syntax else 15000
+
   with pbar:
-    for chunked_values in tqdm(sip(all_values, 500000)):
+    for chunked_values in sip(all_values, block_size):
       insert_file_lookup_values(cur, chunked_values)
       conn.commit()
       pbar.update(len(chunked_values))
