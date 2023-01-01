@@ -51,7 +51,7 @@ except ImportError:
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
   "compressed_segmentation", "compresso",
-  "jpeg", "png", "zfpc"
+  "crackle", "jpeg", "png", "zfpc"
 )
 
 def encode(
