@@ -20,6 +20,7 @@ import numpy as np
 import pyspng
 import simplejpeg
 import compresso
+import crackle
 import fastremap
 import zfpc
 
@@ -74,6 +75,8 @@ def encode(
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
   elif encoding == "compresso":
     return compresso.compress(img_chunk[:,:,:,0])
+  elif encoding == "crackle":
+    return crackle.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
     return encode_jpeg(img_chunk, nvl(level, 85))
   elif encoding == "png":
@@ -112,6 +115,8 @@ def decode(
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
   elif encoding == "compresso":
     return compresso.decompress(filedata).reshape(shape)
+  elif encoding == "crackle":
+    return crackle.decompress(filedata).reshape(shape)
   elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
   elif encoding == "png":
@@ -326,6 +331,11 @@ def read_voxel(
     return out
   elif encoding == "compresso":
     arr = compresso.CompressoArray(filedata)
+    out = np.empty((1,1,1,1), dtype=dtype, order="F")
+    out[0,0,0,0] = arr[tuple(xyz)]
+    return out
+  elif encoding == "crackle":
+    arr = crackle.CrackleArray(filedata)
     out = np.empty((1,1,1,1), dtype=dtype, order="F")
     out[0,0,0,0] = arr[tuple(xyz)]
     return out

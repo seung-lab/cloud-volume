@@ -3,6 +3,7 @@ chardet>=3.0.4
 cloud-files>=2.0.0
 compressed-segmentation>=2.1.1
 compresso>=3.0.0
+crackle
 DracoPy>=1.0.0,<2.0.0
 fastremap>=1.12.0
 fpzip>=1.2.0,<2.0.0
