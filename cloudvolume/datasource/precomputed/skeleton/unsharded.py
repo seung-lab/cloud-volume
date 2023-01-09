@@ -62,7 +62,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       else returns a single Skeleton
     """
     list_return = True
-    if type(segids) in (int, float):
+    if isinstance(segids, (int,float,np.integer)):
       list_return = False
       segids = [ int(segids) ]
 
