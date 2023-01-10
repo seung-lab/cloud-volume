@@ -99,6 +99,11 @@ def test_compresso(dtype):
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=dtype)
   encode_decode(random_data, 'compresso')
 
+@pytest.mark.parametrize('dtype', (np.uint8, np.uint16, np.uint32, np.uint64))
+def test_crackle(dtype):
+  random_data = np.random.randint(255, size=(64,64,64,1), dtype=dtype)
+  encode_decode(random_data, 'crackle')
+
 def test_npz():
   random_data = np.random.randint(255, size=(64,64,64,1), dtype=np.uint8)
   encode_decode(random_data, 'npz')
