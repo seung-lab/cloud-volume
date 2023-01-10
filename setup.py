@@ -12,7 +12,7 @@ def requirements():
 
 setuptools.setup(
   name="cloud-volume",
-  version="8.17.3",
+  version="8.18.0",
   setup_requires=[
     'numpy<1.17; python_version<"3.5"',
     'numpy; python_version>="3.5"',
