@@ -289,6 +289,8 @@ def labels(
     )
   elif encoding == "compresso":
     return compresso.labels(filedata)
+  elif encoding == "crackle":
+    return crackle.labels(filedata)
   else:
     raise NotImplementedError(f"Encoding {encoding} is not supported. Try: raw, compressed_segmentation, or compresso.")
 
@@ -308,6 +310,8 @@ def remap(
     )
   elif encoding == "compresso":
     return compresso.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
+  elif encoding == "crackle":
+    return crackle.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
   else:
     img = decode(filedata, encoding, shape, dtype, block_size)
     fastremap.remap(img, mapping, preserve_missing_labels=preserve_missing_labels, in_place=True)
