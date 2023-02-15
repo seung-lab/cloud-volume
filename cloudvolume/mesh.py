@@ -283,11 +283,11 @@ class Mesh(object):
           continue 
         elif line[1] == 'n': # vertex normals
           # e.g. vn 0.992266 -0.033290 -0.119585
-          (n1, n2, n3) = re.match(r'vn\s+([-\d\.]+)\s+([-\d\.]+)\s+([-\d\.]+)', line).groups()
+          (n1, n2, n3) = re.match(r'vn\s+([-\d\.e]+)\s+([-\d\.e]+)\s+([-\d\.e]+)', line).groups()
           normals.append( (float(n1), float(n2), float(n3)) )
         else:
           # e.g. v -0.317868 -0.000526 -0.251834
-          (v1, v2, v3) = re.match(r'v\s+([-\d\.]+)\s+([-\d\.]+)\s+([-\d\.]+)', line).groups()
+          (v1, v2, v3) = re.match(r'v\s+([-\d\.e]+)\s+([-\d\.e]+)\s+([-\d\.e]+)', line).groups()
           vertices.append( (float(v1), float(v2), float(v3)) )
 
     vertices = np.array(vertices, dtype=np.float32)
