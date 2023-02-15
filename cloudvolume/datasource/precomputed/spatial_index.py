@@ -573,7 +573,7 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
 
   set_journaling_to_performance_mode(cur, mysql_syntax)
 
-  print("started thread", threading.current_thread().native_id)
+  print("started thread", threading.current_thread().ident)
   try:
     while not evt.is_set() or not qu.empty():
       try:
@@ -587,7 +587,7 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
     cur.close()
     conn.close()
 
-  print('finished', threading.current_thread().native_id)
+  print('finished', threading.current_thread().ident)
 
 def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
   # handle SQLite vs MySQL syntax quirks
