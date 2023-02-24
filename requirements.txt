@@ -23,7 +23,7 @@ pyspng-seunglab~=1.0.0
 python-dateutil
 requests>=2.22.0
 pysimdjson>=3.1.1
-simplejpeg
+simplejpeg==1.6.3
 six>=1.10.0
 tenacity>=4.10.0
 tqdm
