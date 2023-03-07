@@ -572,7 +572,7 @@ Hops:
     """Vec(x,y,z) start of the dataset in voxels"""
     scale = self.scale(mip)
     if 'voxel_offset' in scale:
-      return Vec(*scale['voxel_offset'])
+      return Vec(*scale['voxel_offset'], dtype=int)
     else:
       return Vec(0,0,0)
 
