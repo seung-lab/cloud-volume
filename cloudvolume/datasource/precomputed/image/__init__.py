@@ -7,7 +7,8 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
-from functools import reduce
+from typing import Dict, Tuple, Sequence, Union
+from functools import reduce, partial
 import itertools
 import operator
 import uuid
@@ -19,7 +20,8 @@ from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
 from cloudvolume.lru import LRU
-from ....lib import Bbox, Vec, sip, first, BboxLikeType
+from cloudvolume.scheduler import schedule_jobs, DEFAULT_THREADS
+from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
 from .... import sharedmemory, chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
@@ -103,6 +105,38 @@ class PrecomputedImageSource(ImageSourceInterface):
     cf = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
     key = self.meta.key(mip)
     return first(cf.list(prefix=key)) is not None
+
+  def download_points(
+    self, points, mip:int
+  ) -> Dict[Tuple[int,int,int], int]:
+    """For accessing a list of individual voxels."""
+    total = len(points) if hasattr(points, "__len__") else None
+    points = toiter(points)
+    bbxs = ( Bbox(pt, Vec(*pt)+1) for pt in points )
+
+    res = {}
+    def getpt(bbx):
+      nonlocal mip
+      value = self.download(bbx, mip)
+      res[tuple(bbx.minpt)] = value[0][0][0][0]
+
+    fns = ( partial(getpt, bbx) for bbx in bbxs )
+    progress = self.config.progress
+    if progress and not isinstance(progress, str):
+      progress = "Downloading"
+
+    concurrency = DEFAULT_THREADS
+    if self.meta.path.protocol == "file":
+      concurrency = 0
+
+    schedule_jobs(
+      fns, 
+      concurrency=concurrency,
+      progress=progress, 
+      total=total, 
+      green=self.config.green,
+    )
+    return res
 
   def download(
       self, bbox, mip, parallel=1, 
@@ -324,6 +358,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       delete_black_uploads=self.delete_black_uploads,
       background_color=self.background_color,
       non_aligned_writes=self.non_aligned_writes,
+      secrets=self.config.secrets,
       green=self.config.green,
       fill_missing=self.fill_missing, # applies only to unaligned writes
     )

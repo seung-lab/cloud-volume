@@ -20,12 +20,13 @@ import numpy as np
 import pyspng
 import simplejpeg
 import compresso
+import crackle
 import fastremap
 import zfpc
 
 from PIL import Image
 
-from .lib import yellow
+from .lib import yellow, nvl
 
 try:
   import compressed_segmentation as cseg
@@ -50,7 +51,7 @@ except ImportError:
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
   "compressed_segmentation", "compresso",
-  "jpeg", "png", "zfpc"
+  "crackle", "jpeg", "png", "zfpc"
 )
 
 def encode(
@@ -59,23 +60,27 @@ def encode(
   block_size:Optional[Sequence[int]] = None,
   compression_params:dict = {},
 ) -> bytes:
+  level = compression_params.get("level", None)
+
   if encoding == "raw":
     return encode_raw(img_chunk)
   elif encoding == "kempressed":
     return encode_kempressed(img_chunk)
   elif encoding == "fpzip":
     img_chunk = np.asfortranarray(img_chunk)
-    return fpzip.compress(img_chunk, order='F')
+    return fpzip.compress(img_chunk, order='F', precision=nvl(level, 0))
   elif encoding == "zfpc":
     return zfpc.compress(np.asfortranarray(img_chunk), **compression_params)
   elif encoding == "compressed_segmentation":
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
   elif encoding == "compresso":
     return compresso.compress(img_chunk[:,:,:,0])
+  elif encoding == "crackle":
+    return crackle.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
-    return encode_jpeg(img_chunk)
+    return encode_jpeg(img_chunk, nvl(level, 85))
   elif encoding == "png":
-    return encode_png(img_chunk)
+    return encode_png(img_chunk, nvl(level, 9))
   elif encoding == "npz":
     return encode_npz(img_chunk)
   elif encoding == "npz_uint8":
@@ -110,6 +115,8 @@ def decode(
     return decode_compressed_segmentation(filedata, shape=shape, dtype=dtype, block_size=block_size)
   elif encoding == "compresso":
     return compresso.decompress(filedata).reshape(shape)
+  elif encoding == "crackle":
+    return crackle.decompress(filedata).reshape(shape)
   elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
   elif encoding == "png":
@@ -282,6 +289,8 @@ def labels(
     )
   elif encoding == "compresso":
     return compresso.labels(filedata)
+  elif encoding == "crackle":
+    return crackle.labels(filedata)
   else:
     raise NotImplementedError(f"Encoding {encoding} is not supported. Try: raw, compressed_segmentation, or compresso.")
 
@@ -301,6 +310,8 @@ def remap(
     )
   elif encoding == "compresso":
     return compresso.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
+  elif encoding == "crackle":
+    return crackle.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
   else:
     img = decode(filedata, encoding, shape, dtype, block_size)
     fastremap.remap(img, mapping, preserve_missing_labels=preserve_missing_labels, in_place=True)
@@ -324,6 +335,11 @@ def read_voxel(
     return out
   elif encoding == "compresso":
     arr = compresso.CompressoArray(filedata)
+    out = np.empty((1,1,1,1), dtype=dtype, order="F")
+    out[0,0,0,0] = arr[tuple(xyz)]
+    return out
+  elif encoding == "crackle":
+    arr = crackle.CrackleArray(filedata)
     out = np.empty((1,1,1,1), dtype=dtype, order="F")
     out[0,0,0,0] = arr[tuple(xyz)]
     return out

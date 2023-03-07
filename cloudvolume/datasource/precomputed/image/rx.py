@@ -607,7 +607,15 @@ def decode_single_voxel(
   operation when e.g. people are querying the identity
   of a synapse or organelle location to build a database.
   """
-  return _decode_helper(  
+  if content in (None, b'') and fill_missing:
+    return np.full(
+      shape=(1,1,1,1), 
+      fill_value=background_color,
+      dtype=meta.dtype, 
+      order="F",
+    )
+
+  return _decode_helper(
     partial(chunks.read_voxel, xyz),
     meta, input_bbox,
     content, fill_missing, 

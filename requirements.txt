@@ -3,6 +3,7 @@ chardet>=3.0.4
 cloud-files>=2.0.0
 compressed-segmentation>=2.1.1
 compresso>=3.0.0
+crackle-codec
 DracoPy>=1.0.0,<2.0.0
 fastremap>=1.12.0
 fpzip>=1.2.0,<2.0.0
@@ -22,9 +23,9 @@ pyspng-seunglab~=1.0.0
 python-dateutil
 requests>=2.22.0
 pysimdjson>=3.1.1
-simplejpeg
+simplejpeg==1.6.3
 six>=1.10.0
 tenacity>=4.10.0
 tqdm
-urllib3[secure,brotli]>=1.25.7
+urllib3[brotli]>=1.25.7
 zfpc

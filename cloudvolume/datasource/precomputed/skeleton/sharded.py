@@ -1,3 +1,5 @@
+import numpy as np
+
 from ..sharding import ShardingSpecification, ShardReader
 from ....skeleton import Skeleton
 from ..spatial_index import CachedSpatialIndex
@@ -30,7 +32,7 @@ class ShardedPrecomputedSkeletonSource(object):
 
   def get(self, segids):
     list_return = True
-    if type(segids) in (int, float):
+    if isinstance(segids, (int,float,np.integer)):
       list_return = False
       segids = [ int(segids) ]
 

@@ -9,6 +9,7 @@ import networkx as nx
 import fastremap
 import numpy as np
 import struct
+import sys
 
 from . import lib
 from .exceptions import (
@@ -264,10 +265,19 @@ class Skeleton(object):
       edges.append(edge)
       ct += skel.vertices.shape[0]
 
+    space = skeletons[0].space
+    if space == "voxel":
+      skeletons = [ s.voxel_space() for s in skeletons ]
+    else:
+      skeletons = [ s.physical_space() for s in skeletons ]
+
     skel = Skeleton(
       vertices=np.concatenate([ skel.vertices for skel in skeletons ], axis=0),
       edges=np.concatenate(edges, axis=0),
       segid=skeletons[0].id,
+      extra_attributes=skeletons[0].extra_attributes,
+      space=space,
+      transform=skeletons[0].transform,
     )
 
     if len(skeletons) == 0:
@@ -537,7 +547,12 @@ class Skeleton(object):
     edges = self.edges 
 
     if self.empty():
-      return Skeleton(segid=self.id)
+      return Skeleton(
+        segid=self.id, 
+        space=self.space, 
+        extra_attributes=self.extra_attributes,
+        transform=self.transform,
+      )
     
     eff_vertices, uniq_idx, idx_representative = np.unique(
       nodes, axis=0, return_index=True, return_inverse=True
@@ -549,7 +564,13 @@ class Skeleton(object):
     eff_edges = np.unique(eff_edges, axis=0)
     eff_edges = eff_edges[ eff_edges[:,0] != eff_edges[:,1] ] # remove trivial loops
 
-    skel = Skeleton(eff_vertices, eff_edges, segid=self.id)
+    skel = Skeleton(
+      eff_vertices, eff_edges, 
+      segid=self.id, 
+      space=self.space,
+      extra_attributes=self.extra_attributes,
+      transform=self.transform,
+    )
 
     for attr in self.extra_attributes:
       name = attr['id']
@@ -570,7 +591,12 @@ class Skeleton(object):
     Returns: new Skeleton
     """
     if self.empty():
-      return Skeleton(segid=self.id)
+      return Skeleton(
+        segid=self.id, 
+        space=self.space, 
+        extra_attributes=self.extra_attributes,
+        transform=self.transform,
+      )
 
     idx_map = {}
     for i, vert in enumerate(self.vertices):
@@ -588,7 +614,13 @@ class Skeleton(object):
     edges = np.sort(edge_map[self.edges], axis=1)
     vertex_remap = vertex_remap[ vertex_remap > -1 ]
 
-    skel = Skeleton(connected_verts, edges, segid=self.id)
+    skel = Skeleton(
+      connected_verts, edges, 
+      segid=self.id, 
+      space=self.space,
+      extra_attributes=self.extra_attributes,
+      transform=self.transform,
+    )
 
     if len(self.extra_attributes) == 0:
       return skel
@@ -1189,6 +1221,21 @@ class Skeleton(object):
 
   def __repr__(self):
     return str(self)
+
+  def __sizeof__(self):
+    npy_attrs = [ getattr(self, attr['id']) for attr in self.extra_attributes ]
+    npy_attrs += [ self.vertices, self.edges, self.transform ]
+
+    npy_bytes = sum([ x.nbytes for x in npy_attrs ])
+
+    attrs = [
+      self.id, self.space, self.extra_attributes
+    ]
+    attr_bytes = sum(( 
+      sys.getsizeof(x) for x in attrs
+    ))
+
+    return npy_bytes + attr_bytes
 
 
 PrecomputedSkeleton = Skeleton # backwards compatibility

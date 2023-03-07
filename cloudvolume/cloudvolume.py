@@ -8,6 +8,7 @@ import numpy as np
 from .exceptions import UnsupportedFormatError, DimensionError
 from .lib import generate_random_string
 from .paths import strict_extract, to_https_protocol
+from .types import CompressType, ParallelType, CacheType, SecretsType
 
 # NOTE: Plugins are registered in __init__.py
 
@@ -20,11 +21,6 @@ except AttributeError:
 REGISTERED_PLUGINS = {}
 def register_plugin(key, creation_function):
   REGISTERED_PLUGINS[key.lower()] = creation_function
-
-CompressType = Optional[Union[str,bool]]
-ParallelType = Union[int,bool]
-CacheType = Union[bool,str]
-SecretsType = Optional[Union[str,dict]]
 
 class SharedConfiguration(object):
   """
@@ -178,7 +174,8 @@ class CloudVolume:
             gevent.monkey.patch_all(threads=False)
       lru_bytes: (int) number of bytes used to cache recently used image 
         tiles in memory. This is an in-memory cache and is completely separate from
-        the `cache` parameter that handles disk IO.
+        the `cache` parameter that handles disk IO. Tiles are stripped over only their
+        second stage compression.
       info: (dict) In lieu of fetching a neuroglancer info file, use this one.
           This is useful when creating new datasets and for repeatedly initializing
           a new cloudvolume instance.

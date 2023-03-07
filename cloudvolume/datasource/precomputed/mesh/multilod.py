@@ -157,6 +157,27 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
 
     return meshdata
 
+  def put(self, *args, **kwargs):
+    raise NotImplementedError("put is not implemented for multi-res meshes.")
+
+  def delete(self, segids):
+    """
+    Removes fragment and manifest files for each segid specified.
+    """
+    segids = toiter(segids)
+
+    def filenames(segids):
+      for segid in segids:
+        yield self.meta.join(full_path, f"{segid}.index")
+        yield self.meta.join(full_path, f"{segid}")
+
+    full_path = self.meta.join(self.meta.cloudpath, self.path)
+    progress = progress if progress is not None else self.config.progress
+    CloudFiles(
+      full_path, progress=progress,
+      green=self.config.green, secrets=self.config.secrets
+    ).delete(filenames(segids), total=len(segids) * 2)
+
 class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSource):
   def __init__(self, meta, cache, config, readonly=False):
     super(ShardedMultiLevelPrecomputedMeshSource, self).__init__(meta, cache, config, readonly)
@@ -262,6 +283,12 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
         meshdata[segid] = Mesh.concatenate(*meshdata[segid])
 
     return meshdata
+
+  def put(self, *args, **kwargs):
+    raise NotImplementedError("put is not implemented for multi-res meshes.")
+
+  def delete(self, *args, **kwargs):
+    raise NotImplementedError("delete is not implemented for individual sharded multi-res meshes.")
 
 class MultiLevelPrecomputedMeshManifest:
   # Parse the multi-resolution mesh manifest file format:

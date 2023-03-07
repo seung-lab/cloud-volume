@@ -99,6 +99,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       bbox = Bbox.create(bbox)
       query_d['bounds'] = bbox.to_filename()
 
+    level = min(level, self.meta.meta.max_meshed_layer)
+
     url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, segid, lod)
     if level is not None:
       res = requests.get(
@@ -131,17 +133,19 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       an error.
     """
     import DracoPy
-
-    level = self.meta.meta.decode_layer_id(seg_id)
+    if bounding_box is not None:
+      level = 2
+    else:
+      level = self.meta.meta.decode_layer_id(seg_id)
     fragment_filenames = self.get_fragment_filenames(
       seg_id, level=level, bbox=bounding_box, bypass=bypass
     )
-    fragments = self._get_mesh_fragments(fragment_filenames)
+    fragments = self._get_mesh_fragments({ fname: seg_id for fname in fragment_filenames })
     fragments = sorted(fragments, key=lambda frag: frag[0])  # make decoding deterministic
 
     fragiter = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
     is_draco = False
-    for i, (filename, frag) in enumerate(fragiter):
+    for i, (filename, frag, _) in enumerate(fragiter):
       mesh = None
       
       if frag is not None:
@@ -200,20 +204,18 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     segids = list(set([ int(segid) for segid in toiter(segids) ]))
     meta = self.meta.meta
 
+    exceptions = (IndexError,) if allow_missing else ()
+
     meshes = []
     for seg_id in tqdm(segids, disable=(not self.config.progress), desc="Downloading Meshes"):
       level = meta.decode_layer_id(seg_id)
-      if allow_missing:
-        try:
-          mesh, is_draco = self.download_segid(
-            seg_id, bounding_box, bypass, use_byte_offsets
-          )
-        except IndexError:
-          continue
-      else:
+      try:
         mesh, is_draco = self.download_segid(
           seg_id, bounding_box, bypass, use_byte_offsets
         )
+      except exceptions:
+        continue
+
       resolution = meta.resolution(self.config.mip)
       if meta.chunks_start_at_voxel_offset:
         offset = meta.voxel_offset(self.config.mip)

@@ -32,10 +32,10 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       self.readers[int(level)] = GrapheneShardReader(self.meta, self.cache, spec)
 
   def initial_path(self, level):
-    return self.meta.join(self.meta.mesh_path, 'initial', str(level))
+    return self.meta.join(self.meta.mesh_path, self.meta.sharded_mesh_dir, str(level))
 
   def dynamic_path(self):
-    return self.meta.join(self.meta.mesh_path, 'dynamic')
+    return self.meta.join(self.meta.mesh_path, self.meta.unsharded_mesh_dir)
 
   # 1. determine if the segid is before or after the shard time point
   # 2. assuming it is sharded, fetch the draco encoded file from the
@@ -51,7 +51,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     checks = [ self.compute_filename(label) for label in labels ]
     
-    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'dynamic') 
+    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path()) 
     progress = progress if progress is not None else self.config.progress
 
     results = CloudFiles(
@@ -182,7 +182,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       })
       segid_map[(path, byte_start, byte_end)] = segid
 
-    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, 'initial')
+    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, self.meta.sharded_mesh_dir)
     files = CloudFiles(
       cloudpath, 
       green=self.config.green, 
@@ -295,7 +295,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       layers[layer_id].append(segid)
 
     for layer_id, labels in layers.items():
-      subdirectory = self.meta.join(self.meta.mesh_path, 'initial', str(layer_id))
+      subdirectory = self.meta.join(self.meta.mesh_path, self.meta.sharded_mesh_dir, str(layer_id))
       initial_output = self.readers[layer_id].get_data(
         labels, path=subdirectory, 
         progress=self.config.progress,
@@ -318,6 +318,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
   def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=True):    
     """See GrapheneUnshardedMeshSource.get for the user facing function."""
     level = self.meta.meta.decode_layer_id(seg_id)
+    level = min(level, self.meta.meta.max_meshed_layer)
     if level not in self.readers:
       raise KeyError("There is no shard configuration in the mesh info file for level {}.".format(level))
 

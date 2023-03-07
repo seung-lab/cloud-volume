@@ -19,7 +19,7 @@ from .. import lib
 from ..cacheservice import CacheService
 from .. import exceptions 
 from ..lib import ( 
-  colorize, red, mkdir, 
+  colorize, yellow, red, mkdir, 
   Vec, Bbox, jsonify, BboxLikeType,
 )
 
@@ -54,6 +54,10 @@ class CloudVolumePrecomputed(object):
     # its setter is based off of scales
     self.mip = mip
     self.pid = os.getpid()
+
+    is_placeholder = self.meta.check_for_placeholder_scale(self.mip)
+    if is_placeholder:
+      print(yellow("Warning: The currently selected mip level is marked as a placeholder and likely has no associated image data."))
 
   @property 
   def autocrop(self):
@@ -515,9 +519,28 @@ class CloudVolumePrecomputed(object):
     """
     return self.image.transfer_to(cloudpath, bbox, self.mip, block_size, compress)
 
+  def coordinate_indexing(self, slices):
+    """
+    Limited version of fancy indexing for accepting x,y,z points.
+
+    col = [0,1,2]
+
+    e.g. arr[col,col,col]
+    >>> array([129, 122, 11]) # (0,0,0), (1,1,1), and (2,2,2)
+    """
+    pts = [ (x,y,z) for x,y,z in zip(slices[0],slices[1],slices[2]) ]
+    res = self.scattered_points(pts)
+    return np.array([ res[tuple(pt)] for pt in pts ], dtype=self.dtype)
+
   def __getitem__(self, slices):
     if type(slices) == Bbox:
       slices = slices.to_slices()
+    elif (
+      hasattr(slices, "__len__") 
+      and len(slices) == 3
+      and all([ isinstance(slc, (list, tuple, np.ndarray)) for slc in slices ])
+    ):
+        return self.coordinate_indexing(slices)
 
     slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
     steps = Vec(*[ slc.step for slc in slices ])
@@ -734,6 +757,39 @@ class CloudVolumePrecomputed(object):
       return img, remap
     else:
       return img
+
+  def scattered_points(
+    self, pts, 
+    mip=None, coord_resolution=None
+  ):
+    """
+    Download one or more single voxel values that may be scattered
+    across the dataset. You can accelerate this query with an LRU
+    if there is some spatial localization.
+
+    pts: iterable of triples
+    mip: which resolution level to get (default self.mip)
+    coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
+      Sometimes Neuroglancer is working in the resolution of another
+      higher res layer and this can help correct that.
+
+    Returns:     
+      { (x,y,z): label, ... }
+    """
+    pts = list(pts)
+    if isinstance(pts[0], int):
+      pts = [ pts ]
+
+    if mip is None:
+      mip = self.mip
+    mip = self.meta.to_mip(mip)
+
+    if coord_resolution is not None:
+      factor = self.meta.resolution(0) / Vec(*coord_resolution)
+      pts = [ Vec(*pt) / factor for pt in pts ]
+
+    pts = set([ tuple(self.point_to_mip(pt, mip=0, to_mip=mip)) for pt in pts ])
+    return self.image.download_points(pts, mip)
 
   def download_point(
     self, pt, size=256, 

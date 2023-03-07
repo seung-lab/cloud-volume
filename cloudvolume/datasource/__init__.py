@@ -90,7 +90,7 @@ def get_cache_path(cache, cloudpath):
 def get_cache_path_helper(base, cloudpath):
   path = paths.extract(cloudpath)
   basepath = path.basepath
-  if basepath[0] == os.path.sep:
+  if len(basepath) and basepath[0] == os.path.sep:
     basepath = basepath[1:]
 
   return toabs(os.path.join(

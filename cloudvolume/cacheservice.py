@@ -139,6 +139,14 @@ class CacheService(object):
       return
     os.remove(path)
 
+  def delete(self, filenames):
+    filenames = toiter(filenames)
+
+    for filename in filenames:
+      path = os.path.join(self.path, filename)
+      if os.path.exists(path):
+        os.remove(path)
+
   def flush(self, preserve=None):
     """
     Delete the cache for this dataset. Optionally preserve

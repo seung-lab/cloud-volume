@@ -1,6 +1,7 @@
 import copy
 import re
 import struct
+import sys
 
 import numpy as np
 
@@ -88,6 +89,20 @@ class Mesh(object):
 
     return (equality and np.all(self.normals == other.normals))
 
+  def __sizeof__(self):
+    attr_bytes = sum(( 
+      sys.getsizeof(x)
+      for x in [
+        self.segid, self.encoding_type, self.encoding_options
+      ]
+    ))
+    npy_bytes = sum([
+      (x.nbytes if isinstance(x, np.ndarray) else sys.getsizeof(x))
+      for x in [ self.vertices, self.faces, self.normals ]
+    ])
+    return attr_bytes + npy_bytes
+
+
   def __repr__(self):
     return "Mesh(vertices<{}>, faces<{}>, normals<{}>, segid={}, encoding_type=<{}>)".format(
       self.vertices.shape[0], self.faces.shape[0], self.normals.shape[0],
@@ -146,7 +161,7 @@ class Mesh(object):
     return tris
 
   @classmethod
-  def concatenate(cls, *meshes):
+  def concatenate(cls, *meshes, segid=None):
     vertex_ct = np.zeros(len(meshes) + 1, np.uint32)
     vertex_ct[1:] = np.cumsum([ len(mesh) for mesh in meshes ])
 
@@ -162,7 +177,7 @@ class Mesh(object):
     if len(encoding_type) == 1:
       encoding_type = encoding_type[0]
 
-    return Mesh(vertices, faces, normals, encoding_type=encoding_type)
+    return Mesh(vertices, faces, normals, encoding_type=encoding_type, segid=segid)
 
   def consolidate(self):
     """Remove duplicate vertices and faces. Returns a new mesh object."""
@@ -268,11 +283,11 @@ class Mesh(object):
           continue 
         elif line[1] == 'n': # vertex normals
           # e.g. vn 0.992266 -0.033290 -0.119585
-          (n1, n2, n3) = re.match(r'vn\s+([-\d\.]+)\s+([-\d\.]+)\s+([-\d\.]+)', line).groups()
+          (n1, n2, n3) = re.match(r'vn\s+([-\d\.e]+)\s+([-\d\.e]+)\s+([-\d\.e]+)', line).groups()
           normals.append( (float(n1), float(n2), float(n3)) )
         else:
           # e.g. v -0.317868 -0.000526 -0.251834
-          (v1, v2, v3) = re.match(r'v\s+([-\d\.]+)\s+([-\d\.]+)\s+([-\d\.]+)', line).groups()
+          (v1, v2, v3) = re.match(r'v\s+([-\d\.e]+)\s+([-\d\.e]+)\s+([-\d\.e]+)', line).groups()
           vertices.append( (float(v1), float(v2), float(v3)) )
 
     vertices = np.array(vertices, dtype=np.float32)
