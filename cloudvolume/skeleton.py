@@ -607,7 +607,7 @@ class Skeleton(object):
     for i, vert in enumerate(self.vertices):
       idx_map[tuple(vert)] = i
 
-    connected_verts = np.unique(self.vertices[ self.edges.flatten() ], axis=0)
+    connected_verts = np.unique(self.vertices[ self.edges.flat ], axis=0)
 
     edge_map = np.zeros( (len(self.vertices),), dtype=self.edges.dtype)
     vertex_remap = np.zeros( (len(self.vertices),), dtype=np.int32) - 1
@@ -888,7 +888,7 @@ class Skeleton(object):
       return np.unique(edge_list[1:], axis=0)
 
     forest = []
-    for edge in fastremap.unique(skel.edges.flatten()):
+    for edge in fastremap.unique(skel.edges.flat):
       if visited[edge]:
         continue
 
