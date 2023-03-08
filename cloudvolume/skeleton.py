@@ -598,6 +598,11 @@ class Skeleton(object):
         transform=self.transform,
       )
 
+    all_edges = fastremap.unique(self.edges.flat)
+
+    if len(self.vertices) == all_edges.size:
+      return self.clone()
+
     idx_map = {}
     for i, vert in enumerate(self.vertices):
       idx_map[tuple(vert)] = i
