@@ -247,7 +247,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | kempressed              | Anisotropic Z Floating Point | N**      | Y*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
 | zfpc                    | Alignment Vector Fields    | N***     | Y*          | zfp stream container.                        |
 
-\* Not integrated into official Neuroglancer yet, but available on a branch ([fpzip](https://github.com/william-silversmith/neuroglancer/tree/wms_fpzip), [zfpc](https://github.com/william-silversmith/neuroglancer/tree/wms_zfpc), [crackle](https://github.com/william-silversmith/neuroglancer/tree/wms_crackle)).
+\* Not integrated into official Neuroglancer yet, but available on a [fork](https://github.com/william-silversmith/neuroglancer/tree/wms_combined_codecs).
 \*\* Lossless if your data can handle adding and then subtracting 2.
 \*\*\* Lossless by default, but you probably want to use the lossy mode.
 
