@@ -539,6 +539,12 @@ class PrecomputedImageSource(ImageSourceInterface):
         )
         pbar.update()
 
+  def shard_reader(self, mip=None):
+    mip = mip if mip is not None else self.config.mip
+    scale = self.meta.scale(mip)
+    spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
+    return sharding.ShardReader(self.meta, self.cache, spec)
+
   def make_shard(self, img, bbox, mip=None, spec=None, progress=False):
     """
     Convert an image that represents a single complete shard 
