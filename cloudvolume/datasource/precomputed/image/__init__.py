@@ -519,6 +519,10 @@ class PrecomputedImageSource(ImageSourceInterface):
     cfdest = CloudFiles(cloudpath)
 
     def check(files):
+      if self.fill_missing:
+        for file in files:
+          if file['content'] is None:
+            file['content'] = b''
       errors = [
         file for file in files if \
         (file['content'] is None or file['error'] is not None)
