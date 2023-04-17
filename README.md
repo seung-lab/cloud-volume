@@ -109,7 +109,9 @@ pip install -e .[all_viewers] # with e.g. the all_viewers optional dependency
 
 ### Credentials
 
-You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided.
+By default, CloudVolume's configuration and cache files are stored in `$HOME/.cloudvolume` (or in `$HOME/.cloudfiles` since we use CloudFiles for the backend). You can configure where CloudVolume looks for these files with the environment variable `$CLOUD_VOLUME_DIR`.  
+
+Credentials are stored in `$CLOUD_VOLUME_DIR/secrets`. You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided.
 
 If neither of those two conditions apply, you need a service account credential. If you have your credentials handy, you can provide them like so as a dict, JSON string, or a bare token if the service will accept that.
 
