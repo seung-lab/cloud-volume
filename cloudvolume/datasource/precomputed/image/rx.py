@@ -243,6 +243,8 @@ def download(
       )
       if not retain:
         os.unlink(location)
+    elif background_color == 0:
+      renderbuffer = np.zeros(shape, dtype=dtype, order=order)
     else:
       renderbuffer = np.full(shape=shape, fill_value=background_color,
                              dtype=dtype, order=order)
