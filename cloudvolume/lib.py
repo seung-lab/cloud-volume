@@ -381,7 +381,12 @@ class Bbox(object):
 
   @classmethod
   def intersects(cls, bbx1, bbx2):
-    return np.all(bbx1.minpt < bbx2.maxpt) and np.all(bbx1.maxpt > bbx2.minpt)
+    a = bbx1.minpt < bbx2.maxpt
+    b = bbx1.maxpt > bbx2.minpt
+    c = a & b
+    if len(c) == 3:
+      return c[0] & c[1] & c[2]
+    return np.all(c)
 
   @classmethod
   def near_edge(cls, bbx1, bbx2, distance=0):
