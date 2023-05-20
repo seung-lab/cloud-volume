@@ -140,13 +140,11 @@ def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
       n_chunks *= (bbox.dz + chunk_size[2] - 1) // chunk_size[2]
       return n_chunks
     def __iter__(self):
-      for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
-        highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
-        filename = "{}-{}_{}-{}_{}-{}".format(
-          x, highpt.x,
-          y, highpt.y, 
-          z, highpt.z
-        )
+      for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):        
+        xf = min(x + chunk_size.x, volume_bbox.maxpt.x)
+        yf = min(y + chunk_size.y, volume_bbox.maxpt.y)
+        zf = min(z + chunk_size.z, volume_bbox.maxpt.z)
+        filename = f"{x}-{xf}_{y}-{yf}_{z}-{zf}"
         yield path.join(key, filename)
 
   return ChunkNamesIterator()
