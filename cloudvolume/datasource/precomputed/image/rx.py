@@ -549,16 +549,22 @@ def download_chunks_threaded(
     partial(process, meta.cloudpath, filename, cache.enabled) for filename in locations['remote'] 
   )
 
-  downloads = itertools.chain( local_downloads, remote_downloads )
-
   if progress and not isinstance(progress, str):
     progress = "Downloading"
 
   schedule_jobs(
-    fns=downloads, 
+    fns=local_downloads, 
+    concurrency=0, 
+    progress=progress,
+    total=len(locations['local']),
+    green=green,
+  )
+
+  schedule_jobs(
+    fns=remote_downloads, 
     concurrency=DEFAULT_THREADS, 
     progress=progress,
-    total=len(cloudpaths),
+    total=len(locations['remote']),
     green=green,
   )
 
