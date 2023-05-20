@@ -517,9 +517,7 @@ class CacheService(object):
     progress = self.config.progress if progress is None else progress
     
     cf = CloudFiles('file://' + self.path, progress=progress)
-    results = cf.get(list(cloudpaths))
-
-    return { res['path']: res['content'] for res in results }
+    return cf.get(cloudpaths, return_dict=True)
 
   def put_single(self, path, content, *args, **kwargs):
     kwargs['progress'] = False
