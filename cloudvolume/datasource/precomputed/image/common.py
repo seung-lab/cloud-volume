@@ -214,16 +214,25 @@ def shade(dest_img, dest_bbox, src_img, src_bbox):
   if not Bbox.intersects(dest_bbox, src_bbox):
     return
 
-  spt = max2(src_bbox.minpt, dest_bbox.minpt)
-  ept = min2(src_bbox.maxpt, dest_bbox.maxpt)
-  dbox = Bbox(spt, ept) - dest_bbox.minpt
+  spt = np.maximum(src_bbox.minpt, dest_bbox.minpt)
+  ept = np.minimum(src_bbox.maxpt, dest_bbox.maxpt)
 
-  ZERO3 = Vec(0,0,0)
-  istart = max2(spt - src_bbox.minpt, ZERO3)
-  iend = min2(ept - src_bbox.maxpt, ZERO3) + src_img.shape[:3]
-  sbox = Bbox(istart, iend)
+  dest_minpt = np.minimum(spt, ept) - dest_bbox.minpt
+  dest_maxpt = np.maximum(spt, ept) - dest_bbox.minpt
+
+  ZERO3 = np.zeros((3,), dtype=spt.dtype)
+  istart = np.maximum(spt - src_bbox.minpt, ZERO3)
+  iend = np.minimum(ept - src_bbox.maxpt, ZERO3) + src_img.shape[:3]
 
   while src_img.ndim < 4:
     src_img = src_img[..., np.newaxis]
   
-  dest_img[ dbox.to_slices() ] = src_img[ sbox.to_slices() ]
+  dest_img[ 
+    dest_minpt[0]:dest_maxpt[0],
+    dest_minpt[1]:dest_maxpt[1],
+    dest_minpt[2]:dest_maxpt[2],
+  ] = src_img[
+    istart[0]:iend[0], 
+    istart[1]:iend[1],
+    istart[2]:iend[2]
+  ]
