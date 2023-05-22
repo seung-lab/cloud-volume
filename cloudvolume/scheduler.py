@@ -95,7 +95,10 @@ def schedule_jobs(
   """
   if concurrency < 0:
     raise ValueError("concurrency value cannot be negative: {}".format(concurrency))
-  elif (isinstance(total, int) and total == 0):
+  elif (
+    (isinstance(total, int) and total == 0)
+    or (hasattr(fns, "__len__") and len(fns) == 0)
+  ):
     return [] 
   elif (
     concurrency == 0 
