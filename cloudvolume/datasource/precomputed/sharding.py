@@ -602,7 +602,6 @@ class ShardReader(object):
     # we might be able to combine adjacent byte ranges. Especially helpful
     # when downloading entire shards!
     bundles = []
-    total = 0
     for chunk in sorted(files, key=itemgetter("path", "start")):
       if not bundles or (chunk['path'] != bundles[-1]['path']) or (chunk['start'] != bundles[-1]['end']):
         bundles.append(dict(content=None, subranges=[], **chunk))
@@ -614,7 +613,6 @@ class ShardReader(object):
           'length': chunk['end'] - chunk['start'],
           'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
       })
-      total += 1
     
     full_path = self.meta.join(self.meta.cloudpath, path)
     bundles_resp = CloudFiles(
@@ -622,7 +620,7 @@ class ShardReader(object):
       progress=("Downloading Bundles" if progress else False), 
       green=self.green,
       parallel=parallel,
-    ).get(bundles, total=total)
+    ).get(bundles)
 
     # Responses are not guaranteed to be in order of requests
     bundles_resp = { (r['path'], r['byte_range']): r for r in bundles_resp }
