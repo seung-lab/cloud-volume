@@ -334,6 +334,8 @@ def threaded_upload_chunks(
     if cache.enabled:
       local.delete(cloudpath)
 
+  bounds = meta.bounds(mip).maxpt
+
   def process(startpt, endpt, spt, ept):
     if np.array_equal(spt, ept):
       return
@@ -341,15 +343,11 @@ def threaded_upload_chunks(
     imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
 
     # handle the edge of the dataset
-    clamp_ept = min2(ept, meta.bounds(mip).maxpt)
+    clamp_ept = np.minimum(ept, bounds)
     newept = clamp_ept - spt
     imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
 
-    filename = "{}-{}_{}-{}_{}-{}".format(
-      spt.x, clamp_ept.x,
-      spt.y, clamp_ept.y, 
-      spt.z, clamp_ept.z
-    )
+    filename = f"{spt.x}-{clamp_ept.x}_{spt.y}-{clamp_ept.y}_{spt.z}-{clamp_ept.z}"
 
     cloudpath = meta.join(meta.key(mip), filename)
 
