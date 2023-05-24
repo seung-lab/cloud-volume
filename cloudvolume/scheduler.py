@@ -2,6 +2,7 @@ import sys
 
 from tqdm import tqdm
 
+from .lib import totalfn
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 
 def schedule_threaded_jobs(
@@ -15,7 +16,11 @@ def schedule_threaded_jobs(
     except TypeError: # generators don't have len
       pass
 
-  pbar = tqdm(total=total, desc=progress, disable=(not progress))
+  if isinstance(progress, tqdm):
+    pbar = progress
+  else:
+    pbar = tqdm(total=total, desc=desc, disable=(not progress))
+
   results = []
   
   def updatefn(fn):
@@ -44,7 +49,11 @@ def schedule_green_jobs(
     except TypeError: # generators don't have len
       pass
 
-  pbar = tqdm(total=total, desc=progress, disable=(not progress))
+  if isinstance(progress, tqdm):
+    pbar = progress
+  else:
+    pbar = tqdm(total=total, desc=desc, disable=(not progress))
+
   results = []
 
   exceptions = []
@@ -77,6 +86,26 @@ def schedule_green_jobs(
 
   return results
 
+def schedule_single_threaded_jobs(
+  fns, progress=None, total=None
+):
+  if isinstance(progress, tqdm):
+    pbar = progress
+  else:
+    pbar = tqdm(
+      total=totalfn(fns, total), 
+      disable=(not progress), 
+      desc=(progress if isinstance(progress, str) else None)
+    )
+
+  with pbar:
+    results = []
+    for fn in fns:
+      res = fn()
+      pbar.update(1)
+      results.append(res)
+  return results 
+
 def schedule_jobs(
     fns, concurrency=DEFAULT_THREADS, 
     progress=None, total=None, green=False
@@ -105,7 +134,7 @@ def schedule_jobs(
     or (isinstance(total, int) and total <= 1) 
     or (hasattr(fns, "__len__") and len(fns) <= 1)
   ):
-    return [ fn() for fn in tqdm(fns, disable=(not progress), desc=progress, total=total) ]
+    return schedule_single_threaded_jobs(fns, progress, total)
 
   if green:
     return schedule_green_jobs(fns, concurrency, progress, total)

@@ -6,6 +6,7 @@ import os
 import threading
 
 import numpy as np
+from tqdm import tqdm
 
 from cloudfiles import reset_connection_pools, CloudFiles, compression
 import fastremap
@@ -552,21 +553,23 @@ def download_chunks_threaded(
   if progress and not isinstance(progress, str):
     progress = "Downloading"
 
-  schedule_jobs(
-    fns=local_downloads, 
-    concurrency=0, 
-    progress=progress,
-    total=len(locations['local']),
-    green=green,
-  )
+  total = len(locations["local"]) + len(locations["remote"])
+  with tqdm(desc=progress, total=total, disable=(not progress)) as pbar:
+    schedule_jobs(
+      fns=local_downloads, 
+      concurrency=0, 
+      progress=pbar,
+      total=len(locations['local']),
+      green=green,
+    )
 
-  schedule_jobs(
-    fns=remote_downloads, 
-    concurrency=DEFAULT_THREADS, 
-    progress=progress,
-    total=len(locations['remote']),
-    green=green,
-  )
+    schedule_jobs(
+      fns=remote_downloads, 
+      concurrency=0, 
+      progress=pbar,
+      total=len(locations['remote']),
+      green=green,
+    )
 
 def decode(
   meta, input_bbox, 
