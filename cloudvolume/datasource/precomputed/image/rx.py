@@ -499,6 +499,9 @@ def download_chunk(
         compress=compress_cache,
         raw=bool(cache_content),
       )
+      if compress_cache == False:
+        content = cache_content
+        decompress = False
       del cache_content
 
     if content is not None and decompress:
@@ -565,7 +568,7 @@ def download_chunks_threaded(
 
     schedule_jobs(
       fns=remote_downloads, 
-      concurrency=0, 
+      concurrency=DEFAULT_THREADS, 
       progress=pbar,
       total=len(locations['remote']),
       green=green,
