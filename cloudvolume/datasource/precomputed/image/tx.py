@@ -299,9 +299,14 @@ def threaded_upload_chunks(
     remote_compress = compression.normalize_encoding(remote_compress)
     cache_compress = compression.normalize_encoding(cache_compress)
     
+    if cache_compress is None and cache.enabled:
+      cache_encoded = encoded
+
     encoded = compression.compress(encoded, remote_compress)
-    cache_encoded = encoded
-    if remote_compress != cache_compress:
+    
+    if remote_compress == cache_compress:
+      cache_compress = encoded
+    elif cache.enabled and remote_compress != cache_compress:
       cache_encoded = compression.compress(encoded, cache_compress)
     
     remote.put(
