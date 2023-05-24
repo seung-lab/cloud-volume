@@ -284,7 +284,14 @@ def threaded_upload_chunks(
   remote = CloudFiles(meta.cloudpath, secrets=secrets)
   local = CloudFiles('file://' + cache.path, secrets=secrets)
 
+  remote_compress = should_compress(meta.encoding(mip), compress, cache)
+  cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+  remote_compress = compression.normalize_encoding(remote_compress)
+  cache_compress = compression.normalize_encoding(cache_compress)
+
   def do_upload(imgchunk, cloudpath):
+    nonlocal remote_compress
+    nonlocal cache_compress
     encoded = chunks.encode(
       imgchunk, meta.encoding(mip), 
       meta.compressed_segmentation_block_size(mip),
@@ -293,31 +300,29 @@ def threaded_upload_chunks(
 
     if lru is not None:
       lru[cloudpath] = encoded
-
-    remote_compress = should_compress(meta.encoding(mip), compress, cache)
-    cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)
-    remote_compress = compression.normalize_encoding(remote_compress)
-    cache_compress = compression.normalize_encoding(cache_compress)
     
     if cache_compress is None and cache.enabled:
       cache_encoded = encoded
 
-    encoded = compression.compress(encoded, remote_compress)
-    
-    if remote_compress == cache_compress:
-      cache_compress = encoded
-    elif cache.enabled and remote_compress != cache_compress:
+    remote_encoded = compression.compress(encoded, remote_compress)
+    cache_encoded = remote_encoded
+
+    if cache.enabled and remote_compress != cache_compress:
       cache_encoded = compression.compress(encoded, cache_compress)
-    
+
+    del encoded
+
     remote.put(
         path=cloudpath, 
-        content=encoded,
+        content=remote_encoded,
         content_type=content_type(meta.encoding(mip)), 
         compress=remote_compress,
         compression_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
         raw=True,
       )
+
+    del remote_encoded
 
     if cache.enabled:
       local.put(
