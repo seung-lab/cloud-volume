@@ -19,7 +19,11 @@ def schedule_threaded_jobs(
   if isinstance(progress, tqdm):
     pbar = progress
   else:
-    pbar = tqdm(total=total, desc=desc, disable=(not progress))
+    pbar = tqdm(
+      total=total, 
+      desc=(progress if isinstance(progress, str) else None),
+      disable=(not progress)
+    )
 
   results = []
   
@@ -52,7 +56,11 @@ def schedule_green_jobs(
   if isinstance(progress, tqdm):
     pbar = progress
   else:
-    pbar = tqdm(total=total, desc=desc, disable=(not progress))
+    pbar = tqdm(
+      total=total, 
+      desc=(progress if isinstance(progress, str) else None),
+      disable=(not progress)
+    )
 
   results = []
 
