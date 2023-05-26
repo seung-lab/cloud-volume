@@ -562,6 +562,10 @@ def download_chunks_threaded(
     progress = "Downloading"
 
   total = len(locations["local"]) + len(locations["remote"])
+  n_threads = DEFAULT_THREADS
+  if meta.path.protocol == "file":
+    n_threads = 0
+
   with tqdm(desc=progress, total=total, disable=(not progress)) as pbar:
     schedule_jobs(
       fns=local_downloads, 
@@ -573,7 +577,7 @@ def download_chunks_threaded(
 
     schedule_jobs(
       fns=remote_downloads, 
-      concurrency=DEFAULT_THREADS, 
+      concurrency=n_threads, 
       progress=pbar,
       total=len(locations['remote']),
       green=green,
