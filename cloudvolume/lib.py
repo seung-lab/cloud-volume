@@ -261,14 +261,17 @@ def check_bounds(val, low, high):
 
 class Vec(np.ndarray):
     def __new__(cls, *args, **kwargs):
-      if 'dtype' in kwargs:
-        dtype = kwargs['dtype']
-      elif floating(args):
+      dtype = kwargs.pop('dtype', None)
+      if floating(args):
         dtype = float
       else:
         dtype = int
 
-      return super(Vec, cls).__new__(cls, shape=(len(args),), buffer=np.array(args).astype(dtype), dtype=dtype)
+      return super().__new__(
+        cls, shape=(len(args),), 
+        buffer=np.array(args, dtype=dtype), 
+        dtype=dtype
+      )
 
     @classmethod
     def clamp(cls, val, minvec, maxvec):
@@ -317,7 +320,10 @@ Vec.b = Vec.z
 Vec.a = Vec.w
 
 def floating(lst):
-  return any(( isinstance(x, float) for x in lst ))
+  for x in lst:
+    if isinstance(x, float):
+      return True
+  return False
 
 FLT_RE = r'(-?\d+(?:\.\d+)?)' # floating point regexp
 FILENAME_RE = re.compile(fr'{FLT_RE}-{FLT_RE}_{FLT_RE}-{FLT_RE}_{FLT_RE}-{FLT_RE}(?:\.gz|\.br|\.zstd)?$')
@@ -442,7 +448,7 @@ class Bbox(object):
     match = FILENAME_RE.search(fname)
 
     if match is None:
-      raise ValueError("Unable to decode bounding box from: " + str(filename))
+      raise ValueError(f"Unable to decode bounding box from: {filename}")
 
     root, ext = os.path.splitext(fname)
     parse_type = float if '.' in root else int
