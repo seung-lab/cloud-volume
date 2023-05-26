@@ -777,10 +777,19 @@ class Bbox(object):
 
     Returns: boolean
     """
-    return np.all(point >= self.minpt) and np.all(point <= self.maxpt)
+    for x in (point < self.minpt):
+      if x:
+        return False
+    for x in (point > self.maxpt):
+      if x:
+        return False
+    return True
 
   def contains_bbox(self, bbox):
-    return self.contains(bbox.minpt) and self.contains(bbox.maxpt)
+    return (
+      self.contains(bbox.maxpt)
+      and self.contains(bbox.minpt) 
+    )
 
   def clone(self):
     return Bbox(self.minpt, self.maxpt, dtype=self.dtype)
