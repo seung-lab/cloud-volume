@@ -102,7 +102,7 @@ def decode(
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
-    return np.full(shape=shape, fill_value=background_color, dtype=dtype)
+    return np.full(shape=shape, fill_value=background_color, dtype=dtype, order="F")
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == "kempressed":
