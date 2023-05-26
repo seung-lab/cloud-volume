@@ -121,7 +121,7 @@ def test_vec_division():
   assert np.all( (vec/2) == Vec(1,2,4) )
 
 
-def test_bbox_division():
+def test_bbox_division_1():
   box = Bbox( (0,2,4), (4,8,16) )
   assert (box//2) == Bbox( (0,1,2), (2,4,8) )
 
@@ -141,7 +141,7 @@ def test_bbox_intersect():
   assert not Bbox.intersects(box, Bbox( (-30,-30,-30), (-40,-40,-40) ))
   assert not Bbox.intersects(box, Bbox( (10, 0, 0), (20, 10, 10) ))
 
-def test_bbox_division():
+def test_bbox_division_2():
   bbox = Bbox( (1,1,1), (10, 10, 10), dtype=np.float32 )
   bbox2 = bbox.clone()
 

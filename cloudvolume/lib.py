@@ -262,11 +262,12 @@ def check_bounds(val, low, high):
 class Vec(np.ndarray):
     def __new__(cls, *args, **kwargs):
       dtype = kwargs.pop('dtype', None)
-      if floating(args):
-        dtype = float
-      else:
-        dtype = int
-
+      if dtype is None:
+        if floating(args):
+          dtype = float
+        else:
+          dtype = int
+      
       return super().__new__(
         cls, shape=(len(args),), 
         buffer=np.array(args, dtype=dtype), 
