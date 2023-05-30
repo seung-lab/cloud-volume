@@ -211,7 +211,7 @@ def shade(dest_img, dest_bbox, src_img, src_bbox):
 
   Returns: void
   """
-  if not Bbox.intersects(dest_bbox, src_bbox):
+  if not Bbox.intersects(dest_bbox, src_bbox) or src_img is None:
     return
 
   spt = np.maximum(src_bbox.minpt, dest_bbox.minpt)

@@ -261,7 +261,10 @@ def download(
       nonlocal lock 
       nonlocal remap
       nonlocal renderbuffer
-      img_labels = fastremap.unique(img3d)
+      if img3d is None:
+        img_labels = [ background_color ]
+      else:
+        img_labels = fastremap.unique(img3d)
       with lock:
         for lbl in img_labels:
           if lbl not in remap:
@@ -661,6 +664,9 @@ def _decode_helper(
 
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
+  if not content:
+    return None
+
   try:
     return fn(
       content, 
@@ -715,15 +721,21 @@ def unique_unsharded(
   all_labels = set()
   def process_core(labels, bbox):
     nonlocal all_labels
-    all_labels |= set(labels)
+    if labels is None:
+      all_labels |= set([ background_color ])
+    else:
+      all_labels |= set(labels)
 
   def process_shell(labels, bbox):
     nonlocal all_labels
     nonlocal requested_bbox
-    crop_bbox = Bbox.intersection(requested_bbox, bbox)
-    crop_bbox -= bbox.minpt
-    labels = labels[ crop_bbox.to_slices() ]
-    all_labels |= set(fastremap.unique(labels))
+    if labels is None:
+      all_labels |= set([ background_color ])
+    else:
+      crop_bbox = Bbox.intersection(requested_bbox, bbox)
+      crop_bbox -= bbox.minpt
+      labels = labels[ crop_bbox.to_slices() ]
+      all_labels |= set(fastremap.unique(labels))
 
   # If there's an LRU sort the fetches so that the LRU ones are first
   # otherwise the new downloads can kick out the cached ones and make the
@@ -837,10 +849,13 @@ def unique_sharded(
       chunkdata, fill_missing, mip,
       background_color=background_color
     )
-    crop_bbox = Bbox.intersection(requested_bbox, cutout_bbox)
-    crop_bbox -= cutout_bbox.minpt
-    labels = fastremap.unique(labels[ crop_bbox.to_slices() ])
-    all_labels |= set(labels)
+    if labels is None:
+      all_labels |= set([ background_color ])
+    else:
+      crop_bbox = Bbox.intersection(requested_bbox, cutout_bbox)
+      crop_bbox -= cutout_bbox.minpt
+      labels = fastremap.unique(labels[ crop_bbox.to_slices() ])
+      all_labels |= set(labels)
 
   return all_labels
 
