@@ -1,7 +1,9 @@
 from typing import List
 
 from collections.abc import Iterable
+from functools import reduce
 import json
+import operator
 import os
 import posixpath
 
@@ -478,6 +480,10 @@ Hops:
   def volume_size(self, mip):
     """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels).""" 
     return Vec(*self.info['scales'][mip]['size'])
+
+  def voxels(self, mip):
+    """Returns the number of voxels in this mip level."""
+    return reduce(operator.mul, self.volume_size(mip))
 
   @property
   def available_mips(self):
