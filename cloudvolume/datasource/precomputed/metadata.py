@@ -51,6 +51,7 @@ class PrecomputedMetadata(object):
       self.cache.meta = self
     self.config = config
     self.info = None
+    self.rois = None
 
     self.redirected_from = []
     self.use_https = use_https
@@ -179,9 +180,18 @@ class PrecomputedMetadata(object):
 
     self.info = self.redirectable_fetch_info(max_redirects)
 
+    if 'rois' in self.scale(0):
+      self.rois = self.parse_rois(self.info)
+
     if self.cache:
       self.cache.maybe_cache_info()
     return self.info
+
+  def parse_rois(self, info) -> List[Bbox]:
+    """Parse ROIs from the info file at mip 0."""
+    return [ 
+      Bbox.from_list(roi) for roi in info['scales'][0]["rois"] 
+    ]
 
   def fetch_info(self):
     """
@@ -506,7 +516,7 @@ Hops:
     return np.dtype(self.data_type)
 
   @property
-  def data_type(self):
+  def data_type(self) -> str:
     """e.g. 'uint8'"""
     return self.info['data_type']
 
@@ -665,6 +675,22 @@ Hops:
       mip += delta
 
     return bbox
+
+  def inside_roi(self, pt_or_bbox) -> bool:
+    """Returns True if the point lies inside of the ROI including the boundary."""
+    if self.roi is None:
+      return True
+
+    if isinstance(pt_or_bbox, Bbox):
+      for bbox in self.roi:
+        if bbox.contains_bbox(pt_or_bbox):
+          return True
+    else:
+      for bbox in self.roi:
+        if bbox.contains(pt_or_bbox):
+          return True
+
+    return False
 
   def reset_scales(self):
     """Used for manually resetting downsamples if something messed up."""
