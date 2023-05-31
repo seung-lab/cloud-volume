@@ -57,7 +57,7 @@ def download_sharded(
     dtype=meta.dtype, order=order
   )
 
-  if not meta.inside_roi(requested_bbox, mip):
+  if not meta.overlaps_roi(requested_bbox, mip):
     return renderbuffer
 
   chunk_size = meta.chunk_size(mip)
@@ -227,7 +227,7 @@ def download(
 
   dtype = np.uint16 if renumber else meta.dtype
 
-  if not meta.inside_roi(requested_bbox, mip):
+  if not meta.overlaps_roi(requested_bbox, mip):
     return np.full(
       shape=shape, fill_value=background_color,
       dtype=dtype, order=order
