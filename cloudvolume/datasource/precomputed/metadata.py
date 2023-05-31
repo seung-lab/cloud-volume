@@ -676,16 +676,22 @@ Hops:
 
     return bbox
 
-  def inside_roi(self, pt_or_bbox) -> bool:
+  def inside_roi(self, pt_or_bbox, mip = 0) -> bool:
     """Returns True if the point lies inside of the ROI including the boundary."""
     if self.rois is None:
-      return True
+      return True      
 
     if isinstance(pt_or_bbox, Bbox):
+      if mip > 0:
+        pt_or_bbox = self.bbox_to_mip(pt_or_bbox, mip, 0)
+
       for bbox in self.rois:
-        if bbox.contains_bbox(pt_or_bbox):
+        if bbox.overlaps_bbox(pt_or_bbox):
           return True
     else:
+      if mip > 0:
+        pt_or_bbox = self.point_to_mip(pt_or_bbox, mip, 0)
+
       for bbox in self.rois:
         if bbox.contains(pt_or_bbox):
           return True
