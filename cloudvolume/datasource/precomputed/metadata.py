@@ -189,9 +189,11 @@ class PrecomputedMetadata(object):
 
   def parse_rois(self, info) -> List[Bbox]:
     """Parse ROIs from the info file at mip 0."""
-    return [ 
+    bboxes = [ 
       Bbox.from_list(roi) for roi in info['scales'][0]["rois"] 
     ]
+    bboxes.sort(key=lambda bx: bx.minpt.z)
+    return bboxes
 
   def fetch_info(self):
     """
