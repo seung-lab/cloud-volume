@@ -179,9 +179,7 @@ class PrecomputedMetadata(object):
         return self.info
 
     self.info = self.redirectable_fetch_info(max_redirects)
-
-    if 'rois' in self.scale(0):
-      self.rois = self.parse_rois(self.info)
+    self.rois = self.parse_rois(self.info)
 
     if self.cache:
       self.cache.maybe_cache_info()
@@ -189,8 +187,12 @@ class PrecomputedMetadata(object):
 
   def parse_rois(self, info) -> List[Bbox]:
     """Parse ROIs from the info file at mip 0."""
+    scale = info['scales'][0]
+    if 'rois' not in scale:
+      return None
+
     bboxes = [ 
-      Bbox.from_list(roi) for roi in info['scales'][0]["rois"] 
+      Bbox.from_list(roi) for roi in scale["rois"] 
     ]
     bboxes.sort(key=lambda bx: bx.minpt.z)
     return bboxes
