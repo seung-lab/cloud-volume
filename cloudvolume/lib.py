@@ -792,6 +792,12 @@ class Bbox(object):
       and self.contains(bbox.minpt) 
     )
 
+  def overlaps_bbox(self, bbox):
+    return not (
+      np.any(self.maxpt < bbox.minpt)
+      or np.any(self.minpt > bbox.maxpt)
+    )
+
   def clone(self):
     return Bbox(self.minpt, self.maxpt, dtype=self.dtype)
 

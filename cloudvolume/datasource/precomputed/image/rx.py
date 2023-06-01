@@ -52,13 +52,19 @@ def download_sharded(
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
+  renderbuffer = np.full(
+    shape=shape, fill_value=background_color,
+    dtype=meta.dtype, order=order
+  )
+
+  if not meta.overlaps_roi(requested_bbox, mip):
+    return renderbuffer
+
   chunk_size = meta.chunk_size(mip)
   grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
 
   reader = sharding.ShardReader(meta, cache, spec)
   bounds = meta.bounds(mip)
-
-  renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
   gpts = list(gridpoints(full_bbox, bounds, chunk_size))
 
@@ -220,6 +226,12 @@ def download(
     raise ValueError("use_shared_memory and use_file are mutually exclusive arguments.")
 
   dtype = np.uint16 if renumber else meta.dtype
+
+  if not meta.overlaps_roi(requested_bbox, mip):
+    return np.full(
+      shape=shape, fill_value=background_color,
+      dtype=dtype, order=order
+    )
 
   if requested_bbox.volume() == 1:
     return download_single_voxel_unsharded(
