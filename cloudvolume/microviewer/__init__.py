@@ -3,12 +3,11 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import json
-from six.moves import range
 
 import numpy as np
 from tqdm import tqdm
 
-from cloudvolume.lib import Vec, Bbox, mkdir, save_images, yellow
+from cloudvolume.lib import Vec, Bbox, mkdir, yellow
 from cloudvolume.paths import ExtractedPath
 
 DEFAULT_PORT = 8080
