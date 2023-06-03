@@ -314,7 +314,7 @@ class SegmentationVolume extends MonoVolume {
   }
 }
 
-/* Volume
+/* HyperVolume
  *
  * Represents a 3D bounding box in the data set's global coordinate space.
  * Contains two types of images: channel (raw EM images), 
@@ -326,7 +326,7 @@ class SegmentationVolume extends MonoVolume {
  *   segmentation: A blankable Datacube representing segmentation values.
  *      Seg ids don't appear to rise above the high thousands, so 2 bytes is probably sufficent.
  *
- * Return: Volume object
+ * Return: HyperVolume object
  */
 class HyperVolume extends MonoVolume {
   constructor (channel, segmentation) {

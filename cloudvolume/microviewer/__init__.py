@@ -54,6 +54,17 @@ def to_volumecutout(img, image_type, resolution=None, offset=None, hostname='loc
   )
 
 def to3d(img):
+  # RGB color image
+  if len(img.shape) == 4 and img.dtype == np.uint8 and img.shape[3] == 3:
+    tmp = np.zeros(img.shape[:3], order="F", dtype=np.uint32)
+    tmp[:,:,:] = (
+      img[:,:,:,0].astype(np.uint32) 
+      | (img[:,:,:,1].astype(np.uint32) << 8) 
+      | (img[:,:,:,2].astype(np.uint32) << 16) 
+      | (0xff << 24)
+    )
+    return tmp
+
   while len(img.shape) > 3:
     img = img[..., 0]
   while len(img.shape) < 3:
