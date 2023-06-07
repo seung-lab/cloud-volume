@@ -246,7 +246,7 @@ class CloudVolume:
     vol_path='file:///tmp/image/' + generate_random_string(),
     resolution=(4,4,40), voxel_offset=(0,0,0), 
     chunk_size=(128,128,64), layer_type=None, max_mip=0,
-    encoding='raw', compress=None
+    encoding='raw', compress=None, progress=False
   ):
     """
     Create a new dataset from a numpy array.
@@ -279,7 +279,10 @@ class CloudVolume:
       chunk_size=chunk_size, max_mip=max_mip
     )
     
-    vol = CloudVolume(vol_path, info=info, bounded=True, compress=compress)
+    vol = CloudVolume(
+      vol_path, info=info, bounded=True, 
+      compress=compress, progress=progress
+    )
     # save the info file
     vol.commit_info()
     vol.provenance.processing.append({
