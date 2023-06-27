@@ -273,7 +273,7 @@ class CloudVolume:
       raise DimensionError(f"CloudVolume only accepts 3 or 4 dimensional images. Got: {arr.ndim}")
       
     info = cls.create_new_info(
-      num_channels, layer_type, arr.dtype.name,
+      num_channels, layer_type, np.dtype(arr.dtype).name,
       encoding, resolution,
       voxel_offset, arr.shape[:3],
       chunk_size=chunk_size, max_mip=max_mip
