@@ -601,7 +601,8 @@ def download_chunks_threaded(
 def decode(
   meta, input_bbox, 
   content, fill_missing, 
-  mip, background_color=0
+  mip, background_color=0,
+  allow_none=True,
 ):
   """
   Decode content from bytes into a numpy array using the 
@@ -618,6 +619,7 @@ def decode(
     meta, input_bbox, 
     content, fill_missing, 
     mip, background_color,
+    allow_none,
   )
 
 def decode_unique(
@@ -664,6 +666,7 @@ def _decode_helper(
   fn, meta, input_bbox, 
   content, fill_missing, 
   mip, background_color=0,
+  allow_none=True,
 ):
   bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
@@ -676,7 +679,7 @@ def _decode_helper(
 
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
-  if not content:
+  if not content and allow_none:
     return None
 
   try:
