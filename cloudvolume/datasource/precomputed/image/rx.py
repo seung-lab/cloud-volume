@@ -332,9 +332,11 @@ def download_single_voxel_unsharded(
   if locations["local"]:
     cloudpath = cachedir
     cache_enabled = False
+    locking = cache.config.cache_locking
   else:
     cloudpath = meta.cloudpath
     cache_enabled = cache.enabled
+    locking = False
 
   if filename is None:
     if fill_missing:
@@ -349,7 +351,8 @@ def download_single_voxel_unsharded(
       filename, fill_missing,
       cache_enabled, compress_cache,
       secrets, background_color,
-      partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt)
+      partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt),
+      locking
     )
 
   if renumber:
@@ -497,12 +500,14 @@ def download_chunk(
   filename, fill_missing,
   enable_cache, compress_cache,
   secrets, background_color,
-  decode_fn, decompress=True
+  decode_fn, decompress=True, locking=False
 ):
   if lru is not None and filename in lru:
     content = lru[filename]
   else:
-    (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
+    (file,) = CloudFiles(
+      cloudpath, secrets=secrets, locking=locking
+    ).get([ filename ], raw=True)
     content = file['content']
 
     if enable_cache:
@@ -512,7 +517,7 @@ def download_chunk(
           in_place=(compress_cache == False)
         )
       )['content'] 
-      CloudFiles('file://' + cache.path).put(
+      cache.cloudfiles().put(
         path=filename, 
         content=(cache_content or b''), 
         content_type=content_type(meta.encoding(mip)), 
@@ -545,13 +550,13 @@ def download_chunks_threaded(
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + cache.path
 
-  def process(cloudpath, filename, enable_cache):
+  def process(cloudpath, filename, enable_cache, locking):
     labels, bbox = download_chunk(
       meta, cache, lru, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache,
       secrets, background_color,
-      decode_fn, decompress
+      decode_fn, decompress, locking
     )
     fn(labels, bbox)
 
@@ -567,10 +572,11 @@ def download_chunks_threaded(
   qualify = lambda fname: os.path.join(meta.key(mip), os.path.basename(fname))
 
   local_downloads = ( 
-    partial(process, cachedir, qualify(filename), False) for filename in locations['local'] 
+    partial(process, cachedir, qualify(filename), False, cache.config.cache_locking) 
+    for filename in locations['local'] 
   )
   remote_downloads = ( 
-    partial(process, meta.cloudpath, filename, cache.enabled) for filename in locations['remote'] 
+    partial(process, meta.cloudpath, filename, cache.enabled, False) for filename in locations['remote'] 
   )
 
   if progress and not isinstance(progress, str):
