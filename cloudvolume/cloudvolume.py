@@ -35,7 +35,7 @@ class SharedConfiguration(object):
     self, cdn_cache:bool, compress:CompressType, 
     compress_level:Optional[int], green:bool,
     mip:int, parallel:ParallelType, progress:bool, secrets:SecretsType,
-    spatial_index_db:Optional[str],
+    spatial_index_db:Optional[str], cache_locking:bool,
     *args, **kwargs
   ):
     if type(parallel) == bool:
@@ -46,6 +46,7 @@ class SharedConfiguration(object):
       parallel = int(parallel)
 
     self.cdn_cache = cdn_cache
+    self.cache_locking = bool(cache_locking)
     self.compress = compress
     self.compress_level = compress_level
     self.green = bool(green)
@@ -68,7 +69,8 @@ class CloudVolume:
     background_color:int=0, green_threads:bool=False, use_https:bool=False,
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
     agglomerate:bool=False, secrets:SecretsType=None, 
-    spatial_index_db:Optional[str]=None, lru_bytes:int = 0
+    spatial_index_db:Optional[str]=None, lru_bytes:int = 0,
+    cache_locking:bool = True
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -131,7 +133,8 @@ class CloudVolume:
 
           Note: This cache is totally separate from the LRU controlled by 
           lru_bytes.
-
+      cache_locking: (bool) Use CloudFiles inter-process file locking to make cache 
+        access safe for multiple simultaneous processes.
       cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
         image files. Most cloud providers perform some kind of caching. As of 
         this writing, Google defaults to 3600 seconds. Most of the time you'll 
