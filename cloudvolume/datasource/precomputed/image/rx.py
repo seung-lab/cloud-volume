@@ -352,7 +352,7 @@ def download_single_voxel_unsharded(
       cache_enabled, compress_cache,
       secrets, background_color,
       partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt),
-      locking
+      decompress=True, locking=locking
     )
 
   if renumber:
