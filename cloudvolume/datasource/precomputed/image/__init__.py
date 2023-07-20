@@ -549,28 +549,19 @@ class PrecomputedImageSource(ImageSourceInterface):
     spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
     return sharding.ShardReader(self.meta, self.cache, spec)
 
-  def make_shard(self, img, bbox, mip=None, spec=None, progress=False):
-    """
-    Convert an image that represents a single complete shard 
-    into a shard file.
-  
-    img: a volumetric numpy array image
-    bbox: the bbox it represents in voxel coordinates
-    mip: if specified, use the sharding specification from 
-      this mip level, otherwise use the sharding spec from
-      the current implicit mip level in config.
-    spec: use the provided specification (overrides mip parameter)
-
-    Returns: (filename, shard_file)
-    """
-    mip = mip if mip is not None else self.config.mip
-    scale = self.meta.scale(mip)
-
+  def shard_spec(self, mip, spec=None):
     if spec is None:
+      scale = self.meta.scale(mip)
       if 'sharding' in scale:
         spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       else:
         raise ValueError("mip {} does not have a sharding specification.".format(mip))
+    return spec
+
+  def morton_codes(self, bbox, mip=None, spec=None):
+    mip = mip if mip is not None else self.config.mip
+    scale = self.meta.scale(mip)
+    spec = self.shard_spec(mip, spec)
 
     bbox = Bbox.create(bbox)
     if bbox.subvoxel():
@@ -609,6 +600,37 @@ class PrecomputedImageSource(ImageSourceInterface):
       raise exceptions.AlignmentError(
         "The gridpoints for this image did not all correspond to the same shard. Got: {}".format(bbox)
       )
+
+    return gpts, morton_codes
+
+  def shard_filename(self, bbox:BboxLikeType, mip:int) -> str:
+    mip = mip if mip is not None else self.config.mip
+    if not self.is_sharded(mip):
+      raise ValueError("Unable to compute filename for unsharded image.")
+
+    spec = self.shard_spec(mip)
+    gpts, morton_codes = self.morton_codes(bbox, mip=mip, spec=spec)
+    reader = self.shard_reader()
+    return reader.get_filename(first(morton_codes))
+
+  def make_shard(self, img, bbox, mip=None, spec=None, progress=False):
+    """
+    Convert an image that represents a single complete shard 
+    into a shard file.
+  
+    img: a volumetric numpy array image
+    bbox: the bbox it represents in voxel coordinates
+    mip: if specified, use the sharding specification from 
+      this mip level, otherwise use the sharding spec from
+      the current implicit mip level in config.
+    spec: use the provided specification (overrides mip parameter)
+
+    Returns: (filename, shard_file)
+    """
+    mip = mip if mip is not None else self.config.mip
+    
+    spec = self.shard_spec(mip, spec)
+    gpts, morton_codes = self.morton_codes(bbox, mip=mip, spec=spec)
 
     labels = {}
     pt_anchor = gpts[0] * chunk_size
