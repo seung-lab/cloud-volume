@@ -631,6 +631,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     
     spec = self.shard_spec(mip, spec)
     gpts, morton_codes = self.morton_codes(bbox, mip=mip, spec=spec)
+    chunk_size = self.meta.chunk_size(mip)
 
     labels = {}
     pt_anchor = gpts[0] * chunk_size
