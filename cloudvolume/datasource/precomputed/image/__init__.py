@@ -649,6 +649,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compression_params=self.meta.compression_params(mip),
       )
 
+    reader = self.shard_reader(mip=mip)
     shard_filename = reader.get_filename(first(labels.keys()))
 
     return (shard_filename, spec.synthesize_shard(labels, progress=progress))
