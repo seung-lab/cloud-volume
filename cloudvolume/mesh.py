@@ -80,6 +80,9 @@ class Mesh(object):
 
     if no_self_normals != no_other_normals:
       return False
+
+    if self.vertices.shape[0] != other.vertices.shape[0]:
+      return False
        
     equality = np.all(self.vertices == other.vertices) \
       and np.all(self.faces == other.faces)

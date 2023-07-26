@@ -128,23 +128,23 @@ def test_duplicate_vertices():
 
   # test that 4 is now affected
   mesh2 = deduplicate(mesh, x=4)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 1
 
   mesh2 = deduplicate(mesh, x=3)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 1
 
   mesh2 = deduplicate(mesh, x=4, offset_x=-1)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 1
 
   mesh2 = deduplicate(mesh, x=5)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 1
 
   mesh2 = deduplicate(mesh, x=1)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 3
 
 def test_get_mesh_caching(unsharded_vol):

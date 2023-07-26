@@ -283,7 +283,7 @@ def threaded_upload_chunks(
     img = img[ ..., np.newaxis ]
 
   remote = CloudFiles(meta.cloudpath, secrets=secrets)
-  local = CloudFiles('file://' + cache.path, secrets=secrets)
+  local = cache.cloudfiles()
 
   remote_compress = should_compress(meta.encoding(mip), compress, cache)
   cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)

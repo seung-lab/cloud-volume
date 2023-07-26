@@ -26,7 +26,7 @@ def create_graphene(
     mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
     agglomerate:bool=False, secrets:SecretsType=None, 
     spatial_index_db:Optional[str]=None, 
-    lru_bytes:int = 0,
+    lru_bytes:int = 0, cache_locking:bool = True,
     **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
@@ -42,6 +42,7 @@ def create_graphene(
       progress=progress,
       secrets=secrets,
       spatial_index_db=spatial_index_db,
+      cache_locking=cache_locking,
     )
 
     def mkcache(cloudpath):

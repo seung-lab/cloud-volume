@@ -20,7 +20,8 @@ def create_n5(
   cdn_cache:bool=True, progress:bool=False, 
   compress:CompressType=None, compress_level:Optional[int]=None,
   non_aligned_writes:bool=False, 
-  parallel:ParallelType=1,green_threads:bool=False, secrets:SecretsType=None, 
+  parallel:ParallelType=1,green_threads:bool=False, 
+  secrets:SecretsType=None, cache_locking:bool = True,
   **kwargs # absorb graphene arguments
 ):
     path = strict_extract(cloudpath)
