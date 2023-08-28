@@ -371,6 +371,9 @@ def threaded_upload_chunks(
     if callable(progress):
       progress()
 
+  if remote.protocol == "file":
+    n_threads = 0
+
   schedule_jobs(
     fns=( partial(process_and_update, *vals) for vals in chunk_ranges ), 
     concurrency=n_threads, 
