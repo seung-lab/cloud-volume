@@ -2,6 +2,7 @@ from functools import partial
 import os
 
 import numpy as np
+import fastremap
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles, reset_connection_pools, compression
@@ -290,14 +291,29 @@ def threaded_upload_chunks(
   remote_compress = compression.normalize_encoding(remote_compress)
   cache_compress = compression.normalize_encoding(cache_compress)
 
-  def do_upload(imgchunk, cloudpath):
+  # performance optimization
+  preencoded = None
+  if (
+    img.flags.f_contiguous
+    and not np.any(np.remainder(np.array(img.shape[:3]), meta.chunk_size(mip)))
+    and meta.num_channels == 1
+    and meta.encoding(mip) == "raw"
+  ):
+    preencoded = fastremap.tobytes(img[:,:,:,0], meta.chunk_size(mip))
+
+  def do_upload(i, imgchunk, cloudpath):
     nonlocal remote_compress
     nonlocal cache_compress
-    encoded = chunks.encode(
-      imgchunk, meta.encoding(mip), 
-      meta.compressed_segmentation_block_size(mip),
-      compression_params=meta.compression_params(mip),
-    )
+    nonlocal preencoded
+
+    if preencoded:
+      encoded = preencoded[i]
+    else:
+      encoded = chunks.encode(
+        imgchunk, meta.encoding(mip), 
+        meta.compressed_segmentation_block_size(mip),
+        compression_params=meta.compression_params(mip),
+      )
 
     if lru is not None:
       lru[cloudpath] = encoded
@@ -342,7 +358,7 @@ def threaded_upload_chunks(
 
   bounds = meta.bounds(mip).maxpt
 
-  def process(startpt, endpt, spt, ept):
+  def process(i, startpt, endpt, spt, ept):
     if np.array_equal(spt, ept):
       return
 
@@ -359,14 +375,14 @@ def threaded_upload_chunks(
 
     if delete_black_uploads:
       if np.any(imgchunk != background_color):
-        do_upload(imgchunk, cloudpath)
+        do_upload(i, imgchunk, cloudpath)
       else:
         do_delete(cloudpath)
     else:
-      do_upload(imgchunk, cloudpath)
+      do_upload(i, imgchunk, cloudpath)
 
-  def process_and_update(*args, **kwargs):
-    process(*args, **kwargs)
+  def process_and_update(i, *args, **kwargs):
+    process(i, *args, **kwargs)
     # Needed for multiprocess progress bar.
     if callable(progress):
       progress()
@@ -375,7 +391,7 @@ def threaded_upload_chunks(
     n_threads = 0
 
   schedule_jobs(
-    fns=( partial(process_and_update, *vals) for vals in chunk_ranges ), 
+    fns=( partial(process_and_update, i, *vals) for i, vals in enumerate(chunk_ranges) ), 
     concurrency=n_threads, 
     progress=('Uploading' if progress and not callable(progress) else None),
     total=len(chunk_ranges),
