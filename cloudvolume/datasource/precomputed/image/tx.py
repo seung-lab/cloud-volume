@@ -300,7 +300,7 @@ def threaded_upload_chunks(
     and meta.num_channels == 1
     and meta.encoding(mip) == "raw"
   ):
-    preencoded = fastremap.tobytes(img[:,:,:,0], meta.chunk_size(mip))
+    preencoded = fastremap.tobytes(img[:,:,:,0], meta.chunk_size(mip), order="F")
 
   def do_upload(i, imgchunk, cloudpath):
     nonlocal remote_compress
