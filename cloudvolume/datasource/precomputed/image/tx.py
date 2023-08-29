@@ -296,6 +296,7 @@ def threaded_upload_chunks(
   if (
     img.flags.f_contiguous
     and not np.any(np.remainder(np.array(img.shape[:3]), meta.chunk_size(mip)))
+    and not np.all(np.array(img.shape[:3]) == meta.chunk_size(mip))
     and meta.num_channels == 1
     and meta.encoding(mip) == "raw"
   ):
