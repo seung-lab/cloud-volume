@@ -309,6 +309,7 @@ def threaded_upload_chunks(
 
     if preencoded:
       encoded = preencoded[i]
+      preencoded[i] = None
     else:
       encoded = chunks.encode(
         imgchunk, meta.encoding(mip), 
