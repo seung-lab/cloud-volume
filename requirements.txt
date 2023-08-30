@@ -5,7 +5,7 @@ compressed-segmentation>=2.1.1
 compresso>=3.0.0
 crackle-codec
 DracoPy>=1.0.0,<2.0.0
-fastremap>=1.12.0
+fastremap>=1.14.0
 fpzip>=1.2.0,<2.0.0
 gevent
 google-auth>=1.10.0
