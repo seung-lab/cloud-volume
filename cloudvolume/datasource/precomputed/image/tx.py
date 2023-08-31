@@ -1,8 +1,9 @@
 from functools import partial
 import os
 
-import numpy as np
 import fastremap
+import numpy as np
+import psutil
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles, reset_connection_pools, compression
@@ -295,10 +296,10 @@ def threaded_upload_chunks(
   preencoded = None
   if (
     img.flags.f_contiguous
-    and not np.any(np.remainder(np.array(img.shape[:3]), meta.chunk_size(mip)))
-    and not np.all(np.array(img.shape[:3]) == meta.chunk_size(mip))
-    and meta.num_channels == 1
     and meta.encoding(mip) == "raw"
+    and not np.any(np.remainder(np.array(img.shape[:3]), meta.chunk_size(mip)))
+    and meta.num_channels == 1
+    and psutil.virtual_memory().available > 2 * img.nbytes
   ):
     preencoded = fastremap.tobytes(img[:,:,:,0], meta.chunk_size(mip), order="F")
 
