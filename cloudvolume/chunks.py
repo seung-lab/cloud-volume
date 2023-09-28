@@ -236,7 +236,7 @@ def decode_png(bytestring: bytes, shape, dtype):
   return img.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
-  return np.frombuffer(bytearray(bytestring), dtype=dtype).reshape(shape, order='F')
+  return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
 
 def decode_compressed_segmentation(bytestring, shape, dtype, block_size, accelerated=ACCELERATED_CSEG):
   if block_size is None:

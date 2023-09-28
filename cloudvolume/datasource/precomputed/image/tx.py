@@ -121,8 +121,9 @@ def upload(
 
   def shade_and_upload(img3d, bbox):
     # decode is returning non-writable chunk
-    # we're throwing them away so safe to write
-    img3d.setflags(write=1) 
+    # so gotta set them to writeable
+    if not img3d.flags.writeable:
+      img3d = np.copy(img3d, order="F")
     shade(img3d, bbox, image, bounds)
     threaded_upload_chunks(
       meta, cache, lru,
