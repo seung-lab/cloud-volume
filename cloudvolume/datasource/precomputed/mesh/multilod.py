@@ -1,4 +1,5 @@
 from collections import defaultdict
+from functools import partial
 import re
 import struct
 
@@ -9,6 +10,7 @@ from cloudfiles import CloudFiles
 from .common import apply_transform
 from .unsharded import UnshardedLegacyPrecomputedMeshSource
 from ..sharding import ShardingSpecification, ShardReader
+from ....scheduler import schedule_jobs
 from ....mesh import Mesh
 from ....lib import yellow, red, toiter, first
 from .... import exceptions
@@ -229,6 +231,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
 
     lod: int, default 0
       Level of detail to retrieve.  0 is highest level of detail.
+      Use -1 to indicate the lowest resolution available.
 
     Optional:
       concat: bool, concatenate fragments (per segment per lod)
@@ -243,9 +246,8 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     progress = progress if progress is not None else self.config.progress
     segids = toiter(segids)
 
-    # decode all the fragments
-    meshdata = defaultdict(list)
-    for segid in segids:
+    def get_segid(segid):
+      nonlocal lod
       # Read the manifest (with a tweak to sharding.py to get the offset)
       manifest = self.get_manifest(segid)
       if manifest == None:
@@ -253,10 +255,13 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
           'Manifest not found for segment {}.'.format(segid)
         ))
 
-      if lod < 0 or lod >= manifest.num_lods:
+      if lod < -1 or lod >= manifest.num_lods:
         raise exceptions.MeshDecodeError(red(
-          'LOD value ({}) out of range (0 - {}) for segment {}.'.format(lod, manifest.num_lods - 1, segid)
+          f'LOD value ({lod}) out of range (-1 - {manifest.num_lods - 1}) for segment {segid}.'
         ))
+      
+      if lod == -1:
+        lod = manifest.num_lods - 1
 
       # Read the data for all LODs
       fragment_sizes = [ 
@@ -272,11 +277,24 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
         'end': int(manifest_byte_start + fragment_sizes[lod]),
       })
 
-      meshes = extract_lod_meshes(
+      return extract_lod_meshes(
         manifest, lod, lod_binary, 
         self.vertex_quantization_bits, self.transform
       )
+
+    # decode all the fragments
+    meshdata = defaultdict(list)
+    def get_meshes_and_update(segid):
+      nonlocal meshdata
+      meshes = get_segid(segid)
       meshdata.update(meshes)
+
+    schedule_jobs(
+      fns=[ partial(get_meshes_and_update, segid) for segid in segids ],
+      progress=progress,
+      total=len(segids),
+      green=self.config.green,
+    )
 
     if concat:
       for segid in meshdata:
