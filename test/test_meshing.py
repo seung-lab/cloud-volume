@@ -233,3 +233,21 @@ def test_stored_model_quantization(vqb):
   max_error = float(np.max(np.abs(restored_verts1 - vertices)))
   assert max_error < precision
   assert np.all(np.isclose(restored_verts1, restored_verts2))
+
+def test_obj_round_trip(unsharded_vol):
+  vol = unsharded_vol
+  vol.cache.flush()
+  mesh = vol.mesh.get(16649205)
+
+  mesh2 = Mesh.from_obj(mesh.to_obj())
+
+  x = mesh.vertices.flatten()
+  x.sort()
+
+  y = mesh2.vertices.flatten()
+  y.sort()
+
+  assert np.all(np.isclose(x, y, atol=1e-5))
+
+
+

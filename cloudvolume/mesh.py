@@ -276,7 +276,8 @@ class Mesh(object):
       elif line[0] == 'f':
         if line.find('/') != -1:
           # e.g. f 6092/2095/6079 6087/2092/6075 6088/2097/6081
-          (v1, vt1, vn1, v2, vt2, vn2, v3, vt3, vn3) = re.match(r'f\s+(\d+)/(\d*)/(\d+)\s+(\d+)/(\d*)/(\d+)\s+(\d+)/(\d*)/(\d+)', line).groups()
+          # i.e. f vertex_1/texture_1/normal_1 etc
+          (v1, vt1, vn1, v2, vt2, vn2, v3, vt3, vn3) = re.match(r'f\s+(\d+)/(\d*)?/(\d+)?\s+(\d+)/(\d*)?/(\d+)?\s+(\d+)/(\d*)?/(\d+)?', line).groups()
         else:
           (v1, v2, v3) = re.match(r'f\s+(\d+)\s+(\d+)\s+(\d+)', line).groups()
         faces.append( (int(v1), int(v2), int(v3)) )
@@ -297,7 +298,13 @@ class Mesh(object):
     faces = np.array(faces, dtype=np.uint32)
     normals = np.array(normals, dtype=np.float32)
 
-    return Mesh(vertices, faces - 1, normals, segid=segid)
+    return Mesh(
+      vertices, 
+      faces - 1, 
+      normals, 
+      segid=segid, 
+      encoding_type='precomputed'
+    )
 
   def to_obj(self):
     """Return a string representing a .obj file."""
