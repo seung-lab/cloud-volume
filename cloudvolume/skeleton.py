@@ -1111,7 +1111,6 @@ class Skeleton(object):
     """
     try:
       import matplotlib.pyplot as plt
-      from mpl_toolkits.mplot3d import Axes3D 
       from matplotlib import cm
     except ImportError:
       print("Skeleton.viewer requires matplotlib. Try: pip install matplotlib --upgrade")
@@ -1121,7 +1120,7 @@ class Skeleton(object):
     COMPONENT_KEYWORDS = ('component', 'components', 'c')
 
     fig = plt.figure(figsize=(10,10))
-    ax = Axes3D(fig)
+    ax = fig.add_subplot(projection='3d')
     ax.set_xlabel(units)
     ax.set_ylabel(units)
     ax.set_zlabel(units)

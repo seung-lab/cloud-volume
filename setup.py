@@ -31,8 +31,8 @@ setuptools.setup(
       "psutil>=5.4.3",
     ],
     "mesh_viewer": [ 'vtk' ],
-    "skeleton_viewer": [ 'matplotlib' ],
-    "all_viewers": [ 'vtk', 'matplotlib' ],
+    "skeleton_viewer": [ 'matplotlib>=3.6' ],
+    "all_viewers": [ 'vtk', 'matplotlib>=3.6' ],
     "dask": [ 'dask[array]' ],
     "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"]
   },
