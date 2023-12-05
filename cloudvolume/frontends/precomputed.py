@@ -721,7 +721,7 @@ class CloudVolumePrecomputed(object):
 
     if coord_resolution is not None:
       factor = self.meta.resolution(mip) / coord_resolution
-      bbox /= factor
+      bbox = bbox / factor
       if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
         raise exceptions.OutOfBoundsError(f"Computed {bbox} is not contained within bounds {self.meta.bounds(mip)}")
 

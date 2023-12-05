@@ -2,7 +2,7 @@
 
 # CloudVolume: IO for Neuroglancer Datasets
 
-```python3
+```python
 from cloudvolume import CloudVolume
 
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
@@ -109,7 +109,9 @@ pip install -e .[all_viewers] # with e.g. the all_viewers optional dependency
 
 ### Credentials
 
-You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided.
+By default, CloudVolume's configuration and cache files are stored in `$HOME/.cloudvolume` (or in `$HOME/.cloudfiles` since we use CloudFiles for the backend). You can configure where CloudVolume looks for these files with the environment variable `$CLOUD_VOLUME_DIR`.  
+
+Credentials are stored in `$CLOUD_VOLUME_DIR/secrets`. You'll need credentials only for the services you'll use. If you plan to use the local filesystem, you won't need any. For Google Storage ([setup instructions here](https://github.com/seung-lab/cloud-volume/wiki/Setting-up-Google-Cloud-Storage)), default account credentials will be used if available and no service account is provided.
 
 If neither of those two conditions apply, you need a service account credential. If you have your credentials handy, you can provide them like so as a dict, JSON string, or a bare token if the service will accept that.
 
@@ -247,7 +249,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | kempressed              | Anisotropic Z Floating Point | N**      | Y*           | Adds manipulations on top of fpzip to achieve higher compression.                        |
 | zfpc                    | Alignment Vector Fields    | N***     | Y*          | zfp stream container.                        |
 
-\* Not integrated into official Neuroglancer yet, but available on a branch ([fpzip](https://github.com/william-silversmith/neuroglancer/tree/wms_fpzip), [zfpc](https://github.com/william-silversmith/neuroglancer/tree/wms_zfpc), [crackle](https://github.com/william-silversmith/neuroglancer/tree/wms_crackle)).
+\* Not integrated into official Neuroglancer yet, but available on a [fork](https://allcodecs-dot-neuromancer-seung-import.appspot.com/) which can be seen on Github [here](https://github.com/william-silversmith/neuroglancer/tree/wms_combined_codecs).
 \*\* Lossless if your data can handle adding and then subtracting 2.
 \*\*\* Lossless by default, but you probably want to use the lossy mode.
 
@@ -414,7 +416,8 @@ CloudVolume(
     background_color:int=0, green_threads:bool=False, use_https:bool=False,
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
     agglomerate:bool=False, secrets:SecretsType=None, 
-    spatial_index_db:Optional[str]=None, lru_bytes:int = 0
+    spatial_index_db:Optional[str]=None, lru_bytes:int = 0,
+    cache_locking:bool = True
 )
 ```
 
@@ -446,7 +449,7 @@ CloudVolume(
 
           Note: This cache is totally separate from the LRU controlled by 
           lru_bytes.
-
+*      cache_locking: (bool) The local cache will use file locks via fasteners to prevent issues with multi-process cache access. If this is not a concern, performance can be slightly improved by setting this to False. This uses CloudFiles' locking mechanism.
 *      cdn_cache: (int, bool, or str) Sets Cache-Control HTTP header on uploaded 
         image files. Most cloud providers perform some kind of caching. As of 
         this writing, Google defaults to 3600 seconds. Most of the time you'll 

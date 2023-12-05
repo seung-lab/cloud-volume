@@ -1,7 +1,9 @@
 from functools import partial
 import os
 
+import fastremap
 import numpy as np
+import psutil
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles, reset_connection_pools, compression
@@ -119,8 +121,9 @@ def upload(
 
   def shade_and_upload(img3d, bbox):
     # decode is returning non-writable chunk
-    # we're throwing them away so safe to write
-    img3d.setflags(write=1) 
+    # so gotta set them to writeable
+    if not img3d.flags.writeable:
+      img3d = np.copy(img3d, order="F")
     shade(img3d, bbox, image, bounds)
     threaded_upload_chunks(
       meta, cache, lru,
@@ -134,9 +137,10 @@ def upload(
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
+  decode_fn = partial(decode, allow_none=False)
   download_chunks_threaded(
     meta, cache, None, mip, shell_chunks, 
-    fn=shade_and_upload, decode_fn=decode,
+    fn=shade_and_upload, decode_fn=decode_fn,
     fill_missing=fill_missing, 
     progress=("Shading Border" if progress else None), 
     compress_cache=compress_cache,
@@ -282,37 +286,64 @@ def threaded_upload_chunks(
     img = img[ ..., np.newaxis ]
 
   remote = CloudFiles(meta.cloudpath, secrets=secrets)
-  local = CloudFiles('file://' + cache.path, secrets=secrets)
+  local = cache.cloudfiles()
 
-  def do_upload(imgchunk, cloudpath):
-    encoded = chunks.encode(
-      imgchunk, meta.encoding(mip), 
-      meta.compressed_segmentation_block_size(mip),
-      compression_params=meta.compression_params(mip),
-    )
+  remote_compress = should_compress(meta.encoding(mip), compress, cache)
+  cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)
+  remote_compress = compression.normalize_encoding(remote_compress)
+  cache_compress = compression.normalize_encoding(cache_compress)
+
+  # performance optimization
+  preencoded = None
+  if (
+    img.flags.f_contiguous
+    and meta.encoding(mip) == "raw"
+    and not np.any(np.remainder(np.array(img.shape[:3]), meta.chunk_size(mip)))
+    and meta.num_channels == 1
+    and psutil.virtual_memory().available > 2 * img.nbytes
+  ):
+    preencoded = fastremap.tobytes(img[:,:,:,0], meta.chunk_size(mip), order="F")
+
+  def do_upload(i, imgchunk, cloudpath):
+    nonlocal remote_compress
+    nonlocal cache_compress
+    nonlocal preencoded
+
+    if preencoded:
+      encoded = preencoded[i]
+      preencoded[i] = None
+    else:
+      encoded = chunks.encode(
+        imgchunk, meta.encoding(mip), 
+        meta.compressed_segmentation_block_size(mip),
+        compression_params=meta.compression_params(mip),
+      )
 
     if lru is not None:
       lru[cloudpath] = encoded
+    
+    if cache_compress is None and cache.enabled:
+      cache_encoded = encoded
 
-    remote_compress = should_compress(meta.encoding(mip), compress, cache)
-    cache_compress = should_compress(meta.encoding(mip), compress, cache, iscache=True)
-    remote_compress = compression.normalize_encoding(remote_compress)
-    cache_compress = compression.normalize_encoding(cache_compress)
-    
-    encoded = compression.compress(encoded, remote_compress)
-    cache_encoded = encoded
-    if remote_compress != cache_compress:
+    remote_encoded = compression.compress(encoded, remote_compress)
+    cache_encoded = remote_encoded
+
+    if cache.enabled and remote_compress != cache_compress:
       cache_encoded = compression.compress(encoded, cache_compress)
-    
+
+    del encoded
+
     remote.put(
         path=cloudpath, 
-        content=encoded,
+        content=remote_encoded,
         content_type=content_type(meta.encoding(mip)), 
         compress=remote_compress,
         compression_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
         raw=True,
       )
+
+    del remote_encoded
 
     if cache.enabled:
       local.put(
@@ -329,41 +360,42 @@ def threaded_upload_chunks(
     if cache.enabled:
       local.delete(cloudpath)
 
-  def process(startpt, endpt, spt, ept):
+  bounds = meta.bounds(mip).maxpt
+
+  def process(i, startpt, endpt, spt, ept):
     if np.array_equal(spt, ept):
       return
 
     imgchunk = img[ startpt.x:endpt.x, startpt.y:endpt.y, startpt.z:endpt.z, : ]
 
     # handle the edge of the dataset
-    clamp_ept = min2(ept, meta.bounds(mip).maxpt)
+    clamp_ept = np.minimum(ept, bounds)
     newept = clamp_ept - spt
     imgchunk = imgchunk[ :newept.x, :newept.y, :newept.z, : ]
 
-    filename = "{}-{}_{}-{}_{}-{}".format(
-      spt.x, clamp_ept.x,
-      spt.y, clamp_ept.y, 
-      spt.z, clamp_ept.z
-    )
+    filename = f"{spt.x}-{clamp_ept.x}_{spt.y}-{clamp_ept.y}_{spt.z}-{clamp_ept.z}"
 
     cloudpath = meta.join(meta.key(mip), filename)
 
     if delete_black_uploads:
       if np.any(imgchunk != background_color):
-        do_upload(imgchunk, cloudpath)
+        do_upload(i, imgchunk, cloudpath)
       else:
         do_delete(cloudpath)
     else:
-      do_upload(imgchunk, cloudpath)
+      do_upload(i, imgchunk, cloudpath)
 
-  def process_and_update(*args, **kwargs):
-    process(*args, **kwargs)
+  def process_and_update(i, *args, **kwargs):
+    process(i, *args, **kwargs)
     # Needed for multiprocess progress bar.
     if callable(progress):
       progress()
 
+  if remote.protocol == "file":
+    n_threads = 0
+
   schedule_jobs(
-    fns=( partial(process_and_update, *vals) for vals in chunk_ranges ), 
+    fns=( partial(process_and_update, i, *vals) for i, vals in enumerate(chunk_ranges) ), 
     concurrency=n_threads, 
     progress=('Uploading' if progress and not callable(progress) else None),
     total=len(chunk_ranges),

@@ -1037,7 +1037,7 @@ def test_caching(lru_bytes):
   image[0:64,64:128,64:128] = 7
   image[64:128,64:128,64:128] = 8
 
-  dirpath = '/tmp/cloudvolume/caching-volume-' + str(TEST_NUMBER)
+  dirpath = f'/tmp/cloudvolume/caching-volume-{TEST_NUMBER}-{lru_bytes}'
   layer_path = 'file://' + dirpath
 
   vol = CloudVolume.from_numpy(
@@ -1109,7 +1109,7 @@ def test_caching(lru_bytes):
   vol.cache.flush()
 
   # Test Non-standard Cache Destination
-  dirpath = '/tmp/cloudvolume/caching-cache-' + str(TEST_NUMBER)
+  dirpath = f'/tmp/cloudvolume/caching-cache-{TEST_NUMBER}-{lru_bytes}'
   vol.cache.enabled = True
   vol.cache.path = dirpath
   vol[:,:,:] = image

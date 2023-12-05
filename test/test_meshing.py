@@ -128,23 +128,23 @@ def test_duplicate_vertices():
 
   # test that 4 is now affected
   mesh2 = deduplicate(mesh, x=4)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 1
 
   mesh2 = deduplicate(mesh, x=3)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 1
 
   mesh2 = deduplicate(mesh, x=4, offset_x=-1)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 1
 
   mesh2 = deduplicate(mesh, x=5)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 1
 
   mesh2 = deduplicate(mesh, x=1)
-  assert not np.all(mesh.vertices == mesh2.vertices)
+  assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 3
 
 def test_get_mesh_caching(unsharded_vol):
@@ -233,3 +233,21 @@ def test_stored_model_quantization(vqb):
   max_error = float(np.max(np.abs(restored_verts1 - vertices)))
   assert max_error < precision
   assert np.all(np.isclose(restored_verts1, restored_verts2))
+
+def test_obj_round_trip(unsharded_vol):
+  vol = unsharded_vol
+  vol.cache.flush()
+  mesh = vol.mesh.get(16649205)
+
+  mesh2 = Mesh.from_obj(mesh.to_obj())
+
+  x = mesh.vertices.flatten()
+  x.sort()
+
+  y = mesh2.vertices.flatten()
+  y.sort()
+
+  assert np.all(np.isclose(x, y, atol=1e-5))
+
+
+

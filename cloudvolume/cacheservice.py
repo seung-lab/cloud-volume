@@ -94,8 +94,14 @@ class CacheService(object):
     else:
       return mip_size(self.config.mip)
 
+  def cloudfiles(self):
+    return CloudFiles(
+      'file://' + self.path, 
+      locking=self.config.cache_locking
+    )
+
   def has(self, filename):
-    return CloudFiles('file://' + self.path).exists(filename)
+    return self.cloudfiles().exists(filename)
     
   def list(self, mip=None):
     mip = self.config.mip if mip is None else mip
@@ -161,6 +167,8 @@ class CacheService(object):
     
     Return: void
     """
+    self.cloudfiles().clear_locks()
+
     if not os.path.exists(self.path):
       return
 
@@ -299,16 +307,15 @@ class CacheService(object):
       """.format(cached_prov.serialize(), fresh_prov.serialize()))
 
   def get_json(self, filename):
-    return CloudFiles('file://' + self.path).get_json(filename)
+    return self.cloudfiles().get_json(filename)
 
   def maybe_cache_info(self):
     if self.enabled:
-      cf = CloudFiles('file://' + self.path)
-      cf.put_json('info', self.meta.info)
+      self.cloudfiles().put_json('info', self.meta.info)
 
   def maybe_cache_provenance(self):
     if self.enabled and self.meta.provenance:
-      cf = CloudFiles('file://' + self.path)
+      cf = self.cloudfiles()
       cf.put('provenance', self.meta.provenance.serialize().encode('utf8'))
 
   def upload_single(self, filename, content, *args, **kwargs):
@@ -320,7 +327,12 @@ class CacheService(object):
 
     progress = progress if progress is not None else self.config.progress
 
-    cf = CloudFiles(self.meta.cloudpath, progress=progress, secrets=self.config.secrets)
+    cf = CloudFiles(
+      self.meta.cloudpath, 
+      progress=progress, 
+      secrets=self.config.secrets,
+      locking=self.config.cache_locking,
+    )
     files = list(compression.transcode(files, encoding=compress, level=compress_level))
     cf.puts( 
       files, 
@@ -333,7 +345,11 @@ class CacheService(object):
 
     if self.enabled:
       self.put(files, compress=compress)
-      cf_cache = CloudFiles('file://' + self.path, progress=('to Cache' if progress else None))
+      cf_cache = CloudFiles(
+        'file://' + self.path, 
+        progress=('to Cache' if progress else None),
+        locking=self.config.cache_locking,
+      )
       cf_cache.puts(
         files,
         compress=compress,
@@ -370,7 +386,11 @@ class CacheService(object):
       if locs['local']:
         return self.get_single(local_alias)
 
-    filedata = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)[path, start:end]
+    filedata = CloudFiles(
+      self.meta.cloudpath, 
+      secrets=self.config.secrets,
+      locking=self.config.cache_locking,
+    )[path, start:end]
 
     if self.enabled:
       self.put([ (local_alias, filedata) ], compress=compress)
@@ -422,6 +442,7 @@ class CacheService(object):
       progress=progress, 
       secrets=self.config.secrets,
       parallel=self.config.parallel,
+      locking=self.config.cache_locking,
     )
     remote_fragments = cf.get(
       ( { 'path': p[0], 'start': p[1], 'end': p[2] } for p in remote_path_tuples ),
@@ -483,6 +504,7 @@ class CacheService(object):
       progress=progress, 
       secrets=self.config.secrets,
       parallel=self.config.parallel,
+      locking=self.config.cache_locking,
     )
     remote_fragments = cf.get(locs['remote'], raw=True)
 
@@ -491,7 +513,11 @@ class CacheService(object):
         raise frag['error']
 
     if self.enabled:
-      cf_cache = CloudFiles('file://' + self.path, progress=('to Cache' if progress else None))
+      cf_cache = CloudFiles(
+        'file://' + self.path, 
+        progress=('to Cache' if progress else None),
+        locking=self.config.cache_locking,
+      )
       cf_cache.puts(
         compression.transcode(
           ( frag for frag in remote_fragments if frag['content'] is not None ),
@@ -516,10 +542,12 @@ class CacheService(object):
   def get(self, cloudpaths, progress=None):
     progress = self.config.progress if progress is None else progress
     
-    cf = CloudFiles('file://' + self.path, progress=progress)
-    results = cf.get(list(cloudpaths))
-
-    return { res['path']: res['content'] for res in results }
+    cf = CloudFiles(
+      'file://' + self.path, 
+      progress=progress, 
+      locking=self.config.cache_locking,
+    )
+    return cf.get(cloudpaths, return_dict=True)
 
   def put_single(self, path, content, *args, **kwargs):
     kwargs['progress'] = False
@@ -542,7 +570,11 @@ class CacheService(object):
     
     save_location = 'file://' + self.path
     progress = 'to Cache' if progress else None
-    cf = CloudFiles(save_location, progress=progress)
+    cf = CloudFiles(
+      save_location, 
+      progress=progress, 
+      locking=self.config.cache_locking
+    )
     cf.puts(
       files, 
       compress=compress, 

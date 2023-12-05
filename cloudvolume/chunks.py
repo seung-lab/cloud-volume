@@ -17,6 +17,7 @@ import zlib
 import io
 import numpy as np
 
+import fpzip 
 import pyspng
 import simplejpeg
 import compresso
@@ -28,6 +29,7 @@ from PIL import Image
 
 from .lib import yellow, nvl
 
+# This is left in place mainly for testing
 try:
   import compressed_segmentation as cseg
   ACCELERATED_CSEG = True # C extension version
@@ -35,18 +37,6 @@ except ImportError:
   ACCELERATED_CSEG = False # Pure Python implementation
 
 from . import py_compressed_segmentation as csegpy
-
-try:
-  import fpzip 
-except ImportError:
-  fpziperrormsg = yellow("CloudVolume: fpzip codec is not available. Was it installed? pip install fpzip")
-  class fpzip(): # type: ignore
-    @classmethod
-    def compress(cls, content):
-      raise NotImplementedError(fpziperrormsg)
-    @classmethod
-    def decompress(cls, content):
-      raise NotImplementedError(fpziperrormsg)
 
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
@@ -102,7 +92,7 @@ def decode(
     raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
-    return np.full(shape=shape, fill_value=background_color, dtype=dtype)
+    return np.full(shape=shape, fill_value=background_color, dtype=dtype, order="F")
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == "kempressed":
@@ -246,7 +236,7 @@ def decode_png(bytestring: bytes, shape, dtype):
   return img.reshape(shape, order='F')
 
 def decode_raw(bytestring, shape, dtype):
-  return np.frombuffer(bytearray(bytestring), dtype=dtype).reshape(shape, order='F')
+  return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
 
 def decode_compressed_segmentation(bytestring, shape, dtype, block_size, accelerated=ACCELERATED_CSEG):
   if block_size is None:

@@ -6,6 +6,7 @@ import os
 import threading
 
 import numpy as np
+from tqdm import tqdm
 
 from cloudfiles import reset_connection_pools, CloudFiles, compression
 import fastremap
@@ -51,13 +52,19 @@ def download_sharded(
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
+  renderbuffer = np.full(
+    shape=shape, fill_value=background_color,
+    dtype=meta.dtype, order=order
+  )
+
+  if not meta.overlaps_roi(requested_bbox, mip):
+    return renderbuffer
+
   chunk_size = meta.chunk_size(mip)
   grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
 
   reader = sharding.ShardReader(meta, cache, spec)
   bounds = meta.bounds(mip)
-
-  renderbuffer = np.zeros(shape=shape, dtype=meta.dtype, order=order)
 
   gpts = list(gridpoints(full_bbox, bounds, chunk_size))
 
@@ -220,6 +227,12 @@ def download(
 
   dtype = np.uint16 if renumber else meta.dtype
 
+  if not meta.overlaps_roi(requested_bbox, mip):
+    return np.full(
+      shape=shape, fill_value=background_color,
+      dtype=dtype, order=order
+    )
+
   if requested_bbox.volume() == 1:
     return download_single_voxel_unsharded(
       meta, cache, lru,
@@ -243,6 +256,8 @@ def download(
       )
       if not retain:
         os.unlink(location)
+    elif background_color == 0:
+      renderbuffer = np.zeros(shape, dtype=dtype, order=order)
     else:
       renderbuffer = np.full(shape=shape, fill_value=background_color,
                              dtype=dtype, order=order)
@@ -258,7 +273,10 @@ def download(
       nonlocal lock 
       nonlocal remap
       nonlocal renderbuffer
-      img_labels = fastremap.unique(img3d)
+      if img3d is None:
+        img_labels = [ background_color ]
+      else:
+        img_labels = fastremap.unique(img3d)
       with lock:
         for lbl in img_labels:
           if lbl not in remap:
@@ -314,9 +332,11 @@ def download_single_voxel_unsharded(
   if locations["local"]:
     cloudpath = cachedir
     cache_enabled = False
+    locking = cache.config.cache_locking
   else:
     cloudpath = meta.cloudpath
     cache_enabled = cache.enabled
+    locking = False
 
   if filename is None:
     if fill_missing:
@@ -331,7 +351,8 @@ def download_single_voxel_unsharded(
       filename, fill_missing,
       cache_enabled, compress_cache,
       secrets, background_color,
-      partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt)
+      partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt),
+      decompress=True, locking=locking
     )
 
   if renumber:
@@ -479,23 +500,33 @@ def download_chunk(
   filename, fill_missing,
   enable_cache, compress_cache,
   secrets, background_color,
-  decode_fn, decompress=True
+  decode_fn, decompress=True, locking=False
 ):
   if lru is not None and filename in lru:
     content = lru[filename]
   else:
-    (file,) = CloudFiles(cloudpath, secrets=secrets).get([ filename ], raw=True)
+    (file,) = CloudFiles(
+      cloudpath, secrets=secrets, locking=locking
+    ).get([ filename ], raw=True)
     content = file['content']
 
     if enable_cache:
-      cache_content = next(compression.transcode(file, compress_cache))['content'] 
-      CloudFiles('file://' + cache.path).put(
+      cache_content = next(
+        compression.transcode(
+          file, compress_cache, 
+          in_place=(compress_cache == False)
+        )
+      )['content'] 
+      cache.cloudfiles().put(
         path=filename, 
         content=(cache_content or b''), 
         content_type=content_type(meta.encoding(mip)), 
         compress=compress_cache,
         raw=bool(cache_content),
       )
+      if compress_cache == False:
+        content = cache_content
+        decompress = False
       del cache_content
 
     if content is not None and decompress:
@@ -519,13 +550,13 @@ def download_chunks_threaded(
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + cache.path
 
-  def process(cloudpath, filename, enable_cache):
+  def process(cloudpath, filename, enable_cache, locking):
     labels, bbox = download_chunk(
       meta, cache, lru, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache,
       secrets, background_color,
-      decode_fn, decompress
+      decode_fn, decompress, locking
     )
     fn(labels, bbox)
 
@@ -541,29 +572,43 @@ def download_chunks_threaded(
   qualify = lambda fname: os.path.join(meta.key(mip), os.path.basename(fname))
 
   local_downloads = ( 
-    partial(process, cachedir, qualify(filename), False) for filename in locations['local'] 
+    partial(process, cachedir, qualify(filename), False, cache.config.cache_locking) 
+    for filename in locations['local'] 
   )
   remote_downloads = ( 
-    partial(process, meta.cloudpath, filename, cache.enabled) for filename in locations['remote'] 
+    partial(process, meta.cloudpath, filename, cache.enabled, False) for filename in locations['remote'] 
   )
-
-  downloads = itertools.chain( local_downloads, remote_downloads )
 
   if progress and not isinstance(progress, str):
     progress = "Downloading"
 
-  schedule_jobs(
-    fns=downloads, 
-    concurrency=DEFAULT_THREADS, 
-    progress=progress,
-    total=len(cloudpaths),
-    green=green,
-  )
+  total = len(locations["local"]) + len(locations["remote"])
+  n_threads = DEFAULT_THREADS
+  if meta.path.protocol == "file":
+    n_threads = 0
+
+  with tqdm(desc=progress, total=total, disable=(not progress)) as pbar:
+    schedule_jobs(
+      fns=local_downloads, 
+      concurrency=0, 
+      progress=pbar,
+      total=len(locations['local']),
+      green=green,
+    )
+
+    schedule_jobs(
+      fns=remote_downloads, 
+      concurrency=n_threads, 
+      progress=pbar,
+      total=len(locations['remote']),
+      green=green,
+    )
 
 def decode(
   meta, input_bbox, 
   content, fill_missing, 
-  mip, background_color=0
+  mip, background_color=0,
+  allow_none=True,
 ):
   """
   Decode content from bytes into a numpy array using the 
@@ -580,6 +625,7 @@ def decode(
     meta, input_bbox, 
     content, fill_missing, 
     mip, background_color,
+    allow_none,
   )
 
 def decode_unique(
@@ -626,6 +672,7 @@ def _decode_helper(
   fn, meta, input_bbox, 
   content, fill_missing, 
   mip, background_color=0,
+  allow_none=True,
 ):
   bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
@@ -637,6 +684,9 @@ def _decode_helper(
       raise EmptyVolumeException(input_bbox)
 
   shape = list(bbox.size3()) + [ meta.num_channels ]
+
+  if not content and allow_none:
+    return None
 
   try:
     return fn(
@@ -692,15 +742,21 @@ def unique_unsharded(
   all_labels = set()
   def process_core(labels, bbox):
     nonlocal all_labels
-    all_labels |= set(labels)
+    if labels is None:
+      all_labels |= set([ background_color ])
+    else:
+      all_labels |= set(labels)
 
   def process_shell(labels, bbox):
     nonlocal all_labels
     nonlocal requested_bbox
-    crop_bbox = Bbox.intersection(requested_bbox, bbox)
-    crop_bbox -= bbox.minpt
-    labels = labels[ crop_bbox.to_slices() ]
-    all_labels |= set(fastremap.unique(labels))
+    if labels is None:
+      all_labels |= set([ background_color ])
+    else:
+      crop_bbox = Bbox.intersection(requested_bbox, bbox)
+      crop_bbox -= bbox.minpt
+      labels = labels[ crop_bbox.to_slices() ]
+      all_labels |= set(fastremap.unique(labels))
 
   # If there's an LRU sort the fetches so that the LRU ones are first
   # otherwise the new downloads can kick out the cached ones and make the
@@ -814,10 +870,13 @@ def unique_sharded(
       chunkdata, fill_missing, mip,
       background_color=background_color
     )
-    crop_bbox = Bbox.intersection(requested_bbox, cutout_bbox)
-    crop_bbox -= cutout_bbox.minpt
-    labels = fastremap.unique(labels[ crop_bbox.to_slices() ])
-    all_labels |= set(labels)
+    if labels is None:
+      all_labels |= set([ background_color ])
+    else:
+      crop_bbox = Bbox.intersection(requested_bbox, cutout_bbox)
+      crop_bbox -= cutout_bbox.minpt
+      labels = fastremap.unique(labels[ crop_bbox.to_slices() ])
+      all_labels |= set(labels)
 
   return all_labels
 

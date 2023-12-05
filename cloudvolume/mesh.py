@@ -80,6 +80,9 @@ class Mesh(object):
 
     if no_self_normals != no_other_normals:
       return False
+
+    if self.vertices.shape[0] != other.vertices.shape[0]:
+      return False
        
     equality = np.all(self.vertices == other.vertices) \
       and np.all(self.faces == other.faces)
@@ -264,6 +267,11 @@ class Mesh(object):
     if type(text) is bytes:
       text = text.decode('utf8')
 
+    face_re_cplx = re.compile(r'f\s+(\d+)/(\d*)?/(\d+)?\s+(\d+)/(\d*)?/(\d+)?\s+(\d+)/(\d*)?/(\d+)?')
+    face_re_simple = re.compile(r'f\s+(\d+)\s+(\d+)\s+(\d+)')
+    vertex_re = re.compile(r'v\s+([-\d\.e]+)\s+([-\d\.e]+)\s+([-\d\.e]+)')
+    vn_re = re.compile(r'vn\s+([-\d\.e]+)\s+([-\d\.e]+)\s+([-\d\.e]+)')
+
     for line in text.split('\n'):
       line = line.strip()
       if len(line) == 0:
@@ -273,9 +281,10 @@ class Mesh(object):
       elif line[0] == 'f':
         if line.find('/') != -1:
           # e.g. f 6092/2095/6079 6087/2092/6075 6088/2097/6081
-          (v1, vt1, vn1, v2, vt2, vn2, v3, vt3, vn3) = re.match(r'f\s+(\d+)/(\d*)/(\d+)\s+(\d+)/(\d*)/(\d+)\s+(\d+)/(\d*)/(\d+)', line).groups()
+          # i.e. f vertex_1/texture_1/normal_1 etc
+          (v1, vt1, vn1, v2, vt2, vn2, v3, vt3, vn3) = re.match(face_re_cplx, line).groups()
         else:
-          (v1, v2, v3) = re.match(r'f\s+(\d+)\s+(\d+)\s+(\d+)', line).groups()
+          (v1, v2, v3) = re.match(face_re_simple, line).groups()
         faces.append( (int(v1), int(v2), int(v3)) )
       elif line[0] == 'v':
         if line[1] == 't': # vertex textures not supported
@@ -283,18 +292,24 @@ class Mesh(object):
           continue 
         elif line[1] == 'n': # vertex normals
           # e.g. vn 0.992266 -0.033290 -0.119585
-          (n1, n2, n3) = re.match(r'vn\s+([-\d\.e]+)\s+([-\d\.e]+)\s+([-\d\.e]+)', line).groups()
+          (n1, n2, n3) = re.match(vn_re, line).groups()
           normals.append( (float(n1), float(n2), float(n3)) )
         else:
           # e.g. v -0.317868 -0.000526 -0.251834
-          (v1, v2, v3) = re.match(r'v\s+([-\d\.e]+)\s+([-\d\.e]+)\s+([-\d\.e]+)', line).groups()
+          (v1, v2, v3) = re.match(vertex_re, line).groups()
           vertices.append( (float(v1), float(v2), float(v3)) )
 
     vertices = np.array(vertices, dtype=np.float32)
     faces = np.array(faces, dtype=np.uint32)
     normals = np.array(normals, dtype=np.float32)
 
-    return Mesh(vertices, faces - 1, normals, segid=segid)
+    return Mesh(
+      vertices, 
+      faces - 1, 
+      normals, 
+      segid=segid, 
+      encoding_type='precomputed'
+    )
 
   def to_obj(self):
     """Return a string representing a .obj file."""

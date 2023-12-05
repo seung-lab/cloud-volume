@@ -1,7 +1,9 @@
 from typing import List
 
 from collections.abc import Iterable
+from functools import reduce
 import json
+import operator
 import os
 import posixpath
 
@@ -49,6 +51,7 @@ class PrecomputedMetadata(object):
       self.cache.meta = self
     self.config = config
     self.info = None
+    self.rois = None
 
     self.redirected_from = []
     self.use_https = use_https
@@ -176,10 +179,23 @@ class PrecomputedMetadata(object):
         return self.info
 
     self.info = self.redirectable_fetch_info(max_redirects)
+    self.rois = self.parse_rois(self.info)
 
     if self.cache:
       self.cache.maybe_cache_info()
     return self.info
+
+  def parse_rois(self, info) -> List[Bbox]:
+    """Parse ROIs from the info file at mip 0."""
+    scale = info['scales'][0]
+    if 'rois' not in scale:
+      return None
+
+    bboxes = [ 
+      Bbox.from_list(roi) for roi in scale["rois"] 
+    ]
+    bboxes.sort(key=lambda bx: bx.minpt.z)
+    return bboxes
 
   def fetch_info(self):
     """
@@ -479,6 +495,10 @@ Hops:
     """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels).""" 
     return Vec(*self.info['scales'][mip]['size'])
 
+  def voxels(self, mip):
+    """Returns the number of voxels in this mip level."""
+    return reduce(operator.mul, self.volume_size(mip))
+
   @property
   def available_mips(self):
     """Returns a list of mip levels that are defined."""
@@ -500,7 +520,7 @@ Hops:
     return np.dtype(self.data_type)
 
   @property
-  def data_type(self):
+  def data_type(self) -> str:
     """e.g. 'uint8'"""
     return self.info['data_type']
 
@@ -572,7 +592,7 @@ Hops:
     """Vec(x,y,z) start of the dataset in voxels"""
     scale = self.scale(mip)
     if 'voxel_offset' in scale:
-      return Vec(*scale['voxel_offset'])
+      return Vec(*scale['voxel_offset'], dtype=int)
     else:
       return Vec(0,0,0)
 
@@ -659,6 +679,28 @@ Hops:
       mip += delta
 
     return bbox
+
+  def overlaps_roi(self, pt_or_bbox, mip = 0) -> bool:
+    """Returns True if the point or bbox overlaps the ROI including the boundary."""
+    if self.rois is None:
+      return True      
+
+    if isinstance(pt_or_bbox, Bbox):
+      if mip > 0:
+        pt_or_bbox = self.bbox_to_mip(pt_or_bbox, mip, 0)
+
+      for bbox in self.rois:
+        if bbox.overlaps_bbox(pt_or_bbox):
+          return True
+    else:
+      if mip > 0:
+        pt_or_bbox = self.point_to_mip(pt_or_bbox, mip, 0)
+
+      for bbox in self.rois:
+        if bbox.contains(pt_or_bbox):
+          return True
+
+    return False
 
   def reset_scales(self):
     """Used for manually resetting downsamples if something messed up."""

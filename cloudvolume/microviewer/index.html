@@ -542,6 +542,11 @@
         if (PARAMETERS.is_floating) {
           return val.toFixed(4);
         }
+        else if ( // color image
+          PARAMETERS.layer_type == "image" && PARAMETERS.data_bytes == 4
+        ) {
+          return `${val} rgb: <${val & 0xff}, ${(val >> 8) & 0xff}, ${(val >> 16) & 0xff}>`;
+        }
         return val;
       }
 
@@ -567,7 +572,7 @@
       <br>
       <span id="cloudpath"></span> 
       <br> 
-      <span id="shape"></span> bounds: (<span id="bounds"></span>)  <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> <span id="loading"></span>
+      shape: <span id="shape"></span> bounds: (<span id="bounds"></span>)  <span id="dtype"></span> <span id="resolution"></span> nm<sup>3</sup> <span id="loading"></span>
     </div>
 
     <div id="instructions">

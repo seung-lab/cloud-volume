@@ -140,13 +140,11 @@ def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
       n_chunks *= (bbox.dz + chunk_size[2] - 1) // chunk_size[2]
       return n_chunks
     def __iter__(self):
-      for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
-        highpt = min2(Vec(x,y,z) + chunk_size, volume_bbox.maxpt)
-        filename = "{}-{}_{}-{}_{}-{}".format(
-          x, highpt.x,
-          y, highpt.y, 
-          z, highpt.z
-        )
+      for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):        
+        xf = min(x + chunk_size.x, volume_bbox.maxpt.x)
+        yf = min(y + chunk_size.y, volume_bbox.maxpt.y)
+        zf = min(z + chunk_size.z, volume_bbox.maxpt.z)
+        filename = f"{x}-{xf}_{y}-{yf}_{z}-{zf}"
         yield path.join(key, filename)
 
   return ChunkNamesIterator()
@@ -213,19 +211,28 @@ def shade(dest_img, dest_bbox, src_img, src_bbox):
 
   Returns: void
   """
-  if not Bbox.intersects(dest_bbox, src_bbox):
+  if not Bbox.intersects(dest_bbox, src_bbox) or src_img is None:
     return
 
-  spt = max2(src_bbox.minpt, dest_bbox.minpt)
-  ept = min2(src_bbox.maxpt, dest_bbox.maxpt)
-  dbox = Bbox(spt, ept) - dest_bbox.minpt
+  spt = np.maximum(src_bbox.minpt, dest_bbox.minpt)
+  ept = np.minimum(src_bbox.maxpt, dest_bbox.maxpt)
 
-  ZERO3 = Vec(0,0,0)
-  istart = max2(spt - src_bbox.minpt, ZERO3)
-  iend = min2(ept - src_bbox.maxpt, ZERO3) + src_img.shape[:3]
-  sbox = Bbox(istart, iend)
+  dest_minpt = np.minimum(spt, ept) - dest_bbox.minpt
+  dest_maxpt = np.maximum(spt, ept) - dest_bbox.minpt
+
+  ZERO3 = np.zeros((3,), dtype=spt.dtype)
+  istart = np.maximum(spt - src_bbox.minpt, ZERO3)
+  iend = np.minimum(ept - src_bbox.maxpt, ZERO3) + src_img.shape[:3]
 
   while src_img.ndim < 4:
     src_img = src_img[..., np.newaxis]
   
-  dest_img[ dbox.to_slices() ] = src_img[ sbox.to_slices() ]
+  dest_img[ 
+    dest_minpt[0]:dest_maxpt[0],
+    dest_minpt[1]:dest_maxpt[1],
+    dest_minpt[2]:dest_maxpt[2],
+  ] = src_img[
+    istart[0]:iend[0], 
+    istart[1]:iend[1],
+    istart[2]:iend[2]
+  ]

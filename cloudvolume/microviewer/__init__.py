@@ -3,12 +3,11 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import json
-from six.moves import range
 
 import numpy as np
 from tqdm import tqdm
 
-from cloudvolume.lib import Vec, Bbox, mkdir, save_images, yellow
+from cloudvolume.lib import Vec, Bbox, mkdir, yellow
 from cloudvolume.paths import ExtractedPath
 
 DEFAULT_PORT = 8080
@@ -55,6 +54,14 @@ def to_volumecutout(img, image_type, resolution=None, offset=None, hostname='loc
   )
 
 def to3d(img):
+  # RGB color image
+  if len(img.shape) == 4 and img.dtype == np.uint8 and img.shape[3] == 3:
+    colorized = np.full(img.shape[:3], fill_value=(0xff << 24), order="F", dtype=np.uint32)
+    colorized[:,:,:] |= img[:,:,:,0].astype(np.uint32)
+    colorized[:,:,:] |= img[:,:,:,1].astype(np.uint32) << 8
+    colorized[:,:,:] |= img[:,:,:,2].astype(np.uint32) << 16
+    return colorized
+
   while len(img.shape) > 3:
     img = img[..., 0]
   while len(img.shape) < 3:

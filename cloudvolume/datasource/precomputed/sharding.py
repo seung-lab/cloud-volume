@@ -613,11 +613,11 @@ class ShardReader(object):
           'length': chunk['end'] - chunk['start'],
           'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
       })
-
+    
     full_path = self.meta.join(self.meta.cloudpath, path)
     bundles_resp = CloudFiles(
       full_path, 
-      progress=progress, 
+      progress=("Downloading Bundles" if progress else False), 
       green=self.green,
       parallel=parallel,
     ).get(bundles)

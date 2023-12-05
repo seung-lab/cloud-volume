@@ -105,7 +105,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       vertex_types, segid=segid
     )
     return self.upload(skel)
-    
+  
   @readonlyguard
   def upload(self, skeletons):
 

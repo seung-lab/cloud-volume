@@ -1,3 +1,5 @@
+from typing import Optional, Union
+
 from .image import BossImageSource
 from .metadata import BossMetadata
 
@@ -5,15 +7,20 @@ from ...frontends.precomputed import CloudVolumePrecomputed
 
 from .. import get_cache_path
 from ...cacheservice import CacheService
-from ...cloudvolume import SharedConfiguration, register_plugin
+from ...cloudvolume import (
+  register_plugin, SharedConfiguration,
+  CompressType, ParallelType, CacheType,
+  SecretsType
+)
 from ...paths import strict_extract
 
 def create_boss(
-    cloudpath, mip=0, bounded=True, autocrop=False,
-    fill_missing=False, cache=False, compress_cache=None,
-    cdn_cache=True, progress=False, info=None, provenance=None,
-    compress=None, non_aligned_writes=False, parallel=1,
-    delete_black_uploads=False, green_threads=False
+    cloudpath, mip:int = 0, bounded:bool = True, autocrop:bool = False,
+    fill_missing:bool = False, cache:CacheType = False, compress_cache:CompressType = None,
+    cdn_cache:bool = True, progress:bool = False, info:Optional[dict] = None, 
+    provenance:Optional[dict] = None, compress:CompressType = None, 
+    non_aligned_writes:bool = False, parallel:int = 1, delete_black_uploads:bool = False, 
+    green_threads:bool = False, cache_locking:bool = True,
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
@@ -24,6 +31,9 @@ def create_boss(
       mip=mip,
       parallel=parallel,
       progress=progress,
+      secrets=secrets,
+      spatial_index_db=None,
+      cache_locking=cache_locking,
     )
     cache = CacheService(
       cloudpath=get_cache_path(cache, cloudpath),
