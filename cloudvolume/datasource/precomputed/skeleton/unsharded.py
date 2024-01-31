@@ -80,11 +80,15 @@ class UnshardedPrecomputedSkeletonSource(object):
     if not allow_missing and len(missing):
       raise SkeletonDecodeError("File(s) do not exist: {}".format(", ".join(missing)))
 
+    vertex_attributes = self.meta.info.get("vertex_attributes", [])
+
     skeletons = []
     for filename, content in results.items():
       segid = int(os.path.basename(filename))
       try:
-        skel = Skeleton.from_precomputed(content, segid=segid)
+        skel = Skeleton.from_precomputed(
+          content, segid=segid, vertex_attributes=vertex_attributes
+        )
       except Exception as err:
         raise SkeletonDecodeError("segid " + str(segid) + ": " + str(err))
       skel.transform = self.meta.transform
