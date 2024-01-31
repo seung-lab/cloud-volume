@@ -6,6 +6,7 @@ __all__ = [ 'DatasetProvenance', 'DataLayerProvenance' ]
 
 dataset_provenance_schema = {
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "DatasetProvenance",
   "title": "Dataset Provenance",
   "description": "Represents a dataset and its derived data layers.",
   "required": [
@@ -47,6 +48,7 @@ DatasetProvenance = classes.DatasetProvenance
 
 layer_provenance_schema = {
   "$schema": "http://json-schema.org/draft-04/schema#",
+  "id": "DataLayerProvenance",
   "title": "Data Layer Provenance",
   "description": "Represents a data layer within a dataset. e.g. image, segmentation, etc",
   "required": [
