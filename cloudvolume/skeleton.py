@@ -128,6 +128,17 @@ class Skeleton(object):
       }
     ]
 
+  def add_vertex_attribute(self, name:str, arr:np.ndarray):
+    """
+    Add a new vertex attribute type and its data.
+    """
+    self.extra_attributes.append({
+      "id": name,
+      "data_type": np.dtype(arr.dtype).name,
+      "num_components": (1 if arr.ndim == 1 else arr.shape[2]),
+    })
+    setattr(self, name, arr)
+
   def _check_space(self):
     if self.space not in ('physical', 'voxel'):
       raise SkeletonTransformError(
