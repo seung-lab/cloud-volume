@@ -930,15 +930,21 @@ class Skeleton(object):
       vert_idx = fastremap.unique(edge_list)
 
       vert_list = skel.vertices[vert_idx]
-      radii = skel.radii[vert_idx]
-      vtypes = skel.vertex_types[vert_idx]
 
       remap = { vid: i for i, vid in enumerate(vert_idx) }
       edge_list = fastremap.remap(edge_list, remap, in_place=True)
 
-      skeletons.append(
-        Skeleton(vert_list, edge_list, radii, vtypes, skel.id)
+      component_skel = Skeleton(
+        vert_list, edge_list,# radii, vtypes, 
+        segid=skel.id,
+        extra_attributes=self.extra_attributes,
       )
+
+      for attr in self.extra_attributes:
+        vals = getattr(skel, attr['id'])[vert_idx]
+        setattr(component_skel, attr['id'], vals)
+
+      skeletons.append(component_skel)
 
     return skeletons
 
