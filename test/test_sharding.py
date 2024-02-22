@@ -273,12 +273,14 @@ def test_write_image_shard_nonempty(delete_black_uploads):
   except exceptions.AlignmentError:
     pass
 
-@pytest.mark.parametrize("delete_black_uploads", [False, True])
-def test_write_image_shard_empty(delete_black_uploads):
+@pytest.mark.parametrize("delete_black_uploads", [False,True])
+@pytest.mark.parametrize("background_color", [0,5])
+def test_write_image_shard_empty(delete_black_uploads, background_color):
   delete_layer()
   cv, data = create_layer(size=(256,256,256,1), offset=(0,0,0))
-  data[:] = 0
+  data[:] = background_color
   cv[:] = data
+  cv.background_color = background_color
 
   spec = {
     "@type" : "neuroglancer_uint64_sharded_v1",
