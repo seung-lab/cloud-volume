@@ -333,14 +333,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       location = self.shared_memory_id
 
     if self.is_sharded(mip):
-      (filename, shard) = self.make_shard(image, bbox, mip)
-      basepath = self.meta.join(self.meta.cloudpath, self.meta.key(mip))
-      CloudFiles(basepath, progress=self.config.progress, secrets=self.config.secrets).put(
-        filename, shard, 
-        compress=self.config.compress, 
-        cache_control=self.config.cdn_cache
-      )
-      return
+      return self._upload_shard(image, bbox, mip)
 
     return tx.upload(
       self.meta, self.cache, self.lru,
@@ -362,6 +355,35 @@ class PrecomputedImageSource(ImageSourceInterface):
       green=self.config.green,
       fill_missing=self.fill_missing, # applies only to unaligned writes
     )
+
+  def _upload_shard(self, image, bbox, mip):
+    basepath = self.meta.join(self.meta.cloudpath, self.meta.key(mip))
+    cf = CloudFiles(basepath, progress=self.config.progress, secrets=self.config.secrets)
+
+    def do_upload():
+      (filename, shard) = self.make_shard(image, bbox, mip)
+      cf.put(
+        filename, shard, 
+        compress=self.config.compress, 
+        cache_control=self.config.cdn_cache
+      )
+
+    def do_delete():
+      nonlocal mip
+      shard_filename = self.shard_filename(bbox, mip)
+      cf.delete(shard_filename)
+
+    testfn = lambda image: np.any(image)
+    if self.background_color != 0:
+      testfn = lambda image: np.any(image != self.background_color)
+
+    if self.delete_black_uploads:
+      if testfn(image):
+        do_upload()
+      else:
+        do_delete()
+    else:
+      do_upload()
 
   def exists(self, bbox, mip=None):
     if mip is None:
