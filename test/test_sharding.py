@@ -304,3 +304,37 @@ def test_write_image_shard_empty(delete_black_uploads, background_color):
   sharded_data = cv[:]
 
   assert np.all(data == sharded_data)
+
+@pytest.mark.parametrize("delete_black_uploads", [False,True])
+@pytest.mark.parametrize("background_color", [0,5])
+def test_write_image_shard_partly_empty(delete_black_uploads, background_color):
+  delete_layer()
+  cv, data = create_layer(size=(256,256,256,1), offset=(0,0,0))
+  data[:64,:64,:] = background_color
+  cv[:] = data
+  cv.background_color = background_color
+
+  spec = {
+    "@type" : "neuroglancer_uint64_sharded_v1",
+    "data_encoding" : "gzip",
+    "hash" : "murmurhash3_x86_128",
+    "minishard_bits" : 1,
+    "minishard_index_encoding" : "raw",
+    "preshift_bits" : 3,
+    "shard_bits" : 0
+  }
+  cv.scale['sharding'] = spec
+  cv.delete_black_uploads = delete_black_uploads
+
+  cv[:] = data
+
+  if delete_black_uploads:
+    with pytest.raises(EmptyVolumeException):
+      sharded_data = cv[:]
+    cv.fill_missing = True
+
+  sharded_data = cv[:]
+
+  assert np.all(data == sharded_data)
+
+

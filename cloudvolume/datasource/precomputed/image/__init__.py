@@ -655,6 +655,10 @@ class PrecomputedImageSource(ImageSourceInterface):
     gpts, morton_codes = self.morton_codes(bbox, mip=mip, spec=spec)
     chunk_size = self.meta.chunk_size(mip)
 
+    testfn = lambda image: np.any(image)
+    if self.background_color != 0:
+      testfn = lambda image: np.any(image != self.background_color)
+
     labels = {}
     pt_anchor = gpts[0] * chunk_size
     for pt_abs, morton_code in zip(gpts, morton_codes):
@@ -665,11 +669,13 @@ class PrecomputedImageSource(ImageSourceInterface):
       cutout_bbx -= pt_anchor
 
       chunk = img[ cutout_bbx.to_slices() ]
-      labels[morton_code] = chunks.encode(
-        chunk, self.meta.encoding(mip),
-        block_size=self.meta.compressed_segmentation_block_size(mip),
-        compression_params=self.meta.compression_params(mip),
-      )
+
+      if (not self.delete_black_uploads) or testfn(chunk):
+        labels[morton_code] = chunks.encode(
+          chunk, self.meta.encoding(mip),
+          block_size=self.meta.compressed_segmentation_block_size(mip),
+          compression_params=self.meta.compression_params(mip),
+        )
 
     reader = self.shard_reader(mip=mip)
     shard_filename = reader.get_filename(first(labels.keys()))
