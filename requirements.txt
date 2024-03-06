@@ -17,7 +17,6 @@ numpy>=1.13.3
 networkx
 python-jsonschema-objects>=0.3.3
 pathos
-Pillow>=4.2.1
 protobuf>=3.3.0
 pyspng-seunglab>=1.0.0
 python-dateutil

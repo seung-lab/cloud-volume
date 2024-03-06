@@ -14,7 +14,6 @@ import string
 from itertools import product
 
 import numpy as np
-from PIL import Image
 from tqdm import tqdm
 
 from .exceptions import OutOfBoundsError
@@ -918,7 +917,8 @@ BboxLikeType = Union[Bbox, Sequence[slice], str, Vec]
 def save_images(
   image, directory=None, axis='z', 
   channel=None, global_norm=True, 
-  image_format='PNG', progress=True):
+  image_format='PNG', progress=True
+):
   """
   Serialize a 3D or 4D array into a series of PNGs for visualization.
 
@@ -932,6 +932,8 @@ def save_images(
 
   Returns: the directory path written to
   """
+  from PIL import Image
+
   if directory is None:
     directory = os.path.join('./saved_images', 'default', 'default', '0', Bbox( (0,0,0), image.shape[:3] ).to_filename())
   

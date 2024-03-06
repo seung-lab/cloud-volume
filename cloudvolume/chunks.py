@@ -25,8 +25,6 @@ import crackle
 import fastremap
 import zfpc
 
-from PIL import Image
-
 from .lib import yellow, nvl
 
 # This is left in place mainly for testing
