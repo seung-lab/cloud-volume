@@ -337,3 +337,27 @@ def read_voxel(
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
 
+def contains(
+  filedata:bytes,
+  label:int,
+  encoding:str, 
+  shape:Optional[Sequence[int]] = None, 
+  dtype:Any = None, 
+  block_size:Optional[Sequence[int]] = [8,8,8],
+) -> bool:
+  if encoding == "compressed_segmentation":
+    arr = cseg.CompressedSegmentationArray(
+      filedata, shape=shape[:3], dtype=dtype, block_size=block_size
+    )
+    return label in arr
+  elif encoding == "compresso":
+    arr = compresso.CompressoArray(filedata)
+    return label in arr
+  elif encoding == "crackle":
+    arr = crackle.CrackleArray(filedata)
+    return label in arr
+  else:
+    arr = decode(filedata, encoding, shape, dtype, block_size, 0)
+    return bool(np.isin(label, arr))
+
+

@@ -142,3 +142,28 @@ def test_jpeg(shape, num_channels, quality):
 
   assert abs(pre_avg - post_avg) < 1
 
+
+@pytest.mark.parametrize("encoding", [
+  "raw", "compressed_segmentation", "compresso", "crackle"
+])
+def test_contains(encoding):
+  labels = np.arange(10*10*10, dtype=np.uint64).reshape([10,10,10,1], order="F")
+  binary = encode(labels, encoding, [8,8,8])
+
+  print(binary)
+
+  testfn = lambda seg: chunks.contains(binary, seg, encoding, labels.shape, labels.dtype)
+
+  assert testfn(50)
+  assert testfn(0)
+  assert testfn(1000) == False
+  assert testfn(9124124) == False
+  assert testfn(800)
+
+
+
+
+
+
+
+
