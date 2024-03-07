@@ -42,9 +42,9 @@ def download_sharded(
   meta, cache, lru, spec,
   compress, progress,
   fill_missing, 
-  order, background_color
+  order, background_color,
+  label
 ):
-
   full_bbox = requested_bbox.expand_to_chunk_size(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
@@ -52,10 +52,13 @@ def download_sharded(
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
-  renderbuffer = np.full(
-    shape=shape, fill_value=background_color,
-    dtype=meta.dtype, order=order
-  )
+  if label is None:
+    renderbuffer = np.full(
+      shape=shape, fill_value=background_color,
+      dtype=meta.dtype, order=order
+    )
+  else:
+    renderbuffer = np.zeros(shape, dtype=bool, order="F")
 
   if not meta.overlaps_roi(requested_bbox, mip):
     return renderbuffer
@@ -80,7 +83,9 @@ def download_sharded(
   single_voxel = requested_bbox.volume() == 1
 
   decode_fn = decode
-  if single_voxel:
+  if label is not None:
+    decode_fn = partial(decode_binary_image, label)
+  elif single_voxel:
     decode_fn = partial(decode_single_voxel, requested_bbox.minpt - full_bbox.minpt)
 
   all_keys = set(code_map.keys())
@@ -200,7 +205,8 @@ def download(
   retain, use_shared_memory, 
   use_file, compress, order='F',
   green=False, secrets=None,
-  renumber=False, background_color=0
+  renumber=False, background_color=0,
+  label=None
 ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
@@ -225,7 +231,13 @@ def download(
   if use_shared_memory and use_file:
     raise ValueError("use_shared_memory and use_file are mutually exclusive arguments.")
 
-  dtype = np.uint16 if renumber else meta.dtype
+  if label is not None:
+    dtype = bool
+    background_color = 0
+    decode_fn = partial(decode_binary_image, label)
+  else:
+    decode_fn = decode
+    dtype = np.uint16 if renumber else meta.dtype
 
   if not meta.overlaps_roi(requested_bbox, mip):
     return np.full(
@@ -294,7 +306,7 @@ def download(
 
     download_chunks_threaded(
       meta, cache, lru, mip, cloudpaths, 
-      fn=fn, decode_fn=decode, fill_missing=fill_missing,
+      fn=fn, decode_fn=decode_fn, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
       green=green, secrets=secrets, background_color=background_color
     )
@@ -627,6 +639,53 @@ def decode(
     mip, background_color,
     allow_none,
   )
+
+def decode_binary_image(
+  label, meta, input_bbox, 
+  content, fill_missing, 
+  mip, background_color=0, 
+  allow_none=True,
+):
+  bbox = Bbox.create(input_bbox)
+  shape = list(bbox.size3()) + [ meta.num_channels ]
+
+  if not content:
+    if fill_missing:
+      if allow_none:
+        return None
+      else:
+        return np.zeros(shape, dtype=bool, order="F")
+    else:
+      raise EmptyVolumeException(input_bbox)
+
+  # raw requires an extra decompression cycle
+  # so just do the direct == comparison
+  has_label = True
+  if meta.encoding(mip) != "raw":
+    has_label = chunks.contains(
+      content, label,
+      encoding=meta.encoding(mip), 
+      shape=shape, 
+      dtype=meta.dtype, 
+      block_size=meta.compressed_segmentation_block_size(mip),
+    )
+
+  if not has_label:
+    if allow_none:
+      return None
+    else:
+      return np.zeros(shape, dtype=bool, order="F")
+
+  image = _decode_helper(
+    chunks.decode, 
+    meta, input_bbox, 
+    content, fill_missing, 
+    mip, 
+    background_color=background_color,
+    allow_none=allow_none,
+  )
+
+  return image == label
 
 def decode_unique(
   meta, input_bbox, 

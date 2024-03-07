@@ -683,6 +683,7 @@ class CloudVolumePrecomputed(object):
     # new download arguments
     renumber:bool = False, 
     coord_resolution:Optional[Sequence[int]] = None,
+    label:Optional[int] = None,
   ) -> VolumeCutout:
     """
     Downloads segmentation from the indicated cutout
@@ -704,6 +705,8 @@ class CloudVolumePrecomputed(object):
     coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.
       Sometimes Neuroglancer is working in the resolution of another
       higher res layer and this can help correct that.
+    label: download as a binary image where this label is foreground (True)
+      and everything else is background (False)
 
     agglomerate, timestamp, and stop_layer are just there to 
     absorb arguments to what could be a graphene frontend.
@@ -729,8 +732,12 @@ class CloudVolumePrecomputed(object):
       parallel = self.parallel
 
     tup = self.image.download(
-      bbox.astype(np.int64), mip, parallel=parallel, renumber=bool(renumber)
+      bbox.astype(np.int64), mip, 
+      parallel=parallel, 
+      renumber=bool(renumber),
+      label=label,
     )
+    
     if renumber:
       img, remap = tup
     else:

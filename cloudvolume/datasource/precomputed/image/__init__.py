@@ -139,11 +139,12 @@ class PrecomputedImageSource(ImageSourceInterface):
     return res
 
   def download(
-      self, bbox, mip, parallel=1, 
-      location=None, retain=False,
-      use_shared_memory=False, use_file=False,
-      order='F', renumber=False
-    ):
+    self, bbox, mip, parallel=1, 
+    location=None, retain=False,
+    use_shared_memory=False, use_file=False,
+    order='F', renumber=False, 
+    label=None,
+  ):
     """
     Download a cutout image from the dataset.
 
@@ -165,6 +166,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     renumber: dynamically rewrite downloaded segmentation into
       a more compact data type. Only compatible with single-process
       non-sharded download.
+    label: If provided, downloads a binary image where the selected
+      label is foreground. This can help reduce memory usage 1-byte
+      per voxel instead of the volume's dtype (max: 8-bytes per voxel).
 
     Returns:
       if renumber:
@@ -195,6 +199,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         fill_missing=self.fill_missing,
         order=order,
         background_color=int(self.background_color),
+        label=label,
       )
     else:
       return rx.download(
@@ -215,6 +220,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         secrets=self.config.secrets,
         renumber=renumber,
         background_color=int(self.background_color),
+        label=label,
       )
 
   def download_files(

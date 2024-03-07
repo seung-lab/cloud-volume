@@ -184,6 +184,36 @@ def test_aligned_read(green, encoding, lru_bytes):
   assert cv[25, 25, 25].shape == (1,1,1,1)
 
 @pytest.mark.parametrize('green', (True, False))
+@pytest.mark.parametrize('encoding', ('raw', 'compressed_segmentation', 'compresso', 'crackle'))
+@pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
+def test_read_binary_image(green, encoding, lru_bytes):
+  delete_layer()
+  cv, data = create_layer(
+    size=(100,100,50,1), offset=(0,0,0), 
+    layer_type="segmentation", encoding=encoding
+  )
+  data = np.arange(data.size, dtype=data.dtype).reshape([100,100,50,1], order="F")
+  cv[:] = data
+
+  cv.green_threads = green
+  cv.image.lru.resize(lru_bytes)
+  # the last dimension is the number of channels
+  
+  bbox = Bbox([0,0,0], data.shape)
+  
+  img = cv.download(bbox, mip=0, label=500)
+  # img.viewer()
+  # import microviewer
+  # microviewer.view(data, seg=True)
+
+  # import pdb; pdb.set_trace()
+
+  assert np.all(img == (data == 500))
+
+  img = cv.download(bbox, mip=0, label=0)
+  assert np.all(img == (data == 0))
+
+@pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
 def test_point_reads_sharded(shard_vol, shard_vol_data_cpso, green, encoding, lru_bytes):
