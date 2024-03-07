@@ -197,7 +197,6 @@ def test_read_binary_image(green, encoding, lru_bytes):
 
   cv.green_threads = green
   cv.image.lru.resize(lru_bytes)
-  # the last dimension is the number of channels
   
   bbox = Bbox([0,0,0], data.shape)
   
