@@ -109,6 +109,8 @@ def download_sharded(
     
     if single_voxel:
       renderbuffer[:] = img3d
+    elif single_voxel and label is not None:
+      renderbuffer[:] = img3d == label
     else:
       shade(renderbuffer, requested_bbox, img3d, cutout_bbox)
 
@@ -251,6 +253,7 @@ def download(
       requested_bbox, first(cloudpaths), 
       mip, fill_missing, compress_cache,
       secrets, renumber, background_color,
+      label
     )
   elif parallel == 1:
     if use_shared_memory: # write to shared memory
@@ -335,7 +338,8 @@ def download_single_voxel_unsharded(
   meta, cache, lru,
   requested_bbox, filename, 
   mip, fill_missing, compress_cache,
-  secrets, renumber, background_color, 
+  secrets, renumber, background_color,
+  segid
 ):
   """Specialized function for rapidly extracting a single voxel."""
   locations = cache.compute_data_locations([ filename ])
@@ -366,6 +370,9 @@ def download_single_voxel_unsharded(
       partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt),
       decompress=True, locking=locking
     )
+
+  if segid is not None:
+    label = label == segid
 
   if renumber:
     lbl = label[0,0,0,0]
