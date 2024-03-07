@@ -86,11 +86,14 @@ def decode(
   block_size:Optional[Sequence[int]] = None, 
   background_color:int = 0
 ) -> np.ndarray:
-  if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed'):
-    raise ValueError("Only npz encoding can omit shape and dtype arguments. {}".format(encoding))
+  if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed', 'crackle', 'compresso'):
+    raise ValueError("Only npz, fpzip, kempressed, crackle, and compresso encoding can omit shape and dtype arguments. {}".format(encoding))
 
   if filedata is None or len(filedata) == 0:
-    return np.full(shape=shape, fill_value=background_color, dtype=dtype, order="F")
+    if background_color == 0:
+      return np.zeros(shape=shape, dtype=dtype, order="F")
+    else:
+      return np.full(shape=shape, fill_value=background_color, dtype=dtype, order="F")
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == "kempressed":
