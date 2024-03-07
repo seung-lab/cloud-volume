@@ -209,6 +209,17 @@ def test_read_binary_image(green, encoding, lru_bytes):
   assert img.dtype == bool
   assert np.all(img == (data == 0))
 
+
+  bbox = Bbox([1,1,1], [2,2,2])
+  img = cv.download(bbox, mip=0, label=data[1,1,1])
+  assert img.dtype == bool
+  assert img == True
+
+  img = cv.download(bbox, mip=0, label=data[2,2,2])
+  assert img.dtype == bool
+  assert img == False
+
+
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
