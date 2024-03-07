@@ -202,15 +202,12 @@ def test_read_binary_image(green, encoding, lru_bytes):
   bbox = Bbox([0,0,0], data.shape)
   
   img = cv.download(bbox, mip=0, label=500)
-  # img.viewer()
-  # import microviewer
-  # microviewer.view(data, seg=True)
 
-  # import pdb; pdb.set_trace()
-
+  assert img.dtype == bool
   assert np.all(img == (data == 500))
 
   img = cv.download(bbox, mip=0, label=0)
+  assert img.dtype == bool
   assert np.all(img == (data == 0))
 
 @pytest.mark.parametrize('green', (True, False))
