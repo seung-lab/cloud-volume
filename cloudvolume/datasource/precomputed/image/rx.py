@@ -660,6 +660,8 @@ def decode_binary_image(
     if fill_missing:
       if allow_none:
         return None
+      elif background_color == label:
+        return np.ones(shape, dtype=bool, order="F")
       else:
         return np.zeros(shape, dtype=bool, order="F")
     else:
