@@ -685,16 +685,14 @@ def decode_binary_image(
     else:
       return np.zeros(shape, dtype=bool, order="F")
 
-  image = _decode_helper(
-    chunks.decode, 
+  return _decode_helper(
+    partial(chunks.decode_binary_image, label), 
     meta, input_bbox, 
     content, fill_missing, 
     mip, 
     background_color=background_color,
     allow_none=allow_none,
   )
-
-  return image == label
 
 def decode_unique(
   meta, input_bbox, 

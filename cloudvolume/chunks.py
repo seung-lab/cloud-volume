@@ -117,6 +117,21 @@ def decode(
   else:
     raise NotImplementedError(encoding)
 
+def decode_binary_image(
+  label:int,
+  filedata:bytes,
+  encoding:str, 
+  shape:Optional[Sequence[int]] = None, 
+  dtype:Any = None, 
+  block_size:Optional[Sequence[int]] = None, 
+  background_color:int = 0,
+):
+  if encoding == "crackle":
+    return crackle.decompress(filedata, label=label).reshape(shape)
+
+  labels = decode(filedata, encoding, shape, dtype, block_size, background_color)
+  return labels == label
+
 def as2d(arr):
   # simulate multi-channel array for single channel arrays
   while arr.ndim < 4:
