@@ -7,7 +7,8 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
-from typing import Dict, Tuple, Sequence, Union
+import copy
+from typing import Dict, Tuple, Sequence, Union, Optional
 from functools import reduce, partial
 import itertools
 import operator
@@ -21,12 +22,13 @@ from cloudfiles import CloudFiles, compression
 from cloudvolume import lib, exceptions
 from cloudvolume.lru import LRU
 from cloudvolume.scheduler import schedule_jobs, DEFAULT_THREADS
+from ....types import CompressType
 from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
 from .... import sharedmemory, chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
-from .common import chunknames, gridpoints, compressed_morton_code
+from .common import chunknames, gridpoints, compressed_morton_code, morton_code_to_bbox
 from . import tx, rx
 
 class PrecomputedImageSource(ImageSourceInterface):
@@ -459,6 +461,78 @@ class PrecomputedImageSource(ImageSourceInterface):
     if self.cache.enabled:
       CloudFiles('file://' + self.cache.path, progress=self.config.progress, secrets=self.config.secrets) \
         .delete(cloudpaths())
+
+  def memory_cutout(
+    self, 
+    bbox:BboxLikeType, 
+    mip:int,
+    encoding:Optional[str] = None, 
+    compress:CompressType = None, 
+    compress_level:Optional[int] = None,
+  ):
+    from cloudvolume import CloudVolume
+
+    info = copy.deepcopy(self.meta.info)
+    cloudpath = f"mem://{str(uuid.uuid4())}"
+    cv = CloudVolume(cloudpath, mip=mip, info=info, compress=compress)
+    cv.scale.pop("sharding", None)
+
+    mip = cv.mip
+
+    if encoding is not None:
+      cv.meta.encoding(mip, encoding)
+
+    # To get the decompress info at this level will require
+    # significant refactoring. Not great news for "raw" encoding.
+    files = self.download_files(bbox, mip, decompress=True)
+
+    src_encoding = self.meta.encoding(mip)
+
+    bounds = self.meta.bounds(mip)
+    chunk_size = self.meta.chunk_size(mip)
+
+    filenames = list(files.keys())
+
+    for fname in filenames:
+      binary = files[fname]
+      if type(fname) == int:
+        bbx = morton_code_to_bbox(fname, bounds, chunk_size)
+      else:
+        bbx = Bbox.from_filename(fname)
+
+      if encoding is not None and src_encoding != encoding:
+        image = chunks.decode(
+          binary, src_encoding, 
+          shape=bbx.size(), 
+          dtype=self.meta.dtype,
+          block_size=self.meta.compressed_segmentation_block_size(mip),
+          background_color=self.background_color,
+        )
+        while image.ndim < 4:
+          image = image[..., np.newaxis]
+        binary = chunks.encode(
+          image, encoding,
+          block_size=cv.meta.compressed_segmentation_block_size(mip),
+        )
+        del image
+
+      del files[fname]
+      files[bbx.to_filename()] = binary
+
+    CloudFiles(f"{cloudpath}/{cv.key}/").puts(
+      files.items(), compress=compress, compression_level=compress_level
+    )
+
+    return cv
+
+  def delete_all(self, mip):
+    import cloudfiles.connectionpools
+    if self.meta.path.protocol == "mem":
+      cloudfiles.connectionpools.MEMORY_DATA.pop(self.meta.cloudpath, None)
+      return
+
+    cf = CloudFiles(self.meta.join(self.meta.cloudpath, self.meta.key(mip)))
+    cf.delete(cf.list())
 
   def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True, compress_level=None):
     """
