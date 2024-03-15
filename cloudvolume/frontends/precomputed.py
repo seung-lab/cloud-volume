@@ -504,7 +504,7 @@ class CloudVolumePrecomputed(object):
     """
     return self.image.delete(bbox_or_slices)
 
-  def transfer_to(self, cloudpath, bbox, block_size=None, compress=True):
+  def transfer_to(self, cloudpath, bbox, block_size=None, compress=True, encoding=None):
     """
     Transfer files from one storage location to another, bypassing
     volume painting. This enables using a single CloudVolume instance
@@ -517,7 +517,10 @@ class CloudVolumePrecomputed(object):
     block_size (int): number of file chunks to transfer per I/O batch.
     compress (bool): Set to False to upload as uncompressed
     """
-    return self.image.transfer_to(cloudpath, bbox, self.mip, block_size, compress)
+    return self.image.transfer_to(
+      cloudpath, bbox, self.mip, 
+      block_size, compress, encoding=encoding
+    )
 
   def coordinate_indexing(self, slices):
     """

@@ -22,7 +22,7 @@ from cloudfiles import CloudFiles, compression
 from cloudvolume import lib, exceptions
 from cloudvolume.lru import LRU
 from cloudvolume.scheduler import schedule_jobs, DEFAULT_THREADS
-from ....types import CompressType
+from ....types import CompressType, MipType
 from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
 from .... import sharedmemory, chunks
 
@@ -539,7 +539,16 @@ class PrecomputedImageSource(ImageSourceInterface):
     cf = CloudFiles(self.meta.join(self.meta.cloudpath, self.meta.key(mip)))
     cf.delete(cf.list())
 
-  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True, compress_level=None):
+  def transfer_to(
+    self, 
+    cloudpath:str, 
+    bbox:BboxLikeType, 
+    mip:MipType, 
+    block_size:Optional[int] = None, 
+    compress:CompressType = True, 
+    compress_level:Optional[int] = None, 
+    encoding:Optional[str] = None,
+  ):
     """
     Transfer files from one storage location to another, bypassing
     volume painting. This enables using a single CloudVolume instance
@@ -547,14 +556,17 @@ class PrecomputedImageSource(ImageSourceInterface):
     may be more appropriate. This method is provided for convenience. It
     may be optimized for better performance over time as demand requires.
 
-    cloudpath (str): path to storage layer
-    bbox (Bbox object): ROI to transfer
-    mip (int): resolution level
-    block_size (int): number of file chunks to transfer per I/O batch.
-    compress (bool): Set to False to upload as uncompressed
+    cloudpath: path to storage layer
+    bbox: ROI to transfer
+    mip: resolution level
+    block_size: number of file chunks to transfer per I/O batch.
+    compress: Set to False to upload as uncompressed
+    compress_level: level to feed to compressor (means different things for
+      different algorithms)
+    encoding: if specified, transcode to this image encoding (otherwise taken
+      to be identical to source volume)
     """
     from cloudvolume import CloudVolume
-
     if mip is None:
       mip = self.config.mip
 
@@ -588,18 +600,26 @@ class PrecomputedImageSource(ImageSourceInterface):
     else:
       step = int(default_block_size_MB // chunk_MB) + 1
 
+    commit = False
     try:
       destvol = CloudVolume(cloudpath, mip=mip)
     except exceptions.InfoUnavailableError: 
-      destvol = CloudVolume(cloudpath, mip=mip, info=self.meta.info, provenance=self.meta.provenance.serialize())
-      destvol.commit_info()
-      destvol.commit_provenance()
+      info = copy.deepcopy(self.meta.info)
+      destvol = CloudVolume(cloudpath, mip=mip, info=info, provenance=self.meta.provenance.serialize())
+      commit = True
     except exceptions.ScaleUnavailableError:
       destvol = CloudVolume(cloudpath)
       for i in range(len(destvol.scales) + 1, len(self.meta.scales)):
         destvol.scales.append(
           self.meta.scales[i]
         )
+      commit = True
+
+    if encoding is not None:
+      destvol.meta.encoding(mip, encoding)
+      commit = commit or (destvol.meta.encoding(mip) != self.meta.encoding(mip))
+
+    if commit:
       destvol.commit_info()
       destvol.commit_provenance()
 
@@ -608,6 +628,9 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     num_blocks = np.ceil(self.meta.bounds(mip).volume() / self.meta.chunk_size(mip).rectVolume()) / step
     num_blocks = int(np.ceil(num_blocks))
+
+    src_encoding = self.meta.encoding(mip)
+    dest_encoding = destvol.meta.encoding(mip)
 
     cloudpaths = chunknames(
       bbox, self.meta.bounds(mip), 
@@ -636,18 +659,52 @@ class PrecomputedImageSource(ImageSourceInterface):
       ]
       if errors:
         error_paths = [ f['path'] for f in errors ]
-        raise exceptions.EmptyFileException("{} were empty or had IO errors.".format(", ".join(error_paths)))
+        raise exceptions.EmptyFileException(f"{', '.join(error_paths)} were empty or had IO errors.")
       return files
 
+    def transcode(files):
+      for file in files:
+        binary = file["content"]
+        bbx = Bbox.from_filename(file["path"])
+        image = chunks.decode(
+          binary, src_encoding, 
+          shape=bbx.size(), 
+          dtype=self.meta.dtype,
+          block_size=self.meta.compressed_segmentation_block_size(mip),
+          background_color=self.background_color,
+        )
+        while image.ndim < 4:
+          image = image[..., np.newaxis]
+        binary = chunks.encode(
+          image, dest_encoding,
+          block_size=destvol.meta.compressed_segmentation_block_size(mip),
+        )
+        file["content"] = binary
+      return files
+
+    content_type = tx.content_type(destvol)
+    
     with pbar:
       for srcpaths in sip(cloudpaths, step):
-        files = check(cfsrc.get(srcpaths, raw=True))
-        cfdest.transfer_from(
-          cfsrc, srcpaths, 
-          reencode=compress,
-          content_type=tx.content_type(destvol),
-        )
-        pbar.update(len(srcpaths))
+        if src_encoding == dest_encoding:
+            cfdest.transfer_from(
+              cfsrc, srcpaths, 
+              reencode=compress,
+              content_type=content_type,
+              allow_missing=self.fill_missing,
+            )
+        else:
+          files = check(cfsrc.get(srcpaths))
+          files = transcode(files)
+          cfdest.puts(
+            files, 
+            content_type=content_type,
+            compress=compress,
+            compression_level=compress_level,
+          )
+        pbar.update()
+    
+    return destvol
 
   def shard_reader(self, mip=None):
     mip = mip if mip is not None else self.config.mip
