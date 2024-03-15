@@ -504,7 +504,11 @@ class CloudVolumePrecomputed(object):
     """
     return self.image.delete(bbox_or_slices)
 
-  def transfer_to(self, cloudpath, bbox, block_size=None, compress=True, encoding=None):
+  def transfer_to(
+    self, cloudpath, bbox, 
+    block_size=None, compress=True, encoding=None,
+    sharded=None,
+  ):
     """
     Transfer files from one storage location to another, bypassing
     volume painting. This enables using a single CloudVolume instance
@@ -519,7 +523,8 @@ class CloudVolumePrecomputed(object):
     """
     return self.image.transfer_to(
       cloudpath, bbox, self.mip, 
-      block_size, compress, encoding=encoding
+      block_size, compress, 
+      encoding=encoding, sharded=sharded,
     )
 
   def coordinate_indexing(self, slices):
@@ -1134,3 +1139,6 @@ class CloudVolumePrecomputed(object):
     if name is None:
       name = 'to-dask-' + tokenize(self, chunks)
     return da.from_array(self, chunks, name=name)
+
+  def __del__(self):
+    pass

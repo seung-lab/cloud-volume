@@ -29,7 +29,7 @@ from .... import sharedmemory, chunks
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
 from .common import chunknames, gridpoints, compressed_morton_code, morton_code_to_bbox
-from . import tx, rx
+from . import tx, rx, xfer
 
 class PrecomputedImageSource(ImageSourceInterface):
   def __init__(
@@ -478,60 +478,23 @@ class PrecomputedImageSource(ImageSourceInterface):
     You can specify an alternative encoding and compression 
     settings for the new volume.
     """
-    from cloudvolume import CloudVolume
-
-    info = copy.deepcopy(self.meta.info)
-    cloudpath = f"mem://{str(uuid.uuid4())}"
-
-    cv = CloudVolume(cloudpath, mip=mip, info=info, compress=compress)
-    cv.scale.pop("sharding", None)
-    cv.commit_info()
-
-    mip = cv.mip
-
-    if encoding is not None:
-      cv.meta.encoding(mip, encoding)
-
-    # To get the decompress info at this level will require
-    # significant refactoring. Not great news for "raw" encoding.
-    files = self.download_files(bbox, mip, decompress=True)
-
-    src_encoding = self.meta.encoding(mip)
-
-    bounds = self.meta.bounds(mip)
-    chunk_size = self.meta.chunk_size(mip)
-
-    filenames = list(files.keys())
-
-    for fname in filenames:
-      binary = files[fname]
-      if type(fname) == int:
-        bbx = morton_code_to_bbox(fname, bounds, chunk_size)
-      else:
-        bbx = Bbox.from_filename(fname)
-
-      if encoding is not None and src_encoding != encoding:
-        image = chunks.decode(
-          binary, src_encoding, 
-          shape=bbx.size(), 
-          dtype=self.meta.dtype,
-          block_size=self.meta.compressed_segmentation_block_size(mip),
-          background_color=self.background_color,
-        )
-        while image.ndim < 4:
-          image = image[..., np.newaxis]
-        binary = chunks.encode(
-          image, encoding,
-          block_size=cv.meta.compressed_segmentation_block_size(mip),
-        )
-        del image
-
-      del files[fname]
-      files[bbx.to_filename()] = binary
-
-    CloudFiles(f"{cloudpath}/{cv.key}/").puts(
-      files.items(), compress=compress, compression_level=compress_level
+    cv = self.transfer_to(
+      cloudpath=f"mem://{str(uuid.uuid4())}",
+      bbox=bbox, 
+      mip=mip, 
+      compress=compress, 
+      compress_level=compress_level,
+      encoding=encoding,
+      sharded=False,
     )
+
+    delfn = cv.__del__
+    def cleanup(self):
+      nonlocal delfn
+      self.image.delete_all()
+      delfn(self)
+
+    cv.__del__ = cleanup
 
     return cv
 
@@ -540,7 +503,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     cf.delete(cf.list())
 
   def transfer_to(
-    self, 
+    self,
     cloudpath:str, 
     bbox:BboxLikeType, 
     mip:MipType, 
@@ -548,163 +511,31 @@ class PrecomputedImageSource(ImageSourceInterface):
     compress:CompressType = True, 
     compress_level:Optional[int] = None, 
     encoding:Optional[str] = None,
+    sharded:Optional[bool] = None,
   ):
-    """
-    Transfer files from one storage location to another, bypassing
-    volume painting. This enables using a single CloudVolume instance
-    to transfer big volumes. In some cases, gsutil or aws s3 cli tools
-    may be more appropriate. This method is provided for convenience. It
-    may be optimized for better performance over time as demand requires.
+    if sharded is None:
+      sharded = self.is_sharded(mip)
 
-    cloudpath: path to storage layer
-    bbox: ROI to transfer
-    mip: resolution level
-    block_size: number of file chunks to transfer per I/O batch.
-    compress: Set to False to upload as uncompressed
-    compress_level: level to feed to compressor (means different things for
-      different algorithms)
-    encoding: if specified, transcode to this image encoding (otherwise taken
-      to be identical to source volume)
-    """
-    from cloudvolume import CloudVolume
-    if mip is None:
-      mip = self.config.mip
-
-    if self.is_sharded(mip):
-      raise exceptions.UnsupportedFormatError(f"Sharded sources are not supported. got: {self.meta.cloudpath}")
-
-    bbox = Bbox.create(bbox, self.meta.bounds(mip))
-    realized_bbox = bbox.expand_to_chunk_size(
-      self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
-    )
-    realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
-
-    if bbox != realized_bbox:
-      raise exceptions.AlignmentError(
-        "Unable to transfer non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
-          bbox, realized_bbox
-        ))
-
-    default_block_size_MB = 50 # MB
-    chunk_MB = self.meta.chunk_size(mip).rectVolume() * np.dtype(self.meta.dtype).itemsize * self.meta.num_channels
-    if self.meta.layer_type == 'image':
-      # kind of an average guess for some EM datasets, have seen up to 1.9x and as low as 1.1
-      # affinites are also images, but have very different compression ratios. e.g. 3x for kempressed
-      chunk_MB /= 1.3 
-    else: # segmentation
-      chunk_MB /= 100.0 # compression ratios between 80 and 800....
-    chunk_MB /= 1024.0 * 1024.0
-
-    if block_size:
-      step = block_size
+    if not sharded and self.is_sharded(mip):
+      return xfer.transfer_any_to_unsharded(
+        self, cloudpath, bbox, mip, 
+        compress, compress_level, encoding
+      )
+    elif sharded and self.is_sharded(mip):
+      return xfer.transfer_sharded_to_sharded(
+        self, cloudpath, bbox, mip, 
+        compress, compress_level, encoding
+      )
+    elif not sharded and not self.is_sharded(mip):
+      return xfer.transfer_unsharded_to_unsharded(
+        self, cloudpath, bbox, mip, 
+        compress, compress_level, encoding
+      )
     else:
-      step = int(default_block_size_MB // chunk_MB) + 1
-
-    commit = False
-    try:
-      destvol = CloudVolume(cloudpath, mip=mip)
-    except exceptions.InfoUnavailableError: 
-      info = copy.deepcopy(self.meta.info)
-      destvol = CloudVolume(cloudpath, mip=mip, info=info, provenance=self.meta.provenance.serialize())
-      commit = True
-    except exceptions.ScaleUnavailableError:
-      destvol = CloudVolume(cloudpath)
-      for i in range(len(destvol.scales) + 1, len(self.meta.scales)):
-        destvol.scales.append(
-          self.meta.scales[i]
-        )
-      commit = True
-
-    if encoding is not None:
-      destvol.meta.encoding(mip, encoding)
-      commit = commit or (destvol.meta.encoding(mip) != self.meta.encoding(mip))
-
-    if commit:
-      destvol.commit_info()
-      destvol.commit_provenance()
-
-    if destvol.image.is_sharded(mip):
-      raise exceptions.UnsupportedFormatError(f"Sharded destinations are not supported. got: {destvol.cloudpath}")
-
-    num_blocks = np.ceil(self.meta.bounds(mip).volume() / self.meta.chunk_size(mip).rectVolume()) / step
-    num_blocks = int(np.ceil(num_blocks))
-
-    src_encoding = self.meta.encoding(mip)
-    dest_encoding = destvol.meta.encoding(mip)
-
-    cloudpaths = chunknames(
-      bbox, self.meta.bounds(mip), 
-      self.meta.key(mip), self.meta.chunk_size(mip),
-      protocol=self.meta.path.protocol
-    )
-
-    pbar = tqdm(
-      desc='Transferring Blocks of {} Chunks'.format(step), 
-      unit='blocks', 
-      disable=(not self.config.progress),
-      total=num_blocks,
-    )
-
-    cfsrc = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
-    cfdest = CloudFiles(cloudpath)
-
-    def check(files):
-      if self.fill_missing:
-        for file in files:
-          if file['content'] is None:
-            file['content'] = b''
-      errors = [
-        file for file in files if \
-        (file['content'] is None or file['error'] is not None)
-      ]
-      if errors:
-        error_paths = [ f['path'] for f in errors ]
-        raise exceptions.EmptyFileException(f"{', '.join(error_paths)} were empty or had IO errors.")
-      return files
-
-    def transcode(files):
-      for file in files:
-        binary = file["content"]
-        bbx = Bbox.from_filename(file["path"])
-        image = chunks.decode(
-          binary, src_encoding, 
-          shape=bbx.size(), 
-          dtype=self.meta.dtype,
-          block_size=self.meta.compressed_segmentation_block_size(mip),
-          background_color=self.background_color,
-        )
-        while image.ndim < 4:
-          image = image[..., np.newaxis]
-        binary = chunks.encode(
-          image, dest_encoding,
-          block_size=destvol.meta.compressed_segmentation_block_size(mip),
-        )
-        file["content"] = binary
-      return files
-
-    content_type = tx.content_type(destvol)
-    
-    with pbar:
-      for srcpaths in sip(cloudpaths, step):
-        if src_encoding == dest_encoding:
-            cfdest.transfer_from(
-              cfsrc, srcpaths, 
-              reencode=compress,
-              content_type=content_type,
-              allow_missing=self.fill_missing,
-            )
-        else:
-          files = check(cfsrc.get(srcpaths))
-          files = transcode(files)
-          cfdest.puts(
-            files, 
-            content_type=content_type,
-            compress=compress,
-            compression_level=compress_level,
-          )
-        pbar.update()
-    
-    return destvol
+      raise ValueError(
+        "Unsharded to sharded is not implemented in CloudVolume. "
+        "Try Igneous! https://github.com/seung-lab/igneous"
+      )
 
   def shard_reader(self, mip=None):
     mip = mip if mip is not None else self.config.mip
