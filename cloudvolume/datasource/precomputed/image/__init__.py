@@ -470,12 +470,22 @@ class PrecomputedImageSource(ImageSourceInterface):
     compress:CompressType = None, 
     compress_level:Optional[int] = None,
   ):
+    """
+    Create a disposable in-memory CloudVolume (mem://) containing
+    the requested cutout region in the unsharded precomputed
+    format. The source volume may be sharded or unsharded.
+
+    You can specify an alternative encoding and compression 
+    settings for the new volume.
+    """
     from cloudvolume import CloudVolume
 
     info = copy.deepcopy(self.meta.info)
     cloudpath = f"mem://{str(uuid.uuid4())}"
+
     cv = CloudVolume(cloudpath, mip=mip, info=info, compress=compress)
     cv.scale.pop("sharding", None)
+    cv.commit_info()
 
     mip = cv.mip
 
@@ -526,11 +536,6 @@ class PrecomputedImageSource(ImageSourceInterface):
     return cv
 
   def delete_all(self, mip):
-    import cloudfiles.connectionpools
-    if self.meta.path.protocol == "mem":
-      cloudfiles.connectionpools.MEMORY_DATA.pop(self.meta.cloudpath, None)
-      return
-
     cf = CloudFiles(self.meta.join(self.meta.cloudpath, self.meta.key(mip)))
     cf.delete(cf.list())
 
