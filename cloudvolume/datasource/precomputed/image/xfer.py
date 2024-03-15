@@ -118,8 +118,8 @@ def transfer_sharded_to_sharded(
   source, 
   cloudpath:str, 
   bbox:BboxLikeType, 
-  mip:MipType, 
-  block_size:Optional[int] = None, 
+  mip:MipType,
+  block_size:int = 2, 
   compress:CompressType = True, 
   compress_level:Optional[int] = None, 
   encoding:Optional[str] = None,
@@ -172,12 +172,12 @@ def transfer_sharded_to_sharded(
   src_encoding = source.meta.encoding(mip)
   dest_encoding = destvol.meta.encoding(mip)
 
-  def transcode(chunks):
+  def transcode(img_chunks):
     nonlocal source
     nonlocal destvol
-    labels = list(chunks.keys())
+    labels = list(img_chunks.keys())
     for label in labels:
-      binary = chunks[label]
+      binary = img_chunks[label]
       image = chunks.decode(
         binary, src_encoding, 
         shape=chunk_size, 
@@ -191,23 +191,23 @@ def transfer_sharded_to_sharded(
         image, dest_encoding,
         block_size=destvol.meta.compressed_segmentation_block_size(mip),
       )
-      chunks[label] = binary
-    return files
+      img_chunks[label] = binary
+    return img_chunks
 
   if src_encoding == dest_encoding:
     cfsrc.transfer_to(
       cfdest, 
       paths=shard_filenames,
-      block_size=2,
+      block_size=block_size,
     )
   else:
     for filename in shard_filenames:
       shard_binary = cfsrc.get(filename, raw=True)
-      chunks = reader.disassemble_shard(shard_binary)
+      img_chunks = reader.disassemble_shard(shard_binary)
       del shard_binary
-      chunks = transcode(chunks)
-      shard_binary = reader.synthesize_shard(chunks)
-      del chunks
+      img_chunks = transcode(img_chunks)
+      shard_binary = spec.synthesize_shard(img_chunks)
+      del img_chunks
       cfdest.put(filename, shard_binary, raw=True)
 
 def transfer_unsharded_to_unsharded(
