@@ -269,6 +269,7 @@ vol = CloudVolume('gs://bucket/dataset/channel', mip=[ 8, 8, 40 ], bounded=True,
 vol = CloudVolume('gs://bucket/datasset/channel', info=info) # New info file from scratch
 image = vol[:,:,:] # Download the entire image stack into a numpy array
 image = vol.download(bbox, mip=2, renumber=True) # download w/ smaller dtype
+image = vol.download(bbox, mip=2, label=777) # download binary image for label
 uniq = vol.unique(bbox, mip=0) # efficient extraction of unique labels
 listing = vol.exists( np.s_[0:64, 0:128, 0:64] ) # get a report on which chunks actually exist
 exists = vol.image.has_data(mip=0) # boolean check to see if any data is there
@@ -277,12 +278,17 @@ vol[64:128, 64:128, 64:128] = image # Write a 64^3 image to the volume
 img = vol.download_point( (x,y,z), size=256, mip=3 ) # download region around (mip 0) x,y,z at mip 3
 pts = vol.scattered_points([ (x1,y1,z1), (x2,y2,z2) ]) # download voxel labels located at indicated points
 # download image files without decompressing or rendering them. Good for caching!
-files = vol.download_files(bbox, mip, decompress=False) 
+files = vol.download_files(bbox, mip, decompress=False)
+
+# creates an anonymous in-memory CloudVolume that 
+# will self-clean when the reference count drops to zero. 
+# Store compressed images in memory for quick access!
+mem_vol = vol.image.memory_cutout(bbox, mip=1, encoding="compresso")
 
 # Server
 vol.viewer() # launches neuroglancer compatible web server on http://localhost:1337
 
-# Microviewer
+# Microviewer (outdated, see https://github.com/seung-lab/microviewer/)
 img = vol[64:1028, 64:1028, 64:128]
 img.viewer() # launches web viewer on http://localhost:8080
 
@@ -352,6 +358,7 @@ vol.upload_from_file('/path/to/file', bbox=Bbox(...), mip=0) # bbox is the regio
 # Transfer w/o Excess Memory Allocation
 vol = CloudVolume(...)
 # single core, send all of vol to destination, no painting memory
+# you can also transcode the image encoding and compression type
 vol.transfer_to('gs://bucket/dataset/layer', vol.bounds)
 
 # Caching, default located at $HOME/.cloudvolume/cache/$PROTOCOL/$BUCKET/$DATASET/$LAYER/$RESOLUTION
