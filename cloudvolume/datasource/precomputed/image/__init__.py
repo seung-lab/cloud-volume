@@ -552,7 +552,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         raise ValueError("mip {} does not have a sharding specification.".format(mip))
     return spec
 
-  def morton_codes(self, bbox, mip=None, spec=None):
+  def morton_codes(self, bbox, mip=None, spec=None, same_shard=True):
     mip = mip if mip is not None else self.config.mip
     scale = self.meta.scale(mip)
     spec = self.shard_spec(mip, spec)
@@ -586,14 +586,16 @@ class PrecomputedImageSource(ImageSourceInterface):
     # 3. Gridpoints all within this one shard
     gpts = list(gridpoints(aligned_bbox, self.meta.bounds(mip), chunk_size))
     morton_codes = compressed_morton_code(gpts, grid_size)
-    all_same_shard = bool(reduce(lambda a,b: operator.eq(a,b) and a,
-      map(reader.get_filename, morton_codes)
-    ))
 
-    if not all_same_shard:
-      raise exceptions.AlignmentError(
-        "The gridpoints for this image did not all correspond to the same shard. Got: {}".format(bbox)
-      )
+    if same_shard:
+      all_same_shard = bool(reduce(lambda a,b: operator.eq(a,b) and a,
+        map(reader.get_filename, morton_codes)
+      ))
+
+      if not all_same_shard:
+        raise exceptions.AlignmentError(
+          "The gridpoints for this image did not all correspond to the same shard. Got: {}".format(bbox)
+        )
 
     return gpts, morton_codes
 

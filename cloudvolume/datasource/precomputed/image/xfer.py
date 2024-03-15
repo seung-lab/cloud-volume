@@ -18,7 +18,7 @@ from . import tx
 
 def create_destination(source, cloudpath, mip, encoding):
   from cloudvolume import CloudVolume
-  
+
   commit = False
   try:
     destvol = CloudVolume(cloudpath, mip=mip)
@@ -143,15 +143,17 @@ def transfer_sharded_to_sharded(
         bbox, realized_bbox
       ))
 
+  chunk_size = source.meta.chunk_size(mip)
+  grid_size = np.ceil(source.meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
 
-  chunk_size = meta.chunk_size(mip)
-  grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
-
-  reader = sharding.ShardReader(meta, cache, spec)
-  bounds = meta.bounds(mip)
-  
   spec = source.shard_spec(mip)
-  gpts, morton_codes = self.morton_codes(bbox, mip=mip, spec=spec)
+
+  reader = sharding.ShardReader(source.meta, source.cache, spec)
+  bounds = source.meta.bounds(mip)
+  
+  gpts, morton_codes = source.morton_codes(
+    bbox, mip=mip, spec=spec, same_shard=False
+  )
   reader = source.shard_reader()
   shard_filenames = list(set([ 
     reader.get_filename(code) for code in morton_codes 
@@ -174,7 +176,6 @@ def transfer_sharded_to_sharded(
     nonlocal source
     nonlocal destvol
     labels = list(chunks.keys())
-    chunk_size = source.meta.chunk_size(mip)
     for label in labels:
       binary = chunks[label]
       image = chunks.decode(
