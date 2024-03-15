@@ -642,13 +642,12 @@ class PrecomputedImageSource(ImageSourceInterface):
     with pbar:
       for srcpaths in sip(cloudpaths, step):
         files = check(cfsrc.get(srcpaths, raw=True))
-        cfdest.puts(
-          compression.transcode(files, encoding=compress, level=compress_level, in_place=True), 
-          compress=compress,
+        cfdest.transfer_from(
+          cfsrc, srcpaths, 
+          reencode=compress,
           content_type=tx.content_type(destvol),
-          raw=True
         )
-        pbar.update()
+        pbar.update(len(srcpaths))
 
   def shard_reader(self, mip=None):
     mip = mip if mip is not None else self.config.mip
