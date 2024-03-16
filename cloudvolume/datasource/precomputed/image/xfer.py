@@ -68,12 +68,14 @@ def transfer_any_to_unsharded(
   cv.commit_info()
   mip = cv.mip
 
-  # To get the decompress info at this level will require
-  # significant refactoring. Not great news for "raw" encoding.
-  files = source.download_files(bbox, mip, decompress=True)
-
   src_encoding = source.meta.encoding(mip)
   dest_encoding = cv.meta.encoding(mip)
+
+  decompress = (src_encoding != dest_encoding) or (compress is not None)
+
+  # To get the decompress info at this level will require
+  # significant refactoring. Not great news for "raw" encoding.
+  files = source.download_files(bbox, mip, decompress=decompress)
 
   bounds = source.meta.bounds(mip)
   chunk_size = source.meta.chunk_size(mip)
