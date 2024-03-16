@@ -566,7 +566,10 @@ class PrecomputedImageSource(ImageSourceInterface):
         raise ValueError("mip {} does not have a sharding specification.".format(mip))
     return spec
 
-  def morton_codes(self, bbox, mip=None, spec=None, same_shard=True):
+  def morton_codes(
+    self, bbox, mip=None, spec=None,
+    same_shard=True, require_aligned=True
+  ):
     mip = mip if mip is not None else self.config.mip
     scale = self.meta.scale(mip)
     spec = self.shard_spec(mip, spec)
@@ -580,7 +583,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     aligned_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
     )
-    if bbox != aligned_bbox:
+    if require_aligned and bbox != aligned_bbox:
       raise exceptions.AlignmentError(
         "Unable to create shard from a non-chunk aligned bounding box. Requested: {}, Aligned: {}".format(
         bbox, aligned_bbox

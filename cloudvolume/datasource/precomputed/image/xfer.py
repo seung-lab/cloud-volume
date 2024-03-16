@@ -131,28 +131,24 @@ def transfer_sharded_to_sharded(
   if not source.is_sharded(mip):
     raise exceptions.UnsupportedFormatError(f"Unsharded sources are not supported. got: {source.meta.cloudpath}")
 
+  spec = source.shard_spec(mip)
+
+  chunk_size = source.meta.chunk_size(mip)
+  shape = spec.image_shard_shape(source.meta.volume_size(mip), chunk_size)
   bbox = Bbox.create(bbox, source.meta.bounds(mip))
   realized_bbox = bbox.expand_to_chunk_size(
-    source.meta.chunk_size(mip), offset=source.meta.voxel_offset(mip)
+    shape, offset=source.meta.voxel_offset(mip)
   )
   realized_bbox = Bbox.clamp(realized_bbox, source.meta.bounds(mip))
 
-  if bbox != realized_bbox:
-    raise exceptions.AlignmentError(
-      "Unable to transfer non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
-        bbox, realized_bbox
-      ))
-
-  chunk_size = source.meta.chunk_size(mip)
   grid_size = np.ceil(source.meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
-
-  spec = source.shard_spec(mip)
 
   reader = sharding.ShardReader(source.meta, source.cache, spec)
   bounds = source.meta.bounds(mip)
   
   gpts, morton_codes = source.morton_codes(
-    bbox, mip=mip, spec=spec, same_shard=False
+    bbox, mip=mip, spec=spec, 
+    same_shard=False, require_aligned=False,
   )
   reader = source.shard_reader()
   shard_filenames = list(set([ 
