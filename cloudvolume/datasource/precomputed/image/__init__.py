@@ -7,7 +7,8 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
-from typing import Dict, Tuple, Sequence, Union
+import copy
+from typing import Dict, Tuple, Sequence, Union, Optional
 from functools import reduce, partial
 import itertools
 import operator
@@ -21,13 +22,14 @@ from cloudfiles import CloudFiles, compression
 from cloudvolume import lib, exceptions
 from cloudvolume.lru import LRU
 from cloudvolume.scheduler import schedule_jobs, DEFAULT_THREADS
+from ....types import CompressType, MipType
 from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
 from .... import sharedmemory, chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
-from .common import chunknames, gridpoints, compressed_morton_code
-from . import tx, rx
+from .common import chunknames, gridpoints, compressed_morton_code, morton_code_to_bbox
+from . import tx, rx, xfer
 
 class PrecomputedImageSource(ImageSourceInterface):
   def __init__(
@@ -460,115 +462,94 @@ class PrecomputedImageSource(ImageSourceInterface):
       CloudFiles('file://' + self.cache.path, progress=self.config.progress, secrets=self.config.secrets) \
         .delete(cloudpaths())
 
-  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True, compress_level=None):
+  def memory_cutout(
+    self, 
+    bbox:BboxLikeType, 
+    mip:int,
+    encoding:Optional[str] = None, 
+    compress:CompressType = None, 
+    compress_level:Optional[int] = None,
+  ):
     """
-    Transfer files from one storage location to another, bypassing
-    volume painting. This enables using a single CloudVolume instance
-    to transfer big volumes. In some cases, gsutil or aws s3 cli tools
-    may be more appropriate. This method is provided for convenience. It
-    may be optimized for better performance over time as demand requires.
+    Create a disposable in-memory CloudVolume (mem://) containing
+    the requested cutout region in the unsharded precomputed
+    format. The source volume may be sharded or unsharded.
 
-    cloudpath (str): path to storage layer
-    bbox (Bbox object): ROI to transfer
-    mip (int): resolution level
-    block_size (int): number of file chunks to transfer per I/O batch.
-    compress (bool): Set to False to upload as uncompressed
+    You can specify an alternative encoding and compression 
+    settings for the new volume.
     """
-    from cloudvolume import CloudVolume
-
-    if mip is None:
-      mip = self.config.mip
-
-    if self.is_sharded(mip):
-      raise exceptions.UnsupportedFormatError(f"Sharded sources are not supported. got: {self.meta.cloudpath}")
-
-    bbox = Bbox.create(bbox, self.meta.bounds(mip))
-    realized_bbox = bbox.expand_to_chunk_size(
-      self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
+    cv = self.transfer_to(
+      cloudpath=f"mem://{str(uuid.uuid4())}",
+      bbox=bbox, 
+      mip=mip, 
+      compress=compress, 
+      compress_level=compress_level,
+      encoding=encoding,
+      sharded=False,
     )
-    realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
 
-    if bbox != realized_bbox:
-      raise exceptions.AlignmentError(
-        "Unable to transfer non-chunk aligned bounding boxes. Requested: {}, Realized: {}".format(
-          bbox, realized_bbox
-        ))
+    delfn = cv.__del__
+    def cleanup(self):
+      nonlocal delfn
+      self.image.delete_all()
+      delfn(self)
 
-    default_block_size_MB = 50 # MB
-    chunk_MB = self.meta.chunk_size(mip).rectVolume() * np.dtype(self.meta.dtype).itemsize * self.meta.num_channels
-    if self.meta.layer_type == 'image':
-      # kind of an average guess for some EM datasets, have seen up to 1.9x and as low as 1.1
-      # affinites are also images, but have very different compression ratios. e.g. 3x for kempressed
-      chunk_MB /= 1.3 
-    else: # segmentation
-      chunk_MB /= 100.0 # compression ratios between 80 and 800....
-    chunk_MB /= 1024.0 * 1024.0
+    cv.__del__ = cleanup
 
-    if block_size:
-      step = block_size
+    return cv
+
+  def delete_all(self, mip):
+    cf = CloudFiles(self.meta.join(self.meta.cloudpath, self.meta.key(mip)))
+    cf.delete(cf.list())
+
+  def transfer_to(
+    self,
+    cloudpath:str, 
+    bbox:BboxLikeType, 
+    mip:MipType, 
+    block_size:Optional[int] = None, 
+    compress:CompressType = True, 
+    compress_level:Optional[int] = None, 
+    encoding:Optional[str] = None,
+    sharded:Optional[bool] = None,
+  ):
+    if sharded is None:
+      sharded = self.is_sharded(mip)
+
+    if not sharded and self.is_sharded(mip):
+      return xfer.transfer_any_to_unsharded(
+        self, cloudpath,         
+        bbox=bbox, 
+        mip=mip,
+        compress=compress, 
+        compress_level=compress_level, 
+        encoding=encoding,
+      )
+    elif sharded and self.is_sharded(mip):
+      return xfer.transfer_sharded_to_sharded(
+        self, cloudpath, 
+        bbox=bbox, 
+        mip=mip, 
+        block_size=block_size,
+        compress=compress, 
+        compress_level=compress_level, 
+        encoding=encoding,
+      )
+    elif not sharded and not self.is_sharded(mip):
+      return xfer.transfer_unsharded_to_unsharded(
+        self, cloudpath,
+        bbox=bbox, 
+        mip=mip,
+        block_size=block_size,
+        compress=compress, 
+        compress_level=compress_level, 
+        encoding=encoding,
+      )
     else:
-      step = int(default_block_size_MB // chunk_MB) + 1
-
-    try:
-      destvol = CloudVolume(cloudpath, mip=mip)
-    except exceptions.InfoUnavailableError: 
-      destvol = CloudVolume(cloudpath, mip=mip, info=self.meta.info, provenance=self.meta.provenance.serialize())
-      destvol.commit_info()
-      destvol.commit_provenance()
-    except exceptions.ScaleUnavailableError:
-      destvol = CloudVolume(cloudpath)
-      for i in range(len(destvol.scales) + 1, len(self.meta.scales)):
-        destvol.scales.append(
-          self.meta.scales[i]
-        )
-      destvol.commit_info()
-      destvol.commit_provenance()
-
-    if destvol.image.is_sharded(mip):
-      raise exceptions.UnsupportedFormatError(f"Sharded destinations are not supported. got: {destvol.cloudpath}")
-
-    num_blocks = np.ceil(self.meta.bounds(mip).volume() / self.meta.chunk_size(mip).rectVolume()) / step
-    num_blocks = int(np.ceil(num_blocks))
-
-    cloudpaths = chunknames(
-      bbox, self.meta.bounds(mip), 
-      self.meta.key(mip), self.meta.chunk_size(mip),
-      protocol=self.meta.path.protocol
-    )
-
-    pbar = tqdm(
-      desc='Transferring Blocks of {} Chunks'.format(step), 
-      unit='blocks', 
-      disable=(not self.config.progress),
-      total=num_blocks,
-    )
-
-    cfsrc = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
-    cfdest = CloudFiles(cloudpath)
-
-    def check(files):
-      if self.fill_missing:
-        for file in files:
-          if file['content'] is None:
-            file['content'] = b''
-      errors = [
-        file for file in files if \
-        (file['content'] is None or file['error'] is not None)
-      ]
-      if errors:
-        error_paths = [ f['path'] for f in errors ]
-        raise exceptions.EmptyFileException("{} were empty or had IO errors.".format(", ".join(error_paths)))
-      return files
-
-    with pbar:
-      for srcpaths in sip(cloudpaths, step):
-        files = check(cfsrc.get(srcpaths, raw=True))
-        cfdest.transfer_from(
-          cfsrc, srcpaths, 
-          reencode=compress,
-          content_type=tx.content_type(destvol),
-        )
-        pbar.update(len(srcpaths))
+      raise ValueError(
+        "Unsharded to sharded is not implemented in CloudVolume. "
+        "Try Igneous! https://github.com/seung-lab/igneous"
+      )
 
   def shard_reader(self, mip=None):
     mip = mip if mip is not None else self.config.mip
@@ -585,7 +566,10 @@ class PrecomputedImageSource(ImageSourceInterface):
         raise ValueError("mip {} does not have a sharding specification.".format(mip))
     return spec
 
-  def morton_codes(self, bbox, mip=None, spec=None):
+  def morton_codes(
+    self, bbox, mip=None, spec=None,
+    same_shard=True, require_aligned=True
+  ):
     mip = mip if mip is not None else self.config.mip
     scale = self.meta.scale(mip)
     spec = self.shard_spec(mip, spec)
@@ -599,7 +583,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     aligned_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
     )
-    if bbox != aligned_bbox:
+    if require_aligned and bbox != aligned_bbox:
       raise exceptions.AlignmentError(
         "Unable to create shard from a non-chunk aligned bounding box. Requested: {}, Aligned: {}".format(
         bbox, aligned_bbox
@@ -619,14 +603,16 @@ class PrecomputedImageSource(ImageSourceInterface):
     # 3. Gridpoints all within this one shard
     gpts = list(gridpoints(aligned_bbox, self.meta.bounds(mip), chunk_size))
     morton_codes = compressed_morton_code(gpts, grid_size)
-    all_same_shard = bool(reduce(lambda a,b: operator.eq(a,b) and a,
-      map(reader.get_filename, morton_codes)
-    ))
 
-    if not all_same_shard:
-      raise exceptions.AlignmentError(
-        "The gridpoints for this image did not all correspond to the same shard. Got: {}".format(bbox)
-      )
+    if same_shard:
+      all_same_shard = bool(reduce(lambda a,b: operator.eq(a,b) and a,
+        map(reader.get_filename, morton_codes)
+      ))
+
+      if not all_same_shard:
+        raise exceptions.AlignmentError(
+          "The gridpoints for this image did not all correspond to the same shard. Got: {}".format(bbox)
+        )
 
     return gpts, morton_codes
 

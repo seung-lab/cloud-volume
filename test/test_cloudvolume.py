@@ -1510,6 +1510,18 @@ def test_transfer():
 
   assert np.all(img == dcv[:])
 
+  dcv.image.delete(dcv.bounds)
+  cv.transfer_to('file:///tmp/removeme/transfer2/', cv.bounds, encoding="png", compress=False)
+
+  dcv = CloudVolume('file:///tmp/removeme/transfer2/')
+
+  assert np.all(img == dcv[:])
+
+  dcv.image.delete(dcv.bounds)
+
+
+
+
 def test_cdn_cache_control():
   delete_layer()
   create_layer(size=(128,10,10,1), offset=(0,0,0))
