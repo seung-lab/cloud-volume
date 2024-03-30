@@ -1134,6 +1134,7 @@ class Skeleton(object):
       return
 
     RADII_KEYWORDS = ('radius', 'radii', 'r')
+    CROSS_SECTION_KEYWORDS = ('cross_section', 'x')
     COMPONENT_KEYWORDS = ('component', 'components', 'c')
 
     fig = plt.figure(figsize=(10,10))
@@ -1168,13 +1169,17 @@ class Skeleton(object):
         ys = skel.vertices[:,1]
         zs = skel.vertices[:,2]
 
-        if color_by in RADII_KEYWORDS:
+        if color_by in RADII_KEYWORDS or color_by in CROSS_SECTION_KEYWORDS:
           colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
-          colmap.set_array(skel.radii)
+
+          if color_by in RADII_KEYWORDS:
+            colmap.set_array(skel.radii)
+          else:
+            colmap.set_array(skel.cross_sectional_area)
 
           normed_radii = skel.radii / np.max(skel.radii)
           yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
-          cbar = fig.colorbar(colmap)
+          cbar = fig.colorbar(colmap, ax=ax)
           cbar.set_label('radius (' + units + ')', rotation=270)
         elif color_by in COMPONENT_KEYWORDS:
           yg = ax.scatter(xs, ys, zs, color=component_color, marker='.')
