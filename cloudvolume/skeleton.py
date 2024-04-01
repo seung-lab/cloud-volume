@@ -1162,6 +1162,7 @@ class Skeleton(object):
     component_colors = ['k', 'deeppink', 'dodgerblue', 'mediumaquamarine', 'gold' ]
 
     def draw_component(i, skel):
+      nonlocal units
       component_color = component_colors[ i % len(component_colors) ]
 
       if draw_vertices:
@@ -1172,15 +1173,20 @@ class Skeleton(object):
         if color_by in RADII_KEYWORDS or color_by in CROSS_SECTION_KEYWORDS:
           colmap = cm.ScalarMappable(cmap=cm.get_cmap('rainbow'))
 
+          axis_label = ''
           if color_by in RADII_KEYWORDS:
+            axis_label = 'radius'
             colmap.set_array(skel.radii)
+            normed_data = skel.radii / np.max(skel.radii)
           else:
+            axis_label = 'cross sectional area'
+            units += '^2'
             colmap.set_array(skel.cross_sectional_area)
+            normed_data = skel.cross_sectional_area / np.max(skel.cross_sectional_area)
 
-          normed_radii = skel.radii / np.max(skel.radii)
-          yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_radii), marker='o')
+          yg = ax.scatter(xs, ys, zs, c=cm.rainbow(normed_data), marker='o')
           cbar = fig.colorbar(colmap, ax=ax)
-          cbar.set_label('radius (' + units + ')', rotation=270)
+          cbar.set_label(f'{axis_label} ({units})', rotation=270)
         elif color_by in COMPONENT_KEYWORDS:
           yg = ax.scatter(xs, ys, zs, color=component_color, marker='.')
         else:
