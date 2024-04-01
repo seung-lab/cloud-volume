@@ -1124,6 +1124,8 @@ class Skeleton(object):
         aliases: 'r', 'radius', 'radii'
       'component': color connected components seperately
         aliases: 'c', 'component', 'components'
+      'cross_section': color each vertex according to its cross sectional area
+        aliases: 'x'
       anything else: draw everything black
     """
     try:
