@@ -744,6 +744,15 @@ Hops:
 
     factor = np.round(factor).astype(int)
 
+    for dim in factor:
+      pot = np.log2(dim)
+      if pot != int(pot):
+        print(
+          f"WARNING: adding scale with a non-power-of-two scale factor: {factor}"
+          f"This is very uncommon and will likely cause problems at some point."
+        )
+        break
+
     # e.g. {"encoding": "raw", "chunk_sizes": [[64, 64, 64]], "key": "4_4_40", 
     # "resolution": [4, 4, 40], "voxel_offset": [0, 0, 0], 
     # "size": [2048, 2048, 256]}
