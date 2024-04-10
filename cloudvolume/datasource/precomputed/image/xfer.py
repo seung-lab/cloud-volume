@@ -152,7 +152,6 @@ def transfer_sharded_to_sharded(
     bbox, mip=mip, spec=spec, 
     same_shard=False, require_aligned=False,
   )
-  reader = source.shard_reader()
   shard_filenames = list(set([ 
     reader.get_filename(code) for code in morton_codes 
   ]))
