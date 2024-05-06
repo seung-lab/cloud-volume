@@ -478,9 +478,14 @@ class PrecomputedImageSource(ImageSourceInterface):
     You can specify an alternative encoding and compression 
     settings for the new volume.
     """
+    realized_bbox = bbox.expand_to_chunk_size(
+      self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
+    )
+    realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
+
     cv = self.transfer_to(
       cloudpath=f"mem://{str(uuid.uuid4())}",
-      bbox=bbox, 
+      bbox=realized_bbox, 
       mip=mip, 
       compress=compress, 
       compress_level=compress_level,
