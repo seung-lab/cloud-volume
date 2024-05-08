@@ -506,7 +506,7 @@ class SpatialIndex(object):
     If allow_missing is set, then don't raise an error if an index
     file is missing.
 
-    Returns: set(labels)
+    Returns: iterable
     """
     bbox = Bbox.create(bbox, context=self.physical_bounds, autocrop=True)
     original_bbox = bbox.clone()
@@ -515,24 +515,33 @@ class SpatialIndex(object):
     if bbox.subvoxel():
       return []
 
-    labels = set()
     fast_path = bbox.contains_bbox(self.physical_bounds)
 
     if self.sql_db and fast_path:
       conn = connect(self.sql_db)
       cur = conn.cursor()
+      cur.execute("select count(distinct label) from file_lookup")
+      size = cur.fetchone()[0]
+
+      labels = np.zeros([size], dtype=np.uint64)
       cur.execute("select distinct label from file_lookup")
+
+      i = 0
       while True:
         rows = cur.fetchmany(size=2**20)
         if len(rows) == 0:
           break
         # Sqlite only stores signed integers, so we need to coerce negative
-        # integers back into unsigned with a bitwise and.
-        labels.update(( int(row[0]) & 0xffffffffffffffff for row in rows ))
+        # integers back into unsigned.
+        for row in rows:
+          labels[i] = np.uint64(row[0])
+          i += 1
       cur.close()
       conn.close()
+      labels.sort()
       return labels
 
+    labels = set()
     index_files = self.index_file_paths_for_bbox(bbox)
 
     num_blocks = int(np.ceil(len(index_files) / 10000))
