@@ -15,6 +15,8 @@ from cloudvolume.lib import mkdir, Bbox, Vec, jsonify
 from cloudvolume.datasource.precomputed.sharding import ShardingSpecification
 from cloudvolume.exceptions import SkeletonDecodeError, SkeletonAttributeMixingError
 
+from cloudfiles import CloudFile
+
 info = CloudVolume.create_new_info(
   num_channels=1, # Increase this number when we add more tests for RGB
   layer_type='segmentation', 
@@ -774,7 +776,17 @@ def test_integer_spatial_index():
   
   spatial_index = vol.skeleton.spatial_index
 
-  spatial_index.query(vol.bounds * vol.resolution)
+  idx_filename = "0-8192_0-8192_0-20480.spatial"
+
+  labels = spatial_index.query(vol.bounds * vol.resolution)
+  labels = list(labels)
+  labels.sort()
+
+  cf = CloudFile(f"file://" + os.path.join(test_dir, "test_cv", "skeletons_mip_2", idx_filename))
+  gt_labels = [ int(x) for x in cf.get_json().keys() ]
+  gt_labels.sort()
+
+  assert labels == gt_labels
 
   locs = spatial_index.file_locations_per_label()
   assert 71297420 in locs
