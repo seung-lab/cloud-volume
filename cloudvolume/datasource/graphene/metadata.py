@@ -235,7 +235,7 @@ class GrapheneMetadata(PrecomputedMetadata):
 
     Returns: Vec(chunk_x,chunk_y,chunk_z)
     """
-    pt = Vec(*pt, dtype=np.float)
+    pt = Vec(*pt, dtype=float)
 
     if mip is not None:
       pt *= self.resolution(mip)
