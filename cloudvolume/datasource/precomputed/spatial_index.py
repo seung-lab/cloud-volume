@@ -520,24 +520,24 @@ class SpatialIndex(object):
     if self.sql_db and fast_path:
       conn = connect(self.sql_db)
       cur = conn.cursor()
-      cur.execute("select count(distinct label) from file_lookup")
-      size = cur.fetchone()[0]
-
-      labels = np.zeros([size], dtype=np.uint64)
       cur.execute("select distinct label from file_lookup")
 
-      i = 0
+      labels_list = []
+
       while True:
-        rows = cur.fetchmany(size=2**20)
+        rows = cur.fetchmany(size=2**24)
         if len(rows) == 0:
           break
         # Sqlite only stores signed integers, so we need to coerce negative
         # integers back into unsigned.
-        for row in rows:
-          labels[i] = np.uint64(row[0])
-          i += 1
+        labels_list.append(np.fromiter((row[0] for row in rows), dtype=np.uint64))
+
       cur.close()
       conn.close()
+
+      labels = np.concatenate(labels_list)
+      del labels_list
+
       labels.sort()
       return labels
 
