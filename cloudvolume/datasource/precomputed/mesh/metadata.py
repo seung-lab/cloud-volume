@@ -1,6 +1,9 @@
+from typing import Optional
+
 import re
 
 from ....lib import jsonify
+from ..sharding import ShardingSpecification, compute_shard_params_for_hashed
 
 import numpy as np
 
