@@ -678,6 +678,42 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     return (shard_filename, spec.synthesize_shard(labels, progress=progress))
 
+  def to_sharded(
+    uncompressed_shard_bytesize:int = int(3.5e9),
+    max_shard_index_bytes:int = 8192, # 2^13
+    max_minishard_index_bytes:int = 40000,
+    max_labels_per_minishard:int = 4000,
+    minishard_index_encoding:str = "gzip",
+    data_encoding:str = "gzip",
+    mip:Optional[int] = None,
+  ):
+    mip = mip if mip is not None else self.config.mip
+
+    spec = sharding.compute_shard_params_for_image(
+      dataset_size=self.meta.volume_size(mip),
+      chunk_size=self.meta.chunk_size(mip),
+      encoding=self.meta.encoding(mip),
+      dtype=self.meta.dtype,
+      uncompressed_shard_bytesize=uncompressed_shard_bytesize, 
+      max_shard_index_bytes=max_shard_index_bytes,
+      max_minishard_index_bytes=max_minishard_index_bytes,
+      max_labels_per_minishard=max_labels_per_minishard,
+      minishard_index_encoding=minishard_index_encoding,
+      data_encoding=data_encoding,
+    ) 
+
+  def shard_shape(self, mip=None):
+    mip = mip if mip is not None else self.config.mip
+
+    if not self.is_sharded(mip):
+      raise ValueError("This volume is not sharded.")
+
+    return sharding.image_shard_shape_from_spec(
+      self.meta.scale(mip)["sharding"],
+      self.meta.volume_size(mip),
+      self.meta.chunk_size(mip),
+    )
+
   def is_sharded(self, mip):
     scale = self.meta.scale(mip)
     return 'sharding' in scale and scale['sharding'] is not None
