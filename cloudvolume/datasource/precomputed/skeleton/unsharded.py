@@ -109,7 +109,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       vertex_types, segid=segid
     )
     return self.upload(skel)
-  
+
   @readonlyguard
   def upload(self, skeletons):
 
@@ -126,6 +126,10 @@ class UnshardedPrecomputedSkeletonSource(object):
       compress=compress, 
       cache_control=cdn_cache_control(self.config.cdn_cache)
     )
+
+  # harmonize interface with mesh sources
+  def put(self, *args, **kwargs):
+    return self.upload(*args, **kwargs)
 
   def get_bbox(self, bbox):
     if self.spatial_index is None:

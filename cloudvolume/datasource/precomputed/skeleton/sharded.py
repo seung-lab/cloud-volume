@@ -89,6 +89,10 @@ class ShardedPrecomputedSkeletonSource(object):
       cache_control='no-cache',      
     )
 
+  # harmonize interface with mesh sources
+  def put(self, *args, **kwargs):
+    return self.upload(*args, **kwargs)
+
   def get_bbox(self, bbox):
     if self.spatial_index is None:
       raise IndexError("A spatial index has not been created.")
