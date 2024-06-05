@@ -894,3 +894,79 @@ def synthesize_shard_file(spec, label_group, data_offset=None, progress=False, p
     print("Done.")
 
   return result
+
+def compute_shard_params_for_hashed(
+  num_labels:int, 
+  shard_index_bytes:int = 2**13, 
+  minishard_index_bytes:int = 2**15,
+  min_shards:int = 1
+):
+  """
+  Computes the shard parameters for objects that
+  have been randomly hashed (e.g. murmurhash) so
+  that the keys are evenly distributed. This is
+  applicable to skeletons and meshes.
+
+  The equations come from the following assumptions.
+  a. The keys are approximately uniformly randomly distributed.
+  b. Preshift bits aren't useful for random keys so are zero.
+  c. Our goal is to optimize the size of the shard index and
+    the minishard indices to be reasonably sized. The default
+    values are set for a 100 Mbps connection.
+  d. The equations below come from finding a solution to 
+    these equations given the constraints provided.
+
+      num_shards * num_minishards_per_shard 
+        = 2^(shard_bits) * 2^(minishard_bits) 
+        = num_labels_in_dataset / labels_per_minishard
+
+      # from defininition of minishard_bits assuming fixed capacity
+      labels_per_minishard = minishard_index_bytes / 3 / 8
+
+      # from definition of minishard bits
+      minishard_bits = ceil(log2(shard_index_bytes / 2 / 8)) 
+
+  Returns: (shard_bits, minishard_bits, preshift_bits)
+  """
+  assert min_shards >= 1
+  if num_labels <= 0:
+    return (0,0,0)
+
+  num_minishards_per_shard = shard_index_bytes / 2 / 8
+  labels_per_minishard = minishard_index_bytes / 3 / 8
+  labels_per_shard = num_minishards_per_shard * labels_per_minishard
+
+  if num_labels >= labels_per_shard:
+    minishard_bits = np.ceil(np.log2(num_minishards_per_shard))
+    shard_bits = np.ceil(np.log2(
+      num_labels / (labels_per_minishard * (2 ** minishard_bits))
+    ))
+  elif num_labels >= labels_per_minishard:
+    minishard_bits = np.ceil(np.log2(
+      num_labels / labels_per_minishard
+    ))
+    shard_bits = 0
+  else:
+    minishard_bits = 0
+    shard_bits = 0
+
+  capacity = labels_per_shard * (2 ** shard_bits)
+  utilized_capacity = num_labels / capacity
+
+  # Try to pack shards to capacity, allow going
+  # about 10% over the input level.
+  if utilized_capacity <= 0.55:
+    shard_bits -= 1
+
+  shard_bits = max(shard_bits, 0)
+  min_shard_bits = np.round(np.log2(min_shards))
+
+  delta = max(min_shard_bits - shard_bits, 0)
+  shard_bits += delta
+  minishard_bits -= delta
+
+  shard_bits = max(shard_bits, min_shard_bits)
+  minishard_bits = max(minishard_bits, 0)
+
+  return (int(shard_bits), int(minishard_bits), 0)
+

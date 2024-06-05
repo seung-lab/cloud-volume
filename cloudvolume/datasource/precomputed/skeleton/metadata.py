@@ -2,6 +2,7 @@ import copy
 import re
 
 from ....lib import jsonify
+from ..sharding import ShardingSpecification, compute_shard_params_for_hashed
 
 import numpy as np
 
@@ -118,6 +119,64 @@ class PrecomputedSkeletonMetadata(object):
       'sharding': None,
       'spatial_index': None, # { 'chunk_size': physical units }
     }
+
+  def compute_sharding_specification(
+    self, 
+    num_labels:int,
+    shard_index_bytes:int = 2**13,
+    minishard_index_bytes:int = 2**15,
+    min_shards:int = 1,
+    minishard_index_encoding:str = 'gzip', 
+    data_encoding:str = 'gzip',
+    max_labels_per_shard:Optional[int] = None,
+  ) -> ShardingSpecification:
+    """
+    Calculate the shard parameters for this volume given
+    the total number of labels in the volume.
+    """
+    if max_labels_per_shard is not None:
+      assert max_labels_per_shard >= 1
+      min_shards = max(int(np.ceil(len(all_labels) / max_labels_per_shard)), min_shards)
+
+    (shard_bits, minishard_bits, preshift_bits) = \
+      compute_shard_params_for_hashed(
+        num_labels=num_labels,
+        shard_index_bytes=int(shard_index_bytes),
+        minishard_index_bytes=int(minishard_index_bytes),
+        min_shards=int(min_shards),
+      )
+
+    return ShardingSpecification(
+      type='neuroglancer_uint64_sharded_v1',
+      preshift_bits=preshift_bits,
+      hash='murmurhash3_x86_128',
+      minishard_bits=minishard_bits,
+      shard_bits=shard_bits,
+      minishard_index_encoding=minishard_index_encoding,
+      data_encoding=data_encoding,
+    )
+
+  def to_sharded(
+    self, 
+    num_labels:int,
+    shard_index_bytes:int = 2**13,
+    minishard_index_bytes:int = 2**15,
+    min_shards:int = 1,
+    minishard_index_encoding:str = 'gzip', 
+    data_encoding:str = 'gzip',
+    max_labels_per_shard:Optional[int] = None,
+  ):
+    """Adds a computed sharding property to the info."""
+    spec = self.compute_sharding_specification(
+      num_labels=num_labels, 
+      shard_index_bytes=shard_index_bytes, 
+      minishard_index_bytes=minishard_index_bytes, 
+      min_shards=min_shards,
+      minishard_index_encoding=minishard_index_encoding,
+      data_encoding=data_encoding,
+      max_labels_per_shard=max_labels_per_shard,
+    )
+    self.info['sharding'] = spec.to_dict()
 
   def is_sharded(self):
     if 'sharding' not in self.info:

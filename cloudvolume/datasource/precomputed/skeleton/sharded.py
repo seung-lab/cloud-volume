@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..sharding import ShardingSpecification, ShardReader
+from ..sharding import ShardingSpecification, ShardReader, synthesize_shard_files
 from ....skeleton import Skeleton
 from ..spatial_index import CachedSpatialIndex
 from ....exceptions import EmptyFileException
@@ -65,11 +65,29 @@ class ShardedPrecomputedSkeletonSource(object):
     else:
       return results[0]
 
-  def upload(self, *args, **kwargs):
-    raise NotImplementedError()
-
   def raw_upload(self, *args, **kwargs):
     raise NotImplementedError()
+
+  def upload(self, skeletons):
+    if type(skeletons) == Skeleton:
+      skeletons = [ skeletons ]
+
+    skeletons = { skel.id: skel.to_precomputed() for skel in skeletons }
+    shard_files = synthesize_shard_files(self.reader.spec, skeletons)
+
+    if len(shard_files) != 1:
+      raise ValueError(
+        f"Only one shard file should be generated per task. "
+        f"Expected: {self.shard_no} Got: {', '.join(shard_files.keys())} "
+      )
+
+    cf = CloudFiles(cv.skeleton.meta.layerpath, progress=self.progress)
+    cf.puts( 
+      ( (fname, data) for fname, data in shard_files.items() ),
+      compress=False,
+      content_type='application/octet-stream',
+      cache_control='no-cache',      
+    )
 
   def get_bbox(self, bbox):
     if self.spatial_index is None:
