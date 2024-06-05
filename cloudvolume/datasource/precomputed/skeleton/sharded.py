@@ -5,6 +5,8 @@ from ....skeleton import Skeleton
 from ..spatial_index import CachedSpatialIndex
 from ....exceptions import EmptyFileException
 
+from cloudfiles import CloudFiles
+
 class ShardedPrecomputedSkeletonSource(object):
   def __init__(self, meta, cache, config, readonly=False):
     self.meta = meta
@@ -81,7 +83,7 @@ class ShardedPrecomputedSkeletonSource(object):
         f"Expected: {self.shard_no} Got: {', '.join(shard_files.keys())} "
       )
 
-    cf = CloudFiles(cv.skeleton.meta.layerpath, progress=self.progress)
+    cf = CloudFiles(self.meta.layerpath, progress=self.progress)
     cf.puts( 
       ( (fname, data) for fname, data in shard_files.items() ),
       compress=False,
