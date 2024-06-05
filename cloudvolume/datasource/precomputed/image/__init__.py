@@ -679,6 +679,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     return (shard_filename, spec.synthesize_shard(labels, progress=progress))
 
   def to_sharded(
+    self,
     uncompressed_shard_bytesize:int = int(3.5e9),
     max_shard_index_bytes:int = 8192, # 2^13
     max_minishard_index_bytes:int = 40000,
@@ -700,7 +701,12 @@ class PrecomputedImageSource(ImageSourceInterface):
       max_labels_per_minishard=max_labels_per_minishard,
       minishard_index_encoding=minishard_index_encoding,
       data_encoding=data_encoding,
-    ) 
+    )
+    self.meta.scale(mip)["sharding"] = spec.to_dict()
+
+  def to_unsharded(self, mip=None):
+    mip = mip if mip is not None else self.config.mip
+    self.meta.scale(mip).pop("sharding", None)
 
   def shard_shape(self, mip=None):
     mip = mip if mip is not None else self.config.mip
