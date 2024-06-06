@@ -2,6 +2,7 @@ from typing import Optional
 
 import copy
 import re
+import weakref
 
 from ....lib import jsonify
 from ..sharding import ShardingSpecification, compute_shard_params_for_hashed
@@ -14,6 +15,7 @@ class PrecomputedSkeletonMetadata(object):
   def __init__(self, meta, cache=None, info=None):
     self.meta = meta
     self.cache = cache
+    self._cv = None
 
     if info:
       self.info = info
@@ -21,6 +23,14 @@ class PrecomputedSkeletonMetadata(object):
       self.info = self.fetch_info()
     else:
       self.info = self.default_info()
+
+  @property
+  def cv(self):
+    return self._cv
+
+  @cv.setter
+  def cv(self, vol):
+    self._cv = weakref.ref(vol)
 
   @property
   def spatial_index(self):
@@ -179,6 +189,17 @@ class PrecomputedSkeletonMetadata(object):
       max_labels_per_shard=max_labels_per_shard,
     )
     self.info['sharding'] = spec.to_dict()
+
+    self._refresh_skeleton_interface()
+
+  def to_unsharded(self):
+    self.info.pop("sharding", None)
+    self._refresh_skeleton_interface()
+
+  def _refresh_skeleton_interface(self):
+    from cloudvolume.datasource.precomputed.skeleton import PrecomputedSkeletonSource
+    if self.cv:
+      self.cv.skeleton = PrecomputedSkeletonSource(self.meta, self.cache, self.config, info=self.info)
 
   def is_sharded(self):
     if 'sharding' not in self.info:

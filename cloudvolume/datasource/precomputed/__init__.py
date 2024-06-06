@@ -102,11 +102,17 @@ def create_precomputed(
     mesh = PrecomputedMeshSource(meta, cache_service, config, readonly)
     skeleton = PrecomputedSkeletonSource(meta, cache_service, config, readonly)
 
-    return CloudVolumePrecomputed(
+    cv = CloudVolumePrecomputed(
       meta, cache_service, config, 
       image, mesh, skeleton,
       mip
     )
+
+    skeleton.meta.cv = cv # assigned as a weakref
+    mesh.meta.cv = cv # assigned as a weakref
+
+    return cv
+
 
 def register():
   register_plugin('precomputed', create_precomputed)

@@ -1,6 +1,7 @@
 from typing import Optional
 
 import re
+import weakref
 
 from ....lib import jsonify
 from ..sharding import ShardingSpecification, compute_shard_params_for_hashed
@@ -13,11 +14,20 @@ class PrecomputedMeshMetadata(object):
   def __init__(self, meta, cache=None, info=None):
     self.meta = meta
     self.cache = cache
+    self._cv = None
 
     if info:
       self.info = info
     else:
       self.info = self.fetch_info()
+
+  @property
+  def cv(self):
+    return self._cv
+
+  @cv.setter
+  def cv(self, vol):
+    self._cv = weakref.ref(vol)
 
   @property
   def chunk_size(self):
@@ -157,6 +167,16 @@ class PrecomputedMeshMetadata(object):
       max_labels_per_shard=max_labels_per_shard,
     )
     self.info['sharding'] = spec.to_dict()
+    self._refresh_mesh_interface()
+
+  def to_unsharded(self):
+    self.info.pop("sharding", None)
+    self._refresh_mesh_interface()
+
+  def _refresh_mesh_interface(self):
+    from cloudvolume.datasource.precomputed.mesh import PrecomputedMeshSource
+    if self.cv:
+      self.cv.mesh = PrecomputedMeshSource(self.meta, self.cache, info=self.info)
 
   def to_multi_resolution(self, vertex_quantization_bits:int):
     if vertex_quantization_bits not in [10, 16]:
@@ -172,12 +192,14 @@ class PrecomputedMeshMetadata(object):
       0,      0,      res[2], 0,
     ]
     self.info['lod_scale_multiplier'] = 1.0
+    self._refresh_mesh_interface()
 
   def to_single_resolution(self):
     self.info['@type'] = "neuroglancer_legacy_mesh"
     self.info.pop("vertex_quantization_bits", None)
     self.info.pop("transform", None)
     self.info.pop("lod_scale_multiplier", None)
+    self._refresh_mesh_interface()
 
   def is_sharded(self):
     if 'sharding' not in self.info:
