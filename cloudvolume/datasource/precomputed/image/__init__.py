@@ -66,7 +66,7 @@ class PrecomputedImageSource(ImageSourceInterface):
   def unlink_shared_memory(self):
     """Unlink the current shared memory location from the filesystem."""
     return sharedmemory.unlink(self.shared_memory_id)
-
+    
   def grid_size(self, mip=None):
     mip = mip if mip is not None else self.config.mip
     return np.ceil(self.meta.volume_size(mip) / self.meta.chunk_size(mip)).astype(np.int64)

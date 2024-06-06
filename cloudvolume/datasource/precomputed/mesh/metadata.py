@@ -176,7 +176,9 @@ class PrecomputedMeshMetadata(object):
   def _refresh_mesh_interface(self):
     from cloudvolume.datasource.precomputed.mesh import PrecomputedMeshSource
     if self.cv:
-      self.cv.mesh = PrecomputedMeshSource(self.meta, self.cache, info=self.info)
+      mesh_src = PrecomputedMeshSource(self.meta, self.cache, None, info=self.info)
+      mesh_src.meta.cv = self.cv()
+      self.cv().mesh = mesh_src
 
   def to_multi_resolution(self, vertex_quantization_bits:int):
     if vertex_quantization_bits not in [10, 16]:

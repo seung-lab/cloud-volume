@@ -199,7 +199,9 @@ class PrecomputedSkeletonMetadata(object):
   def _refresh_skeleton_interface(self):
     from cloudvolume.datasource.precomputed.skeleton import PrecomputedSkeletonSource
     if self.cv:
-      self.cv.skeleton = PrecomputedSkeletonSource(self.meta, self.cache, self.config, info=self.info)
+      skeleton_src = PrecomputedSkeletonSource(self.meta, self.cache, self.config, info=self.info)
+      skeleton_src.meta.cv = self.cv()
+      self.cv().skeleton = skeleton_src
 
   def is_sharded(self):
     if 'sharding' not in self.info:
