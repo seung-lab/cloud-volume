@@ -13,6 +13,7 @@ google-cloud-core>=1.1.0
 google-cloud-storage>=1.24.1
 json5
 jsonschema!=4.0
+microviewer
 numpy>=1.13.3
 networkx
 python-jsonschema-objects>=0.3.3

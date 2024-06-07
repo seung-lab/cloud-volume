@@ -8,8 +8,6 @@ from tqdm import tqdm
 
 from .lib import mkdir, save_images
 
-from . import microviewer
-
 class VolumeCutout(np.ndarray):
 
   def __new__(cls, buf, path, cloudpath, resolution, mip, layer_type, bounds, handle, *args, **kwargs):
@@ -105,4 +103,11 @@ class VolumeCutout(np.ndarray):
 
   def viewer(self, port=8080):
     """Start a local web app on the given port that lets you explore this cutout."""
-    microviewer.run([ self ], port=port)
+    import microviewer
+    microviewer.view(
+      self, 
+      seg=(self.layer_type == "segmentation"),
+      resolution=self.resolution,
+      cloudpath=self.cloudpath,
+      port=port,
+    )

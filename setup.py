@@ -41,7 +41,6 @@ setuptools.setup(
   packages=setuptools.find_packages(),
   package_data={
     'cloudvolume': [
-      './microviewer/*',
       'LICENSE',
       'requirements.txt',
     ],

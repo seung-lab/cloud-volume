@@ -65,9 +65,6 @@ from .skeleton import Skeleton, PrecomputedSkeleton
 from . import exceptions
 from . import secrets
 
-from . import microviewer
-from .microviewer import view, hyperview
-
 __version__ = '8.33.0'
 
 # Register plugins
