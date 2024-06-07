@@ -11,10 +11,11 @@ import numpy as np
 MESH_MIP_REGEXP = re.compile(r'mesh_mip_(\d+)')
 
 class PrecomputedMeshMetadata(object):
-  def __init__(self, meta, cache=None, config=None, info=None):
+  def __init__(self, meta, cache=None, config=None, info=None, readonly=False):
     self.meta = meta
     self.cache = cache
     self.config = config
+    self.readonly = readonly
     self._cv = None
 
     if info:
@@ -177,7 +178,7 @@ class PrecomputedMeshMetadata(object):
   def _refresh_mesh_interface(self):
     from cloudvolume.datasource.precomputed.mesh import PrecomputedMeshSource
     if self.cv:
-      mesh_src = PrecomputedMeshSource(self.meta, self.cache, self.config, info=self.info)
+      mesh_src = PrecomputedMeshSource(self.meta, self.cache, self.config, self.readonly, info=self.info)
       mesh_src.meta.cv = self.cv()
       self.cv().mesh = mesh_src
 

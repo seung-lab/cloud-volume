@@ -12,10 +12,11 @@ import numpy as np
 SKEL_MIP_REGEXP = re.compile(r'skeletons_mip_(\d+)')
 
 class PrecomputedSkeletonMetadata(object):
-  def __init__(self, meta, cache=None, config=None, info=None):
+  def __init__(self, meta, cache=None, config=None, info=None, readonly=False):
     self.meta = meta
     self.cache = cache
     self.config = config
+    self.readonly = readonly
     self._cv = None
 
     if info:
@@ -200,7 +201,7 @@ class PrecomputedSkeletonMetadata(object):
   def _refresh_skeleton_interface(self):
     from cloudvolume.datasource.precomputed.skeleton import PrecomputedSkeletonSource
     if self.cv:
-      skeleton_src = PrecomputedSkeletonSource(self.meta, self.cache, self.config, info=self.info)
+      skeleton_src = PrecomputedSkeletonSource(self.meta, self.cache, self.config, self.readonly, info=self.info)
       skeleton_src.meta.cv = self.cv()
       self.cv().skeleton = skeleton_src
 
