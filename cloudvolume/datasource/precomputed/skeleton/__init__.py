@@ -10,8 +10,8 @@ from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
 class PrecomputedSkeletonSource(object):
-  def __new__(cls, meta, cache, config, readonly=False):
-    skel_meta = PrecomputedSkeletonMetadata(meta, cache)
+  def __new__(cls, meta, cache, config, readonly=False, info=None):
+    skel_meta = PrecomputedSkeletonMetadata(meta, cache, config, info=info)
 
     if skel_meta.is_sharded():
       return ShardedPrecomputedSkeletonSource(skel_meta, cache, config, readonly) 

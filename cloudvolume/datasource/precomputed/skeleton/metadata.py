@@ -12,9 +12,10 @@ import numpy as np
 SKEL_MIP_REGEXP = re.compile(r'skeletons_mip_(\d+)')
 
 class PrecomputedSkeletonMetadata(object):
-  def __init__(self, meta, cache=None, info=None):
+  def __init__(self, meta, cache=None, config=None, info=None):
     self.meta = meta
     self.cache = cache
+    self.config = config
     self._cv = None
 
     if info:
