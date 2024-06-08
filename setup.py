@@ -10,6 +10,20 @@ def requirements():
   with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), 'rt') as f:
     return f.readlines()
 
+IMAGE_CODECS = [
+  "simplejpeg",
+  "pyspng-seunglab>=1.0.0",
+  "imagecodecs",
+]
+
+SEGMENTATION_CODECS = [ 
+  "compressed-segmentation>=2.1.1",
+  "compresso>=3.0.0",
+  "crackle-codec>=0.8.0,<2.0.0",
+]
+
+VECTOR_CODECS = [ "zfpc" ]
+
 setuptools.setup(
   name="cloud-volume",
   version="9.2.0",
@@ -35,7 +49,18 @@ setuptools.setup(
     "all_viewers": [ 'vtk', 'matplotlib>=3.6' ],
     "dask": [ 'dask[array]' ],
     "zarr": [ 'blosc' ],
-    "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"]
+    "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"],
+
+    # compression codecs
+    "jpegxl": [ "imagecodecs" ],
+    "png": [ "pyspng-seunglab" ],
+    "jpeg": [ "simplejpeg" ],
+    "zfpc": [ "zfpc" ],
+    "crackle": [ "crackle" ],
+    "compresso": [ "compresso" ],
+    "segmentation_codecs": SEGMENTATION_CODECS,
+    "image_codecs": IMAGE_CODECS,
+    "all_codecs": SEGMENTATION_CODECS + IMAGE_CODECS + VECTOR_CODECS,
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",
