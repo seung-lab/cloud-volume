@@ -67,6 +67,8 @@ def encode(
     return crackle.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
     return encode_jpeg(img_chunk, nvl(level, 85))
+  elif encoding == "jpegxl":
+    return encode_jpegxl(img_chunk, nvl(level, 85))
   elif encoding == "png":
     return encode_png(img_chunk, nvl(level, 9))
   elif encoding == "npz":
@@ -87,7 +89,10 @@ def decode(
   background_color:int = 0
 ) -> np.ndarray:
   if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed', 'crackle', 'compresso'):
-    raise ValueError("Only npz, fpzip, kempressed, crackle, and compresso encoding can omit shape and dtype arguments. {}".format(encoding))
+    raise ValueError(
+      f"Only npz, fpzip, kempressed, crackle, and compresso encoding "
+      f"can omit shape and dtype arguments. Got: {encoding}"
+    )
 
   if filedata is None or len(filedata) == 0:
     if background_color == 0:
@@ -110,6 +115,8 @@ def decode(
     return crackle.decompress(filedata).reshape(shape)
   elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
+  elif encoding == "jpegxl":
+    return decode_jpegxl(filedata, shape=shape)
   elif encoding == "png":
     return decode_png(filedata, shape=shape, dtype=dtype)
   elif encoding == "npz":
@@ -144,6 +151,36 @@ def as2d(arr):
     reshaped.shape[0] * reshaped.shape[1], reshaped.shape[2], num_channel
   )
   return reshaped, num_channel
+
+def encode_jpegxl(arr, level):
+  import imagecodecs
+
+  if not np.issubdtype(arr.dtype, np.uint8):
+    raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
+
+  arr, num_channel = as2d(arr)
+  lossless = level >= 100
+
+  if num_channel == 1:
+    return imagecodecs.jpegxl_encode(
+      arr[:,:,0], 
+      photometric="GRAY",
+      level=level,
+      lossless=lossless,
+    )
+  elif num_channel == 3:
+    return imagecodecs.jpegxl_encode(
+      arr,
+      photometric="RGB",
+      level=level,
+      lossless=lossless,
+    )
+  raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
+
+def decode_jpegxl(binary:bytes, shape):
+  import imagecodecs
+  data = imagecodecs.jpegxl_decode(binary).ravel()
+  return data.reshape(shape, order='F')
 
 def encode_jpeg(arr, quality=85):
   if not np.issubdtype(arr.dtype, np.uint8):
