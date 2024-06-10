@@ -1,3 +1,5 @@
+from typing import Optional
+
 import os
 
 from .metadata import PrecomputedSkeletonMetadata

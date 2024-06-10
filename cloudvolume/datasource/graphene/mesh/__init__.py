@@ -1,3 +1,5 @@
+from typing import Optional
+
 from .sharded import GrapheneShardedMeshSource
 from .unsharded import GrapheneUnshardedMeshSource
 from .metadata import GrapheneMeshMetadata
@@ -21,9 +23,9 @@ class GrapheneMeshSource(object):
     cls, 
     cloudpath:str, 
     cache=False, 
-    progress=False,
+    progress:bool = False,
     secrets=None,
-    spatial_index_db:Optional[str]=None, 
+    spatial_index_db:Optional[str] = None, 
     cache_locking:bool = True,
   ):
     config = SharedConfiguration(

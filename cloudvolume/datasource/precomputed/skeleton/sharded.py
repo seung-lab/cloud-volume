@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 
 from ..sharding import ShardingSpecification, ShardReader, synthesize_shard_files
@@ -90,6 +92,29 @@ class ShardedPrecomputedSkeletonSource(object):
       content_type='application/octet-stream',
       cache_control='no-cache',      
     )
+
+  def to_sharded(
+    self,
+    num_labels:int,
+    shard_index_bytes:int = 2**13,
+    minishard_index_bytes:int = 2**15,
+    min_shards:int = 1,
+    minishard_index_encoding:str = 'gzip', 
+    data_encoding:str = 'gzip',
+    max_labels_per_shard:Optional[int] = None,
+  ):
+    return self.meta.to_sharded(
+      num_labels=num_labels,
+      shard_index_bytes=shard_index_bytes,
+      minishard_index_bytes=minishard_index_bytes,
+      min_shards=min_shards,
+      minishard_index_encoding=minishard_index_encoding,
+      data_encoding=data_encoding,
+      max_labels_per_shard=max_labels_per_shard,
+    )
+
+  def to_unsharded(self):
+    return self.meta.to_unsharded()
 
   # harmonize interface with mesh sources
   def put(self, *args, **kwargs):
