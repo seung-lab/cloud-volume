@@ -169,6 +169,8 @@ def test_jpegxl(shape, num_channels, quality):
   decoded = decode(encoded, 'jpegxl', shape=xshape, dtype=np.uint8)
   post_avg = decoded.copy().flatten().mean()
 
+  assert abs(pre_avg - post_avg) < 1
+
 @pytest.mark.parametrize("encoding", [
   "raw", "compressed_segmentation", "compresso", "crackle"
 ])
