@@ -83,7 +83,7 @@ class ShardedPrecomputedSkeletonSource(object):
         f"Expected: {self.shard_no} Got: {', '.join(shard_files.keys())} "
       )
 
-    cf = CloudFiles(self.meta.layerpath, progress=self.progress)
+    cf = CloudFiles(self.meta.layerpath, progress=self.config.progress)
     cf.puts( 
       ( (fname, data) for fname, data in shard_files.items() ),
       compress=False,
