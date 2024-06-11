@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Sequence, Dict
+from typing import Any, Optional, Sequence, Dict, Union, Tuple
 
+import copy
 import zlib
 import io
 import numpy as np
@@ -35,6 +36,8 @@ except ImportError:
   ACCELERATED_CSEG = False # Pure Python implementation
 
 from . import py_compressed_segmentation as csegpy
+
+DEFAULT_CSEG_BLOCK_SIZE = (8,8,8)
 
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
@@ -400,7 +403,7 @@ def contains(
   encoding:str, 
   shape:Optional[Sequence[int]] = None, 
   dtype:Any = None, 
-  block_size:Optional[Sequence[int]] = [8,8,8],
+  block_size:Optional[Sequence[int]] = DEFAULT_CSEG_BLOCK_SIZE,
 ) -> bool:
   if encoding == "compressed_segmentation":
     arr = cseg.CompressedSegmentationArray(
@@ -416,5 +419,74 @@ def contains(
   else:
     arr = decode(filedata, encoding, shape, dtype, block_size, 0)
     return bool(np.isin(label, arr))
+
+def transcode(
+  image_chunks:Sequence[dict], 
+  src_encoding:str, 
+  dest_encoding:str,
+  dtype:Union[str,np.dtype],
+  background_color:int = 0,
+  progress:bool = False,
+  in_place:bool = False,
+  block_size_src:Tuple[int,int,int] = DEFAULT_CSEG_BLOCK_SIZE,
+  block_size_dest:Tuple[int,int,int] = DEFAULT_CSEG_BLOCK_SIZE,
+  compression_params:dict = {},
+  force:bool = False,
+):
+  """
+  Convert one image encoding into another in the most efficient way
+  available.
+
+  Each dict in image_chunks must have the keys "content" and "chunk_size",
+  but you can add as much metadata as you wish and it will be preserved.
+
+  image_chunks: [{
+    "content": b'...',
+    "chunk_size": [256, 256, 32],
+  }, ...]
+  """
+  if src_encoding.lower() == dest_encoding.lower() and not force:
+    yield from image_chunks
+
+  itr = tqdm(image_chunks, disable=(not progress), desc="Transcoding")
+
+  if src_encoding == "jpeg" and dest_encoding == "jpegxl":
+    from imagecodecs import jpeg_decode_jpegxl
+
+    for img_chunk in itr:
+      if not in_place:
+        img_chunk = copy.deepcopy(img_chunk)
+      img_chunk["content"] = jpeg_decode_jpegxl(img_chunk["content"])
+      yield img_chunk
+  elif src_encoding == "jpegxl" and dest_encoding == "jpeg":
+    from imagecodecs import jpegxl_decode_jpeg
+
+    for img_chunk in itr:
+      if not in_place:
+        img_chunk = copy.deepcopy(img_chunk)
+      img_chunk["content"] = jpegxl_decode_jpeg(img_chunk["content"])
+      yield img_chunk
+  else:
+    for img_chunk in itr:
+      if not in_place:
+        img_chunk = copy.deepcopy(img_chunk)
+
+      binary = img_chunk["content"]
+      image = decode(
+        binary, src_encoding, 
+        shape=img_chunk["chunk_size"], 
+        dtype=dtype,
+        block_size=block_size_src,
+        background_color=background_color,
+      )
+      while image.ndim < 4:
+        image = image[..., np.newaxis]
+      binary = encode(
+        image, dest_encoding,
+        block_size=block_size_dest,
+        compression_params=compression_params,
+      )
+      img_chunk["content"] = binary
+      yield img_chunk
 
 
