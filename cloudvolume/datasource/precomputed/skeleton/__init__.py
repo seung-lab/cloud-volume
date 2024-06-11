@@ -1,3 +1,5 @@
+from typing import Optional
+
 import os
 
 from .metadata import PrecomputedSkeletonMetadata
@@ -10,8 +12,8 @@ from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
 class PrecomputedSkeletonSource(object):
-  def __new__(cls, meta, cache, config, readonly=False):
-    skel_meta = PrecomputedSkeletonMetadata(meta, cache)
+  def __new__(cls, meta, cache, config, readonly=False, info=None):
+    skel_meta = PrecomputedSkeletonMetadata(meta, cache, config, readonly=readonly, info=info)
 
     if skel_meta.is_sharded():
       return ShardedPrecomputedSkeletonSource(skel_meta, cache, config, readonly) 
@@ -19,7 +21,15 @@ class PrecomputedSkeletonSource(object):
     return UnshardedPrecomputedSkeletonSource(skel_meta, cache, config, readonly)
 
   @classmethod
-  def from_cloudpath(cls, cloudpath, cache=False, progress=False):
+  def from_cloudpath(
+    cls, 
+    cloudpath:str, 
+    cache=False, 
+    progress=False,
+    secrets=None,
+    spatial_index_db:Optional[str]=None, 
+    cache_locking:bool = True,
+  ):
     config = SharedConfiguration(
       cdn_cache=False,
       compress=True,
@@ -28,8 +38,11 @@ class PrecomputedSkeletonSource(object):
       mip=0,
       parallel=1,
       progress=progress,
+      secrets=secrets,
+      spatial_index_db=spatial_index_db,
+      cache_locking=cache_locking,
     )
-
+    
     cache = CacheService(
       cloudpath=(cache if type(cache) == str else cloudpath),
       enabled=bool(cache),

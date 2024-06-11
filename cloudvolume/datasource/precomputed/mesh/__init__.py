@@ -13,8 +13,8 @@ from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
 class PrecomputedMeshSource(object):
-  def __new__(cls, meta, cache, config, readonly=False):
-    mesh_meta = PrecomputedMeshMetadata(meta, cache)
+  def __new__(cls, meta, cache, config, readonly=False, info=None):
+    mesh_meta = PrecomputedMeshMetadata(meta, cache, config, readonly=readonly, info=info)
     if mesh_meta.info.get('@type', None) == 'neuroglancer_multilod_draco':
       sharding = mesh_meta.info.get('sharding', None)
       if sharding and sharding['@type'] == 'neuroglancer_uint64_sharded_v1':

@@ -1,9 +1,13 @@
+from typing import Optional
+
 import numpy as np
 
-from ..sharding import ShardingSpecification, ShardReader
+from ..sharding import ShardingSpecification, ShardReader, synthesize_shard_files
 from ....skeleton import Skeleton
 from ..spatial_index import CachedSpatialIndex
 from ....exceptions import EmptyFileException
+
+from cloudfiles import CloudFiles
 
 class ShardedPrecomputedSkeletonSource(object):
   def __init__(self, meta, cache, config, readonly=False):
@@ -65,11 +69,56 @@ class ShardedPrecomputedSkeletonSource(object):
     else:
       return results[0]
 
-  def upload(self, *args, **kwargs):
-    raise NotImplementedError()
-
   def raw_upload(self, *args, **kwargs):
     raise NotImplementedError()
+
+  def upload(self, skeletons):
+    if type(skeletons) == Skeleton:
+      skeletons = [ skeletons ]
+
+    skeletons = { skel.id: skel.to_precomputed() for skel in skeletons }
+    shard_files = synthesize_shard_files(self.reader.spec, skeletons)
+
+    if len(shard_files) != 1:
+      raise ValueError(
+        f"Only one shard file should be generated per task. "
+        f"Expected: {self.shard_no} Got: {', '.join(shard_files.keys())} "
+      )
+
+    cf = CloudFiles(self.meta.layerpath, progress=self.config.progress)
+    cf.puts( 
+      ( (fname, data) for fname, data in shard_files.items() ),
+      compress=False,
+      content_type='application/octet-stream',
+      cache_control='no-cache',      
+    )
+
+  def to_sharded(
+    self,
+    num_labels:int,
+    shard_index_bytes:int = 2**13,
+    minishard_index_bytes:int = 2**15,
+    min_shards:int = 1,
+    minishard_index_encoding:str = 'gzip', 
+    data_encoding:str = 'gzip',
+    max_labels_per_shard:Optional[int] = None,
+  ):
+    return self.meta.to_sharded(
+      num_labels=num_labels,
+      shard_index_bytes=shard_index_bytes,
+      minishard_index_bytes=minishard_index_bytes,
+      min_shards=min_shards,
+      minishard_index_encoding=minishard_index_encoding,
+      data_encoding=data_encoding,
+      max_labels_per_shard=max_labels_per_shard,
+    )
+
+  def to_unsharded(self):
+    return self.meta.to_unsharded()
+
+  # harmonize interface with mesh sources
+  def put(self, *args, **kwargs):
+    return self.upload(*args, **kwargs)
 
   def get_bbox(self, bbox):
     if self.spatial_index is None:

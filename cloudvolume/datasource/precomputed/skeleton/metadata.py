@@ -1,16 +1,23 @@
+from typing import Optional
+
 import copy
 import re
+import weakref
 
 from ....lib import jsonify
+from ..sharding import ShardingSpecification, compute_shard_params_for_hashed
 
 import numpy as np
 
 SKEL_MIP_REGEXP = re.compile(r'skeletons_mip_(\d+)')
 
 class PrecomputedSkeletonMetadata(object):
-  def __init__(self, meta, cache=None, info=None):
+  def __init__(self, meta, cache=None, config=None, info=None, readonly=False):
     self.meta = meta
     self.cache = cache
+    self.config = config
+    self.readonly = readonly
+    self._cv = None
 
     if info:
       self.info = info
@@ -18,6 +25,14 @@ class PrecomputedSkeletonMetadata(object):
       self.info = self.fetch_info()
     else:
       self.info = self.default_info()
+
+  @property
+  def cv(self):
+    return self._cv
+
+  @cv.setter
+  def cv(self, vol):
+    self._cv = weakref.ref(vol)
 
   @property
   def spatial_index(self):
@@ -118,6 +133,77 @@ class PrecomputedSkeletonMetadata(object):
       'sharding': None,
       'spatial_index': None, # { 'chunk_size': physical units }
     }
+
+  def compute_sharding_specification(
+    self, 
+    num_labels:int,
+    shard_index_bytes:int = 2**13,
+    minishard_index_bytes:int = 2**15,
+    min_shards:int = 1,
+    minishard_index_encoding:str = 'gzip', 
+    data_encoding:str = 'gzip',
+    max_labels_per_shard:Optional[int] = None,
+  ) -> ShardingSpecification:
+    """
+    Calculate the shard parameters for this volume given
+    the total number of labels in the volume.
+    """
+    if max_labels_per_shard is not None:
+      assert max_labels_per_shard >= 1
+      min_shards = max(int(np.ceil(len(all_labels) / max_labels_per_shard)), min_shards)
+
+    (shard_bits, minishard_bits, preshift_bits) = \
+      compute_shard_params_for_hashed(
+        num_labels=num_labels,
+        shard_index_bytes=int(shard_index_bytes),
+        minishard_index_bytes=int(minishard_index_bytes),
+        min_shards=int(min_shards),
+      )
+
+    return ShardingSpecification(
+      type='neuroglancer_uint64_sharded_v1',
+      preshift_bits=preshift_bits,
+      hash='murmurhash3_x86_128',
+      minishard_bits=minishard_bits,
+      shard_bits=shard_bits,
+      minishard_index_encoding=minishard_index_encoding,
+      data_encoding=data_encoding,
+    )
+
+  def to_sharded(
+    self, 
+    num_labels:int,
+    shard_index_bytes:int = 2**13,
+    minishard_index_bytes:int = 2**15,
+    min_shards:int = 1,
+    minishard_index_encoding:str = 'gzip', 
+    data_encoding:str = 'gzip',
+    max_labels_per_shard:Optional[int] = None,
+  ):
+    """Adds a computed sharding property to the info."""
+    spec = self.compute_sharding_specification(
+      num_labels=num_labels, 
+      shard_index_bytes=shard_index_bytes, 
+      minishard_index_bytes=minishard_index_bytes, 
+      min_shards=min_shards,
+      minishard_index_encoding=minishard_index_encoding,
+      data_encoding=data_encoding,
+      max_labels_per_shard=max_labels_per_shard,
+    )
+    self.info['sharding'] = spec.to_dict()
+
+    self._refresh_skeleton_interface()
+
+  def to_unsharded(self):
+    self.info.pop("sharding", None)
+    self._refresh_skeleton_interface()
+
+  def _refresh_skeleton_interface(self):
+    from cloudvolume.datasource.precomputed.skeleton import PrecomputedSkeletonSource
+    if self.cv:
+      skeleton_src = PrecomputedSkeletonSource(self.meta, self.cache, self.config, self.readonly, info=self.info)
+      skeleton_src.meta.cv = self.cv()
+      self.cv().skeleton = skeleton_src
 
   def is_sharded(self):
     if 'sharding' not in self.info:

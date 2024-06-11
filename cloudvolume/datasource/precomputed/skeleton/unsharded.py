@@ -1,3 +1,5 @@
+from typing import Optional
+
 import datetime
 import os
 
@@ -109,7 +111,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       vertex_types, segid=segid
     )
     return self.upload(skel)
-  
+
   @readonlyguard
   def upload(self, skeletons):
 
@@ -127,9 +129,37 @@ class UnshardedPrecomputedSkeletonSource(object):
       cache_control=cdn_cache_control(self.config.cdn_cache)
     )
 
+  # harmonize interface with mesh sources
+  def put(self, *args, **kwargs):
+    return self.upload(*args, **kwargs)
+
   def get_bbox(self, bbox):
     if self.spatial_index is None:
       raise IndexError("A spatial index has not been created.")
 
     segids = self.spatial_index.query(bbox)
     return self.get(segids)
+
+  def to_sharded(
+    self,
+    num_labels:int,
+    shard_index_bytes:int = 2**13,
+    minishard_index_bytes:int = 2**15,
+    min_shards:int = 1,
+    minishard_index_encoding:str = 'gzip', 
+    data_encoding:str = 'gzip',
+    max_labels_per_shard:Optional[int] = None,
+  ):
+    return self.meta.to_sharded(
+      num_labels=num_labels,
+      shard_index_bytes=shard_index_bytes,
+      minishard_index_bytes=minishard_index_bytes,
+      min_shards=min_shards,
+      minishard_index_encoding=minishard_index_encoding,
+      data_encoding=data_encoding,
+      max_labels_per_shard=max_labels_per_shard,
+    )
+
+  def to_unsharded(self):
+    return self.meta.to_unsharded()
+

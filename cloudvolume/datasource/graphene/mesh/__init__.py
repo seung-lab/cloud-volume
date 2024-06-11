@@ -1,3 +1,5 @@
+from typing import Optional
+
 from .sharded import GrapheneShardedMeshSource
 from .unsharded import GrapheneUnshardedMeshSource
 from .metadata import GrapheneMeshMetadata
@@ -17,7 +19,15 @@ class GrapheneMeshSource(object):
     return GrapheneUnshardedMeshSource(mesh_meta, cache, config, readonly)
 
   @classmethod
-  def from_cloudpath(cls, cloudpath, cache=False, progress=False):
+  def from_cloudpath(
+    cls, 
+    cloudpath:str, 
+    cache=False, 
+    progress:bool = False,
+    secrets=None,
+    spatial_index_db:Optional[str] = None, 
+    cache_locking:bool = True,
+  ):
     config = SharedConfiguration(
       cdn_cache=False,
       compress=True,
@@ -26,6 +36,9 @@ class GrapheneMeshSource(object):
       mip=0,
       parallel=1,
       progress=progress,
+      secrets=secrets,
+      spatial_index_db=spatial_index_db,
+      cache_locking=cache_locking,
     )
 
     cache = CacheService(

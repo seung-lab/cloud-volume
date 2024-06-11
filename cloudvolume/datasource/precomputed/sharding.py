@@ -1,8 +1,11 @@
-from typing import Optional
+from typing import Optional, Any, Tuple
 
 from collections import namedtuple, defaultdict
 import copy
+from functools import reduce
 import json
+import math
+import operator
 from operator import itemgetter
 from os.path import basename
 import struct
@@ -23,6 +26,8 @@ ShardLocation = namedtuple('ShardLocation',
 )
 
 uint64 = np.uint64
+
+ShapeType = Tuple[int, int, int]
 
 class ShardingSpecification(object):
   def __init__(
@@ -894,3 +899,266 @@ def synthesize_shard_file(spec, label_group, data_offset=None, progress=False, p
     print("Done.")
 
   return result
+
+def compute_shard_params_for_hashed(
+  num_labels:int, 
+  shard_index_bytes:int = 2**13, 
+  minishard_index_bytes:int = 2**15,
+  min_shards:int = 1
+):
+  """
+  Computes the shard parameters for objects that
+  have been randomly hashed (e.g. murmurhash) so
+  that the keys are evenly distributed. This is
+  applicable to skeletons and meshes.
+
+  The equations come from the following assumptions.
+  a. The keys are approximately uniformly randomly distributed.
+  b. Preshift bits aren't useful for random keys so are zero.
+  c. Our goal is to optimize the size of the shard index and
+    the minishard indices to be reasonably sized. The default
+    values are set for a 100 Mbps connection.
+  d. The equations below come from finding a solution to 
+    these equations given the constraints provided.
+
+      num_shards * num_minishards_per_shard 
+        = 2^(shard_bits) * 2^(minishard_bits) 
+        = num_labels_in_dataset / labels_per_minishard
+
+      # from defininition of minishard_bits assuming fixed capacity
+      labels_per_minishard = minishard_index_bytes / 3 / 8
+
+      # from definition of minishard bits
+      minishard_bits = ceil(log2(shard_index_bytes / 2 / 8)) 
+
+  Returns: (shard_bits, minishard_bits, preshift_bits)
+  """
+  assert min_shards >= 1
+  if num_labels <= 0:
+    return (0,0,0)
+
+  num_minishards_per_shard = shard_index_bytes / 2 / 8
+  labels_per_minishard = minishard_index_bytes / 3 / 8
+  labels_per_shard = num_minishards_per_shard * labels_per_minishard
+
+  if num_labels >= labels_per_shard:
+    minishard_bits = np.ceil(np.log2(num_minishards_per_shard))
+    shard_bits = np.ceil(np.log2(
+      num_labels / (labels_per_minishard * (2 ** minishard_bits))
+    ))
+  elif num_labels >= labels_per_minishard:
+    minishard_bits = np.ceil(np.log2(
+      num_labels / labels_per_minishard
+    ))
+    shard_bits = 0
+  else:
+    minishard_bits = 0
+    shard_bits = 0
+
+  capacity = labels_per_shard * (2 ** shard_bits)
+  utilized_capacity = num_labels / capacity
+
+  # Try to pack shards to capacity, allow going
+  # about 10% over the input level.
+  if utilized_capacity <= 0.55:
+    shard_bits -= 1
+
+  shard_bits = max(shard_bits, 0)
+  min_shard_bits = np.round(np.log2(min_shards))
+
+  delta = max(min_shard_bits - shard_bits, 0)
+  shard_bits += delta
+  minishard_bits -= delta
+
+  shard_bits = max(shard_bits, min_shard_bits)
+  minishard_bits = max(minishard_bits, 0)
+
+  return (int(shard_bits), int(minishard_bits), 0)
+
+def compute_shard_params_for_image(
+  dataset_size: ShapeType,
+  chunk_size: ShapeType,
+  encoding: str,
+  dtype: Any,
+  uncompressed_shard_bytesize: int = int(3.5e9), 
+  max_shard_index_bytes: int = 8192, # 2^13
+  max_minishard_index_bytes: int = 40000,
+  max_labels_per_minishard: int = 4000,
+  minishard_index_encoding:str = "gzip",
+  data_encoding:str = "gzip"
+) -> ShardingSpecification:
+  """
+  Create a recommended sharding scheme. These recommendations are based
+  on the following principles:
+
+  1. Compressed shard sizes should be smaller than 2 GB
+  2. Uncompressed shard sizes should be smaller than about 3.5 GB
+  3. The number of shard files should be minimized.
+  4. The size of the shard index should be small (< ~8 KiB)
+  5. The size of the minishard index should be small (< ~32 KiB)
+    and each index should contain between hundreds to thousands
+    of labels.
+
+  Rationale:
+
+  1. Large file transfers are more difficult to parallelize. Large
+    files > 4 GB, or > 5 GB may run into various limits (
+    can't be stored on FAT32, needs chunked upload to GCS/S3 which 
+    is not supported by every tool.)
+  2. Shard construction should fit in a reasonable amount of memory.
+  3. Easier to organize a transfer of shards. Shard
+     indices are cached efficiently.
+  4. Shard indices should not take up significant memory in cache
+    and should download quickly on 10 Mbps connections.
+  5. Minishard indices should download quickly, but should not be too small
+    else the cache becomes useless. The more minishards there are, the larger
+    the shard index becomes as well.
+
+  Achieving these goals requires approximate knowledge of the compression 
+  ratio and the number of labels per a unit volume.
+
+  Returns: sharding recommendation (if OK, add as `cv.scales[0]['sharding']`)
+  """
+  if isinstance(dtype, int):
+    byte_width = dtype
+  elif isinstance(dtype, str) or np.issubdtype(dtype, np.integer):
+    byte_width = np.dtype(dtype).itemsize
+  else:
+    raise ValueError(f"{dtype} must be int, str, or np.integer.")
+
+  def prod(x):
+    return reduce(operator.mul, x, 1)
+
+  voxels = prod(dataset_size)
+  chunk_voxels = prod(chunk_size)
+  num_chunks = Bbox([0,0,0], dataset_size).num_chunks(chunk_size)
+
+  # maximum amount of information in the morton codes
+  grid_size = np.ceil(Vec(*dataset_size) / Vec(*chunk_size)).astype(np.int64)
+  max_bits = sum([ math.ceil(math.log2(size)) for size in grid_size ])
+  if max_bits > 64:
+    raise ValueError(
+      f"{max_bits}, more than a 64-bit integer, "
+      f"would be required to describe the chunk positions "
+      f"in this dataset. Try increasing the chunk size or "
+      f"increasing dataset bounds."
+      f"Dataset Size: {dataset_size} Chunk Size: {chunk_size}"
+    )
+
+  chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))
+  chunks_per_shard = 2 ** int(math.log2(chunks_per_shard))
+
+  if num_chunks < chunks_per_shard:
+    chunks_per_shard = 2 ** int(math.ceil(math.log2(num_chunks)))
+
+  # approximate, would need to account for rounding effects to be exact
+  # rounding is corrected for via max_bits - pre - mini below.
+  num_shards = num_chunks / chunks_per_shard 
+  
+  def update_bits():
+    shard_bits = int(math.ceil(math.log2(num_shards)))
+    preshift_bits = int(math.ceil(math.log2(chunks_per_shard)))
+    preshift_bits = min(preshift_bits, max_bits - shard_bits)
+    return (shard_bits, preshift_bits)
+  
+  shard_bits, preshift_bits = update_bits()
+
+  # each chunk is one morton code, and so # chunks = # labels
+  num_labels_per_minishard = chunks_per_shard
+  minishard_bits = 0
+  while num_labels_per_minishard > max_labels_per_minishard:
+    num_labels_per_minishard /= 2
+    minishard_bits += 1
+
+    # 3 fields, each a uint64 with # of labels rows
+    minishard_size = 3 * 8 * num_labels_per_minishard
+    # two fields, each uint64 for each row w/ 2^minishard bits rows
+    shard_index_size = 2 * 8 * (2 ** minishard_bits)
+
+    minishard_index_too_big = (
+      minishard_size > max_minishard_index_bytes 
+      and minishard_bits > preshift_bits
+    )
+
+    if (
+      minishard_index_too_big
+      or (shard_index_size > max_shard_index_bytes)
+    ):
+      minishard_bits -= 1
+      num_shards *= 2
+      shard_bits, preshift_bits = update_bits()
+
+  # preshift_bits + minishard_bits = number of indexable chunks
+  # Since we try to hold the number of indexable chunks fixed, we steal
+  # from preshift_bits to get space for the minishard bits.
+  # We need to make use of the maximum amount of information available
+  # in the morton codes, so if there's any slack from rounding, the
+  # remainder goes into shard bits.
+  preshift_bits = preshift_bits - minishard_bits
+  shard_bits = max_bits - preshift_bits - minishard_bits
+
+  if preshift_bits < 0:
+    raise ValueError(f"Preshift bits cannot be negative. ({shard_bits}, {minishard_bits}, {preshift_bits}), total info: {max_bits} bits")
+
+  if preshift_bits + shard_bits + minishard_bits > max_bits:
+    raise ValueError(f"{preshift_bits} preshift_bits {shard_bits} shard_bits + {minishard_bits} minishard_bits must be <= {max_bits}. Try reducing the number of minishards.")
+
+  if encoding in ("jpeg", "png", "kempressed", "fpzip", "zfpc"):
+    data_encoding = "raw"
+
+  return ShardingSpecification(
+    "neuroglancer_uint64_sharded_v1",
+    hash="identity",
+    minishard_bits=minishard_bits,
+    minishard_index_encoding=minishard_index_encoding,
+    preshift_bits=preshift_bits,
+    shard_bits=shard_bits,
+    data_encoding=data_encoding,
+  )
+
+def image_shard_shape_from_spec(
+  spec:dict, 
+  dataset_size:ShapeType, 
+  chunk_size:ShapeType,
+) -> ShapeType:
+
+  chunk_size = Vec(*chunk_size, dtype=np.uint64)
+  dataset_size = Vec(*dataset_size, dtype=np.uint64)
+  preshift_bits = np.uint64(spec["preshift_bits"])
+  minishard_bits = np.uint64(spec["minishard_bits"])
+  shape_bits = preshift_bits + minishard_bits
+
+  grid_size = np.ceil(dataset_size / chunk_size).astype(np.uint64)
+  one = np.uint64(1)
+
+  if shape_bits >= 64:
+    raise ValueError(
+      f"preshift_bits ({preshift_bits}) + minishard_bits ({minishard_bits}) must be < 64. Sum: {shape_bits}"
+    )
+
+  def compute_shape_bits():
+    shape = Vec(0,0,0, dtype=np.uint64)
+
+    i = 0
+    over = [ False, False, False ]
+    while i < shape_bits:
+      changed = False
+      for dim in range(3):
+        if 2 ** (shape[dim] + 1) < grid_size[dim] * 2 and not over[dim]:
+          if 2 ** (shape[dim] + 1) >= grid_size[dim]:
+            over[dim] = True
+          shape[dim] += one
+          i += 1
+          changed = True
+
+        if i >= shape_bits:
+          return shape
+
+      if not changed:
+        return shape
+
+    return shape
+
+  shape = compute_shape_bits()
+  shape = Vec(2 ** shape.x, 2 ** shape.y, 2 ** shape.z, dtype=np.uint64)
+  return chunk_size * shape
