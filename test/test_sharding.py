@@ -21,6 +21,8 @@ from cloudvolume import Vec, lib, Bbox
 from cloudvolume import exceptions
 from layer_harness import delete_layer, create_layer
 
+from cloudfiles import CloudFile
+
 import numpy as np
 
 def prod(x):
@@ -241,14 +243,28 @@ def test_skeleton_fidelity():
   cv = CloudVolume('gs://seunglab-test/sharded')
   sharded_skel = cv.skeleton.get(segid)
 
-  with SimpleStorage('gs://seunglab-test/sharded') as stor:
-    binary = stor.get_file('skeletons/' + str(segid))
+  cf = CloudFile(f'gs://seunglab-test/sharded/skeletons/{segid}')
+  binary = cf.get()
 
   unsharded_skel = Skeleton.from_precomputed(binary, 
     segid=1822975381, vertex_attributes=cv.skeleton.meta.info['vertex_attributes']
   )
 
   assert sharded_skel == unsharded_skel
+
+def test_skeleton_shard_unshard():
+  cv = CloudVolume('gs://seunglab-test/sharded')
+  
+  cv.skeleton.to_unsharded()
+  assert not cv.skeleton.meta.is_sharded()
+  cv.skeleton.to_unsharded()
+  assert not cv.skeleton.meta.is_sharded()
+
+  cv.skeleton.to_sharded(num_labels=1000)
+
+  assert cv.skeleton.meta.is_sharded()
+  cv.skeleton.to_sharded(num_labels=1000)
+  assert cv.skeleton.meta.is_sharded()
 
 def test_image_fidelity():
   point = (142195, 64376, 3130)
