@@ -266,6 +266,20 @@ def test_skeleton_shard_unshard():
   cv.skeleton.to_sharded(num_labels=1000)
   assert cv.skeleton.meta.is_sharded()
 
+def test_mesh_shard_unshard():
+  cv = CloudVolume('gs://seunglab-test/sharded')
+  
+  cv.mesh.to_unsharded()
+  assert not cv.mesh.meta.is_sharded()
+  cv.mesh.to_unsharded()
+  assert not cv.mesh.meta.is_sharded()
+
+  cv.mesh.to_sharded(num_labels=1000)
+
+  assert cv.mesh.meta.is_sharded()
+  cv.mesh.to_sharded(num_labels=1000)
+  assert cv.mesh.meta.is_sharded()
+
 def test_image_fidelity():
   point = (142195, 64376, 3130)
   cv = CloudVolume('gs://seunglab-test/sharded')
