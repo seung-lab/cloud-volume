@@ -191,8 +191,10 @@ class CloudVolumePrecomputed(object):
 
   def __getstate__(self):
     # can't pickle a weakref
-    del self.mesh.meta._cv
-    del self.skeleton.meta._cv
+    if hasattr(self.mesh.meta, "_cv"):
+      del self.mesh.meta._cv
+    if hasattr(self.skeleton.meta, "_cv"):
+      del self.skeleton.meta._cv
 
     return self.__dict__
 
