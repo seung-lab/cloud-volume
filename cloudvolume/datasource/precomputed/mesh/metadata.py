@@ -31,6 +31,10 @@ class PrecomputedMeshMetadata(object):
   def cv(self, vol):
     self._cv = weakref.ref(vol)
 
+  @cv.deleter
+  def cv(self):
+    del self._cv
+
   @property
   def chunk_size(self):
     if 'chunk_size' in self.info:

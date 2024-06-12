@@ -189,10 +189,20 @@ class CloudVolumePrecomputed(object):
   def provenance(self, val):
     self.meta.provenance = val
 
+  def __getstate__(self):
+    # can't pickle a weakref
+    del self.mesh.meta._cv
+    del self.skeleton.meta._cv
+
+    return self.__dict__
+
   def __setstate__(self, d):
     """Called when unpickling which is integral to multiprocessing."""
     self.__dict__ = d 
     
+    self.mesh.meta.cv = self
+    self.skeleton.meta.cv = self
+
     pid = os.getpid()
     if 'pid' in d and d['pid'] != pid:
       # otherwise the pickle might have references to old connections

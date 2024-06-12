@@ -34,6 +34,10 @@ class PrecomputedSkeletonMetadata(object):
   def cv(self, vol):
     self._cv = weakref.ref(vol)
 
+  @cv.deleter
+  def cv(self):
+    del self._cv
+
   @property
   def spatial_index(self):
     if 'spatial_index' in self.info:
