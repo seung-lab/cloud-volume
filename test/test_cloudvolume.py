@@ -733,8 +733,6 @@ def test_non_aligned_write(lru_bytes):
   answer[ 362:662, 362:662, : ] = 1
   assert np.all(cv[:] == answer)    
 
-from cloudvolume import view
-
 def test_autocropped_write():
   delete_layer()
   cv, _ = create_layer(size=(100,100,100,1), offset=(0,0,0))
