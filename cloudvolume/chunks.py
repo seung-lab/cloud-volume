@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Sequence, Dict, Union, Tuple
+from typing import Any, Optional, Sequence, Dict, Union, Tuple, Callable
 
 import copy
 import zlib
@@ -27,6 +27,7 @@ import fastremap
 import zfpc
 
 from .lib import yellow, nvl
+from .types import ShapeType
 
 # This is left in place mainly for testing
 try:
@@ -63,6 +64,8 @@ def encode(
   elif encoding == "zfpc":
     return zfpc.compress(np.asfortranarray(img_chunk), **compression_params)
   elif encoding == "compressed_segmentation":
+    if block_size is None:
+      block_size = compression_params.get("compressed_segmentation_block_size", None)
     return encode_compressed_segmentation(img_chunk, block_size=block_size)
   elif encoding == "compresso":
     return compresso.compress(img_chunk[:,:,:,0])
@@ -421,72 +424,91 @@ def contains(
     return bool(np.isin(label, arr))
 
 def transcode(
-  image_chunks:Sequence[dict], 
+  image_chunks:Union[
+    Dict[Union[str,int], bytes], # { label: binary }
+    Sequence[Tuple[Union[str,int], bytes]] # ( (label, binary) for label, binary in ... )
+  ], 
   src_encoding:str, 
   dest_encoding:str,
+  chunk_size_fn:Callable[Union[str,int], ShapeType],
   dtype:Union[str,np.dtype],
   background_color:int = 0,
   progress:bool = False,
   in_place:bool = False,
-  block_size_src:Tuple[int,int,int] = DEFAULT_CSEG_BLOCK_SIZE,
-  block_size_dest:Tuple[int,int,int] = DEFAULT_CSEG_BLOCK_SIZE,
+  block_size_src:ShapeType = DEFAULT_CSEG_BLOCK_SIZE,
+  block_size_dest:ShapeType = DEFAULT_CSEG_BLOCK_SIZE,
   compression_params:dict = {},
   force:bool = False,
+  total:Optional[int] = None,
 ):
   """
   Convert one image encoding into another in the most efficient way
   available.
 
-  Each dict in image_chunks must have the keys "content" and "chunk_size",
-  but you can add as much metadata as you wish and it will be preserved.
+  image_chunks: {
+    # where chunkid can be an integer (shards) or a path (unsharded)
+    chunk_id: binary,
+    ...
+  }
+  src_encoding: the binary's current encoding (e.g. "raw", "jpeg", "compressed_segmentation", etc.)
+  dest_encoding: the desired encoding
+  chunk_size_fn: function that takes the chunks's ID and returns its chunk_size
+    This is a constant for sharded format, and the path->chunk_size for unsharded.
+  dtype: data type of both source and dest
+  background_color: what to color missing chunks
+  progress: display progress bar
+  in_place: it's okay to modify the data in the original dict
+  block_size_src/dest: parameters for compressed_segentation type. can be ignored
+    for other types.
+  compression_params: additional params, especially "level" to configure, e.g. 
+    png, jpeg, jpegxl, zfpc, etc compression levels.
+  force: perform compression even if the destination type matches
+    (useful for debugging or altering compression level)
 
-  image_chunks: [{
-    "content": b'...',
-    "chunk_size": [256, 256, 32],
-  }, ...]
+  Yields (label, binary)
   """
   if src_encoding.lower() == dest_encoding.lower() and not force:
     yield from image_chunks
 
-  itr = tqdm(image_chunks, disable=(not progress), desc="Transcoding")
+  if isinstance(image_chunks, dict):
+    inner_itr = image_chunks.items()
+  else:
+    inner_itr = image_chunks
+
+  if total is None and hasattr(image_chunks, "__len__"):
+    total = len(image_chunks)
+
+  itr = tqdm(inner_itr, disable=(not progress), desc="Transcoding", total=total)
 
   if src_encoding == "jpeg" and dest_encoding == "jpegxl":
     from imagecodecs import jpeg_decode_jpegxl
 
-    for img_chunk in itr:
-      if not in_place:
-        img_chunk = copy.deepcopy(img_chunk)
-      img_chunk["content"] = jpeg_decode_jpegxl(img_chunk["content"])
-      yield img_chunk
+    for label, binary in itr:
+      new_binary = jpeg_decode_jpegxl(img_chunk["content"])
+      yield (label, new_binary)
   elif src_encoding == "jpegxl" and dest_encoding == "jpeg":
     from imagecodecs import jpegxl_decode_jpeg
 
-    for img_chunk in itr:
-      if not in_place:
-        img_chunk = copy.deepcopy(img_chunk)
-      img_chunk["content"] = jpegxl_decode_jpeg(img_chunk["content"])
-      yield img_chunk
+    for label, binary in itr:
+      new_binary = jpegxl_decode_jpeg(img_chunk["content"])
+      yield (label, new_binary)
   else:
-    for img_chunk in itr:
-      if not in_place:
-        img_chunk = copy.deepcopy(img_chunk)
-
-      binary = img_chunk["content"]
+    for label, binary in itr:
       image = decode(
-        binary, src_encoding, 
-        shape=img_chunk["chunk_size"], 
+        binary, 
+        encoding=src_encoding,
+        shape=chunk_size_fn(label),
         dtype=dtype,
         block_size=block_size_src,
         background_color=background_color,
       )
       while image.ndim < 4:
         image = image[..., np.newaxis]
-      binary = encode(
-        image, dest_encoding,
+      new_binary = encode(
+        image, 
+        encoding=dest_encoding,
         block_size=block_size_dest,
         compression_params=compression_params,
       )
-      img_chunk["content"] = binary
-      yield img_chunk
-
+      yield (label, new_binary)
 
