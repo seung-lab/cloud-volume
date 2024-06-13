@@ -26,6 +26,8 @@ import crackle
 import fastremap
 import zfpc
 
+from tqdm import tqdm
+
 from .lib import yellow, nvl
 from .types import ShapeType
 
@@ -435,8 +437,8 @@ def transcode(
   background_color:int = 0,
   progress:bool = False,
   in_place:bool = False,
-  block_size_src:ShapeType = DEFAULT_CSEG_BLOCK_SIZE,
-  block_size_dest:ShapeType = DEFAULT_CSEG_BLOCK_SIZE,
+  src_block_size:ShapeType = DEFAULT_CSEG_BLOCK_SIZE,
+  dest_block_size:ShapeType = DEFAULT_CSEG_BLOCK_SIZE,
   compression_params:dict = {},
   force:bool = False,
   total:Optional[int] = None,
@@ -458,7 +460,7 @@ def transcode(
   background_color: what to color missing chunks
   progress: display progress bar
   in_place: it's okay to modify the data in the original dict
-  block_size_src/dest: parameters for compressed_segentation type. can be ignored
+  src_block_size/dest: parameters for compressed_segentation type. can be ignored
     for other types.
   compression_params: additional params, especially "level" to configure, e.g. 
     png, jpeg, jpegxl, zfpc, etc compression levels.
@@ -484,13 +486,13 @@ def transcode(
     from imagecodecs import jpeg_decode_jpegxl
 
     for label, binary in itr:
-      new_binary = jpeg_decode_jpegxl(img_chunk["content"])
+      new_binary = jpeg_decode_jpegxl(binary)
       yield (label, new_binary)
   elif src_encoding == "jpegxl" and dest_encoding == "jpeg":
     from imagecodecs import jpegxl_decode_jpeg
 
     for label, binary in itr:
-      new_binary = jpegxl_decode_jpeg(img_chunk["content"])
+      new_binary = jpegxl_decode_jpeg(binary)
       yield (label, new_binary)
   else:
     for label, binary in itr:
@@ -499,7 +501,7 @@ def transcode(
         encoding=src_encoding,
         shape=chunk_size_fn(label),
         dtype=dtype,
-        block_size=block_size_src,
+        block_size=src_block_size,
         background_color=background_color,
       )
       while image.ndim < 4:
@@ -507,7 +509,7 @@ def transcode(
       new_binary = encode(
         image, 
         encoding=dest_encoding,
-        block_size=block_size_dest,
+        block_size=dest_block_size,
         compression_params=compression_params,
       )
       yield (label, new_binary)

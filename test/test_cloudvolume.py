@@ -1479,7 +1479,6 @@ def test_delete_black_uploads():
     ls = os.listdir('/tmp/removeme/layer/1_1_1/')
     assert len(ls) == 64
 
-
 def test_transfer():
   # Bbox version
   delete_layer()
