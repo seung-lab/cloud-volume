@@ -331,8 +331,11 @@ FILENAME_RE = re.compile(fr'{FLT_RE}-{FLT_RE}_{FLT_RE}-{FLT_RE}_{FLT_RE}-{FLT_RE
 class Bbox(object):
   __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
 
-  """Represents a three dimensional cuboid in space."""
   def __init__(self, a, b, dtype=None):
+    """
+    Represents a three dimensional cuboid in space. 
+    Ex: `bbox = Bbox((xmin, ymin, zmin), (xmax, ymax, zmax))`
+    """
     if dtype is None:
       if floating(a) or floating(b):
         dtype = np.float32
