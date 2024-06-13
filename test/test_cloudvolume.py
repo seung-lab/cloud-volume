@@ -1519,6 +1519,55 @@ def test_transfer():
   with pytest.raises(Exception):
     dcv.image.transfer_to("n5://file:///tmp/removeme/n5transfer.", dcv.bounds, 0)
 
+def test_transfer_lossy():
+  # Bbox version
+  delete_layer()
+  cv, _ = create_layer(size=(128,64,64,1), offset=(0,0,0))
+
+  img = cv[:]
+
+  for z in range(64):
+    img[:,:,z] = z
+
+  cv[:] = img
+
+  cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds, encoding="jpeg", compress=False)
+
+  ls = os.listdir('/tmp/removeme/transfer/1_1_1/')
+
+  assert '0-64_0-64_0-64' in ls
+  assert len(ls) == 2
+
+  dcv = CloudVolume("file:///tmp/removeme/transfer")
+  dcv.info["dont_touch_me_bro"] = True
+  dcv.commit_info()
+
+  assert np.all(np.abs(img - dcv[:]) < 2)
+
+  cv.transfer_to('file:///tmp/removeme/transfer/', cv.bounds)
+  dcv.refresh_info()
+
+  assert 'dont_touch_me_bro' in dcv.info
+
+  assert np.all(np.abs(img - dcv[:]) < 2)
+
+  dcv.image.delete(dcv.bounds)
+  
+  cv.transfer_to('file:///tmp/removeme/transfer2/', cv.bounds, encoding="jpegxl", compress=False)
+
+  dcv = CloudVolume('file:///tmp/removeme/transfer2/')
+
+  assert np.all(np.abs(img.astype(np.int32) - dcv[:].astype(np.int32)) < 3)
+
+  dcv.transfer_to('file:///tmp/removeme/transfer3/', cv.bounds, encoding="jpeg", compress=False)
+
+  dcv2 = CloudVolume('file:///tmp/removeme/transfer3/')
+
+  assert np.all(np.abs(dcv[:].astype(np.int32) - dcv[:].astype(np.int32)) < 3)
+
+  dcv.image.delete(dcv.bounds)
+  dcv2.image.delete(dcv2.bounds)
+
 
 def test_cdn_cache_control():
   delete_layer()
