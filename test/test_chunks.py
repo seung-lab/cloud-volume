@@ -143,9 +143,9 @@ def test_jpeg(shape, num_channels, quality):
   assert abs(pre_avg - post_avg) < 1
 
 @pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50), (128,128,16), ))
-@pytest.mark.parametrize("num_channels", [1])
+@pytest.mark.parametrize("num_channels", [1,3])
 @pytest.mark.parametrize("quality", [None,85,75,100])
-def test_jpegxl_grayscale(shape, num_channels, quality):
+def test_jpegxl(shape, num_channels, quality):
   import imagecodecs
 
   xshape = list(shape) + [ num_channels ]
@@ -158,8 +158,13 @@ def test_jpegxl_grayscale(shape, num_channels, quality):
   jpgxl = imagecodecs.jpegxl_decode(
     encode(data, 'jpegxl', compression_params={ "level": quality }),
   )
-  assert jpgxl.shape[0] == shape[1] * shape[2]
-  assert jpgxl.shape[1] == shape[0]
+  if num_channels == 1:
+    assert jpgxl.shape[0] == shape[1] * shape[2]
+    assert jpgxl.shape[1] == shape[0]
+  elif num_channels == 3:
+    assert jpgxl.shape[0] == 3
+    assert jpgxl.shape[1] == shape[1] * shape[2]
+    assert jpgxl.shape[2] == shape[0]
 
   # Random jpeg won't decompress to exactly the same image
   # but it should have nearly the same average power
