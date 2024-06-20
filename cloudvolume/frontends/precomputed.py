@@ -532,6 +532,8 @@ class CloudVolumePrecomputed(object):
     bbox (Bbox object): ROI to transfer
     block_size (int): number of file chunks to transfer per I/O batch.
     compress (bool): Set to False to upload as uncompressed
+    sharded (bool): set whether the destination should be sharded 
+      or unsharded by default the state of the source volume is used.
     """
     return self.image.transfer_to(
       cloudpath, bbox, self.mip, 
@@ -751,8 +753,13 @@ class CloudVolumePrecomputed(object):
     if parallel is None:
       parallel = self.parallel
 
+    bbox = bbox.astype(np.int64)
+
+    if bbox.subvoxel():
+      raise ValueError(f"{bbox} (after adjusting for coord_resolution) has zero size.")
+
     tup = self.image.download(
-      bbox.astype(np.int64), mip, 
+      bbox, mip, 
       parallel=parallel, 
       renumber=bool(renumber),
       label=label,
