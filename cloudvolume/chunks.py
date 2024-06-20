@@ -166,21 +166,17 @@ def encode_jpegxl(arr, level):
   if not np.issubdtype(arr.dtype, np.uint8):
     raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
 
-  while arr.ndim < 4:
-    arr = arr[..., np.newaxis] # add channels to end of x,y,z
-  num_channel = arr.shape[3]
-
+  arr, num_channel = as2d(arr)
   lossless = level >= 100
 
   if num_channel == 1:
     return imagecodecs.jpegxl_encode(
-      arr[:,:,:,0].T,
+      arr[:,:,0],
       photometric="GRAY",
       level=level,
       lossless=lossless,
     )
   elif num_channel == 3:
-    arr = np.transpose(arr, axes=[ 2, 1, 0, 3 ])
     return imagecodecs.jpegxl_encode(
       arr,
       photometric="RGB",
@@ -483,10 +479,11 @@ def transcode(
   itr = tqdm(inner_itr, disable=(not progress), desc="Transcoding", total=total)
 
   if src_encoding == "jpeg" and dest_encoding == "jpegxl":
-    from imagecodecs import jpeg_decode_jpegxl
+    from imagecodecs import jpegxl_encode_jpeg
 
     for label, binary in itr:
-      new_binary = jpeg_decode_jpegxl(binary)
+      new_binary = jpegxl_encode_jpeg(binary)
+
       yield (label, new_binary)
   elif src_encoding == "jpegxl" and dest_encoding == "jpeg":
     from imagecodecs import jpegxl_decode_jpeg

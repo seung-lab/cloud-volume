@@ -1552,18 +1552,24 @@ def test_transfer_lossy():
   assert np.all(np.abs(img - dcv[:]) < 2)
 
   dcv.image.delete(dcv.bounds)
-  
-  cv.transfer_to('file:///tmp/removeme/transfer2/', cv.bounds, encoding="jpegxl", compress=False)
+
+  cv.transfer_to('file:///tmp/removeme/transfer2/', cv.bounds, encoding="jpeg", compress=False)
 
   dcv = CloudVolume('file:///tmp/removeme/transfer2/')
 
-  assert np.all(np.abs(img.astype(np.int32) - dcv[:].astype(np.int32)) < 3)
+  jpgimg = dcv[:]
 
-  dcv.transfer_to('file:///tmp/removeme/transfer3/', cv.bounds, encoding="jpeg", compress=False)
+  assert np.all(np.abs(img.astype(np.int32) - jpgimg.astype(np.int32)) < 3)
+
+  dcv.transfer_to('file:///tmp/removeme/transfer3/', cv.bounds, encoding="jpegxl", compress=False)
 
   dcv2 = CloudVolume('file:///tmp/removeme/transfer3/')
 
-  assert np.all(np.abs(dcv[:].astype(np.int32) - dcv[:].astype(np.int32)) < 3)
+  assert np.all(np.abs(dcv2[:].astype(np.int32) - jpgimg.astype(np.int32)) <= 1)
+
+  dcv2.transfer_to('file:///tmp/removeme/transfer2/', cv.bounds, encoding="jpeg", compress=False)
+
+  assert np.all(jpgimg == dcv[:])
 
   dcv.image.delete(dcv.bounds)
   dcv2.image.delete(dcv2.bounds)
