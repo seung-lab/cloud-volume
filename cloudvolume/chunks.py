@@ -177,6 +177,7 @@ def encode_jpegxl(arr, level):
       lossless=lossless,
     )
   elif num_channel == 3:
+    arr = np.transpose(arr, axes=[2, 0, 1])
     return imagecodecs.jpegxl_encode(
       arr,
       photometric="RGB",
@@ -187,8 +188,11 @@ def encode_jpegxl(arr, level):
 
 def decode_jpegxl(binary:bytes, shape):
   import imagecodecs
-  data = imagecodecs.jpegxl_decode(binary).ravel()
-  return data.reshape(shape, order='F')
+  data = imagecodecs.jpegxl_decode(binary)
+  if shape[3] == 3:
+    data = np.transpose(data, axes=[1, 2, 0])
+
+  return data.ravel().reshape(shape, order='F')
 
 def encode_jpeg(arr, quality=85):
   if not np.issubdtype(arr.dtype, np.uint8):
