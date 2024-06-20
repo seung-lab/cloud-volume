@@ -143,9 +143,9 @@ def test_jpeg(shape, num_channels, quality):
   assert abs(pre_avg - post_avg) < 1
 
 @pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50), (128,128,16), ))
-@pytest.mark.parametrize("num_channels", [1,])
+@pytest.mark.parametrize("num_channels", [1])
 @pytest.mark.parametrize("quality", [None,85,75,100])
-def test_jpegxl(shape, num_channels, quality):
+def test_jpegxl_grayscale(shape, num_channels, quality):
   import imagecodecs
 
   xshape = list(shape) + [ num_channels ]
