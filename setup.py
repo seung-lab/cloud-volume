@@ -55,7 +55,7 @@ setuptools.setup(
     "png": [ "pyspng-seunglab" ],
     "jpeg": [ "simplejpeg" ],
     "zfpc": [ "zfpc" ],
-    "crackle": [ "crackle" ],
+    "crackle": [ "crackle-codec" ],
     "compresso": [ "compresso" ],
     "segmentation_codecs": SEGMENTATION_CODECS,
     "image_codecs": IMAGE_CODECS,
