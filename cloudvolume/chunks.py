@@ -18,13 +18,44 @@ import zlib
 import io
 import numpy as np
 
-import fpzip 
-import pyspng
-import simplejpeg
-import compresso
-import crackle
+# optional codecs
+
+try:
+  import fpzip
+except ImportError:
+  pass
+
+try:
+  import pyspng
+except ImportError:
+  pass
+
+try:
+  import simplejpeg
+except ImportError:
+  pass
+
+try:
+  import compresso
+except ImportError:
+  pass
+
+try:
+  import crackle
+except ImportError:
+  pass
+
+try:
+  import zfpc
+except ImportError:
+  pass
+
+try:
+  import imagecodecs
+except ImportError:
+  pass
+
 import fastremap
-import zfpc
 
 from tqdm import tqdm
 
@@ -161,8 +192,6 @@ def as2d(arr):
   return reshaped, num_channel
 
 def encode_jpegxl(arr, level):
-  import imagecodecs
-
   if not np.issubdtype(arr.dtype, np.uint8):
     raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
 
@@ -187,7 +216,6 @@ def encode_jpegxl(arr, level):
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
 def decode_jpegxl(binary:bytes, shape):
-  import imagecodecs
   data = imagecodecs.jpegxl_decode(binary)
   if shape[3] == 3:
     data = np.transpose(data, axes=[1, 2, 0])
