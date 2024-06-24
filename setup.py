@@ -35,7 +35,7 @@ setuptools.setup(
     'numpy<1.17; python_version<"3.5"',
     'numpy; python_version>="3.5"',
   ],
-  python_requires=">=3.8", # >= 3.8 < 4.0
+  python_requires=">=3.8",
   install_requires=requirements(),
   # Environment Marker Examples:
   # https://www.python.org/dev/peps/pep-0496/
@@ -65,7 +65,7 @@ setuptools.setup(
     "compresso": [ "compresso" ],
 
     "em_codecs": EM_CODECS,
-    "segmentation_codecs": SEGMENTATION_CODECS,
+    "seg_codecs": SEGMENTATION_CODECS,
     "fp_codecs": FP_CODECS,
 
     "all_codecs": SEGMENTATION_CODECS + EM_CODECS + FP_CODECS,
