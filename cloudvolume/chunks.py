@@ -76,7 +76,7 @@ DEFAULT_CSEG_BLOCK_SIZE = (8,8,8)
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
   "compressed_segmentation", "compresso",
-  "crackle", "jpeg", "png", "zfpc"
+  "crackle", "jpeg", "jpegxl", "png", "zfpc"
 )
 
 def encode(
