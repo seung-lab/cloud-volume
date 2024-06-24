@@ -10,7 +10,8 @@ def requirements():
   with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), 'rt') as f:
     return f.readlines()
 
-IMAGE_CODECS = [
+EM_CODECS = [
+  "imagecodecs",
   "simplejpeg",
   "pyspng-seunglab>=1.0.0",
   "imagecodecs",
@@ -22,7 +23,10 @@ SEGMENTATION_CODECS = [
   "crackle-codec>=0.8.0,<2.0.0",
 ]
 
-VECTOR_CODECS = [ "zfpc" ]
+FP_CODECS = [ 
+  "fpzip", 
+  "zfpc",
+]
 
 setuptools.setup(
   name="cloud-volume",
@@ -51,16 +55,20 @@ setuptools.setup(
     "zarr": [ 'blosc' ],
     "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"],
 
-    # compression codecs
+    # image compression codecs
     "jpegxl": [ "imagecodecs" ],
     "png": [ "pyspng-seunglab" ],
     "jpeg": [ "simplejpeg" ],
+    "fpzip": [ "fpzip" ],
     "zfpc": [ "zfpc" ],
     "crackle": [ "crackle-codec" ],
     "compresso": [ "compresso" ],
+
+    "em_codecs": EM_CODECS,
     "segmentation_codecs": SEGMENTATION_CODECS,
-    "image_codecs": IMAGE_CODECS,
-    "all_codecs": SEGMENTATION_CODECS + IMAGE_CODECS + VECTOR_CODECS,
+    "fp_codecs": FP_CODECS,
+
+    "all_codecs": SEGMENTATION_CODECS + EM_CODECS + FP_CODECS,
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",
