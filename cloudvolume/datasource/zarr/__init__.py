@@ -1,7 +1,7 @@
 from typing import Optional
 
-from .image import N5ImageSource
-from .metadata import N5Metadata
+from .image import ZarrImageSource
+from .metadata import ZarrMetadata
 
 from ...frontends.precomputed import CloudVolumePrecomputed
 
@@ -14,12 +14,12 @@ from ...cloudvolume import (
 )
 from ...paths import strict_extract
 
-def create_n5(
+def create_zarr(
   cloudpath:str, mip:int=0, bounded:bool=True, autocrop:bool=False,
   fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
   cdn_cache:bool=True, progress:bool=False, 
   compress:CompressType=None, compress_level:Optional[int]=None,
-  non_aligned_writes:bool=False, 
+  non_aligned_writes:bool=False, delete_black_uploads:bool=False, background_color:int=0, 
   parallel:ParallelType=1,green_threads:bool=False, 
   secrets:SecretsType=None, cache_locking:bool = True,
   **kwargs # absorb graphene arguments
@@ -44,8 +44,8 @@ def create_n5(
       compress=compress_cache,
     )
 
-    meta = N5Metadata(cloudpath, config=config, cache=cache)
-    imagesrc = N5ImageSource(
+    meta = ZarrMetadata(cloudpath, config=config, cache=cache)
+    imagesrc = ZarrImageSource(
       config, meta, cache, 
       autocrop=bool(autocrop),
       bounded=bool(bounded),
@@ -60,4 +60,6 @@ def create_n5(
     )
 
 def register():
-  register_plugin('n5', create_n5)
+  register_plugin('zarr', create_zarr)
+  register_plugin('zarr2', create_zarr)
+  register_plugin('zarr3', create_zarr)
