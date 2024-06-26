@@ -137,7 +137,7 @@ class PrecomputedMetadata(object):
  
     # add mip levels
     # the max_mip should be inclusive
-    for mip in range(max_mip + 1):
+    for mip in range(1, max_mip + 1):
       cls.add_scale(None, factor ** mip, encoding=encoding, chunk_size=chunk_size, info=info)
 
     if encoding == 'compressed_segmentation':
