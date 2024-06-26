@@ -61,10 +61,18 @@ class ZarrMetadata(PrecomputedMetadata):
 
   def commit_info(self):
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
-    cf.put_jsons([  
-      [ ".zarray", self.zarray ],
-      [ ".zattrs", self.zattrs ],
-    ], compress='br')
+
+    to_upload = []
+    for i, zarray in enumerate(self.zarrays):
+      to_upload.append(
+        [cf.join(str(i), ".zarray"), zarray]
+      )
+
+    to_upload.append(
+      [ ".zattrs", self.zattrs ]
+    )
+
+    cf.put_jsons(to_upload, compress='br')
 
   def info_to_zarr(self, info):
     raise NotImplementedError()
