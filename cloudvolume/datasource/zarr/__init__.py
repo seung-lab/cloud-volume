@@ -19,7 +19,7 @@ def create_zarr(
   fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
   cdn_cache:bool=True, progress:bool=False, 
   compress:CompressType=None, compress_level:Optional[int]=None,
-  non_aligned_writes:bool=False, delete_black_uploads:bool=False, background_color:int=0, 
+  non_aligned_writes:bool=False, delete_black_uploads:bool=False,
   parallel:ParallelType=1,green_threads:bool=False, 
   secrets:SecretsType=None, cache_locking:bool = True,
   **kwargs # absorb graphene arguments

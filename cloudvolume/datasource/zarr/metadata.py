@@ -9,8 +9,23 @@ from cloudvolume.lib import jsonify, Vec, Bbox
 
 from ...provenance import DataLayerProvenance
 
+CV_TO_ZARR_DTYPE = {
+  "int8": "|i1",
+  "int16": "<i2",
+  "int32": "<i4",
+  "int64": "<i8",
+
+  "uint8": "|u1",
+  "uint16": "<u2",
+  "uint32": "<u4",
+  "uint64": "<u8",
+
+  "float32": "<f4",
+  "float64": "<f8",
+}
+
 class ZarrMetadata(PrecomputedMetadata):
-  def __init__(self, cloudpath, config, cache, info=None):
+  def __init__(self, cloudpath, config, cache,  info=None):
     
     # some default values, to be overwritten
     info = PrecomputedMetadata.create_info(
@@ -34,6 +49,9 @@ class ZarrMetadata(PrecomputedMetadata):
 
   def background_color(self, mip):
     return self.zarrays[mip].get("fill_value", 0)
+
+  def set_background_color(self, mip):
+    return self.zarrays[mip]["fill_value"] = 0
 
   def filename_regexp(self, mip):
       scale = self.zattrs["multiscales"][0]
@@ -60,6 +78,8 @@ class ZarrMetadata(PrecomputedMetadata):
     return self.zarrays[mip].get("dimension_separator", ".")
 
   def commit_info(self):
+    self.render_zarr_metadata()
+
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
 
     to_upload = []
@@ -74,8 +94,62 @@ class ZarrMetadata(PrecomputedMetadata):
 
     cf.put_jsons(to_upload, compress='br')
 
-  def info_to_zarr(self, info):
-    raise NotImplementedError()
+  def to_zarr_volume_size(self, mip):
+    axes = self.zattrs["multiscales"][0]["axes"]
+      
+    shape = []
+    for axis, res in zip(axes, attr):
+      if axis["type"] == "channel":
+        shape.append(self.num_channels)
+      elif axis["type"] == "time":
+        shape.append(1)
+      elif axis["type"] == "space" and axis["name"] == "x":
+        shape.append(self.volume_size(mip)[0])
+      elif axis["type"] == "space" and axis["name"] == "y":
+        shape.append(self.volume_size(mip)[1])
+      elif axis["type"] == "space" and axis["name"] == "z":
+        shape.append(self.volume_size(mip)[2])
+
+    return shape
+
+  def render_zarr_metadata(self):
+    """Convert the current info file into zarr metadata."""
+    datasets = []
+    for mip, scale in enumerate(info["scales"]):
+      dataset = {
+        "coordinateTransformations": [
+          {
+            "scale": [
+              1,
+              self.num_channels,
+              scale["resolution"][2],
+              scale["resolution"][1],
+              scale["resolution"][0]
+            ],
+            "type": "scale"
+          }
+        ],
+        "path": str(mip),
+      }
+      datasets.append(dataset)
+
+      zscale = self.zarrays[mip]
+      zscale["dtype"] = CV_TO_ZARR_DTYPE[info["dtype"]]
+      zscale["chunks"] = scale["chunk_size"]
+      zscale["shape"] = self.to_zarr_volume_size(mip)
+      # zscale["fill_value"] = self.config.
+      # zscale["compressor"] = {
+      #   "blocksize": 0,
+      #   "clevel": 5,
+      #   "cname": "lz4",
+      #   "id": "blosc",
+      #   "shuffle": 1
+      # }
+      # zscale["filters"] = None
+      # zscale["order"] = "C"
+      # zscale["zarr_format"] = 2
+
+    self.zattrs["multiscales"][0]["datasets"] = datasets
 
   def zarr_to_info(self, zarrays, zattrs):
     def extract_spatial(attr, dtype):
