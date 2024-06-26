@@ -42,14 +42,11 @@ class ZarrImageSource(ImageSourceInterface):
   def parse_chunk(self, binary, mip, filename, default_shape):
     if binary is None:
       if self.fill_missing:
-        data = np.zeros(default_shape, dtype=self.meta.dtype, order="F")
-        shape = list(self.meta.chunk_size(mip)) + [ self.meta.num_channels ]
-        return data, shape
+        return None
       else:
         raise exceptions.EmptyVolumeException(f"{filename} is missing.")
 
     import blosc
-
     arr = np.frombuffer(blosc.decompress(binary), dtype=self.meta.dtype)
     return arr.reshape(default_shape, order=self.meta.order(mip))
 
@@ -112,10 +109,17 @@ class ZarrImageSource(ImageSourceInterface):
       chunk_bbox = Bbox(gridpoint, gridpoint + 1) * self.meta.chunk_size(mip)[2:][::-1]
       chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
       chunk = self.parse_chunk(binary, mip, fname, self.meta.chunk_size(mip))
+      if chunk is None:
+        continue
       chunk = chunk[0,:,:,:,:].T
       shade(renderbuffer, bbox, chunk, chunk_bbox)
 
-    return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
+    data = VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
+
+    if label is not None:
+      return data == label
+
+    return data
 
   @readonlyguard
   def upload(self, image, offset, mip):
