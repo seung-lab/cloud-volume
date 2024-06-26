@@ -109,6 +109,8 @@ class ZarrImageSource(ImageSourceInterface):
 
     regexp = self.meta.filename_regexp(mip)
 
+    axis_mapping = self.meta.zarr_axes_to_cv_axes()
+
     for fname, binary in all_chunks.items():
       m = re.search(regexp, fname).groupdict()
       assert mip == int(m["mip"])
@@ -118,7 +120,7 @@ class ZarrImageSource(ImageSourceInterface):
       chunk = self.parse_chunk(binary, mip, fname, self.meta.chunk_size(mip))
       if chunk is None:
         continue
-      chunk = chunk[0,:,:,:,:].T
+      chunk = np.transpose(chunk, axes=axis_mapping)[...,0]
       shade(renderbuffer, bbox, chunk, chunk_bbox)
 
     data = VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)

@@ -51,7 +51,7 @@ class ZarrMetadata(PrecomputedMetadata):
     return self.zarrays[mip].get("fill_value", 0)
 
   def set_background_color(self, mip):
-    return self.zarrays[mip]["fill_value"] = 0
+    self.zarrays[mip]["fill_value"] = 0
 
   def filename_regexp(self, mip):
       scale = self.zattrs["multiscales"][0]
@@ -98,7 +98,7 @@ class ZarrMetadata(PrecomputedMetadata):
     axes = self.zattrs["multiscales"][0]["axes"]
       
     shape = []
-    for axis, res in zip(axes, attr):
+    for axis in axes:
       if axis["type"] == "channel":
         shape.append(self.num_channels)
       elif axis["type"] == "time":
@@ -109,6 +109,24 @@ class ZarrMetadata(PrecomputedMetadata):
         shape.append(self.volume_size(mip)[1])
       elif axis["type"] == "space" and axis["name"] == "z":
         shape.append(self.volume_size(mip)[2])
+
+    return shape
+
+  def zarr_axes_to_cv_axes(self):
+    axes = self.zattrs["multiscales"][0]["axes"]
+
+    shape = []
+    for i, axis in enumerate(axes):
+      if axis["type"] == "channel":
+        shape.append(3)
+      elif axis["type"] == "time":
+        shape.append(4)
+      elif axis["type"] == "space" and axis["name"] == "x":
+        shape.append(0)
+      elif axis["type"] == "space" and axis["name"] == "y":
+        shape.append(1)
+      elif axis["type"] == "space" and axis["name"] == "z":
+        shape.append(2)
 
     return shape
 
