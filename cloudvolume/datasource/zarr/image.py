@@ -48,34 +48,10 @@ class ZarrImageSource(ImageSourceInterface):
       else:
         raise exceptions.EmptyVolumeException(f"{filename} is missing.")
 
-    toint = lambda n: int.from_bytes(n, byteorder="big", signed=False)
+    import blosc
 
-    mode = toint(binary[0:2])
-
-    if mode != 0:
-      raise exceptions.DecodingError(
-        f"This implementation cannot read volumes "
-        f"with mode != 0. Got mode: {mode}"
-      )
-
-    ndim = toint(binary[2:4])
-    dims = [ toint(binary[4+4*i:4+4*(i+1)]) for i in range(ndim) ]
-    while len(dims) < 4:
-      dims.append(1)
-    dims[3] = self.meta.num_channels
-
-    compressed_stream = binary[4+4*ndim:]
-    compressed_stream = compression.decompress(
-      compressed_stream, self.meta.encoding(mip), filename
-    )
-
-    data = chunks.decode(
-      compressed_stream, 
-      encoding='raw', 
-      shape=dims, 
-      dtype=self.meta.dtype,
-    )
-    return data, dims
+    arr = np.frombuffer(blosc.decompress(binary), dtype=self.meta.dtype)
+    return arr.reshape(default_shape, order=self.meta.order(mip))
 
   def download(
     self, 
@@ -104,41 +80,39 @@ class ZarrImageSource(ImageSourceInterface):
       secrets=self.config.secrets,
       green=self.config.green,
     )
-    realized_bbox = bbox.expand_to_chunk_size(self.meta.chunk_size(mip))
-    grid_bbox = realized_bbox // self.meta.chunk_size(mip)
 
-    if ct.protocol == "file":
-      urls = [
-        cf.join(f"{mip}", f"{x}.{y}.{z}")
+    cv_chunk_size = self.meta.chunk_size(mip)[2:][::-1]
+
+    realized_bbox = bbox.expand_to_chunk_size(cv_chunk_size)
+    grid_bbox = realized_bbox // cv_chunk_size
+
+    sep = self.meta.dimension_separator(mip)
+
+    if self.meta.order(mip) == "C":
+      paths = [
+        cf.join(str(mip), sep.join([ "0", "0", str(z), str(y), str(x) ]))
         for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
       ]
     else:
-      urls = [
-        cf.join(f"{mip}", str(x), str(y), str(z))
+      paths = [
+        cf.join(str(mip), sep.join([ str(x), str(y), str(z), "0", "0" ]))
         for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
       ]
 
-    all_chunks = cf.get(urls, parallel=parallel, return_dict=True)
+    all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
     shape = list(bbox.size3()) + [ self.meta.num_channels ]
-    renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order='F')
+    renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order="F")
 
-    sep = '/'
-    if cf._path.protocol == "file":
-      sep = os.path.sep
-    if sep == '\\':
-      sep = '\\\\' # compensate for regexp escaping
+    regexp = self.meta.filename_regexp(mip)
 
-    regexp = re.compile(rf"s(?P<mip>\d+){sep}(?P<x>\d+){sep}(?P<y>\d+){sep}(?P<z>\d+)")
     for fname, binary in all_chunks.items():
       m = re.search(regexp, fname).groupdict()
       assert mip == int(m["mip"])
       gridpoint = Vec(*[ int(i) for i in [ m["x"], m["y"], m["z"] ] ])
-      chunk_bbox = Bbox(gridpoint, gridpoint + 1) * self.meta.chunk_size(mip)
+      chunk_bbox = Bbox(gridpoint, gridpoint + 1) * self.meta.chunk_size(mip)[2:][::-1]
       chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
-      default_shape = list(chunk_bbox.size3()) + [ self.meta.num_channels ]
-      chunk, chunk_shape = self.parse_chunk(binary, mip, fname, default_shape)
-      chunk_bbox = Bbox(chunk_bbox.minpt, chunk_bbox.minpt + Vec(*chunk_shape[:3]))
-      chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
+      chunk = self.parse_chunk(binary, mip, fname, self.meta.chunk_size(mip))
+      chunk = chunk[0,:,:,:,:].T
       shade(renderbuffer, bbox, chunk, chunk_bbox)
 
     return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)

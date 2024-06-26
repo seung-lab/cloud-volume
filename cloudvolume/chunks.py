@@ -25,11 +25,6 @@ import crackle
 import fastremap
 import zfpc
 
-try:
-  import blosc
-except ImportError:
-  pass
-
 from .lib import yellow, nvl
 
 # This is left in place mainly for testing
@@ -119,8 +114,6 @@ def decode(
     return decode_png(filedata, shape=shape, dtype=dtype)
   elif encoding == "npz":
     return decode_npz(filedata)
-  elif encoding == "blosc":
-    return blosc.decompress(filedata)
   else:
     raise NotImplementedError(encoding)
 
