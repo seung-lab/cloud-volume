@@ -98,7 +98,14 @@ class ZarrImageSource(ImageSourceInterface):
 
     all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
     shape = list(bbox.size3()) + [ self.meta.num_channels ]
-    renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order="F")
+
+    if self.meta.background_color(mip) == 0:
+      renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order="F")
+    else:
+      renderbuffer = np.full(
+        shape=shape, fill_value=self.meta.background_color(mip), 
+        dtype=self.meta.dtype, order="F",
+      )
 
     regexp = self.meta.filename_regexp(mip)
 
