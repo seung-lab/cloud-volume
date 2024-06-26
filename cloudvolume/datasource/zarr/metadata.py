@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 
 from cloudfiles import CloudFiles
@@ -27,21 +29,35 @@ class ZarrMetadata(PrecomputedMetadata):
     self.info = self.fetch_info()
     self.provenance = DataLayerProvenance()
 
-  @property
-  def order(self):
-    return self.zarray["order"]
+  def order(self, mip):
+    return self.zarrays[mip]["order"]
 
-  @property
-  def background_color(self):
-    return self.zarray.get("fill_value", 0)
+  def background_color(self, mip):
+    return self.zarrays[mip].get("fill_value", 0)
 
-  @background_color.setter
-  def background_color(self, value):
-    self.zarray["fill_value"] = value
+  def filename_regexp(self, mip):
+      scale = self.zattrs["multiscales"][0]
+      axes = scale["axes"]
 
-  # @property
-  # def dimension_separator(self, mip):
-  #   return self.
+      cf = CloudFiles(self.cloudpath)
+      dsep = '/'
+      if cf.protocol == "file":
+        dsep = os.path.sep  
+      if dsep == '\\':
+        dsep = '\\\\' # compensate for regexp escaping
+
+      regexp = rf"(?P<mip>\d+){dsep}"
+
+      groups = []
+      for axis in axes:
+        groups.append(fr"(?P<{axis['name']}>\d+)")
+
+      regexp += self.dimension_separator(mip).join(groups)
+
+      return re.compile(regexp)
+
+  def dimension_separator(self, mip):
+    return self.zarrays[mip].get("dimension_separator", ".")
 
   def commit_info(self):
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
