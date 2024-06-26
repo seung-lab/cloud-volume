@@ -1,5 +1,6 @@
 from typing import Optional
 
+import copy
 import re
 import os
 
@@ -135,7 +136,7 @@ class ZarrImageSource(ImageSourceInterface):
     return data
 
   @readonlyguard
-  def upload(self, image, offset, mip):
+  def upload(self, image, offset, mip, parallel=1):
     import blosc
 
     if not np.issubdtype(image.dtype, np.dtype(self.meta.dtype).type):
@@ -156,26 +157,32 @@ class ZarrImageSource(ImageSourceInterface):
       throw_error=True, # (self.non_aligned_writes == False)
     )
 
-    cv_chunk_size = meta.chunk_size(mip)[2:][::-1]
+    cv_chunk_size = self.meta.chunk_size(mip)[2:][::-1]
 
-    expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
-    all_chunknames = lambda: set(self._chunknames(expanded, meta.bounds(mip), mip, cv_chunk_size))
+    expanded = bounds.expand_to_chunk_size(cv_chunk_size, self.meta.voxel_offset(mip))
+    all_chunknames = self._chunknames(expanded, self.meta.bounds(mip), mip, cv_chunk_size)
 
     all_chunks = generate_chunks(self.meta, image, offset, mip)
     order = self.meta.order(mip)
 
     to_upload = []
 
+    axis_mapping = self.meta.cv_axes_to_zarr_axes()
+
+    compressor_args = copy.deepcopy(self.meta.zarrays[mip]["compressor"])
+    compressor_args.pop("id", None)
+    compressor_args.pop("blocksize", None)
+
     for filename, (ispt, iept, vol_spt, vol_ept) in zip(all_chunknames, all_chunks):
-      imgchunk = img[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, : ]
-      zarr_imgchunk = imgchunk[..., np.newaxis].T
+      imgchunk = image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, : ]
+      zarr_imgchunk = np.transpose(imgchunk[..., np.newaxis], axes=axis_mapping)
       binary = zarr_imgchunk.tobytes(order)
       del zarr_imgchunk
       del imgchunk
 
-      binary = blosc.compress(binary, **self.meta.zarray[mip]["compressor"])
+      binary = blosc.compress(binary, **compressor_args)
       to_upload.append(
-        [filename, binary]
+        (filename, binary)
       )
 
     CloudFiles(self.meta.cloudpath).puts(to_upload)
@@ -192,6 +199,7 @@ class ZarrImageSource(ImageSourceInterface):
         n_chunks *= (bbox.dz + chunk_size[2] - 1) // chunk_size[2]
         return n_chunks
       def __iter__(self):
+        nonlocal volume_bbox
         volume_bbox = Bbox.expand_to_chunk_size(volume_bbox, chunk_size)
         volume_grid = volume_bbox // chunk_size
         bbox_grid = bbox // chunk_size
@@ -202,7 +210,7 @@ class ZarrImageSource(ImageSourceInterface):
           ])
           yield cf.join(str(mip), filename)
 
-    return ChunkNamesIterator()
+    return ZarrChunkNamesIterator()
 
   def exists(self, bbox, mip=None):
     raise NotImplementedError()

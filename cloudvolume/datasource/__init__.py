@@ -1,7 +1,7 @@
 import os.path
 
 from .. import exceptions, paths
-from ..lib import yellow, Bbox, Vec, toabs
+from ..lib import yellow, Bbox, Vec, toabs, xyzrange, min2
 from ..secrets import CLOUD_VOLUME_CACHE_DIR, CLOUD_VOLUME_DIR
 
 import numpy as np

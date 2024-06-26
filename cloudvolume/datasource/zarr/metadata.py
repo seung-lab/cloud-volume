@@ -1,4 +1,5 @@
 import re
+import os
 
 import numpy as np
 
@@ -27,22 +28,71 @@ CV_TO_ZARR_DTYPE = {
 class ZarrMetadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache,  info=None):
     
+    orig_info = info
+
     # some default values, to be overwritten
-    info = PrecomputedMetadata.create_info(
-      num_channels=1, layer_type='image', data_type='uint8', 
-      encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0], 
-      volume_size=[1,1,1]
-    )
+    if not info:
+      info = PrecomputedMetadata.create_info(
+        num_channels=1, layer_type='image', data_type='uint8', 
+        encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0], 
+        volume_size=[1,1,1]
+      )
 
     super().__init__(
       cloudpath, config, cache, info=info, provenance=None
     )
 
     self.zarrays = []
-    self.zattrs = {}
+    self.zattrs = self.default_zattrs()
 
-    self.info = self.fetch_info()
+    if orig_info is None:
+      self.info = self.fetch_info()
+    else:
+      self.render_zarr_metadata()
+
     self.provenance = DataLayerProvenance()
+
+  def default_zattrs(self):
+    return {
+      "multiscales": [
+        {
+          "axes": [
+            {
+              "name": "t",
+              "type": "time",
+              "unit": "millisecond"
+            },
+            {
+              "name": "c",
+              "type": "channel"
+            },
+            {
+              "name": "z",
+              "type": "space",
+              "unit": "micrometer"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "micrometer"
+            },
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "micrometer"
+            }
+          ],
+          "datasets": [
+            
+          ],
+          "name": "/",
+          "version": "0.4"
+        }
+      ],
+      "omero": {
+        "channels": [ {"active": True} ] * self.num_channels
+      }
+    }
 
   def order(self, mip):
     return self.zarrays[mip]["order"]
@@ -85,11 +135,11 @@ class ZarrMetadata(PrecomputedMetadata):
     to_upload = []
     for i, zarray in enumerate(self.zarrays):
       to_upload.append(
-        [cf.join(str(i), ".zarray"), zarray]
+        (cf.join(str(i), ".zarray"), zarray)
       )
 
     to_upload.append(
-      [ ".zattrs", self.zattrs ]
+      ( ".zattrs", self.zattrs )
     )
 
     cf.put_jsons(to_upload, compress='br')
@@ -130,10 +180,21 @@ class ZarrMetadata(PrecomputedMetadata):
 
     return shape
 
+  def cv_axes_to_zarr_axes(self):
+    seq = self.zarr_axes_to_cv_axes()
+    shape = [0] * len(seq)
+    for i, val in enumerate(seq):
+      shape[val] = i
+    return shape
+
   def render_zarr_metadata(self):
     """Convert the current info file into zarr metadata."""
     datasets = []
-    for mip, scale in enumerate(info["scales"]):
+
+    while len(self.zarrays) < len(self.scales):
+      self.zarrays.append({})
+
+    for mip, scale in enumerate(self.scales):
       dataset = {
         "coordinateTransformations": [
           {
@@ -152,8 +213,8 @@ class ZarrMetadata(PrecomputedMetadata):
       datasets.append(dataset)
 
       zscale = self.zarrays[mip]
-      zscale["dtype"] = CV_TO_ZARR_DTYPE[info["dtype"]]
-      zscale["chunks"] = scale["chunk_size"]
+      zscale["dtype"] = CV_TO_ZARR_DTYPE[self.data_type]
+      zscale["chunks"] = scale["chunk_sizes"][0]
       zscale["shape"] = self.to_zarr_volume_size(mip)
 
       zscale["fill_value"] = zscale.get("fill_value", 0)
@@ -241,8 +302,15 @@ class ZarrMetadata(PrecomputedMetadata):
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     metadata = cf.get_json([ "0/.zarray", ".zattrs" ])
 
-    self.zarrays.append(metadata[0])
-    self.zattrs = metadata[1]
+    if metadata[0] is not None:
+      self.zarrays.append(metadata[0])
+    else:
+      self.zarrays = []
+    
+    if metadata[1] is not None:
+      self.zattrs = metadata[1]
+    else:
+      self.zattrs = self.default_zattrs()
 
     num_mips = len(self.zattrs["multiscales"][0]["datasets"])
 

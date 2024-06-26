@@ -17,7 +17,7 @@ from ...paths import strict_extract
 def create_zarr(
   cloudpath:str, mip:int=0, bounded:bool=True, autocrop:bool=False,
   fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
-  cdn_cache:bool=True, progress:bool=False, 
+  cdn_cache:bool=True, progress:bool=False, info:Optional[dict]=None,
   compress:CompressType=None, compress_level:Optional[int]=None,
   non_aligned_writes:bool=False, delete_black_uploads:bool=False,
   parallel:ParallelType=1,green_threads:bool=False, 
@@ -44,7 +44,7 @@ def create_zarr(
       compress=compress_cache,
     )
 
-    meta = ZarrMetadata(cloudpath, config=config, cache=cache)
+    meta = ZarrMetadata(cloudpath, config=config, cache=cache, info=info)
     imagesrc = ZarrImageSource(
       config, meta, cache, 
       autocrop=bool(autocrop),
