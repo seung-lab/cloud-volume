@@ -137,17 +137,20 @@ class ZarrMetadata(PrecomputedMetadata):
       zscale["dtype"] = CV_TO_ZARR_DTYPE[info["dtype"]]
       zscale["chunks"] = scale["chunk_size"]
       zscale["shape"] = self.to_zarr_volume_size(mip)
-      # zscale["fill_value"] = self.config.
-      # zscale["compressor"] = {
-      #   "blocksize": 0,
-      #   "clevel": 5,
-      #   "cname": "lz4",
-      #   "id": "blosc",
-      #   "shuffle": 1
-      # }
+
+      zscale["fill_value"] = zscale.get("fill_value", 0)
+      zscale["order"] = zscale.get("order", 'C')
+      zscale["zarr_format"] = zscale.get("zarr_format", 2)
+
+      zscale["compressor"] = zscale.get("compressor", {
+        "blocksize": 0,
+        "clevel": 5,
+        "cname": "lz4",
+        "id": "blosc",
+        "shuffle": 1,
+      })
+
       # zscale["filters"] = None
-      # zscale["order"] = "C"
-      # zscale["zarr_format"] = 2
 
     self.zattrs["multiscales"][0]["datasets"] = datasets
 
