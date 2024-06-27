@@ -218,7 +218,7 @@ class ZarrMetadata(PrecomputedMetadata):
 
       zscale = self.zarrays[mip]
       zscale["dtype"] = CV_TO_ZARR_DTYPE[self.data_type]
-      zscale["chunks"] = [ 1, self.num_channels ] + scale["chunk_sizes"][0]
+      zscale["chunks"] = [ 1, self.num_channels ] + scale["chunk_sizes"][0][::-1]
       zscale["shape"] = self.to_zarr_volume_size(mip)
 
       zscale["fill_value"] = zscale.get("fill_value", 0)
