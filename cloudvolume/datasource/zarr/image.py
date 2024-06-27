@@ -157,10 +157,8 @@ class ZarrImageSource(ImageSourceInterface):
       throw_error=True, # (self.non_aligned_writes == False)
     )
 
-    cv_chunk_size = self.meta.chunk_size(mip)[2:][::-1]
-
-    expanded = bounds.expand_to_chunk_size(cv_chunk_size, self.meta.voxel_offset(mip))
-    all_chunknames = self._chunknames(expanded, self.meta.bounds(mip), mip, cv_chunk_size)
+    expanded = bounds.expand_to_chunk_size(self.meta.chunk_size(mip), self.meta.voxel_offset(mip))
+    all_chunknames = self._chunknames(expanded, self.meta.bounds(mip), mip, self.meta.chunk_size(mip))
 
     all_chunks = generate_chunks(self.meta, image, offset, mip)
     order = self.meta.order(mip)
@@ -204,7 +202,7 @@ class ZarrImageSource(ImageSourceInterface):
         volume_grid = volume_bbox // chunk_size
         bbox_grid = bbox // chunk_size
 
-        for x,y,z in xyzrange(bbox.minpt, bbox.maxpt):
+        for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
           filename = sep.join([
             "0", "0", str(z), str(y), str(x)
           ])
