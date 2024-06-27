@@ -20,7 +20,7 @@ from cloudvolume.volumecutout import VolumeCutout
 
 import cloudvolume.sharedmemory as shm
 
-from ... import check_grid_aligned
+from ... import check_grid_aligned, generate_chunks
 from .common import (
   parallel_execution, chunknames, shade
 ) 
@@ -403,44 +403,3 @@ def threaded_upload_chunks(
   )
 
   return len(chunk_ranges)
-
-def generate_chunks(meta, img, offset, mip):
-  shape = Vec(*img.shape)[:3]
-  offset = Vec(*offset)[:3]
-
-  bounds = Bbox( offset, shape + offset)
-
-  alignment_check = bounds.round_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
-
-  if not np.all(alignment_check.minpt == bounds.minpt):
-    raise AlignmentError(f"""
-      Only chunk aligned writes are supported by this function. 
-
-      Got:             {bounds}
-      Volume Offset:   {meta.voxel_offset(mip)} 
-      Nearest Aligned: {alignment_check}
-    """)
-
-  bounds = Bbox.clamp(bounds, meta.bounds(mip))
-
-  img_offset = bounds.minpt - offset
-  img_end = Vec.clamp(bounds.size3() + img_offset, Vec(0,0,0), shape)
-
-  class ChunkIterator():
-    def __len__(self):
-      csize = meta.chunk_size(mip)
-      bbox = Bbox(img_offset, img_end)
-      # round up and avoid conversion to float
-      n_chunks = (bbox.dx + csize[0] - 1) // csize[0]
-      n_chunks *= (bbox.dy + csize[1] - 1) // csize[1]
-      n_chunks *= (bbox.dz + csize[2] - 1) // csize[2]
-      return n_chunks
-    def __iter__(self):
-      for startpt in xyzrange( img_offset, img_end, meta.chunk_size(mip) ):
-        startpt = startpt.clone()
-        endpt = min2(startpt + meta.chunk_size(mip), shape)
-        spt = (startpt + bounds.minpt).astype(int)
-        ept = (endpt + bounds.minpt).astype(int)
-        yield (startpt, endpt, spt, ept)
-
-  return ChunkIterator()

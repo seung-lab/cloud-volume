@@ -70,23 +70,17 @@ __version__ = '9.0.0'
 # Register plugins
 from .datasource.precomputed import register as register_precomputed
 from .datasource.graphene import register as register_graphene
+from .datasource.n5 import register as register_n5
+from .datasource.zarr import register as register_zarr
 
 register_precomputed()
 register_graphene()
+register_n5()
+register_zarr()
 
 try:
   from .datasource.boss import register as register_boss
   register_boss()
 except ImportError:
   pass
-
-try:
-  from .datasource.n5 import register as register_n5
-  register_n5()
-except ImportError:
-  pass
-
-
-
-
 
