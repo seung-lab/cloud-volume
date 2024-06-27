@@ -120,7 +120,7 @@ class ZarrImageSource(ImageSourceInterface):
       m = re.search(regexp, fname).groupdict()
       assert mip == int(m["mip"])
       gridpoint = Vec(*[ int(i) for i in [ m["x"], m["y"], m["z"] ] ])
-      chunk_bbox = Bbox(gridpoint, gridpoint + 1) * self.meta.chunk_size(mip)[2:][::-1]
+      chunk_bbox = Bbox(gridpoint, gridpoint + 1) * cv_chunk_size
       chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
       chunk = self.decode_chunk(binary, mip, fname, self.meta.chunk_size(mip))
       if chunk is None:
