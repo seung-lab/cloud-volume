@@ -281,7 +281,7 @@ class ZarrMetadata(PrecomputedMetadata):
       resolution=extract_spatial_resolution(0),
       voxel_offset=[0,0,0],
       volume_size=extract_spatial_size(0),
-      chunk_size=zarrays[0]["chunks"],
+      chunk_size=zarrays[0]["chunks"][2:][::-1],
     )
 
     num_mips = len(zattrs["multiscales"][0]["datasets"])
@@ -294,7 +294,7 @@ class ZarrMetadata(PrecomputedMetadata):
 
       self.add_scale(
         factor,
-        chunk_size=zarrays[mip]["chunks"],
+        chunk_size=zarrays[mip]["chunks"][2:][::-1],
         encoding=zarrays[mip]["compressor"]["id"],
         info=info
       )
