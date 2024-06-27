@@ -5,7 +5,7 @@ from typing import Optional, Union
 import multiprocessing as mp
 import numpy as np
 
-from .exceptions import UnsupportedFormatError, DimensionError
+from .exceptions import UnsupportedFormatError, DimensionError, InfoUnavailableError
 from .lib import generate_random_string
 from .paths import strict_extract, to_https_protocol
 from .types import CompressType, ParallelType, CacheType, SecretsType
@@ -228,13 +228,26 @@ class CloudVolume:
     kwargs = dict(locals())
     del kwargs['cls']
 
-    path = strict_extract(cloudpath)
-    if path.format in REGISTERED_PLUGINS:
-      return REGISTERED_PLUGINS[path.format](**kwargs)
-    else:
-      raise UnsupportedFormatError(
-        "Unknown format {}".format(path.format)
-      )
+    def init(cloudpath):
+      path = strict_extract(cloudpath)
+      if path.format in REGISTERED_PLUGINS:
+        return REGISTERED_PLUGINS[path.format](**kwargs)
+      else:
+        raise UnsupportedFormatError(
+          "Unknown format {}".format(path.format)
+        )
+
+    try:
+      return init(cloudpath)
+    except InfoUnavailableError as err:
+      if 'precomputed://' not in cloudpath:
+        try:
+          return init('zarr2://' + cloudpath)
+        except:
+          raise err
+      else:
+        raise err
+
 
   @classmethod
   def create_new_info(cls, *args, **kwargs):
