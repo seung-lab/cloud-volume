@@ -205,9 +205,9 @@ class ZarrMetadata(PrecomputedMetadata):
             "scale": [
               1,
               self.num_channels,
-              scale["resolution"][2],
-              scale["resolution"][1],
-              scale["resolution"][0]
+              scale["resolution"][2] / 1000,
+              scale["resolution"][1] / 1000,
+              scale["resolution"][0] / 1000
             ],
             "type": "scale"
           }
