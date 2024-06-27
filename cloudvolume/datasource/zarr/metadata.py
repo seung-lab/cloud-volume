@@ -232,8 +232,7 @@ class ZarrMetadata(PrecomputedMetadata):
         "id": "blosc",
         "shuffle": 1,
       })
-
-      # zscale["filters"] = None
+      zscale["filters"] = zscale.get("filters", None)
 
     self.zattrs["multiscales"][0]["datasets"] = datasets
 
