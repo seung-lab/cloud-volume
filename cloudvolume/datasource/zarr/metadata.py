@@ -216,7 +216,8 @@ class ZarrMetadata(PrecomputedMetadata):
       }
       datasets.append(dataset)
 
-      zscale = self.zarrays[mip]
+      zscale = self.zarrays[mip] or {}
+
       zscale["dtype"] = CV_TO_ZARR_DTYPE[self.data_type]
       zscale["chunks"] = [ 1, self.num_channels ] + scale["chunk_sizes"][0][::-1]
       zscale["shape"] = self.to_zarr_volume_size(mip)
@@ -233,6 +234,8 @@ class ZarrMetadata(PrecomputedMetadata):
         "shuffle": 1,
       })
       zscale["filters"] = zscale.get("filters", None)
+      
+      self.zarrays[mip] = zscale
 
     self.zattrs["multiscales"][0]["datasets"] = datasets
 
@@ -292,10 +295,15 @@ class ZarrMetadata(PrecomputedMetadata):
 
       factor = np.round(res / prev_res)
 
+      zarray = zarrays[mip]
+
+      if zarray is None:
+        continue
+
       self.add_scale(
         factor,
-        chunk_size=zarrays[mip]["chunks"][2:][::-1],
-        encoding=zarrays[mip]["compressor"]["id"],
+        chunk_size=zarray["chunks"][2:][::-1],
+        encoding=zarray["compressor"]["id"],
         info=info
       )
 
