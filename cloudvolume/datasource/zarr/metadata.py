@@ -327,6 +327,9 @@ class ZarrMetadata(PrecomputedMetadata):
 
     return self.zarr_to_info(self.zarrays, self.zattrs)
 
+  def zarr_chunk_size(self, mip):
+    return [1, self.num_channels ] + list(self.chunk_size(mip)[::-1])
+
   def commit_provenance(self):
     """Zarr doesn't support provenance files."""
     pass

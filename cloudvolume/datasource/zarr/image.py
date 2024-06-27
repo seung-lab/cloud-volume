@@ -83,7 +83,7 @@ class ZarrImageSource(ImageSourceInterface):
       green=self.config.green,
     )
 
-    cv_chunk_size = self.meta.chunk_size(mip)[2:][::-1]
+    cv_chunk_size = self.meta.chunk_size(mip)
 
     realized_bbox = bbox.expand_to_chunk_size(cv_chunk_size)
     grid_bbox = realized_bbox // cv_chunk_size
@@ -122,7 +122,7 @@ class ZarrImageSource(ImageSourceInterface):
       gridpoint = Vec(*[ int(i) for i in [ m["x"], m["y"], m["z"] ] ])
       chunk_bbox = Bbox(gridpoint, gridpoint + 1) * cv_chunk_size
       chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
-      chunk = self.decode_chunk(binary, mip, fname, self.meta.chunk_size(mip))
+      chunk = self.decode_chunk(binary, mip, fname, self.meta.zarr_chunk_size(mip))
       if chunk is None:
         continue
       chunk = np.transpose(chunk, axes=axis_mapping)[...,0]
