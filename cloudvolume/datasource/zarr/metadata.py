@@ -142,7 +142,11 @@ class ZarrMetadata(PrecomputedMetadata):
       ( ".zattrs", self.zattrs )
     )
 
-    cf.put_jsons(to_upload, compress='br')
+    compress = "br"
+    if cf.protocol == "file":
+      compress = False # otherwise zarr can't read the file
+
+    cf.put_jsons(to_upload, compress=compress)
 
   def to_zarr_volume_size(self, mip):
     axes = self.zattrs["multiscales"][0]["axes"]
