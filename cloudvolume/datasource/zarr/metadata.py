@@ -289,11 +289,11 @@ class ZarrMetadata(PrecomputedMetadata):
 
     num_mips = len(zattrs["multiscales"][0]["datasets"])
 
-    for mip in range(1, num_mips):
-      prev_res = extract_spatial_resolution(mip-1)
-      res = extract_spatial_resolution(mip)
+    base_res = extract_spatial_resolution(0)
 
-      factor = np.round(res / prev_res)
+    for mip in range(1, num_mips):
+      res = extract_spatial_resolution(mip)
+      factor = np.round(res / base_res)
 
       zarray = zarrays[mip]
 
