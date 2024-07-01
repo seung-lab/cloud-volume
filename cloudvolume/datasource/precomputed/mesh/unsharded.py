@@ -292,27 +292,51 @@ class UnshardedLegacyPrecomputedMeshSource(object):
     """
     segids = toiter(segids)
 
-    mesh = self.get(segids, fuse=True, remove_duplicate_vertices=True)
+    kwargs = {
+      "fuse": True,
+      "remove_duplicate_vertices": True,
+    }
 
-    if file_format == 'obj':
-      data = mesh.to_obj()
-    elif file_format == 'ply':
-      data = mesh.to_ply()
-    elif file_format == 'precomputed':
-      data = mesh.to_precomputed()
+    if self.meta.is_sharded():
+      kwargs = {}
+
+    mesh = self.get(segids, **kwargs)
+
+    def to_fmt(mesh):
+      if file_format == 'obj':
+        return mesh.to_obj()
+      elif file_format == 'ply':
+        return mesh.to_ply()
+      elif file_format == 'precomputed':
+        return mesh.to_precomputed()
+      else:
+        raise NotImplementedError('Only .obj, .ply, and precomputed are currently supported.')
+
+    if not self.meta.is_sharded():
+      if not filepath:
+        filepath = str(segids[0]) + "." + file_format
+        if len(segids) > 1:
+          filepath = "{}_{}.{}".format(segids[0], segids[-1], file_format)
+
+      data = to_fmt(mesh)
+      try:
+        filepath.write(data)
+      except AttributeError:
+        with open(filepath, 'wb') as f:
+          f.write(data)
     else:
-      raise NotImplementedError('Only .obj, .ply, and precomputed are currently supported.')
+      path = filepath
+      for segid, m in mesh.items():
+        if not filepath:
+          path = f"{segid}.{file_format}"
 
-    if not filepath:
-      filepath = str(segids[0]) + "." + file_format
-      if len(segids) > 1:
-        filepath = "{}_{}.{}".format(segids[0], segids[-1], file_format)
-
-    try:
-      filepath.write(data)
-    except AttributeError:
-      with open(filepath, 'wb') as f:
-        f.write(data)
+        data = to_fmt(m)
+        try:
+          filepath.write(data)
+        except AttributeError:
+          with open(path, 'wb') as f:
+            f.write(data)
+    
 
   def get_bbox(self, bbox):
     if self.spatial_index is None:
