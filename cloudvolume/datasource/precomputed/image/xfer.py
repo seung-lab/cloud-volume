@@ -44,6 +44,32 @@ def create_destination(source, cloudpath, mip, encoding):
 
   return destvol
 
+def transfer_across_formats(
+  source,
+  cloudpath:str,
+  bbox:BboxLikeType,
+  mip:int,
+  compress:CompressType = None,
+  compress_level:Optional[int] = None,
+  encoding:Optional[str] = None,
+):
+  from cloudvolume import CloudVolume
+
+  dest_cv = create_destination(source, cloudpath, mip, encoding)
+  dest_cv.commit_info()
+  mip = cv.mip
+
+  shape = np.array([256, 256, 256])
+  grid_size = np.ceil(dest_cv.volume_size / shape)
+
+  for gx,gy,gz in tqdm(xyzrange(grid_size), disable=(not source.config.progress)):
+    gpt = Vec(gx,gy,gz, dtype=int)
+    bbx = Bbox(gpt * shape, (gpt+1) * shape)
+
+    if dest_cv.meta.path.format == "precomputed":
+      bbx = Bbox.clamp(bbx, dest_cv.bounds)
+    dest_cv[bbx] = source[bbx]
+
 def transfer_any_to_unsharded(
   source,
   cloudpath:str,
