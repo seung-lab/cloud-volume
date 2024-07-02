@@ -211,11 +211,56 @@ class ZarrImageSource(ImageSourceInterface):
     return ZarrChunkNamesIterator()
 
   def exists(self, bbox, mip=None):
-    raise NotImplementedError()
+    if mip is None:
+      mip = self.config.mip
+
+    bounds = Bbox.clamp(bbox, self.meta.bounds(mip))
+
+    if self.autocrop:
+      image, bounds = autocropfn(self.meta, image, bounds, mip)
+    
+    if bounds.subvoxel():
+      raise exceptions.EmptyRequestException(f'Requested less than one pixel of volume. {bounds}')
+
+    expanded = bounds.expand_to_chunk_size(
+      self.meta.chunk_size(mip), self.meta.voxel_offset(mip)
+    )
+    all_chunknames = self._chunknames(
+      expanded, self.meta.bounds(mip), 
+      mip, self.meta.chunk_size(mip)
+    )
+
+    cf = CloudFiles(
+      self.meta.cloudpath, 
+      progress=self.config.progress, 
+      secrets=self.config.secrets,
+      green=self.config.green,
+    )
+
+    return cf.exists(all_chunknames)
 
   @readonlyguard
   def delete(self, bbox, mip=None):
-    raise NotImplementedError()
+    if mip is None:
+      mip = self.config.mip
+
+    if mip in self.meta.locked_mips():
+      raise exceptions.ReadOnlyException(
+        f"MIP {mip} is currently write locked. If this should not be the case, "
+        f"run vol.meta.unlock_mips({mip})."
+      )
+
+    bbox = Bbox.create(bbox, self.meta.bounds(mip), bounded=True)
+    realized_bbox = bbox.expand_to_chunk_size(
+      self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
+    )
+    all_chunknames = self._chunknames(
+      realized_bbox, self.meta.bounds(mip), 
+      mip, self.meta.chunk_size(mip)
+    )
+
+    cf = CloudFiles(self.meta.cloudpath, progress=self.config.progress, secrets=self.config.secrets)
+    cf.delete(all_chunknames)
 
   def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True):
     raise NotImplementedError()
