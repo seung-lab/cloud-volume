@@ -166,6 +166,25 @@ class ZarrMetadata(PrecomputedMetadata):
     resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
     return resolution[i] * scale_factor
 
+  def time_index(self):
+    for i, axis in enumerate(self.zattrs["multiscales"][0]["axes"]):
+      if axis["type"] == "time":
+        return i
+    raise ValueError("No time axis.")
+
+  def num_time_chunks(self, mip=0):
+    i = self.time_index()
+    nframes = self.num_frames(mip)
+    tchunk = self.zarrays[mip]["chunks"][i]
+    return int(np.ceil(nframes / tchunk))
+
+  def num_frames(self, mip=0):
+    i = self.time_index()
+    return self.zarrays[mip]["shape"][i]
+
+  def duration_in_seconds(self):
+    return self.time_resolution_in_seconds(0) * self.num_frames(0)
+
   def order(self, mip):
     return self.zarrays[mip]["order"]
 
