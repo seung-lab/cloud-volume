@@ -22,9 +22,11 @@ from ...lib import (
   jsonify, generate_random_string,
   xyzrange
 )
+from ...paths import extract
 from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
 from ..precomputed.image import xfer
+
 
 class ZarrImageSource(ImageSourceInterface):
   def __init__(
@@ -274,8 +276,13 @@ class ZarrImageSource(ImageSourceInterface):
     encoding:Optional[str] = None,
     sharded:Optional[bool] = None,
   ):
-    if self.meta.encoding(mip) == "blosc" and encoding is None:
-      encoding = "raw"
+    pth = extract(cloudpath)
+
+    if pth.format != self.meta.path.format and encoding is None:
+      if pth.format == "n5":
+        encoding = "gzip"
+      elif pth.format == "precomputed":
+        encoding = "raw"
 
     return xfer.transfer_by_rerendering(
       self, cloudpath,

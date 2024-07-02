@@ -16,6 +16,7 @@ from ...lib import (
   jsonify, generate_random_string,
   xyzrange, BboxLikeType
 )
+from ... import paths
 from ...types import CompressType, MipType
 from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
@@ -148,6 +149,14 @@ class N5ImageSource(ImageSourceInterface):
     encoding:Optional[str] = None,
     sharded:Optional[bool] = None,
   ):
+    pth = paths.extract(cloudpath)
+
+    if pth.format != self.meta.path.format and encoding is None:
+      if pth.format == "zarr":
+        encoding = "blosc"
+      elif pth.format == "precomputed":
+        encoding = "raw"
+
     return xfer.transfer_by_rerendering(
       self, cloudpath,
       bbox=bbox,
