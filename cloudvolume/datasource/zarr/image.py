@@ -131,7 +131,7 @@ class ZarrImageSource(ImageSourceInterface):
       if chunk is None:
         continue
       chunk = np.transpose(chunk, axes=axis_mapping)[...,0]
-      shade(renderbuffer, bbox, chunk, chunk_bbox)
+      shade(renderbuffer, bbox, chunk, chunk_bbox, channel=int(m["c"]))
 
     data = VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
 
@@ -176,8 +176,12 @@ class ZarrImageSource(ImageSourceInterface):
     compressor_args.pop("id", None)
     compressor_args.pop("blocksize", None)
 
-    for filename, (ispt, iept, vol_spt, vol_ept) in zip(all_chunknames, all_chunks):
-      imgchunk = image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, : ]
+    def all_chunks_by_channel(all_chunks):
+      for ispt, iept, vol_spt, vol_ept in all_chunks:
+        for c in range(self.meta.num_channels):
+          yield image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, c ]
+
+    for filename, imgchunk in zip(all_chunknames, all_chunks_by_channel(all_chunks)):
       zarr_imgchunk = np.transpose(imgchunk[..., np.newaxis], axes=axis_mapping)
       binary = zarr_imgchunk.tobytes(order)
       del zarr_imgchunk
@@ -208,8 +212,8 @@ class ZarrImageSource(ImageSourceInterface):
         volume_grid = volume_bbox // chunk_size
         bbox_grid = bbox // chunk_size
 
-        for c in range(num_channels):
-          for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
+        for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
+          for c in range(num_channels):
             filename = sep.join([
               "0", str(c), str(z), str(y), str(x)
             ])
