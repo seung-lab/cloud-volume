@@ -95,6 +95,24 @@ class ZarrMetadata(PrecomputedMetadata):
       }
     }
 
+  def time_resolution_in_seconds(self, mip):
+    i = 0
+    unit = None
+    for axis in self.zattrs["multiscales"][0]["axes"]:
+      if axis["type"] == "time":
+        unit = axis["unit"]
+        break
+      i += 1
+
+    scale_factor = 1
+    if unit == "millisecond":
+      scale_factor = 1e-3
+    elif unit == "microsecond":
+      scale_factor = 1e-6
+
+    resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+    return resolution[i] * scale_factor
+
   def order(self, mip):
     return self.zarrays[mip]["order"]
 
