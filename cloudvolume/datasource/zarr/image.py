@@ -13,7 +13,7 @@ from .. import (
   generate_chunks
 )
 
-from ...types import MipType
+from ...types import CompressType, MipType
 from ... import compression
 from ... import chunks
 from ... import exceptions 
@@ -24,6 +24,7 @@ from ...lib import (
 )
 from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
+from ..precomputed.image import xfer
 
 class ZarrImageSource(ImageSourceInterface):
   def __init__(
@@ -262,5 +263,25 @@ class ZarrImageSource(ImageSourceInterface):
     cf = CloudFiles(self.meta.cloudpath, progress=self.config.progress, secrets=self.config.secrets)
     cf.delete(all_chunknames)
 
-  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True):
-    raise NotImplementedError()
+  def transfer_to(
+    self,
+    cloudpath:str, 
+    bbox:BboxLikeType, 
+    mip:MipType, 
+    block_size:Optional[int] = None, 
+    compress:CompressType = True, 
+    compress_level:Optional[int] = None, 
+    encoding:Optional[str] = None,
+    sharded:Optional[bool] = None,
+  ):
+    if self.meta.encoding(mip) == "blosc" and encoding is None:
+      encoding = "raw"
+
+    return xfer.transfer_by_rerendering(
+      self, cloudpath,
+      bbox=bbox,
+      mip=mip,
+      compress=compress,
+      compress_level=compress_level,
+      encoding=encoding,
+    )
