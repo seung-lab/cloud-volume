@@ -88,10 +88,6 @@ def transfer_any_to_unsharded(
   encoding:Optional[str] = None,
 ):
   """
-  Create a disposable in-memory CloudVolume (mem://) containing
-  the requested cutout region in the unsharded precomputed
-  format. The source volume may be sharded or unsharded.
-
   You can specify an alternative encoding and compression 
   settings for the new volume.
   """
