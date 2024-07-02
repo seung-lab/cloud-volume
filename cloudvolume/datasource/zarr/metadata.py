@@ -53,6 +53,10 @@ class ZarrMetadata(PrecomputedMetadata):
 
     self.provenance = DataLayerProvenance()
 
+    if self.num_channels != 1:
+      raise NotImplementedError("Only grayscale volumes are currently supported.")
+
+
   def default_zattrs(self):
     return {
       "multiscales": [
