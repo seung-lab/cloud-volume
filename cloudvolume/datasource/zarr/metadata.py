@@ -95,6 +95,53 @@ class ZarrMetadata(PrecomputedMetadata):
       }
     }
 
+  def spatial_resolution_in_nm(self, mip, zattrs = None, zarrays = None):
+    if zarrays is None:
+      zarrays = self.zarrays
+    if zattrs is None:
+      zattrs = self.zattrs
+
+    def unit2factor(unit):
+      if unit == "meter":
+        return 1
+      elif unit == "centimeter":
+        return 1e-2
+      elif unit == "millimeter":
+        return 1e-3
+      elif unit == "micrometer":
+        return 1e-6
+      elif unit == "nanometer":
+        return 1e-9
+      elif unit == "picometer":
+        return 1e-12
+      else:
+        raise ValueError(f"unit not supported: {unit}")
+
+    scale_factors = np.ones([3], dtype=np.float32)
+    positions = [0,0,0]
+    for i, axis in enumerate(self.zattrs["multiscales"][0]["axes"]):
+      if axis["type"] != "space":
+        continue
+      
+      if axis["name"] == "x":
+        scale_factors[0] = unit2factor(axis["unit"])
+        positions[0] = i
+      elif axis["name"] == "y":
+        scale_factors[1] = unit2factor(axis["unit"])
+        positions[1] = i
+      elif axis["name"] == "z":
+        scale_factors[2] = unit2factor(axis["unit"])
+        positions[2] = i
+
+    resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+    resolution = np.array([
+      resolution[positions[0]],
+      resolution[positions[1]],
+      resolution[positions[2]]
+    ], dtype=np.float32)
+
+    return resolution * (scale_factors / 1e-9)
+
   def time_resolution_in_seconds(self, mip):
     i = 0
     unit = None
@@ -282,12 +329,6 @@ class ZarrMetadata(PrecomputedMetadata):
 
       return spatial
 
-    def extract_spatial_resolution(mip):
-      scale = zattrs["multiscales"][0]
-      resolution = scale["datasets"][mip]["coordinateTransformations"][0]["scale"]
-      spatial_res = extract_spatial(resolution, np.float32)
-      return spatial_res * 1000.0 # um -> nm
-
     def extract_spatial_size(mip):
       shape = zarrays[mip]["shape"]
       return extract_spatial(shape, int)
@@ -304,12 +345,14 @@ class ZarrMetadata(PrecomputedMetadata):
     if not zarrays:
       raise exceptions.InfoUnavailableError()
 
+    base_res = self.spatial_resolution_in_nm(0, zattrs, zarrays)
+
     info = PrecomputedMetadata.create_info(
       num_channels=num_channels,
       layer_type='image',
       data_type=str(np.dtype(zarrays[0]["dtype"])),
       encoding=zarrays[0]["compressor"]["id"],
-      resolution=extract_spatial_resolution(0),
+      resolution=base_res,
       voxel_offset=[0,0,0],
       volume_size=extract_spatial_size(0),
       chunk_size=zarrays[0]["chunks"][2:][::-1],
@@ -317,10 +360,8 @@ class ZarrMetadata(PrecomputedMetadata):
 
     num_mips = len(zattrs["multiscales"][0]["datasets"])
 
-    base_res = extract_spatial_resolution(0)
-
     for mip in range(1, num_mips):
-      res = extract_spatial_resolution(mip)
+      res = self.spatial_resolution_in_nm(mip, zattrs, zarrays)
       factor = np.round(res / base_res)
 
       zarray = zarrays[mip]
