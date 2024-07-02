@@ -95,13 +95,15 @@ class ZarrImageSource(ImageSourceInterface):
 
     if self.meta.order(mip) == "C":
       paths = [
-        cf.join(str(mip), sep.join([ "0", "0", str(z), str(y), str(x) ]))
+        cf.join(str(mip), sep.join([ "0", str(c), str(z), str(y), str(x) ]))
         for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
+        for c in range(self.meta.num_channels)
       ]
     else:
       paths = [
-        cf.join(str(mip), sep.join([ str(x), str(y), str(z), "0", "0" ]))
+        cf.join(str(mip), sep.join([ str(x), str(y), str(z), str(c), "0" ]))
         for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
+        for c in range(self.meta.num_channels)
       ]
 
     all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
@@ -191,6 +193,7 @@ class ZarrImageSource(ImageSourceInterface):
   def _chunknames(self, bbox, volume_bbox, mip, chunk_size):
     sep = self.meta.dimension_separator(mip)
     cf = CloudFiles(self.meta.cloudpath)
+    num_channels = self.meta.num_channels
 
     class ZarrChunkNamesIterator():
       def __len__(self):
@@ -205,11 +208,12 @@ class ZarrImageSource(ImageSourceInterface):
         volume_grid = volume_bbox // chunk_size
         bbox_grid = bbox // chunk_size
 
-        for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
-          filename = sep.join([
-            "0", "0", str(z), str(y), str(x)
-          ])
-          yield cf.join(str(mip), filename)
+        for c in range(num_channels):
+          for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
+            filename = sep.join([
+              "0", str(c), str(z), str(y), str(x)
+            ])
+            yield cf.join(str(mip), filename)
 
     return ZarrChunkNamesIterator()
 
