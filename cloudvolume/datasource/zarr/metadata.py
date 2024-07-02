@@ -105,10 +105,16 @@ class ZarrMetadata(PrecomputedMetadata):
       i += 1
 
     scale_factor = 1
-    if unit == "millisecond":
+    if unit == "kilosecond":
+      scale_factor = 1e3
+    elif unit == "centisecond":
+      scale_factor = 1e-2
+    elif unit == "millisecond":
       scale_factor = 1e-3
     elif unit == "microsecond":
       scale_factor = 1e-6
+    elif unit == "nanosecond":
+      scale_factor = 1e-9
 
     resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
     return resolution[i] * scale_factor
