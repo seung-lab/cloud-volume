@@ -35,6 +35,7 @@ def create_n5(
       progress=progress,
       secrets=secrets,
       spatial_index_db=None,
+      cache_locking=cache_locking,
     )
     cache = CacheService(
       cloudpath=get_cache_path(cache, cloudpath),
