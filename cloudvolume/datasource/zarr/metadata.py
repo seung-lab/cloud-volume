@@ -8,6 +8,7 @@ from cloudfiles import CloudFiles
 from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
 from cloudvolume.lib import jsonify, Vec, Bbox
 
+from ... import exceptions
 from ...provenance import DataLayerProvenance
 
 CV_TO_ZARR_DTYPE = {
@@ -275,6 +276,9 @@ class ZarrMetadata(PrecomputedMetadata):
     num_channels = len([ 
       chan for chan in zattrs["omero"]["channels"] if chan["active"] 
     ])
+
+    if not zarrays:
+      raise exceptions.InfoUnavailableError()
 
     info = PrecomputedMetadata.create_info(
       num_channels=num_channels,

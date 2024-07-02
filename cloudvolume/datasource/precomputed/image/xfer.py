@@ -65,12 +65,16 @@ def transfer_by_rerendering(
   source.config.progress = False
 
   shape = np.array(dest_cv.chunk_size * 4)
-  grid_size = np.ceil(dest_cv.volume_size / shape)
+
+  bbox = bbox.expand_to_chunk_size(dest_cv.chunk_size, offset=dest_cv.voxel_offset)
+
+  grid_box = bbox / shape
+  grid_size = grid_box.size()
   total = int(grid_size[0] * grid_size[1] * grid_size[2])
 
   for gx,gy,gz in tqdm(xyzrange(grid_size), disable=(not progress), total=total):
     gpt = Vec(gx,gy,gz, dtype=int)
-    bbx = Bbox(gpt * shape, (gpt+1) * shape)
+    bbx = Bbox(gpt * shape, (gpt+1) * shape) + bbox.minpt
 
     if dest_cv.meta.path.format == "precomputed":
       bbx = Bbox.clamp(bbx, dest_cv.bounds)
