@@ -88,11 +88,15 @@ class N5Metadata(PrecomputedMetadata):
     # should all be the same
     data_type = scale_attrs[0]["dataType"] 
 
+    encoding = scale_attrs[0]["compression"]["type"]
+    if encoding in ["gzip", "br", "lzma", "xz", "bz2"]:
+      encoding = "raw"
+
     info = PrecomputedMetadata.create_info(
       num_channels=1,
       layer_type="image",
       data_type=data_type,
-      encoding=scale_attrs[0]["compression"]["type"],
+      encoding=encoding,
       resolution=resolution,
       voxel_offset=[0,0,0],
       volume_size=scale_attrs[0]["dimensions"][:3],

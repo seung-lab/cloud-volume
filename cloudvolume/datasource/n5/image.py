@@ -19,6 +19,7 @@ from ...lib import (
 from ...types import CompressType, MipType
 from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
+from ..precomputed.image import xfer
 
 class N5ImageSource(ImageSourceInterface):
   def __init__(
@@ -147,4 +148,11 @@ class N5ImageSource(ImageSourceInterface):
     encoding:Optional[str] = None,
     sharded:Optional[bool] = None,
   ):
-    raise NotImplementedError()
+    return xfer.transfer_by_rerendering(
+      self, cloudpath,
+      bbox=bbox,
+      mip=mip,
+      compress=compress,
+      compress_level=compress_level,
+      encoding=encoding,
+    )

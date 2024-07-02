@@ -8,7 +8,7 @@ from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
 from ....types import CompressType, MipType
-from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
+from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter, xyzrange
 from .... import chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
@@ -44,7 +44,7 @@ def create_destination(source, cloudpath, mip, encoding):
 
   return destvol
 
-def transfer_across_formats(
+def transfer_by_rerendering(
   source,
   cloudpath:str,
   bbox:BboxLikeType,
@@ -57,9 +57,9 @@ def transfer_across_formats(
 
   dest_cv = create_destination(source, cloudpath, mip, encoding)
   dest_cv.commit_info()
-  mip = cv.mip
+  mip = dest_cv.mip
 
-  shape = np.array([256, 256, 256])
+  shape = np.array(dest_cv.chunk_size * 4)
   grid_size = np.ceil(dest_cv.volume_size / shape)
 
   for gx,gy,gz in tqdm(xyzrange(grid_size), disable=(not source.config.progress)):
@@ -68,7 +68,7 @@ def transfer_across_formats(
 
     if dest_cv.meta.path.format == "precomputed":
       bbx = Bbox.clamp(bbx, dest_cv.bounds)
-    dest_cv[bbx] = source[bbx]
+    dest_cv[bbx] = source.download(bbx, mip=mip)
 
 def transfer_any_to_unsharded(
   source,

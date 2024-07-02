@@ -524,7 +524,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     pth = paths.extract(cloudpath)
     if self.meta.path.format != pth.format:
-      return xfer.transfer_across_formats(
+      return xfer.transfer_by_rerendering(
         self, cloudpath,
         bbox=bbox,
         mip=mip,
