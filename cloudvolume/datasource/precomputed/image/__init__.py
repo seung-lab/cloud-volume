@@ -23,6 +23,7 @@ from cloudvolume import lib, exceptions
 from cloudvolume.lru import LRU
 from cloudvolume.scheduler import schedule_jobs, DEFAULT_THREADS
 from ....types import CompressType, MipType
+from .... import paths
 from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
 from .... import sharedmemory, chunks
 
@@ -520,6 +521,13 @@ class PrecomputedImageSource(ImageSourceInterface):
   ):
     if sharded is None:
       sharded = self.is_sharded(mip)
+
+    pth = paths.extract(cloudpath)
+    if self.meta.path.format != pth.format:
+      raise ValueError(
+        f"Transfers between formats are not supported. "
+        f"Got: {self.meta.path.format}, {pth.format}"
+      )
 
     if not sharded and self.is_sharded(mip):
       return xfer.transfer_any_to_unsharded(
