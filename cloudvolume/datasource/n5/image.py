@@ -124,7 +124,7 @@ class N5ImageSource(ImageSourceInterface):
     return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
 
   @readonlyguard
-  def upload(self, image, offset, mip):
+  def upload(self, image, offset, mip, parallel:int = 1):
     raise NotImplementedError()
 
   def exists(self, bbox, mip=None):

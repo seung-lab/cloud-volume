@@ -9,21 +9,25 @@ class N5Metadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache, info=None):
     
     # some default values, to be overwritten
-    info = PrecomputedMetadata.create_info(
+    tmp_info = PrecomputedMetadata.create_info(
       num_channels=1, layer_type='image', data_type='uint8', 
       encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0], 
       volume_size=[1,1,1]
     )
 
     super().__init__(
-      cloudpath, config, cache, info=info, provenance=None
+      cloudpath, config, cache, info=tmp_info, provenance=None
     )
     self.attributes = {
       "root": {},
       "scales": {},
     }
 
-    self.info = self.fetch_info()
+    if info:
+      self.info = info
+    else:
+      self.info = self.fetch_info()
+
     self.provenance = DataLayerProvenance()
 
   def commit_info(self):

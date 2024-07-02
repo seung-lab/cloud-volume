@@ -21,7 +21,7 @@ def create_n5(
   compress:CompressType=None, compress_level:Optional[int]=None,
   non_aligned_writes:bool=False, 
   parallel:ParallelType=1,green_threads:bool=False, 
-  secrets:SecretsType=None, cache_locking:bool = True,
+  secrets:SecretsType=None, cache_locking:bool = True, info = None,
   **kwargs # absorb graphene arguments
 ):
     path = strict_extract(cloudpath)
@@ -44,7 +44,7 @@ def create_n5(
       compress=compress_cache,
     )
 
-    meta = N5Metadata(cloudpath, config=config, cache=cache)
+    meta = N5Metadata(cloudpath, config=config, cache=cache, info=info)
     imagesrc = N5ImageSource(
       config, meta, cache, 
       autocrop=bool(autocrop),
