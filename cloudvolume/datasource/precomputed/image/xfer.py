@@ -57,18 +57,26 @@ def transfer_by_rerendering(
 
   dest_cv = create_destination(source, cloudpath, mip, encoding)
   dest_cv.commit_info()
+  dest_cv.progress = False
   mip = dest_cv.mip
+
+  progress = source.config.progress
+
+  source.config.progress = False
 
   shape = np.array(dest_cv.chunk_size * 4)
   grid_size = np.ceil(dest_cv.volume_size / shape)
+  total = int(grid_size[0] * grid_size[1] * grid_size[2])
 
-  for gx,gy,gz in tqdm(xyzrange(grid_size), disable=(not source.config.progress)):
+  for gx,gy,gz in tqdm(xyzrange(grid_size), disable=(not progress), total=total):
     gpt = Vec(gx,gy,gz, dtype=int)
     bbx = Bbox(gpt * shape, (gpt+1) * shape)
 
     if dest_cv.meta.path.format == "precomputed":
       bbx = Bbox.clamp(bbx, dest_cv.bounds)
     dest_cv[bbx] = source.download(bbx, mip=mip)
+
+  source.config.progress = progress
 
 def transfer_any_to_unsharded(
   source,
