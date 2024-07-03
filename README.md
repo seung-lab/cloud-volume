@@ -31,6 +31,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 ### Detailed Highlights
 
+- Supports `precomputed`, `graphene`, `zarr`, (read-only) `n5`, and `boss` formats.
 - Multi-threaded, supports multi-process and green threads.
 - Memory optimized, supports shared memory.
 - Lossless connectomics relevant codecs ([`compressed_segmentation`](https://github.com/seung-lab/compressedseg), [`compresso`](https://github.com/seung-lab/compresso), [`crackle`](https://github.com/seung-lab/crackle) (BETA), [`fpzip`](https://github.com/seung-lab/fpzip/), [`zfpc`](https://github.com/seung-lab/zfpc), [`png`](https://en.wikipedia.org/wiki/Portable_Network_Graphics), and [`brotli`](https://en.wikipedia.org/wiki/Brotli))
@@ -45,7 +46,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 
 ## Setup
 
-Cloud-volume is regularly tested on Ubuntu with 3.7, 3.8, 3.9 and 3.10. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
+Cloud-volume is regularly tested on Ubuntu with 3.8, 3.9, 3.10, 3.11, and 3.12. We officially support Linux and Mac OS. Windows is community supported. After installation, you'll also need to set up your cloud credentials if you're planning on writing files or reading from a private dataset. Once you're finished setting up, you can try [reading from a public dataset](https://github.com/seung-lab/cloud-volume/wiki/Reading-Public-Data-Examples).
 
 #### `pip` Binary Installation
 
@@ -62,6 +63,7 @@ CloudVolume depends on several PyPI packages which are Cython bindings for C++. 
 | Tag             | Description                             | Dependencies          |
 |-----------------|-----------------------------------------|-----------------------|
 | boss            | `boss://` format support                | intern                |
+| zarr            | `zarr://` format support                | blosc                 |
 | test            | Supports testing                        | pytest                |
 | mesh_viewer     | `mesh.viewer()` GUI                     | vtk                   |
 | skeleton_viewer | `skeleton.viewer()` GUI                 | matplotlib            |
@@ -79,7 +81,7 @@ pip install cloud-volume[boss,test,all_viewers]
 *C++ compiler required.*
 
 ```bash
-sudo apt-get install g++ python3-dev # python-dev if you're on python2
+sudo apt-get install g++ python3-dev
 pip install numpy
 pip install cloud-volume
 ```
@@ -101,7 +103,7 @@ workon cv
 virtualenv venv
 source venv/bin/activate
 
-sudo apt-get install g++ python3-dev # python-dev if you're on python2
+sudo apt-get install g++ python3-dev 
 pip install numpy # additional step needed for accelerated compressed_segmentation and fpzip
 pip install -e . # without optional dependencies
 pip install -e .[all_viewers] # with e.g. the all_viewers optional dependency
@@ -197,6 +199,7 @@ The format or protocol fields may be omitted where required. In the case of the 
 * graphene: Precomputed based format used by the PyChunkGraph server.
 * boss: The BOSS (https://docs.theboss.io/docs)
 * n5: Not HDF5 (https://github.com/saalfeldlab/n5) Read-only support. Supports raw, gzip, bz2, and xz but not lz4 compression. mode 0 datasets only.
+* [zarr](https://github.com/zarr-developers/zarr-python): Custom implementation supports reading and writing for 5D arrays, but limited support for the 5th dimension.
 
 ### Supported Protocols
 
