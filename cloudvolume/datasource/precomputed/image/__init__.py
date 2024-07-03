@@ -524,24 +524,27 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     pth = paths.extract(cloudpath)
     if self.meta.path.format != pth.format:
-      raise ValueError(
-        f"Transfers between formats are not supported. "
-        f"Got: {self.meta.path.format}, {pth.format}"
-      )
-
-    if not sharded and self.is_sharded(mip):
-      return xfer.transfer_any_to_unsharded(
-        self, cloudpath,         
-        bbox=bbox, 
+      return xfer.transfer_by_rerendering(
+        self, cloudpath,
+        bbox=bbox,
         mip=mip,
-        compress=compress, 
-        compress_level=compress_level, 
+        compress=compress,
+        compress_level=compress_level,
+        encoding=encoding,
+      )
+    elif not sharded and self.is_sharded(mip):
+      return xfer.transfer_any_to_unsharded(
+        self, cloudpath,
+        bbox=bbox,
+        mip=mip,
+        compress=compress,
+        compress_level=compress_level,
         encoding=encoding,
       )
     elif sharded and self.is_sharded(mip):
       return xfer.transfer_sharded_to_sharded(
-        self, cloudpath, 
-        bbox=bbox, 
+        self, cloudpath,
+        bbox=bbox,
         mip=mip, 
         block_size=block_size,
         compress=compress, 
@@ -551,10 +554,10 @@ class PrecomputedImageSource(ImageSourceInterface):
     elif not sharded and not self.is_sharded(mip):
       return xfer.transfer_unsharded_to_unsharded(
         self, cloudpath,
-        bbox=bbox, 
+        bbox=bbox,
         mip=mip,
         block_size=block_size,
-        compress=compress, 
+        compress=compress,
         compress_level=compress_level, 
         encoding=encoding,
       )

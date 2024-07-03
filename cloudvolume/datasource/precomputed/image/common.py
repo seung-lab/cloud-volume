@@ -240,13 +240,15 @@ def morton_code_to_gridpt(code, grid_size):
   return gridpt
 
 
-def shade(dest_img, dest_bbox, src_img, src_bbox):
+def shade(dest_img, dest_bbox, src_img, src_bbox, channel=None):
   """
   Shade dest_img at coordinates dest_bbox using the
   image contained in src_img at coordinates src_bbox.
 
   The buffer will only be painted in the overlapping
   region of the content.
+
+  Note: channel is useful for zarr, not precomputed
 
   Returns: void
   """
@@ -266,12 +268,24 @@ def shade(dest_img, dest_bbox, src_img, src_bbox):
   while src_img.ndim < 4:
     src_img = src_img[..., np.newaxis]
   
-  dest_img[ 
-    dest_minpt[0]:dest_maxpt[0],
-    dest_minpt[1]:dest_maxpt[1],
-    dest_minpt[2]:dest_maxpt[2],
-  ] = src_img[
-    istart[0]:iend[0], 
-    istart[1]:iend[1],
-    istart[2]:iend[2]
-  ]
+  if channel:
+    dest_img[ 
+      dest_minpt[0]:dest_maxpt[0],
+      dest_minpt[1]:dest_maxpt[1],
+      dest_minpt[2]:dest_maxpt[2],
+      channel
+    ] = src_img[
+      istart[0]:iend[0], 
+      istart[1]:iend[1],
+      istart[2]:iend[2]
+    ]
+  else:
+    dest_img[ 
+      dest_minpt[0]:dest_maxpt[0],
+      dest_minpt[1]:dest_maxpt[1],
+      dest_minpt[2]:dest_maxpt[2],
+    ] = src_img[
+      istart[0]:iend[0], 
+      istart[1]:iend[1],
+      istart[2]:iend[2]
+    ]

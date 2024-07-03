@@ -14,7 +14,10 @@ ExtractedPath = namedtuple('ExtractedPath',
 )
 
 ALLOWED_PROTOCOLS = cloudfiles.paths.ALLOWED_PROTOCOLS
-ALLOWED_FORMATS = [ 'graphene', 'precomputed', 'boss', 'n5' ] 
+ALLOWED_FORMATS = [ 
+  'graphene', 'precomputed', 'boss', 'n5', 
+  'zarr', 'zarr2', 'zarr3',
+]
 
 def cloudpath_error(cloudpath):
   global ALLOWED_PROTOCOLS

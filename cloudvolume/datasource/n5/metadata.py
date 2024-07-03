@@ -30,9 +30,42 @@ class N5Metadata(PrecomputedMetadata):
 
     self.provenance = DataLayerProvenance()
 
+  def info_to_attributes(self):
+    return {
+      'root': {
+        'pixelResolution': {
+          'unit': 'nm',
+          'dimensions': self.info['scales'][0]['resolution'],
+        },
+        'scales': [
+          list(self.downsample_ratio(i)) for i in self.available_mips
+        ],
+      },
+      'scales': [
+        {
+          'dataType': self.data_type,
+          'compression': { 
+            'type': self.config.compress,
+            'level': self.config.compress_level,
+          },
+          'blockSize': list(scale['chunk_sizes'][0]),
+          'dimensions': list(scale['volume_size']),
+        }
+        for scale in self.scales
+      ],
+    }
+
   def commit_info(self):
     """We only are supporing read-only."""
-    pass
+    self.attributes = self.info_to_attributes()
+
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
+    cf.put_json("attributes.json", self.attributes["root"])
+
+    cf.put_jsons([
+      (cf.join(f"s{i}", "attributes.json"), scale)
+      for i, scale in enumerate(self.attributes["root"]["scales"]) 
+    ])
 
   def fetch_info(self):
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
@@ -55,11 +88,15 @@ class N5Metadata(PrecomputedMetadata):
     # should all be the same
     data_type = scale_attrs[0]["dataType"] 
 
+    encoding = scale_attrs[0]["compression"]["type"]
+    if encoding in ["gzip", "br", "lzma", "xz", "bz2"]:
+      encoding = "raw"
+
     info = PrecomputedMetadata.create_info(
       num_channels=1,
       layer_type="image",
       data_type=data_type,
-      encoding=scale_attrs[0]["compression"]["type"],
+      encoding=encoding,
       resolution=resolution,
       voxel_offset=[0,0,0],
       volume_size=scale_attrs[0]["dimensions"][:3],

@@ -1,3 +1,5 @@
+from typing import Dict, Tuple, Sequence, Union, Optional
+
 import re
 import os
 
@@ -12,11 +14,13 @@ from ... import exceptions
 from ...lib import ( 
   colorize, red, mkdir, Vec, Bbox,  
   jsonify, generate_random_string,
-  xyzrange
+  xyzrange, BboxLikeType
 )
-from ...secrets import boss_credentials
+from ... import paths
+from ...types import CompressType, MipType
 from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
+from ..precomputed.image import xfer
 
 class N5ImageSource(ImageSourceInterface):
   def __init__(
@@ -134,5 +138,30 @@ class N5ImageSource(ImageSourceInterface):
   def delete(self, bbox, mip=None):
     raise NotImplementedError()
 
-  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True):
-    raise NotImplementedError()
+  def transfer_to(
+    self,
+    cloudpath:str, 
+    bbox:BboxLikeType, 
+    mip:MipType, 
+    block_size:Optional[int] = None, 
+    compress:CompressType = True, 
+    compress_level:Optional[int] = None, 
+    encoding:Optional[str] = None,
+    sharded:Optional[bool] = None,
+  ):
+    pth = paths.extract(cloudpath)
+
+    if pth.format != self.meta.path.format and encoding is None:
+      if pth.format == "zarr":
+        encoding = "blosc"
+      elif pth.format == "precomputed":
+        encoding = "raw"
+
+    return xfer.transfer_by_rerendering(
+      self, cloudpath,
+      bbox=bbox,
+      mip=mip,
+      compress=compress,
+      compress_level=compress_level,
+      encoding=encoding,
+    )

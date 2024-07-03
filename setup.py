@@ -34,6 +34,7 @@ setuptools.setup(
     "skeleton_viewer": [ 'matplotlib>=3.6' ],
     "all_viewers": [ 'vtk', 'matplotlib>=3.6' ],
     "dask": [ 'dask[array]' ],
+    "zarr": [ 'blosc' ],
     "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"]
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",

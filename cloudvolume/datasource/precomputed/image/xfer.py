@@ -8,7 +8,7 @@ from cloudfiles import CloudFiles, compression
 
 from cloudvolume import lib, exceptions
 from ....types import CompressType, MipType
-from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
+from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter, xyzrange
 from .... import chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
@@ -44,6 +44,44 @@ def create_destination(source, cloudpath, mip, encoding):
 
   return destvol
 
+def transfer_by_rerendering(
+  source,
+  cloudpath:str,
+  bbox:BboxLikeType,
+  mip:int,
+  compress:CompressType = None,
+  compress_level:Optional[int] = None,
+  encoding:Optional[str] = None,
+):
+  from cloudvolume import CloudVolume
+
+  dest_cv = create_destination(source, cloudpath, mip, encoding)
+  dest_cv.commit_info()
+  dest_cv.progress = False
+  mip = dest_cv.mip
+
+  progress = source.config.progress
+
+  source.config.progress = False
+
+  shape = np.array(dest_cv.chunk_size * 4)
+
+  bbox = bbox.expand_to_chunk_size(dest_cv.chunk_size, offset=dest_cv.voxel_offset)
+
+  grid_box = bbox / shape
+  grid_size = grid_box.size()
+  total = int(grid_size[0] * grid_size[1] * grid_size[2])
+
+  for gx,gy,gz in tqdm(xyzrange(grid_size), disable=(not progress), total=total):
+    gpt = Vec(gx,gy,gz, dtype=int)
+    bbx = Bbox(gpt * shape, (gpt+1) * shape) + bbox.minpt
+
+    if dest_cv.meta.path.format == "precomputed":
+      bbx = Bbox.clamp(bbx, dest_cv.bounds)
+    dest_cv[bbx] = source.download(bbx, mip=mip)
+
+  source.config.progress = progress
+
 def transfer_any_to_unsharded(
   source,
   cloudpath:str,
@@ -54,10 +92,6 @@ def transfer_any_to_unsharded(
   encoding:Optional[str] = None,
 ):
   """
-  Create a disposable in-memory CloudVolume (mem://) containing
-  the requested cutout region in the unsharded precomputed
-  format. The source volume may be sharded or unsharded.
-
   You can specify an alternative encoding and compression 
   settings for the new volume.
   """
