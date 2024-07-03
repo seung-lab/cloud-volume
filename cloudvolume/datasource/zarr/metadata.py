@@ -209,7 +209,7 @@ class ZarrMetadata(PrecomputedMetadata):
 
       groups = []
       for axis in axes:
-        groups.append(fr"(?P<{axis['name']}>\d+)")
+        groups.append(fr"(?P<{axis['name']}>-?\d+)")
 
       regexp += self.dimension_separator(mip).join(groups)
 

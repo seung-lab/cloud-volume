@@ -88,7 +88,7 @@ class ZarrImageSource(ImageSourceInterface):
 
     cv_chunk_size = self.meta.chunk_size(mip)
 
-    realized_bbox = bbox.expand_to_chunk_size(cv_chunk_size)
+    realized_bbox = bounds.expand_to_chunk_size(cv_chunk_size)
     grid_bbox = realized_bbox // cv_chunk_size
 
     sep = self.meta.dimension_separator(mip)
