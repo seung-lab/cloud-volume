@@ -371,7 +371,7 @@ class Bbox(object):
     self, unit, 
     resolution=[1,1,1], resolution_unit="nm"
   ):
-    f"""
+    """
     Convert the units of this bounding box either 
     from voxels to physical units (e.g. nanometers) or
     vice-versa, or convert between differing physical 
@@ -383,7 +383,8 @@ class Bbox(object):
     the resolution is ignored.
 
     Allowed Units:
-      vx, {",".join(UNIT_SCALES.keys())}
+      dimensionless: vx (means voxels)
+      physical: pm, nm, um, mm, m, km, Mm, Gm, Tm
     """
     if self.unit == "vx" and unit == "vx":
       return self.clone()
