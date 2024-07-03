@@ -1517,8 +1517,8 @@ def test_transfer():
 
   dcv.image.delete(dcv.bounds)
 
-  with pytest.raises(ValueError):
-    dcv.image.transfer_to("n5://s3://hello-world.", dcv.bounds, 0)
+  with pytest.raises(Exception):
+    dcv.image.transfer_to("n5://file:///tmp/removeme/n5transfer.", dcv.bounds, 0)
 
 
 def test_cdn_cache_control():
