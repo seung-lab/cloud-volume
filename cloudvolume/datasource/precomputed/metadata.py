@@ -118,6 +118,8 @@ class PrecomputedMetadata(object):
     if precision == 0:
       res_dtype = int
 
+    resolution = np.asarray(resolution, dtype=res_dtype)
+
     info = {
       "num_channels": int(num_channels),
       "type": layer_type,
