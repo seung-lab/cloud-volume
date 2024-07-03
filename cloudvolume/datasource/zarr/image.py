@@ -107,7 +107,7 @@ class ZarrImageSource(ImageSourceInterface):
       ]
 
     all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
-    shape = list(bbox.size3()) + [ self.meta.num_channels ]
+    shape = list(bounds.size3()) + [ self.meta.num_channels ]
 
     if self.meta.background_color(mip) == 0:
       renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order="F")
@@ -131,9 +131,10 @@ class ZarrImageSource(ImageSourceInterface):
       if chunk is None:
         continue
       chunk = np.transpose(chunk, axes=axis_mapping)[...,0]
-      shade(renderbuffer, bbox, chunk, chunk_bbox, channel=int(m["c"]))
+      slcs = (chunk_bbox - chunk_bbox.minpt).to_slices()
+      shade(renderbuffer, bounds, chunk[slcs], chunk_bbox, channel=int(m["c"]))
 
-    data = VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
+    data = VolumeCutout.from_volume(self.meta, mip, renderbuffer, bounds)
 
     if label is not None:
       return data == label
