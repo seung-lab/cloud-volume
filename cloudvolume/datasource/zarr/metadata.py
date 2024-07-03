@@ -172,13 +172,16 @@ class ZarrMetadata(PrecomputedMetadata):
         return i
     raise ValueError("No time axis.")
 
-  def num_time_chunks(self, mip=0):
+  def time_chunk_size(self, mip):
     i = self.time_index()
-    nframes = self.num_frames(mip)
-    tchunk = self.zarrays[mip]["chunks"][i]
-    return int(np.ceil(nframes / tchunk))
+    return self.zarrays[mip]["chunks"][i]
 
-  def num_frames(self, mip=0):
+  def num_time_chunks(self, mip):
+    nframes = self.num_frames(mip)
+    t_chunk_size = self.time_chunk_size(mip)
+    return int(np.ceil(nframes / t_chunk_size))
+
+  def num_frames(self, mip):
     i = self.time_index()
     return self.zarrays[mip]["shape"][i]
 
