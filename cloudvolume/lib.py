@@ -328,13 +328,32 @@ def floating(lst):
 FLT_RE = r'(-?\d+(?:\.\d+)?)' # floating point regexp
 FILENAME_RE = re.compile(fr'{FLT_RE}-{FLT_RE}_{FLT_RE}-{FLT_RE}_{FLT_RE}-{FLT_RE}(?:\.gz|\.br|\.zstd)?$')
 
-class Bbox(object):
-  __slots__ = [ 'minpt', 'maxpt', '_dtype' ]
+UNIT_SCALES = {
+  "pm": 1e-12,
+  "nm": 1e-9,
+  "um": 1e-6,
+  "mm": 1e-3,
+  "m": 1.0,
+  "km": 1e3,
+  "Mm": 1e6,
+  "Gm": 1e9,
+  "Tm": 1e12,
+}
 
-  def __init__(self, a, b, dtype=None):
+class Bbox(object):
+  __slots__ = [ 'minpt', 'maxpt', '_dtype', 'unit' ]
+
+  def __init__(self, a, b, dtype=None, unit='vx'):
     """
     Represents a three dimensional cuboid in space. 
     Ex: `bbox = Bbox((xmin, ymin, zmin), (xmax, ymax, zmax))`
+
+    Example Units:
+      vx: voxels
+      nm: nanometers
+      um: micrometers
+      mm: millimeters
+      m: meters
     """
     if dtype is None:
       if floating(a) or floating(b):
@@ -346,6 +365,54 @@ class Bbox(object):
     self.maxpt = Vec(*[ max(ai,bi) for ai,bi in zip(a,b) ], dtype=dtype)
 
     self._dtype = np.dtype(dtype)
+    self.unit = unit
+
+  def convert_units(
+    self, unit, 
+    resolution=[1,1,1], resolution_unit="nm"
+  ):
+    """
+    Convert the units of this bounding box either 
+    from voxels to physical units (e.g. nanometers) or
+    vice-versa, or convert between differing physical 
+    scales such as um to nm.
+
+    To convert either way between voxels ("vx") and 
+    a physical dimension, you must provide a resolution.
+    For voxel to voxel or physical units to physical units,
+    the resolution is ignored.
+
+    Allowed Units:
+      dimensionless: vx (means voxels)
+      physical: pm, nm, um, mm, m, km, Mm, Gm, Tm
+    """
+    if self.unit == "vx" and unit == "vx":
+      return self.clone()
+    elif self.unit == "vx" and unit != "vx":
+      bbx = self.clone()
+      bbx *= np.array(resolution)
+      bbx.unit = unit
+      return bbx
+    elif self.unit != "vx" and unit == "vx":
+      bbx = self.clone()
+      bbx *= np.round(UNIT_SCALES[resolution_unit] / UNIT_SCALES[self.unit])
+      bbx //= np.array(resolution) 
+      bbx.unit = unit
+      return bbx
+    else:
+      bbx = self.astype(np.float32)
+      scale_factor = UNIT_SCALES[unit] / UNIT_SCALES[self.unit]
+      bbx /= scale_factor
+      bbx.unit = unit
+
+      if scale_factor > 0:
+        return bbx
+      else:
+        return bbx.astype(self.dtype)
+
+  @property
+  def is_physical(self):
+    return self.unit != 'vx'
 
   @classmethod
   def deserialize(cls, bbx_data):
@@ -801,7 +868,7 @@ class Bbox(object):
     )
 
   def clone(self):
-    return Bbox(self.minpt, self.maxpt, dtype=self.dtype)
+    return Bbox(self.minpt, self.maxpt, dtype=self.dtype, unit=self.unit)
 
   def astype(self, typ):
     tmp = self.clone()
@@ -907,13 +974,13 @@ class Bbox(object):
     return not (self == other)
 
   def __eq__(self, other):
-    return np.array_equal(self.minpt, other.minpt) and np.array_equal(self.maxpt, other.maxpt)
+    return np.array_equal(self.minpt, other.minpt) and np.array_equal(self.maxpt, other.maxpt) and self.unit == other.unit
 
   def __hash__(self):
     return int(''.join(map(str, map(int, self.to_list()))))
 
   def __repr__(self):
-    return f"Bbox({list(self.minpt)},{list(self.maxpt)}, dtype={self.dtype})"
+    return f"Bbox({list(self.minpt)},{list(self.maxpt)}, dtype=np.{self.dtype}, unit='{self.unit}')"
 
 BboxLikeType = Union[Bbox, Sequence[slice], str, Vec]
 

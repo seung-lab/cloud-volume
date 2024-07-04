@@ -289,6 +289,24 @@ def test_bbox_to_filename():
 
   assert bbx.to_filename(3) == "1.100-2.000_3.200-4.000_5.490-6.124"
 
+def test_bbox_convert_units():
+  bbx = Bbox([0,0,0], [1,1,1])
+  nm_bbx = bbx.convert_units('nm', [4,4,40])
+  assert nm_bbx == Bbox([0,0,0], [4, 4, 40], dtype=int, unit="nm")
+  um_bbx = nm_bbx.convert_units('um')
+  assert um_bbx == Bbox([0,0,0], [0.004, 0.004, 0.04], dtype=np.float32, unit="um")
+
+  nm_bbx = um_bbx.convert_units("nm")
+  assert nm_bbx == Bbox([0,0,0], [4,4,40], dtype=int, unit="nm")
+
+  mm_bbx = um_bbx.convert_units("mm")
+  assert mm_bbx == Bbox([0,0,0], [4e-6,4e-6,4e-5], dtype=np.float32, unit="mm")
+
+  vx_bbx = nm_bbx.convert_units('vx', [4,4,40])
+  assert vx_bbx == bbx
+
+  vx_bbx2 = vx_bbx.convert_units('vx', [4,4,40])
+  assert vx_bbx == vx_bbx2
 
 
 

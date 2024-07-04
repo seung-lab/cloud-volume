@@ -73,6 +73,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     return np.ceil(self.meta.volume_size(mip) / self.meta.chunk_size(mip)).astype(np.int64)
 
   def check_bounded(self, bbox, mip):
+    bbox = bbox.convert_units('vx', self.meta.resolution(mip))
     if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
       raise exceptions.OutOfBoundsError("""
         Requested cutout not contained within dataset bounds.
@@ -179,6 +180,8 @@ class PrecomputedImageSource(ImageSourceInterface):
       else:
         4d ndarray
     """
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
     if self.autocrop:
       bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
@@ -227,7 +230,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       )
 
   def download_files(
-    self, bbox:Bbox, mip:int, 
+    self, bbox:BboxLikeType, mip:int, 
     decompress:bool = True, 
     parallel:int = 1, 
     cache_only:bool = False
@@ -248,6 +251,11 @@ class PrecomputedImageSource(ImageSourceInterface):
       else:
         { path: binary }
     """
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
+    bbox = Bbox.create(bbox, context=self.meta.bounds(mip))
+
     if self.autocrop:
       bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
 
@@ -280,6 +288,9 @@ class PrecomputedImageSource(ImageSourceInterface):
 
   def unique(self, bbox:BboxLikeType, mip:int) -> set:
     """Extract unique values in an efficient way."""
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip))
     
     if self.autocrop:
@@ -398,6 +409,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     if mip is None:
       mip = self.config.mip
 
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     bbox = Bbox.create(bbox, self.meta.bounds(mip), bounded=True)
     realized_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
@@ -433,6 +447,9 @@ class PrecomputedImageSource(ImageSourceInterface):
           mip, mip
         )
       )
+
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
     bbox = Bbox.create(bbox, self.meta.bounds(mip), bounded=True)
     realized_bbox = bbox.expand_to_chunk_size(
@@ -479,6 +496,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     You can specify an alternative encoding and compression 
     settings for the new volume.
     """
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     realized_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
     )
@@ -519,6 +539,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     encoding:Optional[str] = None,
     sharded:Optional[bool] = None,
   ):
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     if sharded is None:
       sharded = self.is_sharded(mip)
 
@@ -590,6 +613,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     scale = self.meta.scale(mip)
     spec = self.shard_spec(mip, spec)
 
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     bbox = Bbox.create(bbox)
     if bbox.subvoxel():
       raise ValueError("Bounding box is too small to make a shard. Got: {}".format(bbox))
@@ -658,6 +684,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     """
     mip = mip if mip is not None else self.config.mip
     
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     spec = self.shard_spec(mip, spec)
     gpts, morton_codes = self.morton_codes(bbox, mip=mip, spec=spec)
     chunk_size = self.meta.chunk_size(mip)

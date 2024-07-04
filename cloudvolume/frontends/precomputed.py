@@ -533,6 +533,9 @@ class CloudVolumePrecomputed(object):
     block_size (int): number of file chunks to transfer per I/O batch.
     compress (bool): Set to False to upload as uncompressed
     """
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.resolution)
+
     return self.image.transfer_to(
       cloudpath, bbox, self.mip, 
       block_size, compress, 
@@ -553,8 +556,10 @@ class CloudVolumePrecomputed(object):
     return np.array([ res[tuple(pt)] for pt in pts ], dtype=self.dtype)
 
   def __getitem__(self, slices):
-    if type(slices) == Bbox:
-      slices = slices.to_slices()
+    if isinstance(slices, Bbox):
+      slices = slices.convert_units(
+        "vx", self.meta.resolution(self.mip)
+      ).astype(int).to_slices()
     elif (
       hasattr(slices, "__len__") 
       and len(slices) == 3
@@ -589,14 +594,17 @@ class CloudVolumePrecomputed(object):
     labels from it without rendering a full image.
     Faster and saves memory.
     """
+    if mip is None:
+      mip = self.mip
+
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=(self.bounded and coord_resolution is None), 
       autocrop=self.autocrop
     )
-
-    if mip is None:
-      mip = self.mip
 
     if coord_resolution is not None:
       factor = self.meta.resolution(mip) / coord_resolution
@@ -634,14 +642,17 @@ class CloudVolumePrecomputed(object):
 
     Returns: { filename: binary }
     """
+    if mip is None:
+      mip = self.mip
+
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=(self.bounded and coord_resolution is None), 
       autocrop=self.autocrop
     )
-
-    if mip is None:
-      mip = self.mip
 
     if coord_resolution is not None:
       factor = self.meta.resolution(mip) / coord_resolution
@@ -732,7 +743,10 @@ class CloudVolumePrecomputed(object):
     absorb arguments to what could be a graphene frontend.
 
     Returns: img
-    """  
+    """
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=(self.bounded and coord_resolution is None), 
@@ -955,8 +969,10 @@ class CloudVolumePrecomputed(object):
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
   def __setitem__(self, slices, img):
-    if type(slices) == Bbox:
-      slices = slices.to_slices()
+    if isinstance(slice, Bbox):
+      slices = slices.convert_units(
+        "vx", self.meta.resolution(self.mip)
+      ).astype(int).to_slices()
 
     slices = self.meta.bbox(self.mip).reify_slices(slices, bounded=self.bounded)
     bbox = Bbox.from_slices(slices)
@@ -1026,6 +1042,7 @@ class CloudVolumePrecomputed(object):
     Returns: void
     """
     bbox = Bbox.create(bbox)
+    bbox = bbox.convert_units('vx', self.resolution)
     cutout_bbox = Bbox.create(cutout_bbox) if cutout_bbox else bbox.clone()
 
     if not bbox.contains_bbox(cutout_bbox):
@@ -1084,8 +1101,9 @@ class CloudVolumePrecomputed(object):
         By default, just upload the entire image.
 
     Returns: void
-    """        
+    """
     bbox = Bbox.create(bbox)
+    bbox = bbox.convert_units('vx', self.resolution)
     cutout_bbox = Bbox.create(cutout_bbox) if cutout_bbox else bbox.clone()
 
     if not bbox.contains_bbox(cutout_bbox):
