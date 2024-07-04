@@ -45,7 +45,7 @@ setuptools.setup(
   extras_require={
     "boss": [
       "intern>=0.9.11",
-      "blosc==1.8.3",
+      "blosc",
     ],
     ':sys_platform!="win32"': [
       "posix_ipc>=1.0.4",
