@@ -465,9 +465,6 @@ def transcode(
 
   Yields (label, binary)
   """
-  if src_encoding.lower() == dest_encoding.lower() and not force:
-    yield from image_chunks
-
   if isinstance(image_chunks, dict):
     inner_itr = image_chunks.items()
   else:
@@ -478,7 +475,9 @@ def transcode(
 
   itr = tqdm(inner_itr, disable=(not progress), desc="Transcoding", total=total)
 
-  if src_encoding == "jpeg" and dest_encoding == "jpegxl":
+  if src_encoding.lower() == dest_encoding.lower() and not force:
+    yield from itr
+  elif src_encoding == "jpeg" and dest_encoding == "jpegxl":
     from imagecodecs import jpegxl_encode_jpeg
 
     for label, binary in itr:

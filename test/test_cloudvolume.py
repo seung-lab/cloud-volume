@@ -1516,6 +1516,15 @@ def test_transfer():
 
   dcv.image.delete(dcv.bounds)
 
+  cv.transfer_to("file:///tmp/removeme/transfer_sharded", cv.bounds, sharded=True)
+
+  dcv = CloudVolume('file:///tmp/removeme/transfer_sharded/')
+
+  assert np.all(img == dcv[:])
+
+  dcv.image.delete(dcv.bounds)
+  cv.image.delete(cv.bounds)
+
   with pytest.raises(Exception):
     dcv.image.transfer_to("n5://file:///tmp/removeme/n5transfer.", dcv.bounds, 0)
 

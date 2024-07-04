@@ -82,6 +82,70 @@ def transfer_by_rerendering(
 
   source.config.progress = progress
 
+def transfer_unsharded_to_sharded(
+  source,
+  cloudpath:str,
+  bbox:BboxLikeType, 
+  mip:int,
+  compress:CompressType = None, 
+  compress_level:Optional[int] = None,
+  encoding:Optional[str] = None,
+):
+  from cloudvolume import CloudVolume
+
+  cv = create_destination(source, cloudpath, mip, encoding)
+  cv.image.to_sharded(mip=mip)
+  cv.commit_info()
+  mip = cv.mip
+
+  src_encoding = source.meta.encoding(mip)
+  dest_encoding = cv.meta.encoding(mip)
+  shard_shape = cv.image.shard_shape(mip)
+
+  decompress = (src_encoding != dest_encoding) or (compress is not None)
+
+  # To get the decompress info at this level will require
+  # significant refactoring. Not great news for "raw" encoding.
+  files = source.download_files(bbox, mip, decompress=decompress)
+
+  spec = sharding.ShardingSpecification.from_dict(cv.scale["sharding"])
+  gpts, morton_codes = cv.image.morton_codes(
+    bbox, 
+    mip=mip, 
+    same_shard=False, 
+    require_aligned=True,
+  )
+  for code in morton_codes:
+    bbx = morton_code_to_bbox(code, cv.bounds, cv.chunk_size)
+    path = cv.meta.join(cv.key, bbx.to_filename())
+    files[code] = files[path]
+    del files[path]
+
+  itr = chunks.transcode(
+    files,
+    progress=False, 
+    src_encoding=src_encoding,
+    dest_encoding=dest_encoding,
+    chunk_size_fn=lambda _: cv.chunk_size,
+    dtype=source.meta.dtype,
+    src_block_size=source.meta.compressed_segmentation_block_size(mip),
+    dest_block_size=cv.meta.compressed_segmentation_block_size(mip),
+    background_color=source.background_color,
+  )
+  for code, binary in itr:
+    files[code] = binary
+
+  shard_binaries = spec.synthesize_shards(files)
+  
+  basepath = cv.image.meta.join(cv.image.meta.cloudpath, cv.image.meta.key(mip))
+
+  cf = CloudFiles(basepath, progress=cv.config.progress, secrets=cv.config.secrets)
+  cf.puts(
+    shard_binaries.items(), 
+    compress=cv.config.compress, 
+    cache_control=cv.config.cdn_cache
+  )
+
 def transfer_any_to_unsharded(
   source,
   cloudpath:str,

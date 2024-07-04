@@ -585,9 +585,13 @@ class PrecomputedImageSource(ImageSourceInterface):
         encoding=encoding,
       )
     else:
-      raise ValueError(
-        "Unsharded to sharded is not implemented in CloudVolume. "
-        "Try Igneous! https://github.com/seung-lab/igneous"
+      return xfer.transfer_unsharded_to_sharded(
+        self, cloudpath,
+        bbox=bbox, 
+        mip=mip,
+        compress=compress, 
+        compress_level=compress_level, 
+        encoding=encoding,
       )
 
   def shard_reader(self, mip=None):
