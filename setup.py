@@ -14,7 +14,6 @@ EM_CODECS = [
   "imagecodecs",
   "simplejpeg",
   "pyspng-seunglab>=1.0.0",
-  "imagecodecs",
 ]
 
 SEGMENTATION_CODECS = [ 
@@ -26,6 +25,10 @@ SEGMENTATION_CODECS = [
 FP_CODECS = [ 
   "fpzip", 
   "zfpc",
+]
+
+OTHER_FORMATS = [
+  "blosc",
 ]
 
 setuptools.setup(
@@ -56,6 +59,7 @@ setuptools.setup(
     "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"],
 
     # image compression codecs
+    "blosc": [ "blosc" ],
     "jpegxl": [ "imagecodecs" ],
     "png": [ "pyspng-seunglab" ],
     "jpeg": [ "simplejpeg" ],
@@ -68,7 +72,7 @@ setuptools.setup(
     "seg_codecs": SEGMENTATION_CODECS,
     "fp_codecs": FP_CODECS,
 
-    "all_codecs": SEGMENTATION_CODECS + EM_CODECS + FP_CODECS,
+    "all_codecs": SEGMENTATION_CODECS + EM_CODECS + FP_CODECS + OTHER_FORMATS,
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",
