@@ -62,7 +62,7 @@ CloudVolume depends on several PyPI packages which are Cython bindings for C++. 
 
 | Tag             | Description                             | Dependencies          |
 |-----------------|-----------------------------------------|-----------------------|
-| boss            | `boss://` format support                | intern                |
+| boss            | `boss://` format support                | intern, blosc                |
 | zarr            | `zarr://` format support                | blosc                 |
 | test            | Supports testing                        | pytest                |
 | mesh_viewer     | `mesh.viewer()` GUI                     | vtk                   |
