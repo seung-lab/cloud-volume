@@ -569,6 +569,9 @@ class Skeleton(object):
       nodes, axis=0, return_index=True, return_inverse=True
     )
 
+    if idx_representative.ndim > 1:
+      idx_representative = np.squeeze(idx_representative)
+
     eff_edges = idx_representative[ edges ]
     eff_edges = np.sort(eff_edges, axis=1) # sort each edge [2,1] => [1,2]
     eff_edges = eff_edges[np.lexsort(eff_edges[:,::-1].T)] # Sort rows 
