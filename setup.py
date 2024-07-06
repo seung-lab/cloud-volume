@@ -10,6 +10,27 @@ def requirements():
   with open(os.path.join(os.path.dirname(__file__), 'requirements.txt'), 'rt') as f:
     return f.readlines()
 
+EM_CODECS = [
+  "imagecodecs",
+  "simplejpeg",
+  "pyspng-seunglab>=1.0.0",
+]
+
+SEGMENTATION_CODECS = [ 
+  "compressed-segmentation>=2.1.1",
+  "compresso>=3.0.0",
+  "crackle-codec>=0.8.0,<2.0.0",
+]
+
+FP_CODECS = [ 
+  "fpzip", 
+  "zfpc",
+]
+
+OTHER_FORMATS = [
+  "blosc",
+]
+
 setuptools.setup(
   name="cloud-volume",
   version="9.2.0",
@@ -17,14 +38,14 @@ setuptools.setup(
     'numpy<1.17; python_version<"3.5"',
     'numpy; python_version>="3.5"',
   ],
-  python_requires=">=3.8", # >= 3.8 < 4.0
+  python_requires=">=3.8",
   install_requires=requirements(),
   # Environment Marker Examples:
   # https://www.python.org/dev/peps/pep-0496/
   extras_require={
     "boss": [
       "intern>=0.9.11",
-      "blosc==1.8.3",
+      "blosc",
     ],
     ':sys_platform!="win32"': [
       "posix_ipc>=1.0.4",
@@ -35,7 +56,23 @@ setuptools.setup(
     "all_viewers": [ 'vtk', 'matplotlib>=3.6' ],
     "dask": [ 'dask[array]' ],
     "zarr": [ 'blosc' ],
-    "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"]
+    "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"],
+
+    # image compression codecs
+    "blosc": [ "blosc" ],
+    "jpegxl": [ "imagecodecs" ],
+    "png": [ "pyspng-seunglab" ],
+    "jpeg": [ "simplejpeg" ],
+    "fpzip": [ "fpzip" ],
+    "zfpc": [ "zfpc" ],
+    "crackle": [ "crackle-codec" ],
+    "compresso": [ "compresso" ],
+
+    "em_codecs": EM_CODECS,
+    "seg_codecs": SEGMENTATION_CODECS,
+    "fp_codecs": FP_CODECS,
+
+    "all_codecs": SEGMENTATION_CODECS + EM_CODECS + FP_CODECS + OTHER_FORMATS,
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",

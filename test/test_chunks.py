@@ -9,7 +9,7 @@ from cloudvolume import chunks
 
 def encode_decode(data, format, shape=(64,64,64), num_chan=1, level=None):
   compression_params = { "level": level }
-  encoded = encode(data, format, compression_params)
+  encoded = encode(data, format, compression_params=compression_params)
   result = decode(encoded, format, shape=list(shape) + [ num_chan ], dtype=np.uint8)
 
   assert np.all(result.shape == data.shape)
@@ -22,58 +22,45 @@ def test_kempression():
   assert np.all(result.shape == data.shape)
   assert np.all(np.abs(data - result) <= np.finfo(np.float32).eps)
 
-def test_compressed_segmentation():
-  def run_test(shape, block_size, accelerated):
-    data = np.random.randint(255, size=shape, dtype=np.uint32)
-    encoded = chunks.encode_compressed_segmentation(data, block_size, accelerated)
 
-    compressed = np.frombuffer(encoded, dtype=np.uint32)
+@pytest.mark.parametrize("shape", [
+  ( 2, 2, 2, 1), ( 1, 2, 2, 1), ( 2, 1, 2, 1), 
+  ( 2, 2, 1, 1), (64,64,64,1), (16,16,16,1), 
+  (8,8,8,1), (4,4,4,1), (4,4,4,1), (2,4,4,1), (10,8,8,1)
+])
+@pytest.mark.parametrize("block_size", [
+  (2,2,2), (2,2,2), (2,2,2), (2,2,2), (8,8,8),
+  (8,8,8), (8,8,8), (8,8,8), (2,2,2), (2,2,2), (10,8,8)
+])
+def test_compressed_segmentation(shape, block_size):
+  data = np.random.randint(255, size=shape, dtype=np.uint32)
+  encoded = chunks.encode_compressed_segmentation(data, block_size)
 
-    assert compressed[0] == 1 # one channel
+  compressed = np.frombuffer(encoded, dtype=np.uint32)
 
-    # at least check headers for integrity
-    # 64 bit block header 
-    # encoded bits (8 bit), lookup table offset (24 bit), encodedValuesOffset (32)
-    grid = np.ceil(np.array(shape[3:], dtype=np.float32) / np.array(block_size, dtype=np.float32))
-    grid = grid.astype(np.uint32)
-    for i in range(np.prod(grid)):
-      encodedbits = (compressed[2*i + 1] & 0xff000000) >> 24
-      table_offset = compressed[2*i + 1] & 0x00ffffff
-      encoded_offset = compressed[2*i + 2]
+  assert compressed[0] == 1 # one channel
 
-      assert encodedbits in (0, 1, 2, 4, 8, 16, 32)
-      assert table_offset < len(compressed)
-      assert encoded_offset < len(compressed)
+  # at least check headers for integrity
+  # 64 bit block header 
+  # encoded bits (8 bit), lookup table offset (24 bit), encodedValuesOffset (32)
+  grid = np.ceil(np.array(shape[3:], dtype=np.float32) / np.array(block_size, dtype=np.float32))
+  grid = grid.astype(np.uint32)
+  for i in range(np.prod(grid)):
+    encodedbits = (compressed[2*i + 1] & 0xff000000) >> 24
+    table_offset = compressed[2*i + 1] & 0x00ffffff
+    encoded_offset = compressed[2*i + 2]
 
-    result = chunks.decode_compressed_segmentation(encoded, 
-      shape=shape,
-      dtype=np.uint32,
-      block_size=block_size,
-      accelerated=accelerated,
-    ) 
+    assert encodedbits in (0, 1, 2, 4, 8, 16, 32)
+    assert table_offset < len(compressed)
+    assert encoded_offset < len(compressed)
 
-    assert np.all(data == result)
+  result = chunks.decode_compressed_segmentation(encoded, 
+    shape=shape,
+    dtype=np.uint32,
+    block_size=block_size,
+  ) 
 
-  try:
-    import _compressed_segmentation
-    test_options = (True, False)
-  except:
-    test_options = (False,)
-
-  for accelerated in test_options:
-    run_test( ( 2, 2, 2, 1), (2,2,2), accelerated )
-    run_test( ( 1, 2, 2, 1), (2,2,2), accelerated )
-    run_test( ( 2, 1, 2, 1), (2,2,2), accelerated )
-    run_test( ( 2, 2, 1, 1), (2,2,2), accelerated )
-    run_test( (64,64,64,1), (8,8,8), accelerated )
-    run_test( (16,16,16,1), (8,8,8), accelerated )
-    run_test( (8,8,8,1), (8,8,8), accelerated )
-    run_test( (4,4,4,1), (8,8,8), accelerated )
-    run_test( (4,4,4,1), (2,2,2), accelerated )
-    run_test( (2,4,4,1), (2,2,2), accelerated )
-  
-  if True in test_options:
-    run_test( (10,8,8,1), (10,8,8), True ) # known bug in pure python verison
+  assert np.all(data == result)
 
 def test_fpzip():
   for N in range(0,100):
@@ -116,7 +103,7 @@ def test_png(level):
 
 @pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50), (128,128,16), ))
 @pytest.mark.parametrize("num_channels", (1,3))
-@pytest.mark.parametrize("quality", (None,85,75))
+@pytest.mark.parametrize("quality", [None,85,75,100])
 def test_jpeg(shape, num_channels, quality):
   import simplejpeg
 
@@ -142,6 +129,39 @@ def test_jpeg(shape, num_channels, quality):
 
   assert abs(pre_avg - post_avg) < 1
 
+@pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50), (128,128,16), ))
+@pytest.mark.parametrize("num_channels", [1,3])
+@pytest.mark.parametrize("quality", [None,85,75,100])
+def test_jpegxl(shape, num_channels, quality):
+  import imagecodecs
+
+  xshape = list(shape) + [ num_channels ]
+  data = np.zeros(shape=xshape, dtype=np.uint8)
+
+  if quality == 100:
+    encode_decode(data, 'jpegxl', shape, num_channels, level=quality)
+    encode_decode(data + 255, 'jpegxl', shape, num_channels, level=quality)
+
+  jpgxl = imagecodecs.jpegxl_decode(
+    encode(data, 'jpegxl', compression_params={ "level": quality }),
+  )
+  if num_channels == 1:
+    assert jpgxl.shape[0] == shape[1] * shape[2]
+    assert jpgxl.shape[1] == shape[0]
+  elif num_channels == 3:
+    assert jpgxl.shape[0] == 3
+    assert jpgxl.shape[1] == shape[1] * shape[2]
+    assert jpgxl.shape[2] == shape[0]
+
+  # Random jpeg won't decompress to exactly the same image
+  # but it should have nearly the same average power
+  random_data = np.random.randint(255, size=xshape, dtype=np.uint8)
+  pre_avg = random_data.copy().flatten().mean()
+  encoded = encode(random_data, 'jpegxl', compression_params={ "level": quality })
+  decoded = decode(encoded, 'jpegxl', shape=xshape, dtype=np.uint8)
+  post_avg = decoded.copy().flatten().mean()
+
+  assert abs(pre_avg - post_avg) < 1
 
 @pytest.mark.parametrize("encoding", [
   "raw", "compressed_segmentation", "compresso", "crackle"

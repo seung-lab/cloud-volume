@@ -560,6 +560,8 @@ Hops:
       return { "level": scale.get("png_level", None) }
     elif encoding == 'jpeg':
       return { "level": scale.get("jpeg_quality", None) }
+    elif encoding == 'jpegxl':
+      return { "level": scale.get("jpegxl_quality", None) }
     elif encoding == 'fpzip':
       return { "level": scale.get("fpzip_precision", None) }
     else:
@@ -790,6 +792,8 @@ Hops:
     if encoding_level is not None:
       if encoding == "jpeg":
         newscale["jpeg_quality"] = int(encoding_level)
+      elif encoding == "jpegxl":
+        newscale["jpegxl_quality"] = int(encoding_level)
       elif encoding == "png":
         newscale["png_level"] = int(encoding_level)
       elif encoding == "fpzip":

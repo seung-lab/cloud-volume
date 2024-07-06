@@ -82,6 +82,70 @@ def transfer_by_rerendering(
 
   source.config.progress = progress
 
+def transfer_unsharded_to_sharded(
+  source,
+  cloudpath:str,
+  bbox:BboxLikeType, 
+  mip:int,
+  compress:CompressType = None, 
+  compress_level:Optional[int] = None,
+  encoding:Optional[str] = None,
+):
+  from cloudvolume import CloudVolume
+
+  cv = create_destination(source, cloudpath, mip, encoding)
+  cv.image.to_sharded(mip=mip)
+  cv.commit_info()
+  mip = cv.mip
+
+  src_encoding = source.meta.encoding(mip)
+  dest_encoding = cv.meta.encoding(mip)
+  shard_shape = cv.image.shard_shape(mip)
+
+  decompress = (src_encoding != dest_encoding) or (compress is not None)
+
+  # To get the decompress info at this level will require
+  # significant refactoring. Not great news for "raw" encoding.
+  files = source.download_files(bbox, mip, decompress=decompress)
+
+  spec = sharding.ShardingSpecification.from_dict(cv.scale["sharding"])
+  gpts, morton_codes = cv.image.morton_codes(
+    bbox, 
+    mip=mip, 
+    same_shard=False, 
+    require_aligned=True,
+  )
+  for code in morton_codes:
+    bbx = morton_code_to_bbox(code, cv.bounds, cv.chunk_size)
+    path = cv.meta.join(cv.key, bbx.to_filename())
+    files[code] = files[path]
+    del files[path]
+
+  itr = chunks.transcode(
+    files,
+    progress=False, 
+    src_encoding=src_encoding,
+    dest_encoding=dest_encoding,
+    chunk_size_fn=lambda _: cv.chunk_size,
+    dtype=source.meta.dtype,
+    src_block_size=source.meta.compressed_segmentation_block_size(mip),
+    dest_block_size=cv.meta.compressed_segmentation_block_size(mip),
+    background_color=source.background_color,
+  )
+  for code, binary in itr:
+    files[code] = binary
+
+  shard_binaries = spec.synthesize_shards(files)
+  
+  basepath = cv.image.meta.join(cv.image.meta.cloudpath, cv.image.meta.key(mip))
+
+  cf = CloudFiles(basepath, progress=cv.config.progress, secrets=cv.config.secrets)
+  cf.puts(
+    shard_binaries.items(), 
+    compress=cv.config.compress, 
+    cache_control=cv.config.cdn_cache
+  )
+
 def transfer_any_to_unsharded(
   source,
   cloudpath:str,
@@ -116,30 +180,27 @@ def transfer_any_to_unsharded(
 
   filenames = list(files.keys())
 
-  for fname in filenames:
-    binary = files[fname]
+  def get_bbx(fname):
     if type(fname) == int:
       bbx = morton_code_to_bbox(fname, bounds, chunk_size)
     else:
       bbx = Bbox.from_filename(fname)
+    return bbx
 
-    if src_encoding != dest_encoding:
-      image = chunks.decode(
-        binary, src_encoding, 
-        shape=bbx.size(), 
-        dtype=source.meta.dtype,
-        block_size=source.meta.compressed_segmentation_block_size(mip),
-        background_color=source.background_color,
-      )
-      while image.ndim < 4:
-        image = image[..., np.newaxis]
-      binary = chunks.encode(
-        image, dest_encoding,
-        block_size=cv.meta.compressed_segmentation_block_size(mip),
-      )
-      del image
-
-    del files[fname]
+  itr = chunks.transcode(
+    img_chunks,
+    progress=False, 
+    src_encoding=src_encoding,
+    dest_encoding=dest_encoding,
+    chunk_size_fn=lambda fname: get_bbx(fname).size(),
+    dtype=source.meta.dtype,
+    src_block_size=source.meta.compressed_segmentation_block_size(mip),
+    dest_block_size=cv.meta.compressed_segmentation_block_size(mip),
+    background_color=source.background_color,
+  )
+  for label, binary in itr:
+    bbx = get_bbx(label)
+    del files[label]
     files[bbx.to_filename()] = binary
 
   CloudFiles(
@@ -151,7 +212,7 @@ def transfer_any_to_unsharded(
   return cv
 
 def transfer_sharded_to_sharded(
-  source, 
+  source,
   cloudpath:str, 
   bbox:BboxLikeType, 
   mip:MipType,
@@ -203,28 +264,6 @@ def transfer_sharded_to_sharded(
   src_encoding = source.meta.encoding(mip)
   dest_encoding = destvol.meta.encoding(mip)
 
-  def transcode(img_chunks):
-    nonlocal source
-    nonlocal destvol
-    labels = list(img_chunks.keys())
-    for label in labels:
-      binary = img_chunks[label]
-      image = chunks.decode(
-        binary, src_encoding, 
-        shape=chunk_size, 
-        dtype=source.meta.dtype,
-        block_size=source.meta.compressed_segmentation_block_size(mip),
-        background_color=source.background_color,
-      )
-      while image.ndim < 4:
-        image = image[..., np.newaxis]
-      binary = chunks.encode(
-        image, dest_encoding,
-        block_size=destvol.meta.compressed_segmentation_block_size(mip),
-      )
-      img_chunks[label] = binary
-    return img_chunks
-
   if src_encoding == dest_encoding:
     cfsrc.transfer_to(
       cfdest, 
@@ -236,7 +275,21 @@ def transfer_sharded_to_sharded(
       shard_binary = cfsrc.get(filename, raw=True)
       img_chunks = reader.disassemble_shard(shard_binary)
       del shard_binary
-      img_chunks = transcode(img_chunks)
+
+      itr = chunks.transcode(
+        img_chunks,
+        progress=False, 
+        src_encoding=src_encoding,
+        dest_encoding=dest_encoding,
+        chunk_size_fn=lambda _: chunk_size,
+        dtype=source.meta.dtype,
+        src_block_size=source.meta.compressed_segmentation_block_size(mip),
+        dest_block_size=destvol.meta.compressed_segmentation_block_size(mip),
+        background_color=source.background_color,
+      )
+      for label, binary in itr:
+        img_chunks[label] = binary
+
       shard_binary = spec.synthesize_shard(img_chunks)
       del img_chunks
       cfdest.put(filename, shard_binary, raw=True)
@@ -343,26 +396,6 @@ def transfer_unsharded_to_unsharded(
       raise exceptions.EmptyFileException(f"{', '.join(error_paths)} were empty or had IO errors.")
     return files
 
-  def transcode(files):
-    for file in files:
-      binary = file["content"]
-      bbx = Bbox.from_filename(file["path"])
-      image = chunks.decode(
-        binary, src_encoding, 
-        shape=bbx.size(), 
-        dtype=source.meta.dtype,
-        block_size=source.meta.compressed_segmentation_block_size(mip),
-        background_color=source.background_color,
-      )
-      while image.ndim < 4:
-        image = image[..., np.newaxis]
-      binary = chunks.encode(
-        image, dest_encoding,
-        block_size=destvol.meta.compressed_segmentation_block_size(mip),
-      )
-      file["content"] = binary
-    return files
-
   content_type = tx.content_type(destvol)
 
   with pbar:
@@ -376,9 +409,20 @@ def transfer_unsharded_to_unsharded(
           )
       else:
         files = check(cfsrc.get(srcpaths))
-        files = transcode(files)
+        itr = chunks.transcode(
+          ( (f["path"], f["content"]) for f in files ),
+          progress=False, #source.config.progress,
+          total=len(files),
+          src_encoding=src_encoding,
+          dest_encoding=dest_encoding,
+          chunk_size_fn=lambda path: Bbox.from_filename(path).size(),
+          dtype=source.meta.dtype,
+          src_block_size=source.meta.compressed_segmentation_block_size(mip),
+          dest_block_size=destvol.meta.compressed_segmentation_block_size(mip),
+          background_color=source.background_color,
+        )
         cfdest.puts(
-          files, 
+          itr, 
           content_type=content_type,
           compress=compress,
           compression_level=compress_level,

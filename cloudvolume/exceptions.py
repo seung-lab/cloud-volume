@@ -68,6 +68,12 @@ class OutOfBoundsError(ValueError):
   of the volume's bounds
   """
 
+class SubvoxelVolumeError(ValueError):
+  """
+  Raised upon requesting a bounding box with less than one voxel 
+  of volume.
+  """
+
 class UnsupportedCompressionType(ValueError):
   """
   Raised when attempting to use a compression type which is unsupported
