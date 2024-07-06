@@ -13,47 +13,57 @@
 # limitations under the License.
 from typing import Any, Optional, Sequence, Dict, Union, Tuple, Callable
 
-import copy
 import zlib
 import io
 import numpy as np
 
-# optional codecs
+# codecs
+
+NEEDS_INSTALL = {}
 
 try:
   import fpzip
 except ImportError:
-  pass
+  NEEDS_INSTALL['fpzip'] = 'fpzip'
 
 try:
   import pyspng
 except ImportError:
-  pass
+  NEEDS_INSTALL['png'] = 'pyspng-seunglab'
 
 try:
   import simplejpeg
 except ImportError:
-  pass
+  NEEDS_INSTALL['jpeg'] = 'simplejpeg'
 
 try:
   import compresso
 except ImportError:
-  pass
+  NEEDS_INSTALL['compresso'] = 'compresso'
 
 try:
   import crackle
 except ImportError:
-  pass
+  NEEDS_INSTALL['crackle'] = 'crackle-codec'
 
 try:
   import zfpc
 except ImportError:
-  pass
+  NEEDS_INSTALL['zfpc'] = 'zfpc'
 
 try:
   import imagecodecs
 except ImportError:
-  pass
+  NEEDS_INSTALL['jpegxl'] = 'imagecodecs'
+
+try:
+  import compressed_segmentation as cseg
+except ImportError:
+  NEEDS_INSTALL['compressed_segmentation'] = 'compressed-segmentation'
+
+def check_installed(encoding):
+  if encoding in NEEDS_INSTALL:
+    raise ImportError(f"Optional codec {encoding} is not installed. Run: pip install {NEEDS_INSTALL[encoding]}")
 
 import fastremap
 
@@ -61,15 +71,6 @@ from tqdm import tqdm
 
 from .lib import yellow, nvl
 from .types import ShapeType
-
-# This is left in place mainly for testing
-try:
-  import compressed_segmentation as cseg
-  ACCELERATED_CSEG = True # C extension version
-except ImportError:
-  ACCELERATED_CSEG = False # Pure Python implementation
-
-from . import py_compressed_segmentation as csegpy
 
 DEFAULT_CSEG_BLOCK_SIZE = (8,8,8)
 
@@ -86,6 +87,8 @@ def encode(
   compression_params:dict = {},
 ) -> bytes:
   level = compression_params.get("level", None)
+
+  check_installed(encoding)
 
   if encoding == "raw":
     return encode_raw(img_chunk)
@@ -133,6 +136,8 @@ def decode(
       f"can omit shape and dtype arguments. Got: {encoding}"
     )
 
+  check_installed(encoding)
+
   if filedata is None or len(filedata) == 0:
     if background_color == 0:
       return np.zeros(shape=shape, dtype=dtype, order="F")
@@ -172,6 +177,8 @@ def decode_binary_image(
   block_size:Optional[Sequence[int]] = None, 
   background_color:int = 0,
 ):
+  check_installed(encoding)
+
   if encoding == "crackle":
     return crackle.decompress(filedata, label=label).reshape(shape)
 
@@ -269,16 +276,8 @@ def encode_npz(subvol):
 
 def encode_compressed_segmentation(
   subvol:np.ndarray, 
-  block_size:Sequence[int], 
-  accelerated:bool = ACCELERATED_CSEG
+  block_size:Sequence[int],
 ) -> bytes:
-  assert np.dtype(subvol.dtype) in (np.uint32, np.uint64)
-
-  if accelerated:
-    return encode_compressed_segmentation_c_ext(subvol, block_size)  
-  return encode_compressed_segmentation_pure_python(subvol, block_size)
-
-def encode_compressed_segmentation_c_ext(subvol, block_size):
   if np.dtype(subvol.dtype) not in (np.uint32, np.uint64):
     raise ValueError("compressed_segmentation only supports uint32 and uint64 datatypes. Got: " + str(subvol.dtype))
 
@@ -295,9 +294,6 @@ def encode_compressed_segmentation_c_ext(subvol, block_size):
     subvol = np.copy(subvol)
 
   return cseg.compress(subvol, block_size=block_size, order=order)
-
-def encode_compressed_segmentation_pure_python(subvol, block_size):
-  return csegpy.encode_chunk(subvol.T, block_size=block_size)
 
 def encode_raw(subvol):
   return subvol.tobytes('F')
@@ -331,22 +327,11 @@ def decode_png(bytestring: bytes, shape, dtype):
 def decode_raw(bytestring, shape, dtype):
   return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
 
-def decode_compressed_segmentation(bytestring, shape, dtype, block_size, accelerated=ACCELERATED_CSEG):
+def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
   if block_size is None:
     raise ValueError("block_size parameter must not be None.")
 
-  if accelerated:
-    return decode_compressed_segmentation_c_ext(bytestring, shape, dtype, block_size)
-
-  return decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_size)
-
-def decode_compressed_segmentation_c_ext(bytestring, shape, dtype, block_size):
   return cseg.decompress(bytes(bytestring), shape, dtype, block_size, order='F')
-
-def decode_compressed_segmentation_pure_python(bytestring, shape, dtype, block_size):
-  chunk = np.empty(shape=shape[::-1], dtype=dtype)
-  csegpy.decode_chunk_into(chunk, bytestring, block_size=block_size)
-  return chunk.T
 
 def labels(
   filedata:bytes, encoding:str, 
@@ -360,6 +345,8 @@ def labels(
 
   Returns: numpy array of unique values
   """
+  check_installed(encoding)
+
   if filedata is None or len(filedata) == 0:
     return np.zeros((0,), dtype=dtype)
   elif encoding == "raw":
@@ -384,6 +371,8 @@ def remap(
   shape=None, dtype=None,
   block_size=None
 ) -> bytes:
+  check_installed(encoding)
+
   if filedata is None or len(filedata) == 0:
     return filedata
   elif encoding == "compressed_segmentation":
@@ -409,6 +398,8 @@ def read_voxel(
   block_size:Optional[Sequence[int]] = None,
   background_color:int = 0
 ) -> np.ndarray:
+  check_installed(encoding)
+
   if encoding == "compressed_segmentation":
     arr = cseg.CompressedSegmentationArray(
       filedata, shape=shape[:3], dtype=dtype, block_size=block_size
@@ -438,6 +429,8 @@ def contains(
   dtype:Any = None, 
   block_size:Optional[Sequence[int]] = DEFAULT_CSEG_BLOCK_SIZE,
 ) -> bool:
+  check_installed(encoding)
+
   if encoding == "compressed_segmentation":
     arr = cseg.CompressedSegmentationArray(
       filedata, shape=shape[:3], dtype=dtype, block_size=block_size
@@ -501,6 +494,9 @@ def transcode(
     inner_itr = image_chunks.items()
   else:
     inner_itr = image_chunks
+
+  check_installed(src_encoding)
+  check_installed(dest_encoding)
 
   if total is None and hasattr(image_chunks, "__len__"):
     total = len(image_chunks)
