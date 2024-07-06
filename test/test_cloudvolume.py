@@ -539,9 +539,8 @@ def test_autocropped_read():
   assert np.all(img == data[10:20, 10:20, 10:20])
 
   # non-intersecting
-  img = cv[100:120, 100:120, 100:120]
-  assert img.shape == (0,0,0,1)
-  assert np.all(img == data[0:0, 0:0, 0:0])    
+  with pytest.raises(ValueError):
+    img = cv[100:120, 100:120, 100:120]
 
 @pytest.mark.parametrize('green', (True, False))
 def test_download_upload_file(green):
