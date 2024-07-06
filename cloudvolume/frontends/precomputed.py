@@ -770,7 +770,9 @@ class CloudVolumePrecomputed(object):
     bbox = bbox.astype(np.int64)
 
     if bbox.subvoxel():
-      raise ValueError(f"{bbox} (after adjusting for coord_resolution) has zero size.")
+      raise exceptions.SubvoxelVolumeError(
+        f"{bbox} (after adjusting for coord_resolution) has zero or near zero size."
+      )
 
     tup = self.image.download(
       bbox, mip, 
