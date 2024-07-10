@@ -634,12 +634,12 @@ class ShardReader(object):
 
     binaries = {}
 
-    import pdb; pdb.set_trace()
     if entire_shard and len(results) == 0:
       filename, minishard_number = self.compute_shard_location(next(iter(label)))
       shard_path = self.meta.join(self.meta.cloudpath, path, filename)
       shard = CloudFile(shard_path).get() or {}
       binaries = self.disassemble_shard(shard)
+      del shard
       extras = set(binaries.keys()) - label
       for lbl in extras:
         del binaries[lbl]
