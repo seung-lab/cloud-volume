@@ -565,7 +565,7 @@ class ShardReader(object):
       return(list(results.values())[0])
     return results
 
-  def disassemble_shard(self, shard):
+  def disassemble_shard(self, shard:bytes, raw:bool = False):
     """
     Given an entire shard as a bytestring, convert 
     it into a dict of { label: byte content }.
@@ -582,7 +582,7 @@ class ShardReader(object):
         offset, size = int(offset), int(size)
         binary = shard[offset:offset+size]
         
-        if self.spec.data_encoding != 'raw':
+        if not raw and self.spec.data_encoding != 'raw':
           binary = compression.decompress(binary, encoding=self.spec.data_encoding)
         
         shattered[label] = binary
@@ -638,7 +638,7 @@ class ShardReader(object):
       filename, minishard_number = self.compute_shard_location(next(iter(label)))
       shard_path = self.meta.join(self.meta.cloudpath, path, filename)
       shard = CloudFile(shard_path).get() or {}
-      binaries = self.disassemble_shard(shard)
+      binaries = self.disassemble_shard(shard, raw)
       del shard
       extras = set(binaries.keys()) - label
       for lbl in extras:
@@ -698,13 +698,13 @@ class ShardReader(object):
       del bundles
       del bundles_resp
 
-    if not raw and self.spec.data_encoding != 'raw':
-      for filepath, binary in tqdm(binaries.items(), desc="Decompressing", disable=(not progress)):
-        if binary is None:
-          continue
-        binaries[filepath] = compression.decompress(
-          binary, encoding=self.spec.data_encoding, filename=filepath
-        )
+      if not raw and self.spec.data_encoding != 'raw':
+        for filepath, binary in tqdm(binaries.items(), desc="Decompressing", disable=(not progress)):
+          if binary is None:
+            continue
+          binaries[filepath] = compression.decompress(
+            binary, encoding=self.spec.data_encoding, filename=filepath
+          )
     
     if self.cache.enabled:
       self.cache.put([ 
