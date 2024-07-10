@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from cloudfiles import reset_connection_pools, CloudFiles, compression
 import fastremap
+import psutil
 
 from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
@@ -85,6 +86,7 @@ def download_sharded(
   entire_shard = (
     np.all(requested_bbox.size() == shard_shape)
     and Bbox.is_grid_aligned(meta.voxel_offset(mip), shard_shape, requested_bbox)
+    and psutil.virtual_memory().available > renderbuffer.nbytes
   )
 
   decode_fn = decode
