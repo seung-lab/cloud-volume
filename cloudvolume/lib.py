@@ -867,6 +867,22 @@ class Bbox(object):
       or np.any(self.minpt > bbox.maxpt)
     )
 
+  @classmethod
+  def is_grid_aligned(kls, volume_offset, grid_size, bbox):
+    volume_offset = np.asarray(volume_offset)
+    grid_size = np.asarray(grid_size)
+
+    bbox = bbox.clone()
+    bbox -= volume_offset
+    bbox = bbox.astype(float)
+  
+    if not np.all(np.isclose((bbox.minpt % grid_size), 0)):
+      return False
+    elif not np.all(np.isclose((bbox.maxpt % grid_size), 0)):
+      return False
+
+    return True
+
   def clone(self):
     return Bbox(self.minpt, self.maxpt, dtype=self.dtype, unit=self.unit)
 

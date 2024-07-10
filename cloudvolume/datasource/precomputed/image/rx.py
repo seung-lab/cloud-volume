@@ -43,7 +43,7 @@ def download_sharded(
   compress, progress,
   fill_missing, 
   order, background_color,
-  label
+  label,
 ):
   full_bbox = requested_bbox.expand_to_chunk_size(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
@@ -81,6 +81,11 @@ def download_sharded(
     code_map[morton_code] = cutout_bbox
 
   single_voxel = requested_bbox.volume() == 1
+  shard_shape = spec.image_shard_shape(meta.volume_size(mip), meta.chunk_size(mip))
+  entire_shard = (
+    np.all(requested_bbox.size() == shard_shape)
+    and Bbox.is_grid_aligned(meta.voxel_offset(mip), shard_shape, requested_bbox)
+  )
 
   decode_fn = decode
   if label is not None:
@@ -91,10 +96,14 @@ def download_sharded(
   all_keys = set(code_map.keys())
   lru_keys = set([ key for key in all_keys if key in lru ])
   io_keys = all_keys - lru_keys
+  entire_shard = entire_shard and len(lru_keys) / len(all_keys) < 0.05
   del all_keys
 
   lru_chunkdata = [ (zcode, lru[zcode]) for zcode in lru_keys ]
-  io_chunkdata = reader.get_data(io_keys, meta.key(mip), progress=progress)
+
+  # entire_shard is a performance enhancement to make downloading entire 
+  # single shards faster by downloading the whole thing at once
+  io_chunkdata = reader.get_data(io_keys, meta.key(mip), progress=progress, entire_shard=entire_shard)
   
   for zcode, chunkdata in io_chunkdata.items():
     lru[zcode] = chunkdata

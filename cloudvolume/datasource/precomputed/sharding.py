@@ -13,7 +13,7 @@ import struct
 import numpy as np
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, CloudFile
 
 from . import mmh3
 from ... import compression
@@ -592,7 +592,7 @@ class ShardReader(object):
   def get_data(
     self, label:int, path:str = "", 
     progress:Optional[bool] = None, parallel:int = 1,
-    raw:bool = False
+    raw:bool = False, entire_shard:bool = False,
   ):
     """Fetches data from shards.
 
@@ -632,60 +632,71 @@ class ShardReader(object):
 
     del cached
 
-    # { label: [ filename, byte start, num_bytes ] }
-    exists = self.exists(label, path, return_byte_range=True, progress=progress)
-    for k in list(exists.keys()):
-      if exists[k] is None:
-        results[k] = None
-        del exists[k]
-
-    key_label = { (basename(v[0]), v[1], v[2]): k for k,v in exists.items() }
-
-    files = ( 
-      { 'path': basename(ext[0]), 'start': int(ext[1]), 'end': int(ext[1]) + int(ext[2]) }
-      for ext in exists.values()
-    )
-
-    # Requesting many individual shard chunks is slow, but due to z-ordering
-    # we might be able to combine adjacent byte ranges. Especially helpful
-    # when downloading entire shards!
-    bundles = []
-    for chunk in sorted(files, key=itemgetter("path", "start")):
-      if not bundles or (chunk['path'] != bundles[-1]['path']) or (chunk['start'] != bundles[-1]['end']):
-        bundles.append(dict(content=None, subranges=[], **chunk))
-      else:
-        bundles[-1]['end'] = chunk['end']
-
-      bundles[-1]['subranges'].append({
-          'start': chunk['start'],
-          'length': chunk['end'] - chunk['start'],
-          'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
-      })
-    
-    full_path = self.meta.join(self.meta.cloudpath, path)
-    bundles_resp = CloudFiles(
-      full_path, 
-      progress=("Downloading Bundles" if progress else False), 
-      green=self.green,
-      parallel=parallel,
-    ).get(bundles)
-
-    # Responses are not guaranteed to be in order of requests
-    bundles_resp = { (r['path'], r['byte_range']): r for r in bundles_resp }
-
     binaries = {}
-    for bundle_req in bundles:
-      bundle_resp = bundles_resp[(bundle_req['path'], (bundle_req['start'], bundle_req['end']))]
-      if bundle_resp['error']:
-        raise bundle_resp['error']
 
-      for chunk in bundle_req['subranges']:
-        key = (bundle_req['path'], chunk['start'], chunk['length'])
-        lbl = key_label[key]
-        binaries[lbl] = bundle_resp['content'][chunk['slices']]
+    import pdb; pdb.set_trace()
+    if entire_shard and len(results) == 0:
+      filename, minishard_number = self.compute_shard_location(next(iter(label)))
+      shard_path = self.meta.join(self.meta.cloudpath, path, filename)
+      shard = CloudFile(shard_path).get() or {}
+      binaries = self.disassemble_shard(shard)
+      extras = set(binaries.keys()) - label
+      for lbl in extras:
+        del binaries[lbl]
+    else:   
+      # { label: [ filename, byte start, num_bytes ] }
+      exists = self.exists(label, path, return_byte_range=True, progress=progress)
+      for k in list(exists.keys()):
+        if exists[k] is None:
+          results[k] = None
+          del exists[k]
 
-    del bundles
-    del bundles_resp
+      key_label = { (basename(v[0]), v[1], v[2]): k for k,v in exists.items() }
+
+      files = ( 
+        { 'path': basename(ext[0]), 'start': int(ext[1]), 'end': int(ext[1]) + int(ext[2]) }
+        for ext in exists.values()
+      )
+
+      # Requesting many individual shard chunks is slow, but due to z-ordering
+      # we might be able to combine adjacent byte ranges. Especially helpful
+      # when downloading entire shards!
+      bundles = []
+      for chunk in sorted(files, key=itemgetter("path", "start")):
+        if not bundles or (chunk['path'] != bundles[-1]['path']) or (chunk['start'] != bundles[-1]['end']):
+          bundles.append(dict(content=None, subranges=[], **chunk))
+        else:
+          bundles[-1]['end'] = chunk['end']
+
+        bundles[-1]['subranges'].append({
+            'start': chunk['start'],
+            'length': chunk['end'] - chunk['start'],
+            'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
+        })
+      
+      full_path = self.meta.join(self.meta.cloudpath, path)
+      bundles_resp = CloudFiles(
+        full_path, 
+        progress=("Downloading Bundles" if progress else False), 
+        green=self.green,
+        parallel=parallel,
+      ).get(bundles)
+
+      # Responses are not guaranteed to be in order of requests
+      bundles_resp = { (r['path'], r['byte_range']): r for r in bundles_resp }
+
+      for bundle_req in bundles:
+        bundle_resp = bundles_resp[(bundle_req['path'], (bundle_req['start'], bundle_req['end']))]
+        if bundle_resp['error']:
+          raise bundle_resp['error']
+
+        for chunk in bundle_req['subranges']:
+          key = (bundle_req['path'], chunk['start'], chunk['length'])
+          lbl = key_label[key]
+          binaries[lbl] = bundle_resp['content'][chunk['slices']]
+
+      del bundles
+      del bundles_resp
 
     if not raw and self.spec.data_encoding != 'raw':
       for filepath, binary in tqdm(binaries.items(), desc="Decompressing", disable=(not progress)):
