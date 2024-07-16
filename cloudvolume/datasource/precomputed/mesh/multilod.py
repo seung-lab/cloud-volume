@@ -89,6 +89,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
 
     Returns: { MultiLevelPrecomputedMeshManifest or None, ... }
     """
+    segids = toiter(segids)
     cf = CloudFiles(self.path)
     return cf.exists(( f"{segid}.index" for segid in segids ))
 
