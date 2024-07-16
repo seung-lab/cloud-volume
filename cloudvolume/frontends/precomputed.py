@@ -746,6 +746,9 @@ class CloudVolumePrecomputed(object):
 
     Returns: img
     """
+    if mip is None:
+      mip = self.mip
+    
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
@@ -754,9 +757,6 @@ class CloudVolumePrecomputed(object):
       bounded=(self.bounded and coord_resolution is None), 
       autocrop=self.autocrop
     )
-
-    if mip is None:
-      mip = self.mip
 
     if coord_resolution is not None:
       factor = self.meta.resolution(mip) / coord_resolution
