@@ -105,6 +105,7 @@ class UnshardedLegacyPrecomputedMeshSource(object):
 
     Returns: { label: path or None, ... }
     """
+    segids = toiter(segids)
     manifest_paths = [ self.manifest_path(segid) for segid in segids ]
     progress = progress if progress is not None else self.config.progress
 
