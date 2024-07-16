@@ -29,6 +29,7 @@ FP_CODECS = [
 
 OTHER_FORMATS = [
   "blosc",
+  "intern",
 ]
 
 setuptools.setup(
@@ -73,6 +74,17 @@ setuptools.setup(
     "fp_codecs": FP_CODECS,
 
     "all_codecs": SEGMENTATION_CODECS + EM_CODECS + FP_CODECS + OTHER_FORMATS,
+
+    "all": SEGMENTATION_CODECS + EM_CODECS + FP_CODECS + OTHER_FORMATS + [
+      "dask[array]",
+      "vtk",
+      "matplotlib",
+      "pytest",
+      "pytest-cov",
+      "codecov",
+      "requests_mock",
+      "scipy",
+    ],
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
   author_email="ws9@princeton.edu",
