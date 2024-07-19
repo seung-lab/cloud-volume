@@ -453,7 +453,7 @@ def transcode(
   ], 
   src_encoding:str, 
   dest_encoding:str,
-  chunk_size_fn:Callable[Union[str,int], ShapeType],
+  chunk_size_fn:Callable[[Union[str,int]], ShapeType],
   dtype:Union[str,np.dtype],
   background_color:int = 0,
   progress:bool = False,
