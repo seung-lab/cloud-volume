@@ -451,14 +451,19 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     """
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
     
+    if mip is None:
+      mip = self.mip
+    
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units(
+        "vx", self.meta.resolution(self.mip)
+      ).astype(int)
+
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=(self.bounded and coord_resolution is None), 
       autocrop=self.autocrop
     )
-
-    if mip is None:
-      mip = self.mip
 
     if coord_resolution is not None:
       factor = self.meta.resolution(mip) / coord_resolution
@@ -543,7 +548,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return self.agglomerate_cutout(res)
 
   def __getitem__(self, slices):
-    if (
+    if isinstance(slices, Bbox):
+      slices = slices.convert_units(
+        "vx", self.meta.resolution(self.mip)
+      ).astype(int).to_slices()
+    elif (
       hasattr(slices, "__len__") 
       and len(slices) == 3
       and all([ isinstance(slc, (list, tuple, np.ndarray)) for slc in slices ])
