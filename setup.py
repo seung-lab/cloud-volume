@@ -84,6 +84,7 @@ setuptools.setup(
       "codecov",
       "requests_mock",
       "scipy",
+      "pillow",
     ],
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
