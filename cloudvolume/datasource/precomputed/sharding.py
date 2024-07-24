@@ -1036,14 +1036,6 @@ def compute_shard_params_for_image(
   # maximum amount of information in the morton codes
   grid_size = np.ceil(Vec(*dataset_size) / Vec(*chunk_size)).astype(np.int64)
   max_bits = sum([ math.ceil(math.log2(size)) for size in grid_size ])
-  if max_bits > 64:
-    raise ValueError(
-      f"{max_bits}, more than a 64-bit integer, "
-      f"would be required to describe the chunk positions "
-      f"in this dataset. Try increasing the chunk size or "
-      f"increasing dataset bounds."
-      f"Dataset Size: {dataset_size} Chunk Size: {chunk_size}"
-    )
 
   chunks_per_shard = math.ceil(uncompressed_shard_bytesize / (chunk_voxels * byte_width))
   chunks_per_shard = 2 ** int(math.log2(chunks_per_shard))
@@ -1095,7 +1087,25 @@ def compute_shard_params_for_image(
   # in the morton codes, so if there's any slack from rounding, the
   # remainder goes into shard bits.
   preshift_bits = preshift_bits - minishard_bits
-  shard_bits = max_bits - preshift_bits - minishard_bits
+  if dataset_size[2] == chunk_size[2]:
+    additional_bits = (preshift_bits // 3)
+    i = 0
+    while i < additional_bits:
+      max_bits += 1
+      preshift_bits += 1
+      if preshift_bits % 3 != 0:
+        i += 1
+
+  shard_bits = max(max_bits - preshift_bits - minishard_bits, 0)
+
+  if max_bits > 64:
+    raise ValueError(
+      f"{max_bits}, more than a 64-bit integer, "
+      "would be required to describe the chunk positions "
+      "in this dataset. Try increasing the chunk size or "
+      "increasing dataset bounds."
+      f"Dataset Size: {dataset_size} Chunk Size: {chunk_size}"
+    )
 
   if preshift_bits < 0:
     raise ValueError(f"Preshift bits cannot be negative. ({shard_bits}, {minishard_bits}, {preshift_bits}), total info: {max_bits} bits")
