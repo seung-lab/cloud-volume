@@ -1113,6 +1113,87 @@ class Skeleton(object):
     draw_edges=True, draw_vertices=True,
     color_by='radius'
   ):
+    try:
+      self.viewer_vtk(units=units, color_by=color_by)
+    except ImportError:
+      self.viewer_matplotlib(
+        units=units, 
+        draw_edges=draw_edges, 
+        draw_vertices=draw_vertices, 
+        color_by=color_by
+      )
+
+  def viewer_vtk(
+    self, units='nm', 
+    draw_edges=True, draw_vertices=True,
+    color_by='radius'
+  ):
+    try:
+      import vtk.util.numpy_support
+    except ImportError:
+      print("Skeleton.viewer_vtk requires vtk. Try: pip install vtk --upgrade")
+      raise
+
+    skels = [ self ]
+
+    if color_by in [ "c", "components" ]:
+      skels = self.components()
+
+    renderer = vtk.vtkRenderer()
+    renderer.SetBackground(0.9, 0.9, 0.9)
+
+    render_window = vtk.vtkRenderWindow()
+    render_window.AddRenderer(renderer)
+    render_window.SetSize(800, 600)
+
+    colors = [
+      [0,0,0],
+      [0,0.6,0],
+      [1,0,0],
+      [0,0,1],
+      [1,0,1],
+      [0,1,1],
+      [1,1,0],
+    ]
+
+    for i, skel in enumerate(skels):
+      points = vtk.vtkPoints()
+      points.SetData(vtk.util.numpy_support.numpy_to_vtk(skel.vertices))
+
+      lines = vtk.vtkCellArray()
+
+      for edge in skel.edges:
+        line = vtk.vtkLine()
+        line.GetPointIds().SetId(0, edge[0])
+        line.GetPointIds().SetId(1, edge[1])
+        lines.InsertNextCell(line)
+    
+      polyline = vtk.vtkPolyData()
+      polyline.SetPoints(points)
+      polyline.SetLines(lines)
+
+      mapper = vtk.vtkPolyDataMapper()
+      mapper.SetInputData(polyline)
+
+      actor = vtk.vtkActor()
+      actor.SetMapper(mapper)
+
+      color = colors[i % len(colors)]
+      actor.GetProperty().SetColor(*color)
+
+      renderer.AddActor(actor)
+
+    interactor = vtk.vtkRenderWindowInteractor()
+    interactor.SetRenderWindow(render_window)
+
+    render_window.Render()
+    interactor.Start()
+
+  def viewer_matplotlib(
+    self, units='nm', 
+    draw_edges=True, draw_vertices=True,
+    color_by='radius'
+  ):
     """
     View the skeleton with a radius heatmap. 
 
@@ -1135,7 +1216,7 @@ class Skeleton(object):
       import matplotlib.pyplot as plt
       from matplotlib import cm
     except ImportError:
-      print("Skeleton.viewer requires matplotlib. Try: pip install matplotlib --upgrade")
+      print("Skeleton.viewer_matplotlib requires matplotlib. Try: pip install matplotlib --upgrade")
       return
 
     RADII_KEYWORDS = ('radius', 'radii', 'r')
