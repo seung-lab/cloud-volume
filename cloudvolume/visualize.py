@@ -86,7 +86,7 @@ def display_actors(segids, actors):
 
   render_window = vtk.vtkRenderWindow()
   render_window.AddRenderer(renderer)
-  render_window.SetSize(800, 600)
+  render_window.SetSize(2000, 1500)
 
   interactor = vtk.vtkRenderWindowInteractor()
   style = vtk.vtkInteractorStyleTrackballCamera()
