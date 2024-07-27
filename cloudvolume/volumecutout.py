@@ -26,6 +26,10 @@ class VolumeCutout(np.ndarray):
     self.bounds = bounds
     self.handle = handle
 
+  @property
+  def is_segmentation(self):
+    return self.layer_type == "segmentation"
+
   def close(self):
     # This bizzare construction is because of this error:
     # Traceback (most recent call last):
