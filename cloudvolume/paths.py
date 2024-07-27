@@ -45,7 +45,8 @@ def ascloudpath(epath):
   )
 
 def pop_protocol(cloudpath):
-  protocol_re = re.compile(r'(\w+)://')
+  # accomodate e.g. gs:// s3:// middleauth+https://
+  protocol_re = re.compile(r'(\w+(?:\+\w+)?)://')
 
   match = re.match(protocol_re, cloudpath)
 
