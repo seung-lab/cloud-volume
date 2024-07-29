@@ -227,7 +227,7 @@ class ZarrImageSource(ImageSourceInterface):
         for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
           for c in range(num_channels):
             filename = sep.join([
-              tchunk, str(c), str(z), str(y), str(x)
+              str(tchunk), str(c), str(z), str(y), str(x)
             ])
             yield cf.join(str(mip), filename)
 
