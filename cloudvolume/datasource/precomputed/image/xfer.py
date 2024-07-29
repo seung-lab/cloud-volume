@@ -82,6 +82,8 @@ def transfer_by_rerendering(
 
   source.config.progress = progress
 
+  return dest_cv
+
 def transfer_unsharded_to_sharded(
   source,
   cloudpath:str,
@@ -145,6 +147,7 @@ def transfer_unsharded_to_sharded(
     compress=cv.config.compress, 
     cache_control=cv.config.cdn_cache
   )
+  return cv
 
 def transfer_any_to_unsharded(
   source,
@@ -293,6 +296,8 @@ def transfer_sharded_to_sharded(
       shard_binary = spec.synthesize_shard(img_chunks)
       del img_chunks
       cfdest.put(filename, shard_binary, raw=True)
+
+  return destvol
 
 def transfer_unsharded_to_unsharded(
   source, 
