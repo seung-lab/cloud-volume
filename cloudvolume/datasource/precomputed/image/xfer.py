@@ -73,7 +73,7 @@ def transfer_by_rerendering(
   grid_size = grid_box.size()
   total = int(grid_size[0] * grid_size[1] * grid_size[2])
 
-  for gx,gy,gz in tqdm(xyzrange(grid_size), disable=(not progress), total=total):
+  for gx,gy,gz in tqdm(xyzrange(grid_size + 1), disable=(not progress), total=total):
     gpt = Vec(gx,gy,gz, dtype=int)
     bbx = Bbox(gpt * shape, (gpt+1) * shape) + bbox.minpt
 
