@@ -58,6 +58,7 @@ def transfer_by_rerendering(
   dest_cv = create_destination(source, cloudpath, mip, encoding)
   dest_cv.commit_info()
   dest_cv.progress = False
+  dest_cv.compress = compress
   mip = dest_cv.mip
 
   progress = source.config.progress
