@@ -269,6 +269,14 @@ class Skeleton(object):
     if type(skeletons[0]) is np.ndarray:
       skeletons = [ skeletons ]
 
+    skeletons = [
+      sk for sk in skeletons 
+      if not sk.empty()
+    ]
+
+    if len(skeletons) == 0:
+      return Skeleton()
+
     ct = 0
     edges = []
     for skel in skeletons:
