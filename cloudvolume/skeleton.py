@@ -721,6 +721,12 @@ class Skeleton(object):
       [ Skeleton.from_path(path) for path in paths ]
     ).consolidate()
     ds_skel.id = self.id
+    ds_skel.extra_attributes = self.extra_attributes
+
+    for attr in self.extra_attributes:
+      setattr(ds_skel, attr['id'], 
+        np.zeros([ds_skel.vertices.shape[0], int(attr['num_components'])], dtype=attr['data_type'])
+      )
 
     # TODO: I'm sure this could be sped up if need be.
     index = {}
@@ -728,8 +734,8 @@ class Skeleton(object):
       vert = tuple(vert)
       index[vert] = i
 
-    bufs = [ getattr(ds_skel, attr['id']) for attr in ds_skel.extra_attributes ]
-    orig_bufs = [ getattr(self, attr['id']) for attr in ds_skel.extra_attributes ]
+    bufs = [ getattr(ds_skel, attr['id']) for attr in self.extra_attributes ]
+    orig_bufs = [ getattr(self, attr['id']) for attr in self.extra_attributes ]
 
     for i, vert in enumerate(ds_skel.vertices):
       reverse_i = index[tuple(vert)]
