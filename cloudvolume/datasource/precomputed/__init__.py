@@ -1,5 +1,7 @@
 from typing import Optional, Union
 
+import os
+
 from .image import PrecomputedImageSource
 from .metadata import PrecomputedMetadata
 from .mesh import PrecomputedMeshSource
@@ -63,6 +65,7 @@ def create_precomputed(
     if meta.info.get("@type", "") == "neuroglancer_skeletons":
       info = meta.info
       meta = synthetic_meta(cloudpath, config, cache_service)
+      meta.info["skeletons"] = os.path.basename(cloudpath)
       skeleton = PrecomputedSkeletonSource(meta, cache_service, config, readonly, info=info)
     else:
       skeleton = PrecomputedSkeletonSource(meta, cache_service, config, readonly)
@@ -70,6 +73,7 @@ def create_precomputed(
     if meta.info.get("@type", "") in ["neuroglancer_legacy_mesh", "neuroglancer_multilod_draco"]:
       info = meta.info
       meta = synthetic_meta(cloudpath, config, cache_service)
+      meta.info["mesh"] = os.path.basename(cloudpath)
       mesh = PrecomputedMeshSource(meta, cache_service, config, readonly, info=info)
     else:
       mesh = PrecomputedMeshSource(meta, cache_service, config, readonly)
@@ -135,7 +139,7 @@ def synthetic_meta(cloudpath, config, cache_service) -> PrecomputedMetadata:
     volume_size=[1,1,1],
   )
   return PrecomputedMetadata(
-      cloudpath, 
+      os.path.dirname(cloudpath),
       config=config, 
       cache=cache_service,
       info=info, provenance=None,
