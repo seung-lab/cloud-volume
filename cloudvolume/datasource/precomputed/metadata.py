@@ -189,6 +189,9 @@ class PrecomputedMetadata(object):
 
   def parse_rois(self, info) -> List[Bbox]:
     """Parse ROIs from the info file at mip 0."""
+    if 'scales' not in info:
+      return None
+
     scale = info['scales'][0]
     if 'rois' not in scale:
       return None

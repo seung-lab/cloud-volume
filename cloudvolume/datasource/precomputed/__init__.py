@@ -58,12 +58,26 @@ def create_precomputed(
       use_https=use_https # for parsing redirects
     )
 
+    readonly = bool(meta.redirected_from)
+
+    if meta.info.get("@type", "") == "neuroglancer_skeletons":
+      info = meta.info
+      meta = synthetic_meta(cloudpath, config, cache_service)
+      skeleton = PrecomputedSkeletonSource(meta, cache_service, config, readonly, info=info)
+    else:
+      skeleton = PrecomputedSkeletonSource(meta, cache_service, config, readonly)
+
+    if meta.info.get("@type", "") in ["neuroglancer_legacy_mesh", "neuroglancer_multilod_draco"]:
+      info = meta.info
+      meta = synthetic_meta(cloudpath, config, cache_service)
+      mesh = PrecomputedMeshSource(meta, cache_service, config, readonly, info=info)
+    else:
+      mesh = PrecomputedMeshSource(meta, cache_service, config, readonly)
+
     if mesh_dir:
       meta.info['mesh'] = str(mesh_dir)
     if skel_dir:
       meta.info['skeletons'] = str(skel_dir)
-
-    readonly = bool(meta.redirected_from)
 
     if readonly:
       print(yellow("""
@@ -99,9 +113,6 @@ def create_precomputed(
       lru_bytes=lru_bytes,
     )
 
-    mesh = PrecomputedMeshSource(meta, cache_service, config, readonly)
-    skeleton = PrecomputedSkeletonSource(meta, cache_service, config, readonly)
-
     cv = CloudVolumePrecomputed(
       meta, cache_service, config, 
       image, mesh, skeleton,
@@ -112,6 +123,25 @@ def create_precomputed(
     mesh.meta.cv = cv # assigned as a weakref
 
     return cv
+
+def synthetic_meta(cloudpath, config, cache_service) -> PrecomputedMetadata:
+  info = PrecomputedMetadata.create_info(
+    num_channels=1, 
+    layer_type="segmentation", 
+    data_type='uint8', 
+    encoding="raw", 
+    resolution=[1,1,1], 
+    voxel_offset=[0,0,0], 
+    volume_size=[1,1,1],
+  )
+  return PrecomputedMetadata(
+      cloudpath, 
+      config=config, 
+      cache=cache_service,
+      info=info, provenance=None,
+      max_redirects=0,
+      use_https=True # for parsing redirects
+  )
 
 
 def register():
