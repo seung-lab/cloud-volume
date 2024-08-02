@@ -34,7 +34,7 @@ OTHER_FORMATS = [
 
 setuptools.setup(
   name="cloud-volume",
-  version="10.2.1",
+  version="10.2.2",
   setup_requires=[
     'numpy<1.17; python_version<"3.5"',
     'numpy; python_version>="3.5"',
