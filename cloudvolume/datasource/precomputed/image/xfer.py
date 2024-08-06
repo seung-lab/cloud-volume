@@ -76,6 +76,7 @@ def transfer_by_rerendering(
   for gx,gy,gz in tqdm(xyzrange(grid_size + 1), disable=(not progress), total=total):
     gpt = Vec(gx,gy,gz, dtype=int)
     bbx = Bbox(gpt * shape, (gpt+1) * shape) + bbox.minpt
+    bbx = Bbox.clamp(bbx, bbox)
 
     if dest_cv.meta.path.format == "precomputed":
       bbx = Bbox.clamp(bbx, dest_cv.bounds)
