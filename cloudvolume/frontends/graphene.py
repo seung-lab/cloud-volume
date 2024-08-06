@@ -21,7 +21,7 @@ from .. import chunks
 from .. import compression
 from .. import exceptions
 from ..cacheservice import CacheService
-from ..lib import Bbox, Vec, toiter, BboxLikeType
+from ..lib import Bbox, Vec, toiter, BboxLikeType, sip
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
 from ..datasource.graphene.metadata import GrapheneApiVersion
@@ -783,24 +783,32 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if timestamp is not None:
       params['timestamp'] = timestamp
 
-    if binary:
-      url = posixpath.join(self.meta.base_path, path, "roots_binary")
-      data = np.array(segids, dtype=np.uint64).tobytes()
-    else:
-      url = posixpath.join(self.meta.base_path, path, "roots")
-      args['node_ids'] = segids
-      data = orjson.dumps(args).encode('utf8')
+    result = []
 
-    if gzip_condition:
-      data = compression.compress(data, method='gzip')
+    for subset_segids in sip(segids, int(500000)):
+      if binary:
+        url = posixpath.join(self.meta.base_path, path, "roots_binary")
+        data = np.array(subset_segids, dtype=np.uint64).tobytes()
+      else:
+        url = posixpath.join(self.meta.base_path, path, "roots")
+        args['node_ids'] = subset_segids
+        data = orjson.dumps(args).encode('utf8')
+
+      if gzip_condition:
+        data = compression.compress(data, method='gzip')
     
-    response = requests.post(url, data=data, headers=headers, params=params)
-    response.raise_for_status()
+      response = requests.post(url, data=data, headers=headers, params=params)
+      response.raise_for_status()
+
+      if binary:
+        result.append(np.frombuffer(response.content, dtype=np.uint64))
+      else:
+        result.extend(orjson.loads(response.content)['root_ids'])
 
     if binary:
-      return np.frombuffer(response.content, dtype=np.uint64)
-    else:
-      return orjson.loads(response.content)['root_ids']
+      return np.concatenate(result)
+
+    return result
 
   def _get_roots_legacy(self, segids, timestamp):
     if len(segids) == 0:
