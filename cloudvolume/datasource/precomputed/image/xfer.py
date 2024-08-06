@@ -192,7 +192,7 @@ def transfer_any_to_unsharded(
     return bbx
 
   itr = chunks.transcode(
-    img_chunks,
+    files,
     progress=False, 
     src_encoding=src_encoding,
     dest_encoding=dest_encoding,
@@ -202,10 +202,16 @@ def transfer_any_to_unsharded(
     dest_block_size=cv.meta.compressed_segmentation_block_size(mip),
     background_color=source.background_color,
   )
+  # tricky loops done to perform in-place
+  # re-encoding without changing the dict
+  # keys during iteration
   for label, binary in itr:
+    files[label] = binary
+  for label in list(files.keys()):
     bbx = get_bbx(label)
-    del files[label]
+    binary = files[label]
     files[bbx.to_filename()] = binary
+    del files[label]
 
   CloudFiles(
     cv.meta.join(cloudpath, cv.key)
