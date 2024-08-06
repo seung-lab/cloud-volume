@@ -15,6 +15,8 @@ import dateutil.parser
 import fastremap
 import numpy as np
 
+from cloudfiles import CloudFiles
+
 from .. import chunks
 from .. import compression
 from .. import exceptions
@@ -23,9 +25,10 @@ from ..lib import Bbox, Vec, toiter, BboxLikeType
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
 from ..datasource.graphene.metadata import GrapheneApiVersion
+from ..types import CompressType
 
 from .precomputed import CloudVolumePrecomputed
-import tqdm
+from tqdm import tqdm
 
 def warn(text):
   print(colorize('yellow', text))
@@ -399,6 +402,65 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     
     return apply_mapping(remapping)
 
+  def memory_cutout(
+    self, 
+    bbox:BboxLikeType, 
+    mip:Optional[int] = None,
+    encoding:Optional[str] = None, 
+    compress:CompressType = None, 
+    compress_level:Optional[int] = None,
+    agglomerate:bool = False,
+    timestamp:Optional[int] = None,
+    **kwargs, # absorb graphene arguments
+  ):
+    """
+    Create a disposable in-memory CloudVolume (mem://) containing
+    the requested cutout region in the unsharded precomputed
+    format. The source volume may be sharded or unsharded.
+
+    You can specify an alternative encoding and compression 
+    settings for the new volume.
+    """
+    if mip is None:
+      mip = self.config.mip
+
+    mem_cv = super().memory_cutout(
+      bbox,
+      mip=mip,
+      encoding=encoding, 
+      compress=compress,
+      compress_level=compress_level,
+    )
+
+    if not agglomerate:
+      return mem_cv
+
+    labels = list(mem_cv.unique(bbox))
+    labels.sort()
+    mapping = self.get_roots(labels, timestamp=timestamp)
+    mapping = { k:v for k,v in zip(labels, mapping) }
+    del labels
+
+    cf = CloudFiles(mem_cv.cloudpath)
+    for filename in cf.list(prefix=mem_cv.key):
+      binary = cf.get(filename)
+      binary = chunks.remap(
+        binary, 
+        encoding=mem_cv.meta.encoding(mip), 
+        shape=mem_cv.meta.chunk_size(mip),
+        dtype=mem_cv.meta.dtype,
+        block_size=mem_cv.meta.compressed_segmentation_block_size(mip),
+        mapping=mapping,
+        preserve_missing_labels=True,
+      )
+      cf.put(
+        filename, binary, 
+        compress=compress, 
+        compression_level=compress_level
+      )
+
+    return mem_cv
+
   def download(
     self, bbox, mip=None, 
     parallel=None, segids=None,
@@ -598,7 +660,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         Layer 2+: Between chunk interconnections (skip connections possible)
     """
     segids = toiter(segids)
-    input_segids = np.array(segids, dtype=self.meta.dtype)
+    input_segids = np.fromiter(segids, dtype=self.meta.dtype)
 
     if input_segids.size == 0:
       return np.array([], dtype=self.meta.dtype)

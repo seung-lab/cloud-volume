@@ -30,6 +30,7 @@ from ..provenance import DataLayerProvenance
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
 from .. import sharedmemory
+from ..types import CompressType
 
 def warn(text):
   print(colorize('yellow', text))
@@ -699,7 +700,44 @@ class CloudVolumePrecomputed(object):
       )
 
     return files
+  
+  def memory_cutout(
+    self, 
+    bbox:BboxLikeType, 
+    mip:Optional[int] = None,
+    encoding:Optional[str] = None, 
+    compress:CompressType = None, 
+    compress_level:Optional[int] = None,
+    **kwargs, # absorb graphene arguments
+  ):
+    """
+    Create a disposable in-memory CloudVolume (mem://) containing
+    the requested cutout region in the unsharded precomputed
+    format. The source volume may be sharded or unsharded.
+
+    You can specify an alternative encoding and compression 
+    settings for the new volume.
+    """
+    if mip is None:
+      mip = self.mip
     
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
+    bbox = Bbox.create(
+      bbox, context=self.bounds, 
+      bounded=self.bounded, 
+      autocrop=self.autocrop
+    )
+
+    return self.image.memory_cutout(
+      bbox,
+      mip=mip,
+      encoding=encoding, 
+      compress=compress,
+      compress_level=compress_level,
+    )
+
   def download(
     self, 
     bbox:BboxLikeType, 
