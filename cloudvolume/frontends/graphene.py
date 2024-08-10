@@ -523,6 +523,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       False: mask other segids with zero
       True: mask other segids with the largest integer value
         contained by the image data type and leave zero as is.
+    label: similar to segids, but for compatibility with Precomputed
+      decodes a to binary image.
 
     Returns: img as a VolumeCutout
     """
@@ -564,7 +566,21 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if renumber and (segids or agglomerate):
       renumber = False # no point      
 
-    img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel, renumber=renumber)
+    direct_binary_image = not (agglomerate or segids or label is None or preserve_zeros)
+
+    img = super(CloudVolumeGraphene, self).download(
+      bbox, 
+      mip=mip, 
+      parallel=parallel, 
+      renumber=renumber,
+      label=(label if direct_binary_image else None)
+    )
+    if direct_binary_image:
+      if renumber_return:
+        return img, { 0:0, label:1 }
+      else:
+        return img
+
     renumber_remap = None
     if renumber:
       img, renumber_remap = img
@@ -575,10 +591,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         timestamp=timestamp, 
         stop_layer=stop_layer,
         label=label,
-        bbox=bbox,
-        mip=mip,
+        bbox=mip0_bbox,
       )
       img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
+      if label is not None and not preserve_zeros:
+        return img
 
     if segids is None or agglomerate:
       if renumber_return: 
@@ -618,7 +635,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     in_place:bool = True,
     label:Optional[int] = None,
     bbox:Optional[Bbox] = None,
-    mip:Optional[int] = None,
+    mip:Optional[int] = None, # mip 0 bbox
   ):
     """
     Remap a graphene volume to the indicidated layer ids (default root ids). 
@@ -635,10 +652,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       labels = labels[1:]
 
     if label is not None:
-      watershed_domains = self.get_leaves(label, bbox, mip, stop_layer=None)
-      fastremap.mask_except(img, watershed_domains, in_place=True, value=self.image.background_color)
+      watershed_domains = list(self.get_leaves(label, bbox, mip=0, stop_layer=None))
+      fastremap.mask_except(img, watershed_domains, in_place=True, value=0)
       del watershed_domains
-      return img != self.image.background_color
+      return img > 0
     else:
       roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
       mapping = { segid: root for segid, root in zip(labels, roots) }
