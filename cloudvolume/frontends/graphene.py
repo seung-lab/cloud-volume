@@ -25,7 +25,7 @@ from ..lib import Bbox, Vec, toiter, BboxLikeType, sip
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
 from ..datasource.graphene.metadata import GrapheneApiVersion
-from ..types import CompressType
+from ..types import CompressType, MipType
 
 from .precomputed import CloudVolumePrecomputed
 from tqdm import tqdm
@@ -462,12 +462,20 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return mem_cv
 
   def download(
-    self, bbox, mip=None, 
-    parallel=None, segids=None,
-    preserve_zeros=False,
-    agglomerate=None, timestamp=None,
-    stop_layer=None, renumber=False,
-    coord_resolution=None,
+    self, 
+    bbox:BboxLikeType, 
+    mip:MipType = None, 
+    parallel:Optional[int] = None,
+    segids:Optional[Sequence[int]] = None, 
+    preserve_zeros:bool = False,
+
+    agglomerate:Optional[bool] = None, 
+    timestamp:Optional[int] = None, 
+    stop_layer:Optional[int] = None,
+
+    renumber:bool = False, 
+    coord_resolution:Optional[Sequence[int]] = None,
+    label:Optional[int] = None,
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -515,6 +523,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     
     if mip is None:
       mip = self.mip
+    mip = self.meta.to_mip(mip)
     
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units(
@@ -554,7 +563,14 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       img, renumber_remap = img
 
     if agglomerate:
-      img = self.agglomerate_cutout(img, timestamp=timestamp, stop_layer=stop_layer)
+      img = self.agglomerate_cutout(
+        img, 
+        timestamp=timestamp, 
+        stop_layer=stop_layer,
+        label=label,
+        bbox=bbox,
+        mip=mip,
+      )
       img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
 
     if segids is None or agglomerate:
@@ -587,11 +603,23 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       return img, renumber_remap
     return img
   
-  def agglomerate_cutout(self, img, timestamp=None, stop_layer=None, in_place=True):
-    """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
+  def agglomerate_cutout(
+    self, 
+    img, 
+    timestamp:Optional[int] = None, 
+    stop_layer:Optional[int] = None, 
+    in_place:bool = True,
+    label:Optional[int] = None,
+    bbox:Optional[Bbox] = None,
+    mip:Optional[int] = None,
+  ):
+    """
+    Remap a graphene volume to the indicidated layer ids (default root ids). 
+    This creates a flat segmentation.
+    """
     if np.all(img == self.image.background_color) or stop_layer == 1:
       if not in_place:
-        return np.copy(img)
+        return np.copy(img, order="F")
       else:
         return img
 
@@ -599,9 +627,15 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if labels.size and labels[0] == 0:
       labels = labels[1:]
 
-    roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
-    mapping = { segid: root for segid, root in zip(labels, roots) }
-    return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
+    if label is not None:
+      watershed_domains = self.get_leaves(label, bbox, mip, stop_layer=None)
+      fastremap.mask_except(img, watershed_domains, in_place=True, value=self.image.background_color)
+      del watershed_domains
+      return img != self.image.background_color
+    else:
+      roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
+      mapping = { segid: root for segid, root in zip(labels, roots) }
+      return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
 
   def coordinate_indexing(self, slices):
     res = super().coordinate_indexing(slices)
