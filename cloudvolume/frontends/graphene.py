@@ -14,6 +14,7 @@ import sys
 import dateutil.parser
 import fastremap
 import numpy as np
+import tenacity
 
 from cloudfiles import CloudFiles
 
@@ -51,6 +52,12 @@ def to_unix_time(timestamp):
     raise ValueError("Not able to convert {} to UNIX time.".format(timestamp))
   
   return int(math.ceil(timestamp))
+
+retry = tenacity.retry(
+  reraise=True, 
+  stop=tenacity.stop_after_attempt(7), 
+  wait=tenacity.wait_random_exponential(0.5, 60.0),
+)
 
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
@@ -785,7 +792,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     result = []
 
-    for subset_segids in sip(segids, int(500000)):
+    @retry
+    def _request_root_ids(subset_segids):
+      nonlocal result
       if binary:
         url = posixpath.join(self.meta.base_path, path, "roots_binary")
         data = np.array(subset_segids, dtype=np.uint64).tobytes()
@@ -804,6 +813,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         result.append(np.frombuffer(response.content, dtype=np.uint64))
       else:
         result.extend(orjson.loads(response.content)['root_ids'])
+
+    for subset_segids in sip(segids, int(250000)):
+      _request_root_ids(subset_segids)
 
     if binary:
       return np.concatenate(result)
