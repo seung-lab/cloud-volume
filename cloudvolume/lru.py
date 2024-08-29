@@ -317,6 +317,12 @@ class LRU:
     del state['lock']
     return state
 
+  def __enter__(self):
+    self.lock.acquire()
+
+  def __exit__(self, type, value, tb):
+    self.lock.release()
+
   def __setstate__(self, state):
     # Restore instance attributes (i.e., filename and lineno).
     self.__dict__.update(state)
