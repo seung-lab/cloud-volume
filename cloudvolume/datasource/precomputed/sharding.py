@@ -25,7 +25,7 @@ ShardLocation = namedtuple('ShardLocation',
   ('shard_number', 'minishard_number', 'remainder')
 )
 
-uint64 = np.uint64
+uint64 = lambda x: np.array([x], dtype=np.uint64)[0]
 
 ShapeType = Tuple[int, int, int]
 
