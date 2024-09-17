@@ -110,7 +110,12 @@ def encode(
   elif encoding == "jpeg":
     return encode_jpeg(img_chunk, nvl(level, 85))
   elif encoding == "jpegxl":
-    return encode_jpegxl(img_chunk, nvl(level, 85))
+    return encode_jpegxl(
+      img_chunk, 
+      level=nvl(level, 85), 
+      effort=compression_params.get("jpegxl_effort", 5),
+      decodingspeed=compression_params.get("jpegxl_decodingspeed", 0),
+    )
   elif encoding == "png":
     return encode_png(img_chunk, nvl(level, 9))
   elif encoding == "npz":
@@ -198,7 +203,7 @@ def as2d(arr):
   )
   return reshaped, num_channel
 
-def encode_jpegxl(arr, level):
+def encode_jpegxl(arr, level, effort, decodingspeed):
   if not np.issubdtype(arr.dtype, np.uint8):
     raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
 
@@ -211,6 +216,9 @@ def encode_jpegxl(arr, level):
       photometric="GRAY",
       level=level,
       lossless=lossless,
+      effort=effort,
+      decodingspeed=decodingspeed,
+      numthreads=1,
     )
   elif num_channel == 3:
     arr = np.transpose(arr, axes=[2, 0, 1])
@@ -219,6 +227,9 @@ def encode_jpegxl(arr, level):
       photometric="RGB",
       level=level,
       lossless=lossless,
+      effort=effort,
+      decodingspeed=decodingspeed,
+      numthreads=1,
     )
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
