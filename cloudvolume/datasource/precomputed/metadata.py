@@ -561,11 +561,21 @@ Hops:
     elif encoding == 'jpeg':
       return { "level": scale.get("jpeg_quality", None) }
     elif encoding == 'jpegxl':
-      return { "level": scale.get("jpegxl_quality", None) }
+      return self.jpegxl_encoding_params(mip)
     elif encoding == 'fpzip':
       return { "level": scale.get("fpzip_precision", None) }
     else:
       return {}
+
+  def jpegxl_encoding_params(self, mip):
+    """
+    Returns tuning arguments for jpegxl compression.
+    """
+    return {
+      "level": scale.get("jpegxl_quality", None),
+      "jpegxl_effort": scale.get("jpegxl_effort", None),
+      "jpegxl_decodingspeed": scale.get("jpegxl_decodingspeed", None),
+    }
 
   def zfpc_encoding_params(self, mip):
     """
