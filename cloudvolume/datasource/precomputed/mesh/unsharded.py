@@ -130,7 +130,8 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       self, segids, 
       remove_duplicate_vertices=True, 
       fuse=True,
-      chunk_size=None
+      chunk_size=None,
+      bounding_box=None,
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
@@ -144,6 +145,7 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       remove_duplicate_vertices: bool, fuse exactly matching vertices
       fuse: bool, merge all downloaded meshes into a single mesh
       chunk_size: [chunk_x, chunk_y, chunk_z] if passed only merge at chunk boundaries
+      bounding_box: Bbox, bounding box to restrict mesh download to
     
     Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
@@ -158,11 +160,15 @@ class UnshardedLegacyPrecomputedMeshSource(object):
         .format(missing)
       ))
 
+    def inbounds(path:str) -> bool:
+      return not bounding_box or bounding_box.contains_bbox(Bbox.from_filename(path))
+
     fragments = self._get_manifests(segids)
     path_id_map = {}
     for segid, paths in fragments.items():
       for path in paths:
-        path_id_map[path] = segid
+        if inbounds(path):
+          path_id_map[path] = segid
     fragments = self._get_mesh_fragments(path_id_map)
 
     # decode all the fragments
