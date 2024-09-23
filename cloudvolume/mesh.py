@@ -6,7 +6,7 @@ import sys
 import numpy as np
 
 from .exceptions import MeshDecodeError
-from .lib import yellow, Vec
+from .lib import yellow, Vec, Bbox
 
 NOTICE = {
   'vertices': 0,
@@ -408,6 +408,56 @@ end_header
 
     return self.deduplicate_vertices(is_chunk_aligned)
 
+  def crop(self, bbox:Bbox):
+    """
+    Create a cropped version of the mesh.
+    """
+    if self.empty():
+      return Mesh([], [], normals=None)
+
+    vert_idx = []
+    mapping = {}
+    discard = set()
+    j = 0
+    for i, vert in enumerate(self.vertices):
+      if bbox.contains(vert):
+        vert_idx.append(i)
+        mapping[i] = j
+        j += 1
+      else:
+        discard.add(i)
+
+    vert_idx = np.array(vert_idx, dtype=int)
+
+    cropped_faces_idx = []
+
+    for i, (f1, f2, f3) in enumerate(self.faces):
+      if f1 in discard or f2 in discard or f3 in discard:
+        continue
+      cropped_faces_idx.append(i)
+
+    cropped_faces_idx = np.array(cropped_faces_idx, dtype=int)
+
+    cropped_verts = self.vertices[vert_idx]
+    cropped_faces = self.faces[cropped_faces_idx]
+    cropped_normals = None
+
+    for face in cropped_faces:
+      face[0] = mapping[face[0]]
+      face[1] = mapping[face[1]]
+      face[2] = mapping[face[2]]
+
+    if self.normals is not None and len(self.normals):
+      cropped_normals = self.normals[cropped_faces_idx]
+
+    return Mesh(
+      cropped_verts, 
+      cropped_faces, 
+      cropped_normals, 
+      segid=self.segid,
+      encoding_type=copy.deepcopy(self.encoding_type),
+      encoding_options=copy.deepcopy(self.encoding_options),
+    )
 
   def viewer(self):
     # thanks to ChatGPT for making it easy to figure out
