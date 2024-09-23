@@ -6,23 +6,7 @@ import sys
 import numpy as np
 
 from .exceptions import MeshDecodeError
-from .lib import yellow, Vec, Bbox
-
-NOTICE = {
-  'vertices': 0,
-  'num_vertices': 0,
-  'faces': 0,
-}
-
-def deprecation_notice(key):
-  if NOTICE[key] < 1:
-    print(yellow("""
-  Deprecation Notice: Meshes, formerly dicts, are now PrecomputedMesh objects
-  as of CloudVolume 0.51.0, renamed to Mesh objects as of 0.53.0
-
-  Please change mesh['{}'] to mesh.{}
-  """.format(key, key)))
-    NOTICE[key] += 1
+from .lib import Vec, Bbox
 
 def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size):
   """
@@ -111,20 +95,6 @@ class Mesh(object):
       self.vertices.shape[0], self.faces.shape[0], self.normals.shape[0],
       self.segid, self.encoding_type
     )
-
-  def __getitem__(self, key):
-    val = None 
-    if key == 'vertices':
-      val = self.vertices
-    elif key == 'num_vertices':
-      val = len(self)
-    elif key == 'faces':
-      val = self.faces
-    else:
-      raise KeyError("{} not found.".format(key))
-
-    deprecation_notice(key)
-    return val
 
   def empty(self):
     return self.vertices.size == 0 or self.faces.size == 0
