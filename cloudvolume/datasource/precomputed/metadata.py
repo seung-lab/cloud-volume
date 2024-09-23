@@ -79,7 +79,8 @@ class PrecomputedMetadata(object):
   def create_info(cls, 
     num_channels, layer_type, data_type, encoding, 
     resolution, voxel_offset, volume_size, 
-    mesh=None, skeletons=None, chunk_size=(128,128,64),
+    mesh=None, skeletons=None, segment_props=None, 
+    chunk_size=(128,128,64),
     compressed_segmentation_block_size=(8,8,8),
     max_mip=0, factor=Vec(2,2,1), redirect=None
   ):
@@ -98,6 +99,7 @@ class PrecomputedMetadata(object):
     Optional:
       mesh: (str) name of mesh directory, typically "mesh"
       skeletons: (str) name of skeletons directory, typically "skeletons"
+      segment_props: (str) name of segment properties directory, typically "segment_properties"
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
@@ -150,6 +152,9 @@ class PrecomputedMetadata(object):
 
     if skeletons:
       info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
+
+    if segment_props:
+      info['segment_properties'] = 'segment_properties' if not isinstance(skeletons, string_types) else segment_props
     
     return info
 
