@@ -252,7 +252,7 @@ class CloudVolumePrecomputed(object):
     return PrecomputedMetadata.create_info(
       num_channels, layer_type, data_type, encoding, 
       resolution, voxel_offset, volume_size, 
-      mesh, skeletons, chunk_size,
+      mesh, skeletons, segment_props, chunk_size,
       compressed_segmentation_block_size,
       max_mip, factor,
       *args, **kwargs
