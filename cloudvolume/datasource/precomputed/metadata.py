@@ -154,7 +154,7 @@ class PrecomputedMetadata(object):
       info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
 
     if segment_properties:
-      info['segment_properties'] = 'segment_properties' if not isinstance(skeletons, string_types) else segment_properties
+      info['segment_properties'] = 'segment_properties' if not isinstance(segment_properties, string_types) else segment_properties
     
     return info
 
