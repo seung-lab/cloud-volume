@@ -208,7 +208,7 @@ class CloudVolume:
       secrets: (dict) provide per-instance authorization tokens. If not provided,
         defaults to looking in .cloudvolume/secrets for necessary tokens.
       segment_prop_dir: (str) if not None, override the info['segment_properties'] 
-        key before pulling the skeleton info file.
+        key before pulling the segment properties info file.
       skel_dir: (str) if not None, override the info['skeletons'] key before 
         pulling the skeleton info file.
       spatial_index_db: (str) A path to an sqlite3 or mysql database that follows 
