@@ -54,7 +54,7 @@ except ImportError:
 try:
   import imagecodecs
 except ImportError:
-  NEEDS_INSTALL['jpegxl'] = 'imagecodecs'
+  NEEDS_INSTALL['jxl'] = 'imagecodecs'
 
 try:
   import compressed_segmentation as cseg
@@ -77,7 +77,7 @@ DEFAULT_CSEG_BLOCK_SIZE = (8,8,8)
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
   "compressed_segmentation", "compresso",
-  "crackle", "jpeg", "jpegxl", "png", "zfpc"
+  "crackle", "jpeg", "jxl", "png", "zfpc"
 )
 
 def encode(
@@ -109,12 +109,12 @@ def encode(
     return crackle.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
     return encode_jpeg(img_chunk, nvl(level, 85))
-  elif encoding == "jpegxl":
+  elif encoding == "jxl":
     return encode_jpegxl(
       img_chunk, 
       level=nvl(level, 85), 
-      effort=compression_params.get("jpegxl_effort", 5),
-      decodingspeed=compression_params.get("jpegxl_decodingspeed", 0),
+      effort=compression_params.get("jxl_effort", 5),
+      decodingspeed=compression_params.get("jxl_decodingspeed", 0),
     )
   elif encoding == "png":
     return encode_png(img_chunk, nvl(level, 9))
@@ -164,7 +164,7 @@ def decode(
     return crackle.decompress(filedata).reshape(shape)
   elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
-  elif encoding == "jpegxl":
+  elif encoding == "jxl":
     return decode_jpegxl(filedata, shape=shape)
   elif encoding == "png":
     return decode_png(filedata, shape=shape, dtype=dtype)
@@ -516,14 +516,14 @@ def transcode(
 
   if src_encoding.lower() == dest_encoding.lower() and not force:
     yield from itr
-  elif src_encoding == "jpeg" and dest_encoding == "jpegxl":
+  elif src_encoding == "jpeg" and dest_encoding == "jxl":
     from imagecodecs import jpegxl_encode_jpeg
 
     for label, binary in itr:
       new_binary = jpegxl_encode_jpeg(binary)
 
       yield (label, new_binary)
-  elif src_encoding == "jpegxl" and dest_encoding == "jpeg":
+  elif src_encoding == "jxl" and dest_encoding == "jpeg":
     from imagecodecs import jpegxl_decode_jpeg
 
     for label, binary in itr:
