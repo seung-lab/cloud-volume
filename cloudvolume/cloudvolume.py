@@ -93,7 +93,7 @@ class CloudVolume:
       
       label = 1
       mesh = vol.mesh.get(label) 
-      skel = vol.skeletons.get(label)
+      skel = vol.skeleton.get(label)
 
     Required:
       cloudpath: Path to the dataset layer. This should match storage's supported
