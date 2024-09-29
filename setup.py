@@ -61,7 +61,7 @@ setuptools.setup(
 
     # image compression codecs
     "blosc": [ "blosc" ],
-    "jpegxl": [ "imagecodecs" ],
+    "jxl": [ "imagecodecs" ],
     "png": [ "pyspng-seunglab" ],
     "jpeg": [ "simplejpeg" ],
     "fpzip": [ "fpzip" ],

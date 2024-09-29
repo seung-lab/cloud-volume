@@ -139,11 +139,11 @@ def test_jpegxl(shape, num_channels, quality):
   data = np.zeros(shape=xshape, dtype=np.uint8)
 
   if quality == 100:
-    encode_decode(data, 'jpegxl', shape, num_channels, level=quality)
-    encode_decode(data + 255, 'jpegxl', shape, num_channels, level=quality)
+    encode_decode(data, 'jxl', shape, num_channels, level=quality)
+    encode_decode(data + 255, 'jxl', shape, num_channels, level=quality)
 
   jpgxl = imagecodecs.jpegxl_decode(
-    encode(data, 'jpegxl', compression_params={ "level": quality }),
+    encode(data, 'jxl', compression_params={ "level": quality }),
   )
   if num_channels == 1:
     assert jpgxl.shape[0] == shape[1] * shape[2]
@@ -157,8 +157,8 @@ def test_jpegxl(shape, num_channels, quality):
   # but it should have nearly the same average power
   random_data = np.random.randint(255, size=xshape, dtype=np.uint8)
   pre_avg = random_data.copy().flatten().mean()
-  encoded = encode(random_data, 'jpegxl', compression_params={ "level": quality })
-  decoded = decode(encoded, 'jpegxl', shape=xshape, dtype=np.uint8)
+  encoded = encode(random_data, 'jxl', compression_params={ "level": quality })
+  decoded = decode(encoded, 'jxl', shape=xshape, dtype=np.uint8)
   post_avg = decoded.copy().flatten().mean()
 
   assert abs(pre_avg - post_avg) < 1
