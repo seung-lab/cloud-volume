@@ -856,6 +856,9 @@ class CloudVolumePrecomputed(object):
     across the dataset. You can accelerate this query with an LRU
     if there is some spatial localization.
 
+    If coord_resolution is not specified, pts are assumed to be specified in mip 0,
+    but will request the current mip level.
+
     pts: iterable of triples
     mip: which resolution level to get (default self.mip)
     coord_resolution: (rx,ry,rz) the coordinate resolution of the input point.

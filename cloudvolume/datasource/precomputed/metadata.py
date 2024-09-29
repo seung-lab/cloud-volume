@@ -81,7 +81,8 @@ class PrecomputedMetadata(object):
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(128,128,64),
     compressed_segmentation_block_size=(8,8,8),
-    max_mip=0, factor=Vec(2,2,1), redirect=None
+    max_mip=0, factor=Vec(2,2,1), redirect=None,
+    encoding_level=None, encoding_effort=None,
   ):
     """
     Create a new neuroglancer Precomputed info file.
@@ -104,6 +105,8 @@ class PrecomputedMetadata(object):
       max_mip: (int), the maximum mip level id.
       factor: (Vec), the downsampling factor for each mip level
       redirect: (str), cloudpath to redirect to
+      encoding_level: (int) jpeg(xl) quality, png level, etc
+      encoding_effort: (jpeg xl) Effort to hit quality level (1-10).
 
     Returns: dict representing a single mip level that's JSON encodable
     """
@@ -571,6 +574,7 @@ Hops:
     """
     Returns tuning arguments for jpegxl compression.
     """
+    scale = self.scale(mip)
     return {
       "level": scale.get("jxl_quality", None),
       "jxl_effort": scale.get("jxl_effort", None),
