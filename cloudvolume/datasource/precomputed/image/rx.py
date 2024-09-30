@@ -521,9 +521,10 @@ def download_chunk(
   secrets, background_color,
   decode_fn, decompress=True, locking=False
 ):
-  if lru is not None and filename in lru:
+  content = None
+  try:
     content = lru[filename]
-  else:
+  except (TypeError, KeyError):
     (file,) = CloudFiles(
       cloudpath, secrets=secrets, locking=locking
     ).get([ filename ], raw=True)

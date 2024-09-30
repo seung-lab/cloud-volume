@@ -93,7 +93,7 @@ class CloudVolume:
       
       label = 1
       mesh = vol.mesh.get(label) 
-      skel = vol.skeletons.get(label)
+      skel = vol.skeleton.get(label)
 
     Required:
       cloudpath: Path to the dataset layer. This should match storage's supported
@@ -240,7 +240,7 @@ class CloudVolume:
     try:
       return init(cloudpath)
     except InfoUnavailableError as err:
-      if 'precomputed://' not in cloudpath:
+      if 'precomputed://' not in cloudpath and cloudpath[:4] != 'zarr':
         try:
           return init('zarr2://' + cloudpath)
         except:

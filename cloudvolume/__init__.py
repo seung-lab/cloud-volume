@@ -66,7 +66,7 @@ from .visualize import view
 from . import exceptions
 from . import secrets
 
-__version__ = '10.1.0'
+__version__ = '10.5.0'
 
 # Register plugins
 from .datasource.precomputed import register as register_precomputed

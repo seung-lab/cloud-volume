@@ -81,7 +81,8 @@ class PrecomputedMetadata(object):
     resolution, voxel_offset, volume_size, 
     mesh=None, skeletons=None, chunk_size=(128,128,64),
     compressed_segmentation_block_size=(8,8,8),
-    max_mip=0, factor=Vec(2,2,1), redirect=None
+    max_mip=0, factor=Vec(2,2,1), redirect=None,
+    encoding_level=None, encoding_effort=None,
   ):
     """
     Create a new neuroglancer Precomputed info file.
@@ -104,6 +105,8 @@ class PrecomputedMetadata(object):
       max_mip: (int), the maximum mip level id.
       factor: (Vec), the downsampling factor for each mip level
       redirect: (str), cloudpath to redirect to
+      encoding_level: (int) jpeg(xl) quality, png level, etc
+      encoding_effort: (jpeg xl) Effort to hit quality level (1-10).
 
     Returns: dict representing a single mip level that's JSON encodable
     """
@@ -560,12 +563,23 @@ Hops:
       return { "level": scale.get("png_level", None) }
     elif encoding == 'jpeg':
       return { "level": scale.get("jpeg_quality", None) }
-    elif encoding == 'jpegxl':
-      return { "level": scale.get("jpegxl_quality", None) }
+    elif encoding == 'jxl':
+      return self.jpegxl_encoding_params(mip)
     elif encoding == 'fpzip':
       return { "level": scale.get("fpzip_precision", None) }
     else:
       return {}
+
+  def jpegxl_encoding_params(self, mip):
+    """
+    Returns tuning arguments for jpegxl compression.
+    """
+    scale = self.scale(mip)
+    return {
+      "level": scale.get("jxl_quality", None),
+      "jxl_effort": scale.get("jxl_effort", None),
+      "jxl_decodingspeed": scale.get("jxl_decodingspeed", None),
+    }
 
   def zfpc_encoding_params(self, mip):
     """
@@ -793,7 +807,7 @@ Hops:
       if encoding == "jpeg":
         newscale["jpeg_quality"] = int(encoding_level)
       elif encoding == "jpegxl":
-        newscale["jpegxl_quality"] = int(encoding_level)
+        newscale["jxl_quality"] = int(encoding_level)
       elif encoding == "png":
         newscale["png_level"] = int(encoding_level)
       elif encoding == "fpzip":

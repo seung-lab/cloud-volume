@@ -82,6 +82,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     *args, **kwargs
   ):
     self.server_url = cloudpath.replace('graphene://', '')
+    self.server_url = self.server_url.replace("middleauth+", "")
     self.server_path = extract_graphene_path(self.server_url)
     self.use_https = use_https
     self.agglomerate = agglomerate

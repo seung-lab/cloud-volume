@@ -249,5 +249,28 @@ def test_obj_round_trip(unsharded_vol):
 
   assert np.all(np.isclose(x, y, atol=1e-5))
 
+def test_crop_mesh(unsharded_vol):
+  vol = unsharded_vol
+  vol.cache.flush()
+
+  mesh = vol.mesh.get(16649205)
+  
+  corner = mesh.vertices.min(axis=0)
+
+  crop_bbox = Bbox(corner, corner + 7000)
+  crop_mesh = mesh.crop(crop_bbox)
+
+  assert crop_mesh.vertices.size < mesh.vertices.size 
+  assert crop_mesh.faces.size < mesh.faces.size 
+
+
+
+
+
+
+
+
+
+
 
 

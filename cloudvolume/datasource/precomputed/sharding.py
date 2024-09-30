@@ -25,7 +25,10 @@ ShardLocation = namedtuple('ShardLocation',
   ('shard_number', 'minishard_number', 'remainder')
 )
 
-uint64 = np.uint64
+# Numpy 2 no longer allows overflow casting, so we need
+# to manually modulo negative numbers into uint64 space.
+_uint64_modulo = 2 ** 64
+uint64 = lambda x: np.uint64(int(x) % _uint64_modulo)
 
 ShapeType = Tuple[int, int, int]
 

@@ -244,7 +244,7 @@ class LRU:
   def delete(self, key):
     with self.lock:
       if key not in self.hash:
-        raise KeyError("{} not in cache.".format(key))
+        raise KeyError(key)
 
       node = self.hash[key]
       self.queue.delete(node)
@@ -264,7 +264,7 @@ class LRU:
     with self.lock:
       if key not in self.hash:
         if default is None:
-          raise KeyError("{} not in cache.".format(key))
+          raise KeyError(key)
         return default
 
       node = self.hash[key]
@@ -316,6 +316,12 @@ class LRU:
     # Remove the unpicklable entries.
     del state['lock']
     return state
+
+  def __enter__(self):
+    self.lock.acquire()
+
+  def __exit__(self, type, value, tb):
+    self.lock.release()
 
   def __setstate__(self, state):
     # Restore instance attributes (i.e., filename and lineno).

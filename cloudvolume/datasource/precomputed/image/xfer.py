@@ -58,6 +58,7 @@ def transfer_by_rerendering(
   dest_cv = create_destination(source, cloudpath, mip, encoding)
   dest_cv.commit_info()
   dest_cv.progress = False
+  dest_cv.compress = compress
   mip = dest_cv.mip
 
   progress = source.config.progress
@@ -72,15 +73,18 @@ def transfer_by_rerendering(
   grid_size = grid_box.size()
   total = int(grid_size[0] * grid_size[1] * grid_size[2])
 
-  for gx,gy,gz in tqdm(xyzrange(grid_size), disable=(not progress), total=total):
+  for gx,gy,gz in tqdm(xyzrange(grid_size + 1), disable=(not progress), total=total):
     gpt = Vec(gx,gy,gz, dtype=int)
     bbx = Bbox(gpt * shape, (gpt+1) * shape) + bbox.minpt
+    bbx = Bbox.clamp(bbx, bbox)
 
     if dest_cv.meta.path.format == "precomputed":
       bbx = Bbox.clamp(bbx, dest_cv.bounds)
     dest_cv[bbx] = source.download(bbx, mip=mip)
 
   source.config.progress = progress
+
+  return dest_cv
 
 def transfer_unsharded_to_sharded(
   source,
@@ -145,6 +149,7 @@ def transfer_unsharded_to_sharded(
     compress=cv.config.compress, 
     cache_control=cv.config.cdn_cache
   )
+  return cv
 
 def transfer_any_to_unsharded(
   source,
@@ -188,7 +193,7 @@ def transfer_any_to_unsharded(
     return bbx
 
   itr = chunks.transcode(
-    img_chunks,
+    files,
     progress=False, 
     src_encoding=src_encoding,
     dest_encoding=dest_encoding,
@@ -198,10 +203,16 @@ def transfer_any_to_unsharded(
     dest_block_size=cv.meta.compressed_segmentation_block_size(mip),
     background_color=source.background_color,
   )
+  # tricky loops done to perform in-place
+  # re-encoding without changing the dict
+  # keys during iteration
   for label, binary in itr:
+    files[label] = binary
+  for label in list(files.keys()):
     bbx = get_bbx(label)
-    del files[label]
+    binary = files[label]
     files[bbx.to_filename()] = binary
+    del files[label]
 
   CloudFiles(
     cv.meta.join(cloudpath, cv.key)
@@ -293,6 +304,8 @@ def transfer_sharded_to_sharded(
       shard_binary = spec.synthesize_shard(img_chunks)
       del img_chunks
       cfdest.put(filename, shard_binary, raw=True)
+
+  return destvol
 
 def transfer_unsharded_to_unsharded(
   source, 

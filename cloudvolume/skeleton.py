@@ -17,7 +17,7 @@ from .exceptions import (
   SkeletonUnassignedEdgeError, SkeletonTransformError,
   SkeletonAttributeMixingError
 )
-from .lib import red, Bbox
+from .lib import red, Bbox, moving_average
 
 IDENTITY = np.array([
   [1, 0, 0, 0],
@@ -268,6 +268,14 @@ class Skeleton(object):
 
     if type(skeletons[0]) is np.ndarray:
       skeletons = [ skeletons ]
+
+    skeletons = [
+      sk for sk in skeletons 
+      if not sk.empty()
+    ]
+
+    if len(skeletons) == 0:
+      return Skeleton()
 
     ct = 0
     edges = []
@@ -713,6 +721,12 @@ class Skeleton(object):
       [ Skeleton.from_path(path) for path in paths ]
     ).consolidate()
     ds_skel.id = self.id
+    ds_skel.extra_attributes = self.extra_attributes
+
+    for attr in self.extra_attributes:
+      setattr(ds_skel, attr['id'], 
+        np.zeros([ds_skel.vertices.shape[0], int(attr['num_components'])], dtype=attr['data_type'])
+      )
 
     # TODO: I'm sure this could be sped up if need be.
     index = {}
@@ -720,8 +734,8 @@ class Skeleton(object):
       vert = tuple(vert)
       index[vert] = i
 
-    bufs = [ getattr(ds_skel, attr['id']) for attr in ds_skel.extra_attributes ]
-    orig_bufs = [ getattr(self, attr['id']) for attr in ds_skel.extra_attributes ]
+    bufs = [ getattr(ds_skel, attr['id']) for attr in self.extra_attributes ]
+    orig_bufs = [ getattr(self, attr['id']) for attr in self.extra_attributes ]
 
     for i, vert in enumerate(ds_skel.vertices):
       reverse_i = index[tuple(vert)]
@@ -911,7 +925,44 @@ class Skeleton(object):
       )
 
     return forest
-  
+
+  def average_smoothing(self, n:int):
+    """
+    Uses a moving window averaging filter to smooth
+    each of the interjoint paths in the skeleton holding the
+    ends fixed.
+    """
+    paths = self.interjoint_paths()
+
+    index = {}
+    for i, vert in enumerate(self.vertices):
+      vert = tuple(vert)
+      index[vert] = i
+
+    sub_skels = []
+
+    for i, path in enumerate(paths):
+      smooth_path = moving_average(path, n)
+      smooth_path = moving_average(smooth_path[::-1], n)[::-1] # eliminate filter induced group delay
+      smooth_path[0] = path[0]
+      smooth_path[-1] = path[-1]
+
+      sub_skel = Skeleton.from_path(path)
+
+      bufs = [ getattr(sub_skel, attr['id']) for attr in sub_skel.extra_attributes ]
+      orig_bufs = [ getattr(self, attr['id']) for attr in sub_skel.extra_attributes ]
+
+      for i, vert in enumerate(path):
+        reverse_i = index[tuple(vert)]
+        for buf, buf_rev in zip(bufs, orig_bufs):
+          buf[i] = buf_rev[reverse_i]
+
+      sub_skels.append(sub_skel)
+
+    smooth_skel = Skeleton.simple_merge(sub_skels).consolidate()
+    smooth_skel.id = self.id
+    return smooth_skel
+
   def components(self):
     """
     Extract connected components from graph. 

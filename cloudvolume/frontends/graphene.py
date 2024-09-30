@@ -14,18 +14,22 @@ import sys
 import dateutil.parser
 import fastremap
 import numpy as np
+import tenacity
+
+from cloudfiles import CloudFiles
 
 from .. import chunks
 from .. import compression
 from .. import exceptions
 from ..cacheservice import CacheService
-from ..lib import Bbox, Vec, toiter, BboxLikeType
+from ..lib import Bbox, Vec, toiter, BboxLikeType, sip
 from ..storage import SimpleStorage, Storage, reset_connection_pools
 from ..volumecutout import VolumeCutout
 from ..datasource.graphene.metadata import GrapheneApiVersion
+from ..types import CompressType, MipType
 
 from .precomputed import CloudVolumePrecomputed
-import tqdm
+from tqdm import tqdm
 
 def warn(text):
   print(colorize('yellow', text))
@@ -48,6 +52,12 @@ def to_unix_time(timestamp):
     raise ValueError("Not able to convert {} to UNIX time.".format(timestamp))
   
   return int(math.ceil(timestamp))
+
+retry = tenacity.retry(
+  reraise=True, 
+  stop=tenacity.stop_after_attempt(7), 
+  wait=tenacity.wait_random_exponential(0.5, 60.0),
+)
 
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
@@ -81,6 +91,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     Download one or more single voxel values that may be scattered
     across the dataset. You can accelerate this query with an LRU
     if there is some spatial localization.
+
+    If coord_resolution is not specified, pts are assumed to be specified in mip 0,
+    but will request the current mip level.
 
     pts: iterable of triples
     mip: which resolution level to get (default self.mip)
@@ -399,13 +412,80 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     
     return apply_mapping(remapping)
 
+  def memory_cutout(
+    self, 
+    bbox:BboxLikeType, 
+    mip:Optional[int] = None,
+    encoding:Optional[str] = None, 
+    compress:CompressType = None, 
+    compress_level:Optional[int] = None,
+    agglomerate:bool = False,
+    timestamp:Optional[int] = None,
+    **kwargs, # absorb graphene arguments
+  ):
+    """
+    Create a disposable in-memory CloudVolume (mem://) containing
+    the requested cutout region in the unsharded precomputed
+    format. The source volume may be sharded or unsharded.
+
+    You can specify an alternative encoding and compression 
+    settings for the new volume.
+    """
+    if mip is None:
+      mip = self.config.mip
+
+    mem_cv = super().memory_cutout(
+      bbox,
+      mip=mip,
+      encoding=encoding, 
+      compress=compress,
+      compress_level=compress_level,
+    )
+
+    if not agglomerate:
+      return mem_cv
+
+    labels = list(mem_cv.unique(bbox))
+    labels.sort()
+    mapping = self.get_roots(labels, timestamp=timestamp)
+    mapping = { k:v for k,v in zip(labels, mapping) }
+    del labels
+
+    cf = CloudFiles(mem_cv.cloudpath)
+    for filename in cf.list(prefix=mem_cv.key):
+      binary = cf.get(filename)
+      binary = chunks.remap(
+        binary, 
+        encoding=mem_cv.meta.encoding(mip), 
+        shape=mem_cv.meta.chunk_size(mip),
+        dtype=mem_cv.meta.dtype,
+        block_size=mem_cv.meta.compressed_segmentation_block_size(mip),
+        mapping=mapping,
+        preserve_missing_labels=True,
+      )
+      cf.put(
+        filename, binary, 
+        compress=compress, 
+        compression_level=compress_level
+      )
+
+    return mem_cv
+
   def download(
-    self, bbox, mip=None, 
-    parallel=None, segids=None,
-    preserve_zeros=False,
-    agglomerate=None, timestamp=None,
-    stop_layer=None, renumber=False,
-    coord_resolution=None,
+    self, 
+    bbox:BboxLikeType, 
+    mip:MipType = None, 
+    parallel:Optional[int] = None,
+    segids:Optional[Sequence[int]] = None, 
+    preserve_zeros:bool = False,
+
+    agglomerate:Optional[bool] = None, 
+    timestamp:Optional[int] = None, 
+    stop_layer:Optional[int] = None,
+
+    renumber:bool = False, 
+    coord_resolution:Optional[Sequence[int]] = None,
+    label:Optional[int] = None,
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -446,6 +526,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       False: mask other segids with zero
       True: mask other segids with the largest integer value
         contained by the image data type and leave zero as is.
+    label: similar to segids, but for compatibility with Precomputed
+      decodes a to binary image.
 
     Returns: img as a VolumeCutout
     """
@@ -453,6 +535,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     
     if mip is None:
       mip = self.mip
+    mip = self.meta.to_mip(mip)
     
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units(
@@ -486,14 +569,36 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if renumber and (segids or agglomerate):
       renumber = False # no point      
 
-    img = super(CloudVolumeGraphene, self).download(bbox, mip=mip, parallel=parallel, renumber=renumber)
+    direct_binary_image = not (agglomerate or segids or label is None or preserve_zeros)
+
+    img = super(CloudVolumeGraphene, self).download(
+      bbox, 
+      mip=mip, 
+      parallel=parallel, 
+      renumber=renumber,
+      label=(label if direct_binary_image else None)
+    )
+    if direct_binary_image:
+      if renumber_return:
+        return img, { 0:0, label:1 }
+      else:
+        return img
+
     renumber_remap = None
     if renumber:
       img, renumber_remap = img
 
     if agglomerate:
-      img = self.agglomerate_cutout(img, timestamp=timestamp, stop_layer=stop_layer)
+      img = self.agglomerate_cutout(
+        img, 
+        timestamp=timestamp, 
+        stop_layer=stop_layer,
+        label=label,
+        bbox=mip0_bbox,
+      )
       img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
+      if label is not None and not preserve_zeros:
+        return img
 
     if segids is None or agglomerate:
       if renumber_return: 
@@ -525,11 +630,23 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       return img, renumber_remap
     return img
   
-  def agglomerate_cutout(self, img, timestamp=None, stop_layer=None, in_place=True):
-    """Remap a graphene volume to its latest root ids. This creates a flat segmentation."""
+  def agglomerate_cutout(
+    self, 
+    img, 
+    timestamp:Optional[int] = None, 
+    stop_layer:Optional[int] = None, 
+    in_place:bool = True,
+    label:Optional[int] = None,
+    bbox:Optional[Bbox] = None,
+    mip:Optional[int] = None, # mip 0 bbox
+  ):
+    """
+    Remap a graphene volume to the indicidated layer ids (default root ids). 
+    This creates a flat segmentation.
+    """
     if np.all(img == self.image.background_color) or stop_layer == 1:
       if not in_place:
-        return np.copy(img)
+        return np.copy(img, order="F")
       else:
         return img
 
@@ -537,9 +654,15 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if labels.size and labels[0] == 0:
       labels = labels[1:]
 
-    roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
-    mapping = { segid: root for segid, root in zip(labels, roots) }
-    return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
+    if label is not None:
+      watershed_domains = list(self.get_leaves(label, bbox, mip=0, stop_layer=None))
+      fastremap.mask_except(img, watershed_domains, in_place=True, value=0)
+      del watershed_domains
+      return img > 0
+    else:
+      roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
+      mapping = { segid: root for segid, root in zip(labels, roots) }
+      return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
 
   def coordinate_indexing(self, slices):
     res = super().coordinate_indexing(slices)
@@ -598,7 +721,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         Layer 2+: Between chunk interconnections (skip connections possible)
     """
     segids = toiter(segids)
-    input_segids = np.array(segids, dtype=self.meta.dtype)
+    input_segids = np.fromiter(segids, dtype=self.meta.dtype)
 
     if input_segids.size == 0:
       return np.array([], dtype=self.meta.dtype)
@@ -721,24 +844,37 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if timestamp is not None:
       params['timestamp'] = timestamp
 
-    if binary:
-      url = posixpath.join(self.meta.base_path, path, "roots_binary")
-      data = np.array(segids, dtype=np.uint64).tobytes()
-    else:
-      url = posixpath.join(self.meta.base_path, path, "roots")
-      args['node_ids'] = segids
-      data = orjson.dumps(args).encode('utf8')
+    result = []
 
-    if gzip_condition:
-      data = compression.compress(data, method='gzip')
+    @retry
+    def _request_root_ids(subset_segids):
+      nonlocal result
+      if binary:
+        url = posixpath.join(self.meta.base_path, path, "roots_binary")
+        data = np.array(subset_segids, dtype=np.uint64).tobytes()
+      else:
+        url = posixpath.join(self.meta.base_path, path, "roots")
+        args['node_ids'] = subset_segids
+        data = orjson.dumps(args).encode('utf8')
+
+      if gzip_condition:
+        data = compression.compress(data, method='gzip')
     
-    response = requests.post(url, data=data, headers=headers, params=params)
-    response.raise_for_status()
+      response = requests.post(url, data=data, headers=headers, params=params)
+      response.raise_for_status()
+
+      if binary:
+        result.append(np.frombuffer(response.content, dtype=np.uint64))
+      else:
+        result.extend(orjson.loads(response.content)['root_ids'])
+
+    for subset_segids in sip(segids, int(250000)):
+      _request_root_ids(subset_segids)
 
     if binary:
-      return np.frombuffer(response.content, dtype=np.uint64)
-    else:
-      return orjson.loads(response.content)['root_ids']
+      return np.concatenate(result)
+
+    return result
 
   def _get_roots_legacy(self, segids, timestamp):
     if len(segids) == 0:
