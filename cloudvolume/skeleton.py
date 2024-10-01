@@ -934,6 +934,9 @@ class Skeleton(object):
     """
     paths = self.interjoint_paths()
 
+    if n <= 1:
+      return self.clone()
+
     index = {}
     for i, vert in enumerate(self.vertices):
       vert = tuple(vert)
