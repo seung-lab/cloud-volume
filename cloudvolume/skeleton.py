@@ -935,6 +935,12 @@ class Skeleton(object):
     each of the interjoint paths in the skeleton holding the
     ends fixed.
 
+    Note: smoothing is applied in the forwards and then backwards
+    direction to eliminate group delay induced by the filter.
+
+    n: size of moving window in vertices, 1 being an exact
+      copy of the oriignal object.
+
     check_boundary: if the skeleton has a "radii" attribute,
       check to make sure that the skeleton after smoothing is
       not outside that radius and raise an error if it does. 
