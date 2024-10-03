@@ -128,16 +128,32 @@ class Skeleton(object):
       }
     ]
 
+  def _materialize_extra_attributes(self):
+    for attr in self.extra_attributes:
+      if not hasattr(self, attr["id"]):
+        arr = np.zeros(
+          [ self.vertices.shape[0], int(attr["num_components"]) ],
+          dtype=np.dtype(attr["data_type"])
+        )
+        setattr(self, attr["id"], arr)
+
+  def add_extra_attributes(self, attrs):
+    for attr in attrs:
+      if not hasattr(self, attr["id"]):
+        self.extra_attributes.append(attr)
+    self._materialize_extra_attributes()
+
   def add_vertex_attribute(self, name:str, arr:np.ndarray):
     """
     Add a new vertex attribute type and its data.
     """
-    self.extra_attributes.append({
-      "id": name,
-      "data_type": np.dtype(arr.dtype).name,
-      "num_components": (1 if arr.ndim == 1 else arr.shape[2]),
-    })
-    setattr(self, name, arr)
+    if not hasattr(self, name):
+      self.extra_attributes.append({
+        "id": name,
+        "data_type": np.dtype(arr.dtype).name,
+        "num_components": (1 if arr.ndim == 1 else arr.shape[2]),
+      })
+      setattr(self, name, arr)
 
   def _check_space(self):
     if self.space not in ('physical', 'voxel'):
@@ -929,6 +945,7 @@ class Skeleton(object):
   def average_smoothing(
     self, n:int, 
     check_boundary:bool = True,
+    shrink_radii:bool = False,
   ):
     """
     Uses a moving window averaging filter to smooth
@@ -946,6 +963,9 @@ class Skeleton(object):
       not outside that radius and raise an error if it does. 
       This ensures that the skeleton does not poke out of 
       the original object. 
+    shrink_radii: Shrink radii by the amount the vertex is displaced
+      from the original vertex. This will retain the ability to 
+      reliably determine if the vertex is inside the object.
     """
     paths = self.interjoint_paths()
 
@@ -966,17 +986,19 @@ class Skeleton(object):
       smooth_path[-1] = path[-1]
 
       sub_skel = Skeleton.from_path(smooth_path)
+      sub_skel.add_extra_attributes(self.extra_attributes)
 
-      bufs = [ getattr(sub_skel, attr['id']) for attr in sub_skel.extra_attributes ]
-      orig_bufs = [ getattr(self, attr['id']) for attr in sub_skel.extra_attributes ]
+      bufs = [ getattr(sub_skel, attr['id']) for attr in self.extra_attributes ]
+      orig_bufs = [ getattr(self, attr['id']) for attr in self.extra_attributes ]
 
       check_boundary = check_boundary and hasattr(self, "radii")
 
       for i, (vert, smooth_vert) in enumerate(zip(path, smooth_path)):
         reverse_i = index[tuple(vert)]
 
+        dist = np.linalg.norm(vert - smooth_vert)
+
         if check_boundary:
-          dist = np.linalg.norm(vert - smooth_vert)
           if dist > self.radii[reverse_i]:
             raise ValueError(
               f"Smoothing operation may have pushed one or more verticies "
@@ -989,6 +1011,9 @@ class Skeleton(object):
 
         for buf, buf_rev in zip(bufs, orig_bufs):
           buf[i] = buf_rev[reverse_i]
+
+        if shrink_radii:
+          sub_skel.radii[i] -= dist
 
       sub_skels.append(sub_skel)
 
