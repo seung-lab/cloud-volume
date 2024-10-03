@@ -926,11 +926,20 @@ class Skeleton(object):
 
     return forest
 
-  def average_smoothing(self, n:int):
+  def average_smoothing(
+    self, n:int, 
+    check_boundary:bool = True,
+  ):
     """
     Uses a moving window averaging filter to smooth
     each of the interjoint paths in the skeleton holding the
     ends fixed.
+
+    check_boundary: if the skeleton has a "radii" attribute,
+      check to make sure that the skeleton after smoothing is
+      not outside that radius and raise an error if it does. 
+      This ensures that the skeleton does not poke out of 
+      the original object. 
     """
     paths = self.interjoint_paths()
 
@@ -955,8 +964,22 @@ class Skeleton(object):
       bufs = [ getattr(sub_skel, attr['id']) for attr in sub_skel.extra_attributes ]
       orig_bufs = [ getattr(self, attr['id']) for attr in sub_skel.extra_attributes ]
 
+      check_boundary = check_boundary and hasattr(self, "radii")
+
       for i, vert in enumerate(path):
         reverse_i = index[tuple(vert)]
+
+        if check_boundary:
+          orig_vert = self.vertices[reverse_i]
+          if np.linalg.norm(vert - orig_vert) > self.radii[reverse_i]:
+            raise ValueError(
+              f"Smoothing operation may have pushed one or more verticies "
+              f"outside of the original object boundary.\n"
+              f"Smoothed: {vert}\n"
+              f"Original: {orig_vert}\n"
+              f"Radius: {self.radii[reverse_i]}"
+            )
+
         for buf, buf_rev in zip(bufs, orig_bufs):
           buf[i] = buf_rev[reverse_i]
 
