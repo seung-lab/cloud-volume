@@ -338,6 +338,7 @@ skel.viewer() # Opens GUI. Requires matplotlib
 
 skel.cable_length() # sum of all edge lengths
 skel = skel.downsample(2) # reduce size of skeleton by factor of 2
+skel = skel.average_smoothing(3) # rolling average, n=3 
 
 skel1 == skel2 # check if contents of internal arrays match
 Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
