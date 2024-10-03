@@ -959,25 +959,26 @@ class Skeleton(object):
       smooth_path[0] = path[0]
       smooth_path[-1] = path[-1]
 
-      sub_skel = Skeleton.from_path(path)
+      sub_skel = Skeleton.from_path(smooth_path)
 
       bufs = [ getattr(sub_skel, attr['id']) for attr in sub_skel.extra_attributes ]
       orig_bufs = [ getattr(self, attr['id']) for attr in sub_skel.extra_attributes ]
 
       check_boundary = check_boundary and hasattr(self, "radii")
 
-      for i, vert in enumerate(path):
+      for i, (vert, smooth_vert) in enumerate(zip(path, smooth_path)):
         reverse_i = index[tuple(vert)]
 
         if check_boundary:
-          orig_vert = self.vertices[reverse_i]
-          if np.linalg.norm(vert - orig_vert) > self.radii[reverse_i]:
+          dist = np.linalg.norm(vert - smooth_vert)
+          if dist > self.radii[reverse_i]:
             raise ValueError(
               f"Smoothing operation may have pushed one or more verticies "
               f"outside of the original object boundary.\n"
-              f"Smoothed: {vert}\n"
-              f"Original: {orig_vert}\n"
-              f"Radius: {self.radii[reverse_i]}"
+              f"Smoothed: {smooth_vert}\n"
+              f"Original: {vert}\n"
+              f"Allowed Radius: {self.radii[reverse_i]:.3f}\n"
+              f"Total Radius: {dist}"
             )
 
         for buf, buf_rev in zip(bufs, orig_bufs):
