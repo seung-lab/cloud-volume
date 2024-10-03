@@ -1569,7 +1569,7 @@ def test_transfer_lossy():
 
   assert np.all(np.abs(img.astype(np.int32) - jpgimg.astype(np.int32)) < 3)
 
-  dcv.transfer_to('file:///tmp/removeme/transfer3/', cv.bounds, encoding="jpegxl", compress=False)
+  dcv.transfer_to('file:///tmp/removeme/transfer3/', cv.bounds, encoding="jxl", compress=False)
 
   dcv2 = CloudVolume('file:///tmp/removeme/transfer3/')
 
