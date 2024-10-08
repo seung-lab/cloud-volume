@@ -536,10 +536,10 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     if mip is None:
       mip = self.mip
     mip = self.meta.to_mip(mip)
-    
+
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units(
-        "vx", self.meta.resolution(self.mip)
+        "vx", self.meta.resolution(mip)
       ).astype(int)
 
     bbox = Bbox.create(

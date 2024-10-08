@@ -789,7 +789,9 @@ class CloudVolumePrecomputed(object):
     mip = self.meta.to_mip(mip)
     
     if isinstance(bbox, Bbox):
-      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+      bbox = bbox.convert_units(
+        "vx", self.meta.resolution(mip)
+      ).astype(int)
 
     bbox = Bbox.create(
       bbox, context=self.bounds, 
