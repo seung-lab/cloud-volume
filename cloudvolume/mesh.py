@@ -96,6 +96,14 @@ class Mesh(object):
       self.segid, self.encoding_type
     )
 
+  @property
+  def id(self):
+    return self.segid
+
+  @id.setter
+  def id(self, val):
+    self.segid = val
+
   def empty(self):
     return self.vertices.size == 0 or self.faces.size == 0
 
