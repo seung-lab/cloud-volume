@@ -191,6 +191,8 @@ class PrecomputedImageSource(ImageSourceInterface):
     if location is None:
       location = self.shared_memory_id
 
+    numberfn = int if np.issubdtype(self.meta.dtype, np.integer) else float
+
     if self.is_sharded(mip):
       if renumber:
         raise ValueError("renumber is only supported for non-sharded volumes.")
@@ -204,7 +206,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         progress=self.config.progress,
         fill_missing=self.fill_missing,
         order=order,
-        background_color=int(self.background_color),
+        background_color=numberfn(self.background_color),
         label=label,
       )
     else:
@@ -225,7 +227,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         green=self.config.green,
         secrets=self.config.secrets,
         renumber=renumber,
-        background_color=int(self.background_color),
+        background_color=numberfn(self.background_color),
         label=label,
       )
 

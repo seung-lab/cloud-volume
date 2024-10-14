@@ -81,11 +81,17 @@ def test_fill_missing():
   vol.cache.flush()
   delete_layer('/tmp/cloudvolume/empty_volume')
 
-def test_background_color():
+@pytest.mark.parametrize("bgcolor", [1, 1.0, float('NaN')])
+def test_background_color(bgcolor):
+
+  data_type = 'uint8'
+  if np.issubdtype(type(bgcolor), np.floating):
+    data_type = 'float32'
+
   info = CloudVolume.create_new_info(
     num_channels=1, 
     layer_type='image', 
-    data_type='uint8', 
+    data_type=data_type, 
     encoding='raw',
     resolution=[ 1,1,1 ], 
     voxel_offset=[0,0,0], 
@@ -101,24 +107,34 @@ def test_background_color():
 
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
                     mip=0, 
-                    background_color=1, 
+                    background_color=bgcolor, 
                     fill_missing=True)
-  assert np.count_nonzero(vol[:] - 1) == 0
+
+  if np.isnan(bgcolor):
+    assert np.isnan(np.unique(vol[:])[0])
+  else:
+    assert np.unique(vol[:])[0] == bgcolor
 
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
                     mip=0, 
-                    background_color=1, 
+                    background_color=bgcolor, 
                     fill_missing=True,
                     bounded=False)
-  assert np.count_nonzero(vol[0:129,0:129,0:1]-1) == 0
+  if np.isnan(bgcolor):
+    assert np.isnan(np.unique(vol[:])[0])
+  else:
+    assert np.unique(vol[0:129,0:129,0:1])[0] == bgcolor
 
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
                     mip=0, 
-                    background_color=1, 
+                    background_color=bgcolor, 
                     fill_missing=True,
                     bounded=False,
                     parallel=2)
-  assert np.count_nonzero(vol[0:129,0:129,0:1]-1) == 0
+  if np.isnan(bgcolor):
+    assert np.isnan(np.unique(vol[:])[0])
+  else:
+    assert np.unique(vol[0:129,0:129,0:1])[0] == bgcolor
   vol.cache.flush()
   delete_layer('/tmp/cloudvolume/empty_volume')
 
