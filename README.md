@@ -252,6 +252,7 @@ vol[cfg.x: cfg.x + cfg.length, cfg.y:cfg.y + cfg.length, cfg.z: cfg.z + cfg.leng
 | raw                     | Any                        | Y        | Y           | Serialized numpy arrays.                                                                 |
 | png                     | Image                      | Y        | Y           | Multiple slices stiched into a single PNG.                                               |
 | jpeg                    | Image                      | N        | Y           | Multiple slices stiched into a single JPEG.                                              |
+| jxl                     | Image                      | Optional | Y*          | Multiple slices stiched into a single JPEG-XL.                                           |
 | compressed_segmentation | Segmentation               | Y        | Y           | Renumbered numpy arrays to reduce data width. Also used by Neuroglancer internally.      |
 | compresso               | Segmentation               | Y        | Y           | Lossless high compression algorithm for connectomics segmentation.                       |
 | crackle                 | Segmentation               | Y        | Y*           | Lossless high compression algorithm for connectomics segmentation.                       |
