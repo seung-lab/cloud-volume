@@ -14,7 +14,7 @@ mesh = vol.mesh.get(label)
 skel = vol.skeleton.get(label)
 ```
 
-CloudVolume is a serverless Python client for random access reading and writing of [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes compatible system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
+CloudVolume is a serverless Python client for random access reading and writing of [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/datasource/precomputed#readme)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes compatible system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
 
 Precomputed volumes are typically stored on [AWS S3](https://aws.amazon.com/s3/), [Google Storage](https://cloud.google.com/storage/), or locally. CloudVolume can read and write to these object storage providers given a service account token with appropriate permissions. However, these volumes can be stored on any service, including an ordinary webserver or local filesystem, that supports key-value access.
 
@@ -38,7 +38,7 @@ You can find a collection of CloudVolume accessible and Neuroglancer viewable da
 - Understands image hierarchies & anisotropic pixel resolutions.
 - Accomodates downloading missing tiles (`fill_missing=True`).
 - Accomodates uploading compressed black tiles to erasure coded file systems (`delete_black_uploads=True`).
-- Growing support for the Neuroglancer [sharded format](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed) which dramatically condenses the number of files required to represent petascale datasets, similar to [Cloud Optimized GeoTIFF](https://www.cogeo.org/), which can result in [dramatic cost savings](https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People).
+- Growing support for the Neuroglancer [sharded format](https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/sharded.md) which dramatically condenses the number of files required to represent petascale datasets, similar to [Cloud Optimized GeoTIFF](https://www.cogeo.org/), which can result in [dramatic cost savings](https://github.com/seung-lab/kimimaro/wiki/The-Economics:-Skeletons-for-the-People).
 - Reads Precomputed meshes and skeletons.
 - Includes viewers for small images, meshes, and skeletons.
 - Only 3 dimensions + RBG channels currently supported for images.
@@ -202,7 +202,7 @@ The format or protocol fields may be omitted where required. In the case of the 
 
 ### Supported Formats
 
-* precomputed: Neuroglancer's native format. ([specification](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed))
+* precomputed: Neuroglancer's native format. ([specification](https://github.com/google/neuroglancer/tree/master/src/datasource/precomputed#readme))
 * graphene: Precomputed based format used by the PyChunkGraph server.
 * boss: The BOSS (https://docs.theboss.io/docs)
 * n5: Not HDF5 (https://github.com/saalfeldlab/n5) Read-only support. Supports raw, gzip, bz2, and xz but not lz4 compression. mode 0 datasets only.
@@ -222,7 +222,7 @@ CloudVolume also supports [alternative s3 aliases](https://github.com/seung-lab/
 
 ### `info` Files - New Dataset
 
-Neuroglancer relies on an [`info`](https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/precomputed#info-json-file-specification) file located at the root of a dataset layer to tell it how to compute file locations and interpret the data in each file. CloudVolume piggy-backs on this functionality.
+Neuroglancer relies on an [`info`](https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/volume.md#info-json-file-specification) file located at the root of a dataset layer to tell it how to compute file locations and interpret the data in each file. CloudVolume piggy-backs on this functionality.
 
 In the below example, assume you are creating a new segmentation volume from a 3d numpy array "rawdata". Note Precomputed stores data in Fortran (column major, aka CZYX) order. You should do a small test to see if the image is written transposed. You can fix this by uploading `rawdata.T`. A more detailed example for uploading a local volume [is located here](https://github.com/seung-lab/cloud-volume/wiki/Example-Single-Machine-Dataset-Upload).
 
