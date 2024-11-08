@@ -262,7 +262,8 @@ class CloudVolume:
     vol_path='file:///tmp/image/' + generate_random_string(),
     resolution=(4,4,40), voxel_offset=(0,0,0), 
     chunk_size=(128,128,64), layer_type=None, max_mip=0,
-    encoding='raw', compress=None, progress=False
+    encoding='raw', compress=None, progress=False,
+    encoding_level=None, encoding_effort=None,
   ):
     """
     Create a new dataset from a numpy array.
@@ -292,7 +293,8 @@ class CloudVolume:
       num_channels, layer_type, np.dtype(arr.dtype).name,
       encoding, resolution,
       voxel_offset, arr.shape[:3],
-      chunk_size=chunk_size, max_mip=max_mip
+      chunk_size=chunk_size, max_mip=max_mip,
+      encoding_level=encoding_level, encoding_effort=encoding_effort, 
     )
     
     vol = CloudVolume(
