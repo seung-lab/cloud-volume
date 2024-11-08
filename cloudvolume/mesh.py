@@ -124,14 +124,7 @@ class Mesh(object):
     but sometimes it is convenient to have a list 
     of triangles in their proper coordinate space.
     """
-    Nf = self.faces.shape[0]
-    tris = np.zeros( (Nf, 3, 3), dtype=np.float32, order='C' ) # triangle, vertices, (x,y,z)
-
-    for i in range(Nf):
-      for j in range(3):
-        tris[i,j,:] = self.vertices[ self.faces[i,j] ]
-
-    return tris
+    return self.vertices[self.faces]
 
   @classmethod
   def concatenate(cls, *meshes, segid=None):
