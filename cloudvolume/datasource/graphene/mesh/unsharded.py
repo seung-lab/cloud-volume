@@ -227,7 +227,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       elif is_draco:
         if not deduplicate_chunk_boundaries:
           pass
-        elif level == 2:
+        else:
           # Deduplicate at quantized lvl2 chunk borders
           draco_grid_size = meta.get_draco_grid_size(level)
           mesh = mesh.deduplicate_chunk_boundaries(
@@ -236,11 +236,6 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
             is_draco=True,
             draco_grid_size=draco_grid_size,
           )
-        else:
-          # TODO: cyclic draco quantization to properly
-          # stitch and deduplicate draco meshes at variable
-          # levels (see github issue #299)
-          print('Warning: deduplication not currently supported for this layer\'s variable layered draco meshes')
       elif deduplicate_chunk_boundaries:
         mesh = mesh.deduplicate_chunk_boundaries(
             meta.mesh_chunk_size * resolution,
