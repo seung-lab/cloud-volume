@@ -166,8 +166,17 @@ class ZarrMetadata(PrecomputedMetadata):
     resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
     return resolution[i] * scale_factor
 
+  def has_time_axis(self):
+    try:
+      return self.time_index() is not None
+    except ValueError:
+      return False
+
+  def axes(self):
+    return self.zattrs["multiscales"][0]["axes"]
+
   def time_index(self):
-    for i, axis in enumerate(self.zattrs["multiscales"][0]["axes"]):
+    for i, axis in enumerate(self.axes()):
       if axis["type"] == "time":
         return i
     raise ValueError("No time axis.")
@@ -182,8 +191,22 @@ class ZarrMetadata(PrecomputedMetadata):
     return int(np.ceil(nframes / t_chunk_size))
 
   def num_frames(self, mip):
-    i = self.time_index()
-    return self.zarrays[mip]["shape"][i]
+    try:
+      i = self.time_index()
+      return self.zarrays[mip]["shape"][i]
+    except ValueError:
+      return 1
+
+  def chunk_name(self, mip, *args):
+    seq = self.cv_axes_to_zarr_axes()
+    sep = self.dimension_separator(mip)
+
+    values = [ str(args[val]) for val in seq ]
+
+    if self.order(mip) == "F":
+      values.reverse()
+
+    return sep.join([ self.key(mip), *values ])
 
   def duration_in_seconds(self):
     return self.time_resolution_in_seconds(0) * self.num_frames(0)
@@ -246,7 +269,7 @@ class ZarrMetadata(PrecomputedMetadata):
     cf.put_jsons(to_upload, compress=compress)
 
   def to_zarr_volume_size(self, mip):
-    axes = self.zattrs["multiscales"][0]["axes"]
+    axes = self.axes()
       
     shape = []
     for axis in axes:
@@ -264,7 +287,7 @@ class ZarrMetadata(PrecomputedMetadata):
     return shape
 
   def zarr_axes_to_cv_axes(self):
-    axes = self.zattrs["multiscales"][0]["axes"]
+    axes = self.axes()
 
     shape = []
     for i, axis in enumerate(axes):
@@ -375,6 +398,16 @@ class ZarrMetadata(PrecomputedMetadata):
 
     base_res = self.spatial_resolution_in_nm(0, zattrs, zarrays)
 
+    def extract_chunk_size(chunk_size):
+      chunk_size = list(chunk_size)
+      if zarrays[0]["order"] == "C":
+        while len(chunk_size) > 3:
+          chunk_size.pop(0)
+        chunk_size.reverse()
+      else:
+        chunk_size = chunk_size[:3]
+      return chunk_size
+
     info = PrecomputedMetadata.create_info(
       num_channels=num_channels,
       layer_type='image',
@@ -383,7 +416,7 @@ class ZarrMetadata(PrecomputedMetadata):
       resolution=base_res,
       voxel_offset=[0,0,0],
       volume_size=extract_spatial_size(0),
-      chunk_size=zarrays[0]["chunks"][2:][::-1],
+      chunk_size=extract_chunk_size(zarrays[0]["chunks"]),
     )
 
     num_mips = len(zattrs["multiscales"][0]["datasets"])
@@ -397,14 +430,19 @@ class ZarrMetadata(PrecomputedMetadata):
       if zarray is None:
         continue
 
+      chunk_size = extract_chunk_size(zarray["chunks"])
       self.add_scale(
         factor,
-        chunk_size=zarray["chunks"][2:][::-1],
+        chunk_size=chunk_size,
         encoding=zarray["compressor"]["id"],
         info=info
       )
 
     return info
+
+  def key(self, mip):
+    datasets = self.zattrs["multiscales"][0]["datasets"]
+    return datasets[mip].get("path", mip+1)
 
   def fetch_info(self):
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
@@ -433,7 +471,23 @@ class ZarrMetadata(PrecomputedMetadata):
     return self.zarr_to_info(self.zarrays, self.zattrs)
 
   def zarr_chunk_size(self, mip):
-    return [1, self.num_channels ] + list(self.chunk_size(mip)[::-1])
+    axes = self.zattrs["multiscales"][0]["axes"]
+    cs = self.chunk_size(mip)
+
+    attr = []
+    for axis in axes:
+      if axis["name"] == 't':
+        attr.append(self.time_chunk_size(mip))
+      elif axis["name"] == 'c':
+        attr.append(self.num_channels)
+      elif axis["name"] == 'x':
+        attr.append(cs[0])
+      elif axis["name"] == 'y':
+        attr.append(cs[1])
+      elif axis["name"] == 'z':
+        attr.append(cs[2])
+
+    return attr
 
   def commit_provenance(self):
     """Zarr doesn't support provenance files."""
