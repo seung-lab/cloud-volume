@@ -417,10 +417,10 @@ class ZarrMetadata(PrecomputedMetadata):
     else:
       self.zattrs = self.default_zattrs()
 
-    num_mips = len(self.zattrs["multiscales"][0]["datasets"])
+    datasets = self.zattrs["multiscales"][0]["datasets"]
 
     zarray_paths = [
-      f"{i}/.zarray" for i in range(1, num_mips)
+      f"{ds.get('path', i+1)}/.zarray" for i, ds in enumerate(datasets)
     ]
     res = cf.get_json(zarray_paths)
 
