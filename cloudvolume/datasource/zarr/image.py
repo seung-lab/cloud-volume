@@ -56,13 +56,18 @@ class ZarrImageSource(ImageSourceInterface):
 
     encoding = self.meta.compressor(mip)
 
+    if encoding == "brotli":
+      encoding = "br"
+    elif encoding == "zlib":
+      encoding = "gzip"
+    elif encoding == "lzma":
+      encoding = "xz"
+
     if encoding == "blosc":
       import blosc
       raw_array = blosc.decompress(binary)
-    elif encoding == "zstd":
-      raw_array = cloudfiles.compression.decompress(binary, "zstd", filename)
-    elif encoding == "zlib":
-      raw_array = cloudfiles.compression.decompress(binary, "gzip", filename)
+    elif encoding in ["zstd", "xz", "br", "gzip"]:
+      raw_array = cloudfiles.compression.decompress(binary, encoding, filename)
     else:
       raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
     
