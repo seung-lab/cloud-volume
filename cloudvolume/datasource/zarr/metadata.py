@@ -360,9 +360,12 @@ class ZarrMetadata(PrecomputedMetadata):
       axes = scale["axes"]
       return np.array(scale["datasets"][mip]["coordinateTransformations"][0]["scale"])
 
-    num_channels = len([ 
-      chan for chan in zattrs["omero"]["channels"] if chan["active"] 
-    ])
+    try:
+      num_channels = len([ 
+        chan for chan in zattrs["omero"]["channels"] if chan["active"] 
+      ])
+    except KeyError:
+      num_channels = 1
 
     if not zarrays:
       raise exceptions.InfoUnavailableError()
