@@ -6,6 +6,7 @@ import os
 
 import numpy as np
 from cloudfiles import CloudFiles
+import cloudfiles.compression
 
 from .. import (
   autocropfn, readonlyguard, 
@@ -26,7 +27,6 @@ from ...paths import extract
 from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
 from ..precomputed.image import xfer
-
 
 class ZarrImageSource(ImageSourceInterface):
   def __init__(
@@ -60,8 +60,9 @@ class ZarrImageSource(ImageSourceInterface):
       import blosc
       raw_array = blosc.decompress(binary)
     elif encoding == "zstd":
-      import zstandard
-      raw_array = zstandard.decompress(binary)
+      raw_array = cloudfiles.compression.decompress(binary, "zstd", filename)
+    elif encoding == "zlib":
+      raw_array = cloudfiles.compression.decompress(binary, "gzip", filename)
     else:
       raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
     
