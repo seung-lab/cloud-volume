@@ -54,8 +54,18 @@ class ZarrImageSource(ImageSourceInterface):
       else:
         raise exceptions.EmptyVolumeException(f"{filename} is missing.")
 
-    import blosc
-    arr = np.frombuffer(blosc.decompress(binary), dtype=self.meta.dtype)
+    encoding = self.meta.compressor(mip)
+
+    if encoding == "blosc":
+      import blosc
+      raw_array = blosc.decompress(binary)
+    elif encoding == "zstd":
+      import zstandard
+      raw_array = zstandard.decompress(binary)
+    else:
+      raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
+    
+    arr = np.frombuffer(raw_array, dtype=self.meta.dtype)
     return arr.reshape(default_shape, order=self.meta.order(mip))
 
   def download(

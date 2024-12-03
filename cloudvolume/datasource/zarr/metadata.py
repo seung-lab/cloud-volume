@@ -188,6 +188,9 @@ class ZarrMetadata(PrecomputedMetadata):
   def duration_in_seconds(self):
     return self.time_resolution_in_seconds(0) * self.num_frames(0)
 
+  def compressor(self, mip):
+    return self.zarrays[mip].get("compressor", {}).get("id", "blosc")
+
   def order(self, mip):
     return self.zarrays[mip]["order"]
 
