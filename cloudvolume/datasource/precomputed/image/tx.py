@@ -279,6 +279,7 @@ def threaded_upload_chunks(
     green=False,
     compress_level=None,
     secrets=None,
+    lru_encoding="same",
   ):
   
   if cache.enabled:
