@@ -43,6 +43,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     background_color:int = 0,
     readonly:bool = False,
     lru_bytes:int = 0,
+    lru_encoding:str = "same",
   ):
     self.config = config
     self.meta = meta 
@@ -60,6 +61,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     self.shared_memory_id = self.generate_shared_memory_location()
 
     self.lru = LRU(lru_bytes, size_in_bytes=True)
+    # private member bc once set, changing this will cause chaos
+    # unless the LRU is cleared or transcoded
+    self._lru_encoding = lru_encoding 
 
   def generate_shared_memory_location(self):
     return 'precomputed-shm-' + str(uuid.uuid4())
@@ -201,7 +205,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_sharded(
         bbox, mip, 
-        self.meta, self.cache, self.lru, spec,
+        self.meta, self.cache, self.lru, self._lru_encoding, spec,
         compress=self.config.compress,
         progress=self.config.progress,
         fill_missing=self.fill_missing,
@@ -215,6 +219,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         meta=self.meta,
         cache=self.cache,
         lru=self.lru,
+        lru_encoding=self._lru_encoding,
         parallel=parallel,
         location=location,
         retain=retain,
@@ -358,7 +363,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       return self._upload_shard(image, bbox, mip)
 
     return tx.upload(
-      self.meta, self.cache, self.lru,
+      self.meta, self.cache, self.lru, self._lru_encoding,
       image, offset, mip, 
       compress=self.config.compress,
       compress_level=self.config.compress_level,

@@ -70,7 +70,7 @@ class CloudVolume:
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
     agglomerate:bool=False, secrets:SecretsType=None, 
     spatial_index_db:Optional[str]=None, lru_bytes:int = 0,
-    cache_locking:bool = True
+    cache_locking:bool = True, lru_encoding:str = "same",
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -179,6 +179,12 @@ class CloudVolume:
         tiles in memory. This is an in-memory cache and is completely separate from
         the `cache` parameter that handles disk IO. Tiles are stripped over only their
         second stage compression.
+      lru_encoding: (str) You can set the LRU encoding to be different from the source
+        encoding. This can help reduce the memory usage of the LRU or take advantage of
+        special codec properties. "same" means use the same encoding as the source.
+        Using "raw" will speed up the LRU at the expense of memory if the source encoding is 
+        not raw. Using a different encoding than the source encoding, other than "raw", will
+        initially be slower as chunks will need to be reencoded.
       info: (dict) In lieu of fetching a neuroglancer info file, use this one.
           This is useful when creating new datasets and for repeatedly initializing
           a new cloudvolume instance.

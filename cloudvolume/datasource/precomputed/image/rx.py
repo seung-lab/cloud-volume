@@ -39,7 +39,7 @@ fs_lock = None # defined in common.initialize_synchronization
 
 def download_sharded(
   requested_bbox, mip,
-  meta, cache, lru, spec,
+  meta, cache, lru, lru_encoding, spec,
   compress, progress,
   fill_missing, 
   order, background_color,
@@ -194,14 +194,15 @@ def download_raw_unsharded(
     lru=None, mip=mip, cloudpaths=cloudpaths, 
     fn=store_result, decode_fn=noop_decode, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache, 
-    green=green, secrets=secrets, background_color=background_color
+    green=green, secrets=secrets, background_color=background_color,
+    full_decode=True,
   )
 
   return results
 
 def download(
   requested_bbox, mip, 
-  meta, cache, lru,
+  meta, cache, lru, lru_encoding,
   fill_missing, progress,
   parallel, location, 
   retain, use_shared_memory, 
@@ -249,7 +250,7 @@ def download(
 
   if requested_bbox.volume() == 1:
     return download_single_voxel_unsharded(
-      meta, cache, lru,
+      meta, cache, lru, lru_encoding,
       requested_bbox, first(cloudpaths), 
       mip, fill_missing, compress_cache,
       secrets, renumber, background_color,
@@ -308,15 +309,16 @@ def download(
       fn = process_renumber  
 
     download_chunks_threaded(
-      meta, cache, lru, mip, cloudpaths, 
+      meta, cache, lru, lru_encoding, mip, cloudpaths, 
       fn=fn, decode_fn=decode_fn, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
-      green=green, secrets=secrets, background_color=background_color
+      green=green, secrets=secrets, background_color=background_color,
+      full_decode=True,
     )
   else:
     handle, renderbuffer = multiprocess_download(
       requested_bbox, mip, cloudpaths,
-      meta, cache, lru, compress_cache,
+      meta, cache, lru, lru_encoding, compress_cache,
       fill_missing, progress,
       parallel, location, retain, 
       use_shared_memory=(use_file == False),
@@ -335,7 +337,7 @@ def download(
   return out
 
 def download_single_voxel_unsharded(
-  meta, cache, lru,
+  meta, cache, lru, lru_encoding,
   requested_bbox, filename, 
   mip, fill_missing, compress_cache,
   secrets, renumber, background_color,
@@ -362,13 +364,13 @@ def download_single_voxel_unsharded(
   else:
     chunk_bbx = Bbox.from_filename(filename)
     label, _ = download_chunk(
-      meta, cache, lru,
+      meta, cache, lru, lru_encoding,
       cloudpath, mip,
       filename, fill_missing,
       cache_enabled, compress_cache,
       secrets, background_color,
       partial(decode_single_voxel, requested_bbox.minpt - chunk_bbx.minpt),
-      decompress=True, locking=locking
+      decompress=True, locking=locking, full_decode=False,
     )
 
   if segid is not None:
@@ -387,7 +389,7 @@ def download_single_voxel_unsharded(
 
 def multiprocess_download(
     requested_bbox, mip, cloudpaths,
-    meta, cache, lru, compress_cache,
+    meta, cache, lru, lru_encoding, compress_cache,
     fill_missing, progress,
     parallel, location, 
     retain, use_shared_memory, order,
@@ -428,7 +430,7 @@ def multiprocess_download(
     )
 
   if meta.encoding(mip) == "raw":
-    repopulate_lru_from_shm(meta, mip, lru, renderbuffer, requested_bbox)
+    repopulate_lru_from_shm(meta, mip, lru, lru_encoding, renderbuffer, requested_bbox)
 
   if not retain:
     if use_shared_memory:
@@ -439,7 +441,7 @@ def multiprocess_download(
   return mmap_handle, renderbuffer
 
 def repopulate_lru_from_shm(
-  meta, mip, lru, 
+  meta, mip, lru, lru_encoding,
   renderbuffer, requested_bbox
 ):
   """
@@ -514,16 +516,25 @@ def child_process_download(
   return len(cloudpaths)
 
 def download_chunk(
-  meta, cache, lru,
+  meta, cache, lru, lru_encoding,
   cloudpath, mip,
   filename, fill_missing,
   enable_cache, compress_cache,
   secrets, background_color,
-  decode_fn, decompress=True, locking=False
+  decode_fn, decompress=True, locking=False,
+  full_decode=True,
 ):
   content = None
+  encoding = meta.encoding(mip)
+  bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
+
   try:
-    content = lru[filename]
+    encoding, content = lru[filename]
+    if isinstance(content, np.ndarray):
+      if full_decode:
+        return content, bbox
+      else:
+        encoding = "raw"
   except (TypeError, KeyError):
     (file,) = CloudFiles(
       cloudpath, secrets=secrets, locking=locking
@@ -540,7 +551,7 @@ def download_chunk(
       cache.cloudfiles().put(
         path=filename, 
         content=(cache_content or b''), 
-        content_type=content_type(meta.encoding(mip)), 
+        content_type=content_type(encoding), 
         compress=compress_cache,
         raw=bool(cache_content),
       )
@@ -553,18 +564,28 @@ def download_chunk(
       content = compression.decompress(content, file['compress'])
 
     if lru is not None:
-      lru[filename] = content
+      lru[filename] = (encoding, content)
 
-  bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
-  img3d = decode_fn(meta, filename, content, fill_missing, mip, 
-                       background_color=background_color)
+  img3d = decode_fn(
+    meta, filename, content, 
+    fill_missing, mip, 
+    background_color=background_color,
+    encoding=encoding,
+  )
+  
+  if lru is not None and full_decode: 
+    if lru_encoding == "raw" or (lru_encoding == "same" and meta.encoding(mip) == "raw"):
+      lru[filename] = ("raw", img3d)
+    elif lru_encoding not in [ "same", meta.encoding(mip) ]:
+      lru[filename] = (lru_encoding, chunks.encode(img3d, lru_encoding))
+
   return img3d, bbox
 
 def download_chunks_threaded(
-    meta, cache, lru, mip, cloudpaths, fn, decode_fn,
+    meta, cache, lru, lru_encoding, mip, cloudpaths, fn, decode_fn,
     fill_missing, progress, compress_cache,
     green=False, secrets=None, background_color=0,
-    decompress=True,
+    decompress=True, full_decode=True,
   ):
   """fn is the postprocess callback. decode_fn is a decode fn."""
   locations = cache.compute_data_locations(cloudpaths)
@@ -572,11 +593,11 @@ def download_chunks_threaded(
 
   def process(cloudpath, filename, enable_cache, locking):
     labels, bbox = download_chunk(
-      meta, cache, lru, cloudpath, mip,
+      meta, cache, lru, lru_encoding, cloudpath, mip,
       filename, fill_missing,
       enable_cache, compress_cache,
       secrets, background_color,
-      decode_fn, decompress, locking
+      decode_fn, decompress, locking, full_decode,
     )
     fn(labels, bbox)
 
@@ -629,6 +650,7 @@ def decode(
   content, fill_missing, 
   mip, background_color=0,
   allow_none=True,
+  encoding=None,
 ):
   """
   Decode content from bytes into a numpy array using the 
@@ -645,7 +667,7 @@ def decode(
     meta, input_bbox, 
     content, fill_missing, 
     mip, background_color,
-    allow_none,
+    allow_none, encoding,
   )
 
 def decode_binary_image(
@@ -653,6 +675,7 @@ def decode_binary_image(
   content, fill_missing, 
   mip, background_color=0, 
   allow_none=True,
+  encoding=None,
 ):
   bbox = Bbox.create(input_bbox)
   shape = list(bbox.size3()) + [ meta.num_channels ]
@@ -693,12 +716,14 @@ def decode_binary_image(
     mip, 
     background_color=background_color,
     allow_none=allow_none,
+    encoding=encoding,
   )
 
 def decode_unique(
   meta, input_bbox, 
   content, fill_missing, 
-  mip, background_color=0
+  mip, background_color=0,
+  encoding=None,
 ):
   """Gets the unique labels present in a given chunk."""
   return _decode_helper(  
@@ -706,12 +731,14 @@ def decode_unique(
     meta, input_bbox, 
     content, fill_missing, 
     mip, background_color,
+    encoding=encoding,
   )
 
 def decode_single_voxel(
   xyz, meta, input_bbox, 
   content, fill_missing, 
-  mip, background_color=0
+  mip, background_color=0,
+  encoding=None,
 ):
   """
   Specialized decode that for some file formats
@@ -733,13 +760,15 @@ def decode_single_voxel(
     meta, input_bbox,
     content, fill_missing, 
     mip, background_color,
+    encoding=encoding,
   )
 
 def _decode_helper(  
   fn, meta, input_bbox, 
-  content, fill_missing, 
-  mip, background_color=0,
-  allow_none=True,
+  content, fill_missing, mip, 
+  background_color=0,
+  allow_none=True, 
+  encoding=None,
 ):
   bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
@@ -755,14 +784,17 @@ def _decode_helper(
   if not content and allow_none:
     return None
 
+  if encoding is None:
+    encoding = meta.encoding(mip)
+
   try:
     return fn(
-      content, 
-      encoding=meta.encoding(mip), 
-      shape=shape, 
-      dtype=meta.dtype, 
+      content,
+      encoding=encoding,
+      shape=shape,
+      dtype=meta.dtype,
       block_size=meta.compressed_segmentation_block_size(mip),
-      background_color=background_color
+      background_color=background_color,
     )
   except Exception as error:
     print(red('File Read Error: {} bytes, {}, {}, errors: {}'.format(
@@ -839,6 +871,7 @@ def unique_unsharded(
     fn=process_core, decode_fn=decode_unique, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache, 
     green=green, secrets=secrets, background_color=background_color,
+    full_decode=False,
   )
 
   if len(shell_chunks) > 0:
@@ -847,6 +880,7 @@ def unique_unsharded(
       fn=process_shell, decode_fn=decode, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
       green=green, secrets=secrets, background_color=background_color,
+      full_decode=False,
     )
 
   return all_labels
