@@ -530,11 +530,6 @@ def download_chunk(
 
   try:
     encoding, content = lru[filename]
-    if isinstance(content, np.ndarray):
-      if full_decode:
-        return content, bbox
-      else:
-        encoding = "raw"
   except (TypeError, KeyError):
     (file,) = CloudFiles(
       cloudpath, secrets=secrets, locking=locking
@@ -680,7 +675,10 @@ def decode_binary_image(
   bbox = Bbox.create(input_bbox)
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
-  if not content:
+  if encoding is None:
+    encoding = meta.encoding(mip)
+
+  if not isinstance(content, np.ndarray) and (content is None or content == b''):
     if fill_missing:
       if allow_none:
         return None
@@ -693,11 +691,12 @@ def decode_binary_image(
 
   # raw requires an extra decompression cycle
   # so just do the direct == comparison
+  print(encoding)
   has_label = True
-  if meta.encoding(mip) != "raw":
+  if encoding != "raw":
     has_label = chunks.contains(
       content, label,
-      encoding=meta.encoding(mip), 
+      encoding=encoding, 
       shape=shape, 
       dtype=meta.dtype, 
       block_size=meta.compressed_segmentation_block_size(mip),
@@ -747,7 +746,11 @@ def decode_single_voxel(
   operation when e.g. people are querying the identity
   of a synapse or organelle location to build a database.
   """
-  if content in (None, b'') and fill_missing:
+  if (
+    not isinstance(content, np.ndarray) 
+    and content in (None, b'') 
+    and fill_missing
+  ):
     return np.full(
       shape=(1,1,1,1), 
       fill_value=background_color,
@@ -773,7 +776,7 @@ def _decode_helper(
   bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
 
-  if not content:
+  if content_len == 0:
     if fill_missing:
       content = b''
     else:
@@ -781,7 +784,7 @@ def _decode_helper(
 
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
-  if not content and allow_none:
+  if content_len == 0 and allow_none:
     return None
 
   if encoding is None:
