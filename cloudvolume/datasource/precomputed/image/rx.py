@@ -569,10 +569,13 @@ def download_chunk(
   )
   
   if lru is not None and full_decode: 
-    if lru_encoding == "raw" or (lru_encoding == "same" and meta.encoding(mip) == "raw"):
-      lru[filename] = ("raw", img3d)
-    elif lru_encoding not in [ "same", meta.encoding(mip) ]:
-      lru[filename] = (lru_encoding, chunks.encode(img3d, lru_encoding))
+    if lru_encoding not in [ "same", meta.encoding(mip) ]:
+      content = chunks.encode(
+        img3d, lru_encoding, 
+        meta.compressed_segmentation_block_size(mip),
+        compression_params=meta.compression_params(mip),
+      )
+      lru[filename] = (lru_encoding, content)
 
   return img3d, bbox
 
@@ -678,7 +681,7 @@ def decode_binary_image(
   if encoding is None:
     encoding = meta.encoding(mip)
 
-  if not isinstance(content, np.ndarray) and (content is None or content == b''):
+  if not content:
     if fill_missing:
       if allow_none:
         return None
@@ -691,7 +694,6 @@ def decode_binary_image(
 
   # raw requires an extra decompression cycle
   # so just do the direct == comparison
-  print(encoding)
   has_label = True
   if encoding != "raw":
     has_label = chunks.contains(

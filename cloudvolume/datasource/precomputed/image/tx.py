@@ -325,9 +325,7 @@ def threaded_upload_chunks(
       )
 
     if lru is not None:
-      if lru_encoding == "raw" or (lru_encoding == "same" and encoding == "raw"):
-        lru[cloudpath] = ("raw", imgchunk)
-      elif lru_encoding in ["same", encoding]:
+      if lru_encoding in ["same", encoding]:
         lru[cloudpath] = (encoding, encoded)
       else:
         lru_encoded = chunks.encode(

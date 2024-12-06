@@ -224,8 +224,7 @@ def test_read_binary_image(green, encoding, lru_bytes):
   img = cv.download(bbox, mip=0, label=0)
   assert img.dtype == bool
   assert np.all(img == (data == 0))
-
-
+  
   bbox = Bbox([1,1,1], [2,2,2])
   img = cv.download(bbox, mip=0, label=data[1,1,1])
   assert img.dtype == bool
