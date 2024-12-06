@@ -467,7 +467,14 @@ def repopulate_lru_from_shm(
 
   encoding = lru_encoding
   if encoding == "same":
-    encoding = meta.encoding(mip)
+    # Since the parallel version populates the LRU via an image and
+    # you don't get the benefit of accessing the raw downloaded bytes,
+    # there will be a performance regression for "same" since e.g.
+    # jpeg -> img -> jpeg will instead of decode -> img,lru you'll
+    # have decode -> img -> encode -> lru. Therefore, this is hacky,
+    # but backwards compatible and strictly expands the capabilities
+    # of the LRU.
+    encoding = "raw" # would ordinarily be: meta.encoding(mip)
 
   for chunkname in core_chunks[-lru.size:]:
     bbx = Bbox.from_filename(chunkname)
