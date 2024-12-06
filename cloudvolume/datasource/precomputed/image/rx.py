@@ -95,16 +95,18 @@ def download_sharded(
 
   lru_chunkdata = [ (zcode, lru[zcode]) for zcode in lru_keys ]
   io_chunkdata = reader.get_data(io_keys, meta.key(mip), progress=progress)
-  
-  for zcode, chunkdata in io_chunkdata.items():
-    lru[zcode] = chunkdata
+  io_chunkdata = { k: (meta.encoding(mip), v) for k,v in io_chunkdata.items() }  
 
-  for zcode, chunkdata in itertools.chain(io_chunkdata.items(), lru_chunkdata):
+  for zcode, (data_encoding, chunkdata) in io_chunkdata.items():
+    lru[zcode] = (data_encoding, chunkdata)
+
+  for zcode, (data_encoding, chunkdata) in itertools.chain(io_chunkdata.items(), lru_chunkdata):
     cutout_bbox = code_map[zcode]
     img3d = decode_fn(
       meta, cutout_bbox, 
       chunkdata, fill_missing, mip,
-      background_color=background_color
+      background_color=background_color,
+      encoding=data_encoding,
     )
     
     if single_voxel:
@@ -639,7 +641,7 @@ def download_chunks_threaded(
     )
 
     schedule_jobs(
-      fns=remote_downloads, 
+      fns=remote_downloads,
       concurrency=n_threads, 
       progress=pbar,
       total=len(locations['remote']),
@@ -944,19 +946,20 @@ def unique_sharded(
     for mcs in sip(io_core_morton_codes, 10000):
       core_chunkdata = reader.get_data(mcs, meta.key(mip), progress=progress)
       for zcode, chunkdata in core_chunkdata.items():
-        yield (zcode, chunkdata)
-        lru[zcode] = chunkdata
+        yield (zcode, meta.encoding(mip), chunkdata)
+        lru[zcode] = (meta.encoding(mip), chunkdata)
     for code in lru_core_morton_codes:
-      yield (code, lru_chunkdata[code])
+      yield (code, *lru_chunkdata[code])
       del lru_chunkdata[code]
 
   all_labels = set()
-  for zcode, chunkdata in iterate_core():
+  for zcode, data_encoding, chunkdata in iterate_core():
     cutout_bbox = code_map[zcode]
     labels = decode_unique(
       meta, cutout_bbox, 
       chunkdata, fill_missing, mip,
-      background_color=background_color
+      background_color=background_color,
+      encoding=data_encoding,
     )
     all_labels |= set(labels)
 
@@ -967,18 +970,19 @@ def unique_sharded(
   def iterate_shell():
     shell_chunkdata = reader.get_data(io_shell_morton_codes, meta.key(mip), progress=progress)
     for zcode, chunkdata in shell_chunkdata.items():
-      yield (zcode, chunkdata)
-      lru[zcode] = chunkdata
+      yield (zcode, meta.encoding(mip), chunkdata)
+      lru[zcode] = (meta.encoding(mip), chunkdata)
     for code in lru_shell_morton_codes:
-      yield (code, lru_chunkdata[code])
+      yield (code, *lru_chunkdata[code])
       del lru_chunkdata[code]    
 
-  for zcode, chunkdata in iterate_shell():
+  for zcode, data_encoding, chunkdata in iterate_shell():
     cutout_bbox = code_map[zcode]
     labels = decode(
       meta, cutout_bbox, 
       chunkdata, fill_missing, mip,
-      background_color=background_color
+      background_color=background_color,
+      encoding=data_encoding,
     )
     if labels is None:
       all_labels |= set([ background_color ])
