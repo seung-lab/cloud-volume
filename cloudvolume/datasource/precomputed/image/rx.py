@@ -602,11 +602,13 @@ def download_chunks_threaded(
   # If there's an LRU sort the fetches so that the LRU ones are first
   # otherwise the new downloads can kick out the cached ones and make the
   # lru useless.
+  are_all_lru_hits = False
   if lru is not None and lru.size > 0:
     if not isinstance(locations['remote'], list):
       locations['remote'] = list(locations['remote'])  
     locations['local'].sort(key=lambda fname: fname in lru, reverse=True)  
     locations['remote'].sort(key=lambda fname: fname in lru, reverse=True)
+    are_all_lru_hits = all(( fname in lru for fname in locations['remote'] ))
 
   qualify = lambda fname: os.path.join(meta.key(mip), os.path.basename(fname))
 
@@ -615,7 +617,8 @@ def download_chunks_threaded(
     for filename in locations['local'] 
   )
   remote_downloads = ( 
-    partial(process, meta.cloudpath, filename, cache.enabled, False) for filename in locations['remote'] 
+    partial(process, meta.cloudpath, filename, cache.enabled, False) 
+    for filename in locations['remote'] 
   )
 
   if progress and not isinstance(progress, str):
@@ -623,7 +626,7 @@ def download_chunks_threaded(
 
   total = len(locations["local"]) + len(locations["remote"])
   n_threads = DEFAULT_THREADS
-  if meta.path.protocol == "file":
+  if meta.path.protocol == "file" or are_all_lru_hits:
     n_threads = 0
 
   with tqdm(desc=progress, total=total, disable=(not progress)) as pbar:
