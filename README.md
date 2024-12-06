@@ -387,6 +387,10 @@ vol.image.lru.clear()
 len(vol.image.lru) # number of items in lru
 vol.image.lru.nbytes # size in bytes (not counting LRU structures, nor recursive)
 vol.image.lru.items() # etc, also functions as a dict
+# Can use more memory, but generally faster access to LRU cache
+# You can set the encoding to anything valid for this image type
+# to e.g. save space and/or accelerate certain query types.
+vol = CloudVolume(..., lru_bytes=num_bytes, lru_encoding='raw') 
 
 # Evaluating the on-disk Cache
 vol.cache.list() # list files in cache at this mip level

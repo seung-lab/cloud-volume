@@ -148,6 +148,8 @@ def decode(
       return np.zeros(shape=shape, dtype=dtype, order="F")
     else:
       return np.full(shape=shape, fill_value=background_color, dtype=dtype, order="F")
+  elif isinstance(filedata, np.ndarray):
+    return filedata
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == "kempressed":
@@ -360,6 +362,8 @@ def labels(
 
   if filedata is None or len(filedata) == 0:
     return np.zeros((0,), dtype=dtype)
+  elif isinstance(filedata, np.ndarray):
+    return fastremap.unique(filedata)
   elif encoding == "raw":
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return fastremap.unique(img)
@@ -395,6 +399,9 @@ def remap(
     return compresso.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
   elif encoding == "crackle":
     return crackle.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
+  elif isinstance(filedata, np.ndarray):
+    img = fastremap.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels, in_place=False)
+    return encode(img, encoding, block_size)    
   else:
     img = decode(filedata, encoding, shape, dtype, block_size)
     fastremap.remap(img, mapping, preserve_missing_labels=preserve_missing_labels, in_place=True)
@@ -428,6 +435,8 @@ def read_voxel(
     out = np.empty((1,1,1,1), dtype=dtype, order="F")
     out[0,0,0,0] = arr[tuple(xyz)]
     return out
+  elif isinstance(filedata, np.ndarray):
+    return filedata[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
   else:
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
@@ -453,6 +462,8 @@ def contains(
   elif encoding == "crackle":
     arr = crackle.CrackleArray(filedata)
     return label in arr
+  elif isinstance(filedata, np.ndarray):
+    return bool(np.isin(label, filedata))
   else:
     arr = decode(filedata, encoding, shape, dtype, block_size, 0)
     return bool(np.isin(label, arr))
