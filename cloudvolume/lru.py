@@ -2,7 +2,7 @@ import sys
 import threading
 
 def getsizeof(val:int) -> int:
-  """does sizeof at depth 2"""
+  """does sizeof at depth 2 for tuples and lists"""
   nbytes = 0
   if isinstance(val, (tuple, list)):
     for elem in val:
@@ -193,7 +193,8 @@ class LRU:
     If size_in_bytes is True, this refers to the size in bytes of the
     stored elements (not counting internal data structures of the LRU)
     as measured by sys.getsizeof which does not handle nested objects
-    (unless they implement a __sizeof__ handler).
+    (unless they implement a __sizeof__ handler). It also handles
+    one level of tuples and lists through custom logic.
 
     Therefore, size_in_bytes is most easily used with Python base types.
     It was designed for with byte strings in mind that represent file
