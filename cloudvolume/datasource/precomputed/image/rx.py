@@ -569,7 +569,7 @@ def download_chunk(
   )
   
   if lru is not None and full_decode: 
-    if lru_encoding not in [ "same", meta.encoding(mip) ]:
+    if lru_encoding not in [ "same", encoding ]:
       content = chunks.encode(
         img3d, lru_encoding, 
         meta.compressed_segmentation_block_size(mip),
