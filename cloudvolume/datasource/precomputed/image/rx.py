@@ -432,8 +432,7 @@ def multiprocess_download(
       emulate_shm=False
     )
 
-  if meta.encoding(mip) == "raw":
-    repopulate_lru_from_shm(meta, mip, lru, lru_encoding, renderbuffer, requested_bbox)
+  repopulate_lru_from_shm(meta, mip, lru, lru_encoding, renderbuffer, requested_bbox)
 
   if not retain:
     if use_shared_memory:
@@ -466,10 +465,20 @@ def repopulate_lru_from_shm(
     protocol=meta.path.protocol,
   ))
 
+  encoding = lru_encoding
+  if encoding == "same":
+    encoding = meta.encoding(mip)
+
   for chunkname in core_chunks[-lru.size:]:
     bbx = Bbox.from_filename(chunkname)
     bbx -= requested_bbox.minpt
-    lru[chunkname] = np.copy(renderbuffer[ bbx.to_slices() ], order="F")
+    img3d = renderbuffer[ bbx.to_slices() ]
+    binary = chunks.encode(
+      img3d, encoding,
+      meta.compressed_segmentation_block_size(mip),
+      compression_params=meta.compression_params(mip),
+    )
+    lru[chunkname] = ("raw", binary)
 
 def child_process_download(
     meta, cache, 
