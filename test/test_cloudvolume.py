@@ -238,10 +238,15 @@ def test_read_binary_image(green, encoding, lru_bytes):
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
-def test_point_reads_sharded(shard_vol, shard_vol_data_cpso, green, encoding, lru_bytes):
+@pytest.mark.parametrize('lru_encoding', ["same", "raw", "crackle"])
+def test_point_reads_sharded(
+  shard_vol, shard_vol_data_cpso, green, 
+  encoding, lru_bytes, lru_encoding
+):
   cv = shard_vol
   data = shard_vol_data_cpso
   cv.green_threads = green
+  cv.image._lru_encoding = lru_encoding
   cv.image.lru.resize(lru_bytes)
 
   N = 25
@@ -257,13 +262,15 @@ def test_point_reads_sharded(shard_vol, shard_vol_data_cpso, green, encoding, lr
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
-def test_point_reads(green, encoding, lru_bytes):
+@pytest.mark.parametrize('lru_encoding', ["same", "raw", "crackle"])
+def test_point_reads_unsharded(green, encoding, lru_bytes, lru_encoding):
   delete_layer()
   cv, data = create_layer(
     size=(256,256,100,1), offset=(0,0,0), 
     encoding=encoding, layer_type="segmentation"
   )
   cv.green_threads = green
+  cv.image._lru_encoding = lru_encoding
   cv.image.lru.resize(lru_bytes)  
 
   N = 200
