@@ -191,7 +191,7 @@ def download_raw_unsharded(
 
   download_chunks_threaded(
     meta, cache, 
-    lru=None, mip=mip, cloudpaths=cloudpaths, 
+    lru=None, lru_encoding="same", mip=mip, cloudpaths=cloudpaths, 
     fn=store_result, decode_fn=noop_decode, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache, 
     green=green, secrets=secrets, background_color=background_color,
