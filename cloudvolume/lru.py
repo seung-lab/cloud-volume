@@ -1,6 +1,14 @@
 import sys
 import threading
 
+def getsizeof(val:int) -> int:
+  """does sizeof at depth 2"""
+  nbytes = 0
+  if isinstance(val, (tuple, list)):
+    for elem in val:
+      nbytes += sys.getsizeof(elem)
+  return nbytes + sys.getsizeof(val)
+
 class DoublyLinkedListIterator:
   def __init__(self, node, reverse=False):
     self.node = ListNode(None, node, node)
@@ -239,7 +247,7 @@ class LRU:
       while self.is_oversized():
         (key,val) = self.queue.delete_tail()
         del self.hash[key]
-        self.nbytes -= sys.getsizeof(val)
+        self.nbytes -= getsizeof(val)
 
   def delete(self, key):
     with self.lock:
@@ -249,7 +257,7 @@ class LRU:
       node = self.hash[key]
       self.queue.delete(node)
       del self.hash[key]
-      self.nbytes -= sys.getsizeof(node.val)
+      self.nbytes -= getsizeof(node.val)
       return node.val
 
   def pop(self, key, *args):
@@ -286,12 +294,12 @@ class LRU:
 
       self.queue.prepend(pair)
       self.hash[key] = self.queue.head
-      self.nbytes += sys.getsizeof(val)
+      self.nbytes += getsizeof(val)
 
       while self.is_oversized():
         (tkey,tval) = self.queue.delete_tail()
         del self.hash[tkey]
-        self.nbytes -= sys.getsizeof(tval)
+        self.nbytes -= getsizeof(tval)
 
   def __contains__(self, key):
     return key in self.hash
