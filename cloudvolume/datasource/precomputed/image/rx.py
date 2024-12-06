@@ -185,7 +185,8 @@ def download_raw_unsharded(
   def noop_decode(
     meta, input_bbox, 
     content, fill_missing, 
-    mip, background_color=0
+    mip, background_color=0,
+    encoding=None,
   ):
     return content
 
