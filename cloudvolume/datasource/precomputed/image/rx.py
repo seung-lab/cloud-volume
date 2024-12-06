@@ -505,7 +505,7 @@ def child_process_download(
       progress_queue.put(1)
 
   download_chunks_threaded(
-    meta, cache, None, mip, cloudpaths,
+    meta, cache, None, "same", mip, cloudpaths,
     fn=process, decode_fn=decode, fill_missing=fill_missing,
     progress=False, compress_cache=compress_cache,
     green=green, secrets=secrets, background_color=background_color
@@ -811,7 +811,7 @@ def _decode_helper(
 
 def unique_unsharded(
   requested_bbox, mip, 
-  meta, cache, lru,
+  meta, cache, lru, lru_encoding,
   fill_missing, progress,
   parallel,
   compress, 
@@ -875,7 +875,7 @@ def unique_unsharded(
     shell_chunks.sort(key=lambda fname: fname in lru, reverse=True)
 
   download_chunks_threaded(
-    meta, cache, lru, mip, core_chunks, 
+    meta, cache, lru, lru_encoding, mip, core_chunks, 
     fn=process_core, decode_fn=decode_unique, fill_missing=fill_missing,
     progress=progress, compress_cache=compress_cache, 
     green=green, secrets=secrets, background_color=background_color,
@@ -884,7 +884,7 @@ def unique_unsharded(
 
   if len(shell_chunks) > 0:
     download_chunks_threaded(
-      meta, cache, lru, mip, shell_chunks, 
+      meta, cache, lru, lru_encoding, mip, shell_chunks, 
       fn=process_shell, decode_fn=decode, fill_missing=fill_missing,
       progress=progress, compress_cache=compress_cache, 
       green=green, secrets=secrets, background_color=background_color,
@@ -895,7 +895,8 @@ def unique_unsharded(
 
 def unique_sharded(
   requested_bbox, mip,
-  meta, cache, lru, spec,
+  meta, cache, 
+  lru, lru_encoding, spec,
   compress, progress,
   fill_missing, background_color
 ):

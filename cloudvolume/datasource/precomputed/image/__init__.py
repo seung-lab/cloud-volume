@@ -310,7 +310,10 @@ class PrecomputedImageSource(ImageSourceInterface):
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.unique_sharded(
         bbox, mip, 
-        self.meta, self.cache, self.lru, spec,
+        self.meta, self.cache, 
+        lru=self.lru, 
+        lru_encoding=self._lru_encoding,
+        spec=spec,
         compress=self.config.compress,
         progress=self.config.progress,
         fill_missing=self.fill_missing,
@@ -322,6 +325,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         meta=self.meta,
         cache=self.cache,
         lru=self.lru,
+        lru_encoding=self._lru_encoding,
         parallel=1,
         fill_missing=self.fill_missing,
         progress=self.config.progress,
