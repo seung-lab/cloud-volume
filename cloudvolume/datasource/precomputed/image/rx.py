@@ -478,7 +478,7 @@ def repopulate_lru_from_shm(
       meta.compressed_segmentation_block_size(mip),
       compression_params=meta.compression_params(mip),
     )
-    lru[chunkname] = ("raw", binary)
+    lru[chunkname] = (encoding, binary)
 
 def child_process_download(
     meta, cache, 
