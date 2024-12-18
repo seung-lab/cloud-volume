@@ -1180,7 +1180,7 @@ class Skeleton(object):
       stack = [ skel.edges[0,0] ]
       parents = [ -1 ]
 
-      swc = ""
+      pairs = []
 
       while stack:
         node = stack.pop()
@@ -1189,31 +1189,74 @@ class Skeleton(object):
         if visited[node]:
           continue
 
-        swc += "{n} {T} {x:0.6f} {y:0.6f} {z:0.6f} {R:0.6f} {P}\n".format(
-          n=(node + 1 + offset),
-          T=skel.vertex_types[node],
-          x=skel.vertices[node][0],
-          y=skel.vertices[node][1],
-          z=skel.vertices[node][2],
-          R=skel.radii[node],
-          P=parent if parent == -1 else (parent + 1 + offset),
-        )
-
+        pairs.append([node,parent])
         visited[node] = True
         
         for child in index[node]:
           stack.append(child)
           parents.append(node)
 
-      return swc
+      return pairs
+
+    def create_row(node, parent, offset):
+      return [
+        (node + offset),
+        skel.vertex_types[node],
+        skel.vertices[node][0],
+        skel.vertices[node][1],
+        skel.vertices[node][2],
+        skel.radii[node],
+        (parent if parent == -1 else (parent + offset)),        
+      ]
+
+    def render_row(row):
+      return "{n} {T} {x:0.6f} {y:0.6f} {z:0.6f} {R:0.6f} {P}".format(
+        n=row[0],
+        T=row[1],
+        x=row[2],
+        y=row[3],
+        z=row[4],
+        R=row[5],
+        P=row[6],
+      )
+
+    def renumber(rows):
+      mapping = { -1: -1 }
+      N = 1
+      for row in rows:
+        node = row[0]
+        if node in mapping:
+          row[0] = mapping[node]
+          continue
+        else:
+          row[0] = N
+          mapping[node] = N
+          N += 1
+
+      for row in rows:
+        row[-1] = mapping[row[-1]]
+
+      return rows
 
     skels = self.components()
-
     swc = swc_header + "\n"
     offset = 0
-    for skel in skels:
-      swc += generate_swc(skel, offset) + "\n"
+    all_rows = []
+    for skel in skels: 
+      pairs = generate_swc(skel, offset)
+      rows = [ 
+        create_row(node, parent, offset)
+        for node, parent in pairs
+      ]
+      del pairs
+      all_rows.extend(rows)
       offset += skel.vertices.shape[0]
+
+    all_rows = renumber(all_rows)
+    swc += "\n".join((
+      render_row(row)
+      for row in all_rows
+    ))
 
     return swc
 
