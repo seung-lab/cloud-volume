@@ -1,6 +1,7 @@
 import cloudfiles.paths
 
 from collections import namedtuple
+from functools import lru_cache
 import os
 import posixpath
 import re
@@ -117,6 +118,7 @@ def strict_extract(cloudpath, windows=None, disable_toabs=False):
 
   return path
 
+@lru_cache(maxsize=10, typed=False)
 def extract(cloudpath, windows=None, disable_toabs=False):
   """
   Given a valid cloudpath of the form 
@@ -138,6 +140,8 @@ def extract(cloudpath, windows=None, disable_toabs=False):
   """
   if len(cloudpath) == 0:
     return ExtractedPath('','','','','','','')
+
+  cloudpath = cloudfiles.paths.normalize(cloudpath)
 
   windows_file_re = re.compile(r'((?:\w:\\)[\d\w_\.\-]+)')
   bucket_re = re.compile(r'^(/?[~\d\w_\.\-]+(?::\d+)?)(?:\b|$)') # posix /what/a/great/path

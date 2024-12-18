@@ -6,6 +6,7 @@ import os
 
 import numpy as np
 from cloudfiles import CloudFiles
+import cloudfiles.compression
 
 from .. import (
   autocropfn, readonlyguard, 
@@ -26,7 +27,6 @@ from ...paths import extract
 from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
 from ..precomputed.image import xfer
-
 
 class ZarrImageSource(ImageSourceInterface):
   def __init__(
@@ -54,8 +54,24 @@ class ZarrImageSource(ImageSourceInterface):
       else:
         raise exceptions.EmptyVolumeException(f"{filename} is missing.")
 
-    import blosc
-    arr = np.frombuffer(blosc.decompress(binary), dtype=self.meta.dtype)
+    encoding = self.meta.compressor(mip)
+
+    if encoding == "brotli":
+      encoding = "br"
+    elif encoding == "zlib":
+      encoding = "gzip"
+    elif encoding == "lzma":
+      encoding = "xz"
+
+    if encoding == "blosc":
+      import blosc
+      raw_array = blosc.decompress(binary)
+    elif encoding in ["zstd", "xz", "br", "gzip"]:
+      raw_array = cloudfiles.compression.decompress(binary, encoding, filename)
+    else:
+      raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
+    
+    arr = np.frombuffer(raw_array, dtype=self.meta.dtype)
     return arr.reshape(default_shape, order=self.meta.order(mip))
 
   def download(
@@ -92,22 +108,16 @@ class ZarrImageSource(ImageSourceInterface):
     realized_bbox = bounds.expand_to_chunk_size(cv_chunk_size)
     grid_bbox = realized_bbox // cv_chunk_size
 
-    sep = self.meta.dimension_separator(mip)
+    try:
+      tchunk = int(t / self.meta.num_time_chunks(mip))
+    except ValueError:
+      tchunk = 0
 
-    tchunk = int(t / self.meta.num_time_chunks(mip))
-
-    if self.meta.order(mip) == "C":
-      paths = [
-        cf.join(str(mip), sep.join([ str(tchunk), str(c), str(z), str(y), str(x) ]))
-        for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
-        for c in range(self.meta.num_channels)
-      ]
-    else:
-      paths = [
-        cf.join(str(mip), sep.join([ str(x), str(y), str(z), str(c), str(tchunk) ]))
-        for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
-        for c in range(self.meta.num_channels)
-      ]
+    paths = [
+      self.meta.chunk_name(mip, x, y, z, c, tchunk)
+      for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
+      for c in range(self.meta.num_channels)
+    ]
 
     all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
     shape = list(bounds.size3()) + [ self.meta.num_channels ]
@@ -124,7 +134,11 @@ class ZarrImageSource(ImageSourceInterface):
 
     axis_mapping = self.meta.zarr_axes_to_cv_axes()
 
-    tslice = t - tchunk * self.meta.time_chunk_size(mip)
+    tslice = 0
+    taxis = self.meta.has_time_axis()
+
+    if taxis:
+      tslice = t - tchunk * self.meta.time_chunk_size(mip)
 
     for fname, binary in all_chunks.items():
       m = re.search(regexp, fname).groupdict()
@@ -135,9 +149,11 @@ class ZarrImageSource(ImageSourceInterface):
       chunk = self.decode_chunk(binary, mip, fname, self.meta.zarr_chunk_size(mip))
       if chunk is None:
         continue
-      chunk = np.transpose(chunk, axes=axis_mapping)[...,tslice]
+      chunk = np.transpose(chunk, axes=axis_mapping)
+      if taxis:
+        chunk = chunk[...,tslice]
       slcs = (chunk_bbox - chunk_bbox.minpt).to_slices()
-      shade(renderbuffer, bounds, chunk[slcs], chunk_bbox, channel=int(m["c"]))
+      shade(renderbuffer, bounds, chunk[slcs], chunk_bbox, channel=int(m.get("c", 0)))
 
     data = VolumeCutout.from_volume(self.meta, mip, renderbuffer, bounds)
 

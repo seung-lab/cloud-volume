@@ -34,7 +34,7 @@ progress_queue = None # defined in common.initialize_synchronization
 fs_lock = None # defined in common.initialize_synchronization
 
 def upload(
-    meta, cache, lru,
+    meta, cache, lru, lru_encoding,
     image, offset, mip,
     compress=None,
     compress_level=None,
@@ -82,7 +82,8 @@ def upload(
     "delete_black_uploads": delete_black_uploads,
     "background_color": background_color,
     "green": green,
-    "secrets": secrets,  
+    "secrets": secrets,
+    "lru_encoding": lru_encoding,
   }
 
   expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
@@ -132,19 +133,19 @@ def upload(
       compress=compress, cdn_cache=cdn_cache,
       progress=False, n_threads=0, 
       delete_black_uploads=delete_black_uploads,
-      green=green, secrets=secrets
+      green=green, secrets=secrets, lru_encoding=lru_encoding,
     )
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
   decode_fn = partial(decode, allow_none=False)
   download_chunks_threaded(
-    meta, cache, None, mip, shell_chunks, 
+    meta, cache, None, lru_encoding, mip, shell_chunks, 
     fn=shade_and_upload, decode_fn=decode_fn,
     fill_missing=fill_missing, 
     progress=("Shading Border" if progress else None), 
     compress_cache=compress_cache,
-    green=green, secrets=secrets
+    green=green, secrets=secrets,
   )
 
 def upload_aligned(
@@ -164,6 +165,7 @@ def upload_aligned(
     background_color=0,
     green=False,
     secrets=None,
+    lru_encoding="same",
   ):
   global fs_lock
 
@@ -178,7 +180,7 @@ def upload_aligned(
       delete_black_uploads=delete_black_uploads,
       background_color=background_color,
       green=green, compress_level=compress_level,
-      secrets=secrets
+      secrets=secrets, lru_encoding=lru_encoding,
     )
     return
 
@@ -277,6 +279,7 @@ def threaded_upload_chunks(
     green=False,
     compress_level=None,
     secrets=None,
+    lru_encoding="same",
   ):
   
   if cache.enabled:
@@ -309,18 +312,28 @@ def threaded_upload_chunks(
     nonlocal cache_compress
     nonlocal preencoded
 
+    encoding = meta.encoding(mip)
+
     if preencoded:
       encoded = preencoded[i]
       preencoded[i] = None
     else:
       encoded = chunks.encode(
-        imgchunk, meta.encoding(mip), 
+        imgchunk, encoding, 
         meta.compressed_segmentation_block_size(mip),
         compression_params=meta.compression_params(mip),
       )
 
     if lru is not None:
-      lru[cloudpath] = encoded
+      if lru_encoding in ["same", encoding]:
+        lru[cloudpath] = (encoding, encoded)
+      else:
+        lru_encoded = chunks.encode(
+          imgchunk, lru_encoding, 
+          meta.compressed_segmentation_block_size(mip),
+          compression_params=meta.compression_params(mip),
+        )
+        lru[cloudpath] = (lru_encoding, lru_encoded)
     
     if cache_compress is None and cache.enabled:
       cache_encoded = encoded

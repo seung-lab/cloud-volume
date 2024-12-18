@@ -15,7 +15,7 @@ def test_roundtrip_3d():
     d = 'file://' + d
     dasklib.to_cloudvolume(a, d)
     a2 = dasklib.from_cloudvolume(d)
-    da.utils.assert_eq(a, a2[..., 0], check_meta=False)
+    assert np.all(np.array(a) == np.array(a2)[...,0])
     assert a.chunks == a2.chunks[:-1]
 
 @pytest.mark.skipif(sys.version_info[0] < 3, reason="Python 2 not supported.")
@@ -27,7 +27,7 @@ def test_roundtrip_4d():
     d = 'file://' + d
     dasklib.to_cloudvolume(a, d)
     a2 = dasklib.from_cloudvolume(d)
-    da.utils.assert_eq(a, a2, check_type=False)
+    assert np.all(np.array(a) == np.array(a2))
     assert a.chunks == a2.chunks
 
 @pytest.mark.skipif(sys.version_info[0] < 3, reason="Python 2 not supported.")
