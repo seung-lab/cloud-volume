@@ -580,18 +580,25 @@ def download_chunk(
     if lru is not None:
       lru[filename] = (encoding, content)
 
+  if content is None:
+    return None, bbox
+
   img3d = decode_fn(
     meta, filename, content, 
     fill_missing, mip, 
     background_color=background_color,
     encoding=encoding,
   )
-  
+
   if lru is not None and full_decode: 
     if lru_encoding not in [ "same", encoding ]:
+      block_size = meta.compressed_segmentation_block_size(mip)
+      if block_size is None:
+        block_size = (8,8,8)
+      
       content = chunks.encode(
         img3d, lru_encoding, 
-        meta.compressed_segmentation_block_size(mip),
+        block_size,
         compression_params=meta.compression_params(mip),
       )
       lru[filename] = (lru_encoding, content)
@@ -814,13 +821,17 @@ def _decode_helper(
   if encoding is None:
     encoding = meta.encoding(mip)
 
+  block_size = meta.compressed_segmentation_block_size(mip)
+  if block_size is None:
+    block_size = (8,8,8)
+
   try:
     return fn(
       content,
       encoding=encoding,
       shape=shape,
       dtype=meta.dtype,
-      block_size=meta.compressed_segmentation_block_size(mip),
+      block_size=block_size,
       background_color=background_color,
     )
   except Exception as error:
