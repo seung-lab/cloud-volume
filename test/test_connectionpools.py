@@ -6,7 +6,8 @@ from tqdm import tqdm
 
 from cloudvolume.connectionpools import S3ConnectionPool, GCloudBucketPool
 from cloudvolume.threaded_queue import ThreadedQueue
-from cloudvolume.storage import Storage
+
+from cloudfiles import CloudFiles
 
 S3_POOL = S3ConnectionPool('s3', 'seunglab-test')
 GC_POOL = GCloudBucketPool('seunglab-test')
@@ -18,8 +19,8 @@ retry = tenacity.retry(
 )
 
 def test_gc_stresstest():
-  with Storage('gs://seunglab-test/cloudvolume/connection_pool/', n_threads=0) as stor:
-    stor.put_file('test', 'some string')
+  cf = CloudFiles('gs://seunglab-test/cloudvolume/connection_pool/')
+  cf.put('test', 'some string')
 
   n_trials = 500
   pbar = tqdm(total=n_trials)
@@ -29,7 +30,7 @@ def test_gc_stresstest():
     # assert GC_POOL.total_connections() <= GC_POOL.max_connections * 5
     bucket = GC_POOL.get_connection()
     blob = bucket.get_blob('cloudvolume/connection_pool/test')
-    blob.download_as_string()
+    blob.download_as_bytes()
     GC_POOL.release_connection(bucket)
     pbar.update()
 
@@ -40,8 +41,8 @@ def test_gc_stresstest():
   pbar.close()
 
 def test_s3_stresstest():
-  with Storage('s3://seunglab-test/cloudvolume/connection_pool/', n_threads=0) as stor:
-    stor.put_file('test', 'some string')
+  cf = CloudFiles('s3://seunglab-test/cloudvolume/connection_pool/')
+  cf.put('test', 'some string')
 
   n_trials = 500
   pbar = tqdm(total=n_trials)
