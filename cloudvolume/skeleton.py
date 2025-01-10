@@ -1400,7 +1400,7 @@ class Skeleton(object):
         template.format(attr, buf.shape[0], buf.dtype)
       )
 
-    return "Skeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), {}, space='{}' transform={})".format(
+    return "Skeleton(segid={}, vertices=(shape={}, {}), edges=(shape={}, {}), {}, space='{}', transform={})".format(
       self.id,
       self.vertices.shape[0], self.vertices.dtype,
       self.edges.shape[0], self.edges.dtype,
