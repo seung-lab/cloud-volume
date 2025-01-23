@@ -1,7 +1,7 @@
 boto3>=1.4.7
 chardet>=3.0.4
 cloud-files>=4.29.0,<5.0.0
-compressed-segmentation>=2.1.1
+compressed-segmentation>=2.3.2
 DracoPy>=1.0.0,<2.0.0
 fastremap>=1.14.0
 gevent
