@@ -289,6 +289,8 @@ class LRU:
       pair = (key,val)
       if key in self.hash:
         node = self.hash[key]
+        self.nbytes -= getsizeof(node.val)
+        self.nbytes += getsizeof(pair)
         node.val = pair
         self.queue.promote_to_head(node)
         return

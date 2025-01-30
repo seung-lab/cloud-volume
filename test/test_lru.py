@@ -25,6 +25,12 @@ def test_lru_size_w_tuple():
   ans += sys.getsizeof(val)
   assert lru.nbytes == ans
 
+  val2 = b'3' * 1000
+  lru[2] = val2
+  ans -= sys.getsizeof(val)
+  ans += sys.getsizeof(val2)
+  assert lru.nbytes == ans
+
 @pytest.mark.parametrize("size_in_bytes", (False,True))
 def test_lru(size_in_bytes):
   base_size = 5
