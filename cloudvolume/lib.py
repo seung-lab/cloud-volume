@@ -476,7 +476,7 @@ class Bbox(object):
     typ = type(obj)
     if typ is Bbox:
       obj = obj
-    elif typ in (list, tuple):
+    elif typ in (list, tuple, slice):
       obj = Bbox.from_slices(obj, context, bounded, autocrop)
     elif typ is Vec:
       obj = Bbox.from_vec(obj)
