@@ -1,10 +1,10 @@
 from cloudfiles.exceptions import CompressionError, DecompressionError
 
-class AuthenticationError(BaseException):
+class AuthenticationError(Exception):
   """Incorrect credentials."""
   pass
 
-class DimensionError(BaseException):
+class DimensionError(Exception):
   """Wrong number of dimensions."""
   pass
 
