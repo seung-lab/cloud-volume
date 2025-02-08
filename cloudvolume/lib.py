@@ -980,8 +980,11 @@ class Bbox(object):
     return int(''.join(map(str, map(int, self.to_list()))))
 
   def __repr__(self):
-    return f"Bbox({list(self.minpt)},{list(self.maxpt)}, dtype=np.{self.dtype}, unit='{self.unit}')"
-
+    normfn = int
+    if np.issubdtype(self.dtype, np.floating):
+      normfn = float
+    return f"Bbox({[ normfn(x) for x in self.minpt ]},{[ normfn(x) for x in self.maxpt ]}, dtype=np.{self.dtype}, unit='{self.unit}')"
+    
 BboxLikeType = Union[Bbox, Sequence[slice], str, Vec]
 
 def save_images(

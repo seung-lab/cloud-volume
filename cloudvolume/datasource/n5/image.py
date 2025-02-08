@@ -67,9 +67,15 @@ class N5ImageSource(ImageSourceInterface):
     dims[3] = self.meta.num_channels
 
     compressed_stream = binary[4+4*ndim:]
-    compressed_stream = compression.decompress(
-      compressed_stream, self.meta.encoding(mip), filename
-    )
+
+    encoding = self.meta.encoding(mip)
+    if encoding == "blosc":
+      import blosc
+      compressed_stream = blosc.decompress(compressed_stream)
+    else:
+      compressed_stream = compression.decompress(
+        compressed_stream, self.meta.encoding(mip), filename
+      )
 
     data = chunks.decode(
       compressed_stream, 
@@ -79,7 +85,7 @@ class N5ImageSource(ImageSourceInterface):
     )
     return data, dims
 
-  def download(self, bbox, mip, parallel=1, renumber=False):
+  def download(self, bbox, mip, parallel=1, renumber=False, label=None):
     if parallel != 1:
       raise ValueError("Only parallel=1 is supported for n5.")
     elif renumber != False:
@@ -123,6 +129,8 @@ class N5ImageSource(ImageSourceInterface):
       chunk, chunk_shape = self.parse_chunk(binary, mip, fname, default_shape)
       chunk_bbox = Bbox(chunk_bbox.minpt, chunk_bbox.minpt + Vec(*chunk_shape[:3]))
       chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
+      trunc = chunk_bbox.size()
+      chunk = chunk[:trunc[0], :trunc[1], :trunc[2]]
       shade(renderbuffer, bbox, chunk, chunk_bbox)
 
     return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
