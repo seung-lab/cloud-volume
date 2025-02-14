@@ -683,19 +683,11 @@ class PrecomputedImageSource(ImageSourceInterface):
     reader = self.shard_reader()
     return reader.get_filename(first(morton_codes))
 
-  def make_shard(self, img, bbox, mip=None, spec=None, progress=False):
+  def make_shard_chunks(self, img:np.ndarray, bbox:Bbox, mip=None, spec=None) -> Dict[int, bytes]:
     """
-    Convert an image that represents a single complete shard 
-    into a shard file.
-  
-    img: a volumetric numpy array image
-    bbox: the bbox it represents in voxel coordinates
-    mip: if specified, use the sharding specification from 
-      this mip level, otherwise use the sharding spec from
-      the current implicit mip level in config.
-    spec: use the provided specification (overrides mip parameter)
+    Convert the input image into a dict of:
 
-    Returns: (filename, shard_file)
+    { morton_code: encoded image }
     """
     mip = mip if mip is not None else self.config.mip
     
@@ -727,6 +719,30 @@ class PrecomputedImageSource(ImageSourceInterface):
           block_size=self.meta.compressed_segmentation_block_size(mip),
           compression_params=self.meta.compression_params(mip),
         )
+
+    return labels
+
+  def make_shard(self, img, bbox, mip=None, spec=None, progress=False):
+    """
+    Convert an image that represents a single complete shard 
+    into a shard file.
+  
+    img: a volumetric numpy array image
+    bbox: the bbox it represents in voxel coordinates
+    mip: if specified, use the sharding specification from 
+      this mip level, otherwise use the sharding spec from
+      the current implicit mip level in config.
+    spec: use the provided specification (overrides mip parameter)
+
+    Returns: (filename, shard_file)
+    """
+    mip = mip if mip is not None else self.config.mip
+    
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
+    spec = self.shard_spec(mip, spec)
+    labels = self.make_shard_chunks(img, bbox, mip=mip, spec=spec)
 
     reader = self.shard_reader(mip=mip)
     shard_filename = reader.get_filename(first(labels.keys()))
