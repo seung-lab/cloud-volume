@@ -722,12 +722,14 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     return labels
 
-  def make_shard(self, img, bbox, mip=None, spec=None, progress=False):
+  def make_shard(self, img_or_dict, bbox, mip=None, spec=None, progress=False):
     """
     Convert an image that represents a single complete shard 
     into a shard file.
   
-    img: a volumetric numpy array image
+    img_or_dict: 
+      a volumetric numpy array image OR
+      a dict of morton codes to encoded bytes
     bbox: the bbox it represents in voxel coordinates
     mip: if specified, use the sharding specification from 
       this mip level, otherwise use the sharding spec from
@@ -742,7 +744,11 @@ class PrecomputedImageSource(ImageSourceInterface):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
     spec = self.shard_spec(mip, spec)
-    labels = self.make_shard_chunks(img, bbox, mip=mip, spec=spec)
+
+    if isinstance(img_or_dict, np.ndarray):
+      labels = self.make_shard_chunks(img_or_dict, bbox, mip=mip, spec=spec)
+    else:
+      labels = img_or_dict
 
     reader = self.shard_reader(mip=mip)
     shard_filename = reader.get_filename(first(labels.keys()))
