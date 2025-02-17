@@ -253,9 +253,11 @@ def min2(a, b):
 def clamp(val, low, high):
   return min(max(val, low), high)
 
-def check_bounds(val, low, high):
+def check_bounds(val, low, high, index):
   if val > high or val < low:
-    raise OutOfBoundsError('Value {} cannot be outside of inclusive range {} to {}'.format(val,low,high))
+    raise OutOfBoundsError(
+      f'Value {val} (index={index}) cannot be outside of inclusive range {low} to {high}'
+    )
   return val
 
 class Vec(np.ndarray):
@@ -671,10 +673,10 @@ class Bbox(object):
         elif bounded:
           # if start < 0: # this is support for negative indicies
             # start = self.maxpt[index] + start         
-          check_bounds(start, self.minpt[index], self.maxpt[index])
+          check_bounds(start, self.minpt[index], self.maxpt[index], index)
           # if end < 0: # this is support for negative indicies
           #   end = self.maxpt[index] + end
-          check_bounds(end, self.minpt[index], self.maxpt[index])
+          check_bounds(end, self.minpt[index], self.maxpt[index], index)
 
         slices[index] = slice(start, end, step)
 
