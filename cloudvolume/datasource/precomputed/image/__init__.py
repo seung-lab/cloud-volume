@@ -125,7 +125,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     res = {}
     def getpt(bbx):
       nonlocal mip
-      value = self.download(bbx, mip)
+      value = self.download(bbx, mip, progress=False)
       res[tuple(bbx.minpt)] = value[0][0][0][0]
 
     fns = ( partial(getpt, bbx) for bbx in bbxs )
@@ -151,7 +151,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     location=None, retain=False,
     use_shared_memory=False, use_file=False,
     order='F', renumber=False, 
-    label=None,
+    label=None, progress=None,
   ):
     """
     Download a cutout image from the dataset.
@@ -184,6 +184,9 @@ class PrecomputedImageSource(ImageSourceInterface):
       else:
         4d ndarray
     """
+    if progress is None:
+      progress = self.config.progress
+
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
@@ -207,7 +210,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         bbox, mip, 
         self.meta, self.cache, self.lru, self._lru_encoding, spec,
         compress=self.config.compress,
-        progress=self.config.progress,
+        progress=progress,
         fill_missing=self.fill_missing,
         order=order,
         background_color=numberfn(self.background_color),
@@ -226,7 +229,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         use_shared_memory=use_shared_memory,
         use_file=use_file,
         fill_missing=self.fill_missing,
-        progress=self.config.progress,
+        progress=progress,
         compress=self.config.compress,
         order=order,
         green=self.config.green,
