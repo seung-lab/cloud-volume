@@ -791,18 +791,19 @@ class Skeleton(object):
 
         for child in children:
           stack.append( 
-            (path + [child], copy.deepcopy(visited))
+            (path + [child], np.copy(visited))
           )
 
       return paths
-      
+
+    size = np.max(skel.edges) + 1
     root = skel.edges[0,0]
-    paths = dfs([root], defaultdict(bool))
+    paths = dfs([root], np.zeros(size, dtype=bool))
 
     root = np.argmax([ len(_) for _ in paths ])
     root = paths[root][-1]
   
-    paths = dfs([ root ], defaultdict(bool))
+    paths = dfs([ root ], np.zeros(size, dtype=bool))
 
     if return_indices:
       return [ np.flip(path) for path in paths ]
