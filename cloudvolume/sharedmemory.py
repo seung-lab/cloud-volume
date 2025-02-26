@@ -1,6 +1,5 @@
 from collections import defaultdict
 import errno
-import math
 import mmap
 import os
 import sys
@@ -8,7 +7,6 @@ import time
 
 import multiprocessing as mp
 
-from six.moves import range
 import numpy as np
 
 from .lib import Bbox, Vec, mkdir
