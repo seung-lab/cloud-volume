@@ -13,6 +13,7 @@ jsonschema!=4.0
 microviewer
 numpy>=1.13.3
 networkx
+osteoid
 python-jsonschema-objects>=0.3.3
 pathos
 protobuf>=3.3.0
