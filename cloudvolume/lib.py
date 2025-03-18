@@ -400,7 +400,7 @@ class Bbox(object):
       bbx *= np.round(UNIT_SCALES[resolution_unit] / UNIT_SCALES[self.unit])
       bbx //= np.array(resolution) 
       bbx.unit = unit
-      return bbx
+      return bbx.astype(int)
     else:
       bbx = self.astype(np.float32)
       scale_factor = UNIT_SCALES[unit] / UNIT_SCALES[self.unit]

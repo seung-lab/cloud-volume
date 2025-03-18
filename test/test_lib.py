@@ -307,6 +307,7 @@ def test_bbox_convert_units():
 
   vx_bbx2 = vx_bbx.convert_units('vx', [4,4,40])
   assert vx_bbx == vx_bbx2
+  assert np.issubdtype(vx_bbx.dtype, np.signedinteger)
 
 
 
