@@ -62,6 +62,14 @@ retry = tenacity.retry(
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   @property
+  def timestamp(self):
+    return self.meta.timestamp
+  
+  @timestamp.setter
+  def timestamp(self, val):
+    self.meta.timestamp = int(val)
+
+  @property
   def agglomerate(self):
     return self.meta.agglomerate
   
@@ -141,6 +149,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     results = self.image.download_points(pts, mip)
 
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
+    timestamp = timestamp if timestamp is not None else self.timestamp
     if (agglomerate and stop_layer is not None) and (stop_layer <= 0 or stop_layer > self.meta.n_layers):
       raise ValueError(
         f"Stop layer {stop_layer} must be "
@@ -266,7 +275,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     Returns: set of integers
     """
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
-    
+    timestamp = timestamp if timestamp is not None else self.timestamp
+
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=(self.bounded and coord_resolution is None), 
@@ -340,7 +350,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     cache_only=False,
   ):
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
-    
+    timestamp = timestamp if timestamp is not None else self.timestamp
+
     bbox = Bbox.create(
       bbox, context=self.bounds, 
       bounded=(self.bounded and coord_resolution is None), 
@@ -431,6 +442,9 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     You can specify an alternative encoding and compression 
     settings for the new volume.
     """
+    agglomerate = agglomerate if agglomerate is not None else self.agglomerate
+    timestamp = timestamp if timestamp is not None else self.timestamp
+
     if mip is None:
       mip = self.config.mip
 
@@ -532,6 +546,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     Returns: img as a VolumeCutout
     """
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
+    timestamp = timestamp if timestamp is not None else self.timestamp
     
     if mip is None:
       mip = self.mip
@@ -644,6 +659,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     Remap a graphene volume to the indicidated layer ids (default root ids). 
     This creates a flat segmentation.
     """
+    timestamp = timestamp if timestamp is not None else self.timestamp
+
     if np.all(img == self.image.background_color) or stop_layer == 1:
       if not in_place:
         return np.copy(img, order="F")
@@ -720,6 +737,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         Layer 2: Within-Chunk Agglomeration
         Layer 2+: Between chunk interconnections (skip connections possible)
     """
+    timestamp = timestamp if timestamp is not None else self.timestamp
+
     segids = toiter(segids)
     input_segids = np.fromiter(segids, dtype=self.meta.dtype)
 
@@ -785,6 +804,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       173729460028178433: [79450023430979610, 79450023431072298, ... ]
     }
     """
+    timestamp = timestamp if timestamp is not None else self.timestamp
     timestamp = to_unix_time(timestamp)
 
     if not self.meta.supports_api('v1'):

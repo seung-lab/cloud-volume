@@ -71,6 +71,7 @@ class CloudVolume:
     agglomerate:bool=False, secrets:SecretsType=None, 
     spatial_index_db:Optional[str]=None, lru_bytes:int = 0,
     cache_locking:bool = True, lru_encoding:str = "same",
+    timestamp:Optional[int] = None,
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -225,6 +226,8 @@ class CloudVolume:
         database that tiles the dataset. This can be fast enough up to about 100 TVx
         datasets. Above that, a proper database is required for efficient queries.
         We provide multiple SQL database types that the index can be hosted on.
+      timestamp: (int, graphene only) Sets the timestamp for graphene proofreading 
+        volumes so you can get the state at a given proofreading status.
       use_https: (bool) maps gs:// and s3:// to their respective https paths. The 
         https paths hit a cached, read-only version of the data and may be faster.
     """
