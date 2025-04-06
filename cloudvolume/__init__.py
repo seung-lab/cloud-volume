@@ -62,6 +62,7 @@ from .volumecutout import VolumeCutout
 
 from .skeleton import Skeleton, PrecomputedSkeleton
 
+from .visualize import view
 from . import exceptions
 from . import secrets
 
