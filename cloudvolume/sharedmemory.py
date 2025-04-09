@@ -127,9 +127,7 @@ def allocate_shm_file(filename, nbytes, dbytes, readonly):
 
 def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
   """Create a shared memory numpy array. Requires /dev/shm to exist."""
-  import posix_ipc
-  from posix_ipc import O_CREAT
-  import psutil
+  from multiprocessing import shared_memory
 
   nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
   available = psutil.virtual_memory().available
@@ -170,17 +168,15 @@ def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
   # a threading condition where the condition of the shared memory
   # was adjusted between the check above and now. Better to make sure
   # that we don't accidently change anything if readonly is set.
-  flags = 0 if readonly else O_CREAT 
   size = 0 if readonly else int(nbytes) 
 
   try:
-    shared = posix_ipc.SharedMemory(location, flags=flags, size=size)
-    array_like = mmap.mmap(shared.fd, shared.size)
-    os.close(shared.fd)
-    renderbuffer = np.ndarray(buffer=array_like, dtype=dtype, shape=shape, order=order, **kwargs)
+    shm = shared_memory.SharedMemory(name=location, create=(not readonly), size=size, track=(not readonly))
+    renderbuffer = np.frombuffer(buffer=shm.buffer, dtype=dtype)
+    renderbuffer = renderbuffer.reshape(shape, order=order)
   except OSError as err:
     if err.errno == errno.ENOMEM: # Out of Memory
-      posix_ipc.unlink_shared_memory(location)      
+      unlink_shm(location)
     raise
 
   renderbuffer.setflags(write=(not readonly))
@@ -192,10 +188,11 @@ def unlink(location):
   return unlink_shm(location)
 
 def unlink_shm(location):
-  import posix_ipc
+  from multiprocessing import shared_memory
   try:
-    posix_ipc.unlink_shared_memory(location)
-  except posix_ipc.ExistentialError:
+    shm = shared_memory.SharedMemory(name=location, create=False)
+    shm.unlink()
+  except FileNotFoundError:
     return False
   return True
 
