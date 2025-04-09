@@ -128,6 +128,7 @@ def allocate_shm_file(filename, nbytes, dbytes, readonly):
 def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
   """Create a shared memory numpy array. Requires /dev/shm to exist."""
   from multiprocessing import shared_memory
+  import psutil
 
   nbytes = Vec(*shape).rectVolume() * np.dtype(dtype).itemsize
   available = psutil.virtual_memory().available
