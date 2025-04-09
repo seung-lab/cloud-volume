@@ -173,7 +173,7 @@ def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
 
   try:
     shm = shared_memory.SharedMemory(name=location, create=(not readonly), size=size)
-    renderbuffer = np.frombuffer(buffer=shm.buffer, dtype=dtype)
+    renderbuffer = np.frombuffer(buffer=shm.buf, dtype=dtype)
     renderbuffer = renderbuffer.reshape(shape, order=order)
   except OSError as err:
     if err.errno == errno.ENOMEM: # Out of Memory
