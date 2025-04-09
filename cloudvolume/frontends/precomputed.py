@@ -1189,8 +1189,8 @@ class CloudVolumePrecomputed(object):
       order=order,
       use_file=True,
     )
-    del shared_image
-    mmap_handle.close()
+    # del shared_image
+    # mmap_handle.close()
 
   def viewer(self, port=1337):
     import cloudvolume.server
