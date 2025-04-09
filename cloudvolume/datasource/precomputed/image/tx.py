@@ -214,6 +214,7 @@ def upload_aligned(
   # If manual mode is enabled, it's the 
   # responsibilty of the user to clean up
   if not use_shared_memory:
+    del renderbuffer
     array_like.close()
     shm.unlink(location)
 
