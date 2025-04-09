@@ -1129,7 +1129,8 @@ class CloudVolumePrecomputed(object):
       order=order,
       use_shared_memory=True,
     )
-    mmap_handle.close()
+    del shared_image
+    # mmap_handle.close()
 
   def upload_from_file(self, location, bbox, order='F', cutout_bbox=None):
     """
@@ -1190,6 +1191,7 @@ class CloudVolumePrecomputed(object):
       order=order,
       use_file=True,
     )
+    del shared_image
     mmap_handle.close()
 
   def viewer(self, port=1337):
