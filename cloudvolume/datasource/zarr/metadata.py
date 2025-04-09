@@ -412,7 +412,7 @@ class ZarrMetadata(PrecomputedMetadata):
       num_channels=num_channels,
       layer_type='image',
       data_type=str(np.dtype(zarrays[0]["dtype"])),
-      encoding='raw' if not zarrays[0]["compressor"] else zarrays[0]["compressor"]["id"],
+      encoding=zarrays[0]["compressor"].get("id", "raw"),
       resolution=base_res,
       voxel_offset=[0,0,0],
       volume_size=extract_spatial_size(0),
@@ -434,7 +434,7 @@ class ZarrMetadata(PrecomputedMetadata):
       self.add_scale(
         factor,
         chunk_size=chunk_size,
-        encoding='raw' if not zarray["compressor"] else zarray["compressor"]["id"],
+        encoding=zarray["compressor"].get("id", "raw"),
         info=info
       )
 
