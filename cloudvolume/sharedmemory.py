@@ -181,7 +181,7 @@ def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
     raise
 
   renderbuffer.setflags(write=(not readonly))
-  return array_like, renderbuffer
+  return shm, renderbuffer
 
 def unlink(location):
   if EMULATE_SHM:
