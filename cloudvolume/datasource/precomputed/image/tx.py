@@ -269,6 +269,7 @@ def child_upload_process(
       secrets=secrets,
     )
   finally:
+    del renderbuffer
     array_like.close()
 
 def threaded_upload_chunks(
