@@ -205,18 +205,19 @@ def upload_aligned(
     secrets=secrets
   )
 
-  parallel_execution(
-    cup, chunk_ranges, parallel, 
-    progress, desc="Upload", 
-    cleanup_shm=location
-  )
-
-  # If manual mode is enabled, it's the 
-  # responsibilty of the user to clean up
-  if not use_shared_memory:
-    del renderbuffer
-    array_like.close()
-    shm.unlink(location)
+  try:
+    parallel_execution(
+      cup, chunk_ranges, parallel, 
+      progress, desc="Upload", 
+      cleanup_shm=location
+    )
+  finally:
+    # If manual mode is enabled, it's the 
+    # responsibilty of the user to clean up
+    if not use_shared_memory:
+      del renderbuffer
+      array_like.close()
+      shm.unlink(location)
 
 def child_upload_process(
     meta, cache, 
