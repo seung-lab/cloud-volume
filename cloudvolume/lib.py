@@ -478,6 +478,8 @@ class Bbox(object):
     typ = type(obj)
     if typ is Bbox:
       obj = obj
+    elif typ in (list, tuple) and len(obj) == 6 and all(isinstance(x, integer_types) for x in obj):
+      obj = Bbox.from_list(obj)
     elif typ in (list, tuple, slice):
       obj = Bbox.from_slices(obj, context, bounded, autocrop)
     elif typ is Vec:
