@@ -6,6 +6,8 @@ import multiprocessing as mp
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles.paths import normalize
+
 from .exceptions import UnsupportedFormatError, DimensionError, InfoUnavailableError
 from .lib import generate_random_string
 from .paths import strict_extract, to_https_protocol
@@ -241,6 +243,7 @@ class CloudVolume:
     def init(cloudpath):
       path = strict_extract(cloudpath)
       if path.format in REGISTERED_PLUGINS:
+        kwargs["cloudpath"] = normalize(cloudpath)
         return REGISTERED_PLUGINS[path.format](**kwargs)
       else:
         raise UnsupportedFormatError(
