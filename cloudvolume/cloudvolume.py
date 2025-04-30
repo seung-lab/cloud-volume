@@ -255,7 +255,7 @@ class CloudVolume:
     except InfoUnavailableError as err:
       if 'precomputed://' not in cloudpath and cloudpath[:4] != 'zarr':
         try:
-          return init('zarr2://' + cloudpath)
+          return init('zarr://' + cloudpath)
         except:
           raise err
       else:
