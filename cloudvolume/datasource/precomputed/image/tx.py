@@ -299,7 +299,8 @@ def threaded_upload_chunks(
   # performance optimization
   preencoded = None
   if (
-    img.flags.f_contiguous
+    hasattr(img, "flags")
+    and img.flags.f_contiguous
     and meta.encoding(mip) == "raw"
     and not np.any(np.remainder(np.array(img.shape[:3]), meta.chunk_size(mip)))
     and meta.num_channels == 1

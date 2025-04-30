@@ -1,6 +1,6 @@
 import sys
 import time
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import multiprocessing as mp
 import numpy as np
@@ -264,6 +264,65 @@ class CloudVolume:
     # For backwards compatibility, but this only 
     # makes sense for Precomputed anyway
     return CloudVolumePrecomputed.create_new_info(*args, **kwargs)
+
+  @classmethod
+  def from_crackle(cls,
+    src:Union[str,bytes],
+    cloudpath:str,
+    resolution:Tuple[int,int,int] = (1,1,1),
+    voxel_offset:Tuple[int,int,int] = (0,0,0),
+    chunk_size:Tuple[int,int,int] = (256,256,16),
+    encoding:str = "compressed_segmentation",
+    compress:str = "gzip",
+    progress:bool = False,
+    allow_mmap:bool = True,
+  ):
+    """
+    Created a precomputed segmentation dataset from a 
+    single crackle file representing a whole dataset.
+    """
+    import crackle
+
+    if isinstance(src, str):
+      arr = crackle.aload(src, allow_mmap=allow_mmap)
+    else:
+      arr = crackle.CrackleArray(src)
+
+    info = cls.create_new_info(
+      num_channels=1, 
+      layer_type="segmentation",
+      data_type=np.dtype(arr.dtype).name,
+      encoding=encoding, 
+      resolution=resolution,
+      voxel_offset=voxel_offset, 
+      volume_size=arr.shape[:3],
+      chunk_size=chunk_size,
+      max_mip=0,
+    )
+    
+    vol = CloudVolume(
+      cloudpath, info=info, bounded=True, 
+      compress=compress, progress=True,
+    )
+    # save the info file
+    vol.commit_info()
+    vol.provenance.processing.append({
+      'method': 'from_crackle',
+      'date': time.strftime('%Y-%m-%d %H:%M %Z')
+    })
+    vol.commit_provenance()
+
+    sz = arr.shape[2]
+    cz = chunk_size[2]
+
+    n_z_chunks = int(np.ceil(sz / cz))
+
+    for z_i in range(n_z_chunks):
+      slc = np.s_[:,:, (z_i * cz) : min( (z_i+1) * cz, sz) ]
+      labels = arr[slc]
+      vol[slc] = labels
+
+    return vol
 
   @classmethod
   def from_numpy(cls, 
