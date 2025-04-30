@@ -28,7 +28,7 @@ from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
 from ..precomputed.image import xfer
 
-class ZarrImageSource(ImageSourceInterface):
+class Zarr2ImageSource(ImageSourceInterface):
   def __init__(
     self, config, meta, cache,
     autocrop=False, bounded=True,

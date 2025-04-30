@@ -26,7 +26,7 @@ CV_TO_ZARR_DTYPE = {
   "float64": "<f8",
 }
 
-class ZarrMetadata(PrecomputedMetadata):
+class Zarr2Metadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache,  info=None):
     
     orig_info = info

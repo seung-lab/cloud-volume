@@ -1,7 +1,7 @@
 from typing import Optional
 
-from .image import ZarrImageSource
-from .metadata import ZarrMetadata
+from .image import Zarr2ImageSource
+from .metadata import Zarr2Metadata
 
 from ...frontends.precomputed import CloudVolumePrecomputed
 
@@ -14,7 +14,7 @@ from ...cloudvolume import (
 )
 from ...paths import strict_extract
 
-def create_zarr(
+def create_zarr2(
   cloudpath:str, mip:int=0, bounded:bool=True, autocrop:bool=False,
   fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
   cdn_cache:bool=True, progress:bool=False, info:Optional[dict]=None,
@@ -44,8 +44,8 @@ def create_zarr(
       compress=compress_cache,
     )
 
-    meta = ZarrMetadata(cloudpath, config=config, cache=cache, info=info)
-    imagesrc = ZarrImageSource(
+    meta = Zarr2Metadata(cloudpath, config=config, cache=cache, info=info)
+    imagesrc = Zarr2ImageSource(
       config, meta, cache, 
       autocrop=bool(autocrop),
       bounded=bool(bounded),
@@ -60,6 +60,4 @@ def create_zarr(
     )
 
 def register():
-  register_plugin('zarr', create_zarr)
-  register_plugin('zarr2', create_zarr)
-  register_plugin('zarr3', create_zarr)
+  register_plugin('zarr2', create_zarr2)
