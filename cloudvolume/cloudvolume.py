@@ -284,7 +284,9 @@ class CloudVolume:
     """
     import crackle
 
-    if isinstance(src, str):
+    if isinstance(src, crackle.CrackleArray):
+      arr = src
+    elif isinstance(src, str):
       arr = crackle.aload(src, allow_mmap=allow_mmap)
     else:
       arr = crackle.CrackleArray(src)
