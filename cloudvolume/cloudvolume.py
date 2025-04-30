@@ -4,6 +4,7 @@ from typing import Optional, Union, Tuple
 
 import multiprocessing as mp
 import numpy as np
+from tqdm import tqdm
 
 from .exceptions import UnsupportedFormatError, DimensionError, InfoUnavailableError
 from .lib import generate_random_string
@@ -302,10 +303,12 @@ class CloudVolume:
     
     vol = CloudVolume(
       cloudpath, info=info, bounded=True, 
-      compress=compress, progress=True,
+      compress=compress, progress=False,
     )
     # save the info file
     vol.commit_info()
+    if isinstance(src, str):
+      vol.provenance.sources = [src]
     vol.provenance.processing.append({
       'method': 'from_crackle',
       'date': time.strftime('%Y-%m-%d %H:%M %Z')
@@ -317,7 +320,7 @@ class CloudVolume:
 
     n_z_chunks = int(np.ceil(sz / cz))
 
-    for z_i in range(n_z_chunks):
+    for z_i in tqdm(range(n_z_chunks), desc="Converting", disable=(not progress)):
       slc = np.s_[:,:, (z_i * cz) : min( (z_i+1) * cz, sz) ]
       labels = arr[slc]
       vol[slc] = labels
