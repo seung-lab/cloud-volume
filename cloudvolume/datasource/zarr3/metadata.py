@@ -1,0 +1,635 @@
+import re
+import os
+
+import numpy as np
+
+from cloudfiles import CloudFiles
+
+from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
+from cloudvolume.lib import jsonify, Vec, Bbox
+
+from ... import exceptions
+from ...provenance import DataLayerProvenance
+
+CV_TO_ZARR_DTYPE = {
+  "int8": "|i1",
+  "int16": "<i2",
+  "int32": "<i4",
+  "int64": "<i8",
+
+  "uint8": "|u1",
+  "uint16": "<u2",
+  "uint32": "<u4",
+  "uint64": "<u8",
+
+  "float32": "<f4",
+  "float64": "<f8",
+}
+
+class Zarr3Metadata(PrecomputedMetadata):
+  def __init__(self, cloudpath, config, cache,  info=None):
+    
+    orig_info = info
+
+    # some default values, to be overwritten
+    if not info:
+      info = PrecomputedMetadata.create_info(
+        num_channels=1, layer_type='image', data_type='uint8', 
+        encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0], 
+        volume_size=[1,1,1]
+      )
+
+    super().__init__(
+      cloudpath, config, cache, info=info, provenance=None
+    )
+
+    self.zarrays = []
+    self.zinfo = {}
+    self.attributes = self.default_attributes()
+
+    if orig_info is None:
+      self.info = self.fetch_info()
+    else:
+      self.render_zarr_metadata()
+
+    self.provenance = DataLayerProvenance()
+
+  def default_attributes(self):
+    return {
+      "ome": {
+        "version": "0.5",
+        "multiscales": [
+          {
+            "axes": [
+              {
+                "name": "t",
+                "type": "time",
+                "unit": "millisecond"
+              },
+              {
+                "name": "c",
+                "type": "channel"
+              },
+              {
+                "name": "z",
+                "type": "space",
+                "unit": "nanometer"
+              },
+              {
+                "name": "y",
+                "type": "space",
+                "unit": "nanometer"
+              },
+              {
+                "name": "x",
+                "type": "space",
+                "unit": "nanometer"
+              }
+            ],
+            "datasets": [
+              
+            ],
+        }
+      ],
+    }
+  }
+
+  def spatial_resolution_in_nm(self, mip, attrs):
+    if attrs is None or not "ome" in attrs:
+      return np.ones([3], dtype=np.float32)
+
+    def unit2factor(unit):
+      if unit == "meter":
+        return 1
+      elif unit == "centimeter":
+        return 1e-2
+      elif unit == "millimeter":
+        return 1e-3
+      elif unit == "micrometer":
+        return 1e-6
+      elif unit == "nanometer":
+        return 1e-9
+      elif unit == "picometer":
+        return 1e-12
+      else:
+        raise ValueError(f"unit not supported: {unit}")
+
+    scale_factors = np.ones([3], dtype=np.float32)
+    positions = [0,0,0]
+    for i, axis in enumerate(attrs["ome"]["multiscales"][0]["axes"]):
+      if axis["type"] != "space":
+        continue
+      
+      if axis["name"] == "x":
+        scale_factors[0] = unit2factor(axis.get("unit", "nanometer"))
+        positions[0] = i
+      elif axis["name"] == "y":
+        scale_factors[1] = unit2factor(axis.get("unit", "nanometer"))
+        positions[1] = i
+      elif axis["name"] == "z":
+        scale_factors[2] = unit2factor(axis.get("unit", "nanometer"))
+        positions[2] = i
+
+    resolution = attrs["ome"]["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+    resolution = np.array([
+      resolution[positions[0]],
+      resolution[positions[1]],
+      resolution[positions[2]]
+    ], dtype=np.float32)
+
+    return resolution * (scale_factors / 1e-9)
+
+  def time_resolution_in_seconds(self, mip):
+    i = 0
+    unit = None
+    for axis in self.axes():
+      if axis["type"] == "time":
+        unit = axis["unit"]
+        break
+      i += 1
+
+    scale_factor = 1
+    if unit == "kilosecond":
+      scale_factor = 1e3
+    elif unit == "centisecond":
+      scale_factor = 1e-2
+    elif unit == "millisecond":
+      scale_factor = 1e-3
+    elif unit == "microsecond":
+      scale_factor = 1e-6
+    elif unit == "nanosecond":
+      scale_factor = 1e-9
+
+    resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
+    return resolution[i] * scale_factor
+
+  def has_time_axis(self):
+    try:
+      return self.time_index() is not None
+    except ValueError:
+      return False
+
+  def datasets(self):
+    return self.attributes["ome"]["multiscales"][0]["datasets"]
+
+  def axes(self):
+    return self.attributes["ome"]["multiscales"][0]["axes"]
+
+  def time_index(self):
+    for i, axis in enumerate(self.axes()):
+      if axis["type"] == "time":
+        return i
+    raise ValueError("No time axis.")
+
+  def time_chunk_size(self, mip):
+    i = self.time_index()
+    return self.zinfo[mip]["chunks"][i]
+
+  def num_time_chunks(self, mip):
+    nframes = self.num_frames(mip)
+    t_chunk_size = self.time_chunk_size(mip)
+    return int(np.ceil(nframes / t_chunk_size))
+
+  def num_frames(self, mip):
+    try:
+      i = self.time_index()
+      return self.zarrays[mip]["shape"][i]
+    except ValueError:
+      return 1
+
+  def chunk_name(self, mip, *args):
+    seq = self.cv_axes_to_zarr_axes()
+    sep = self.dimension_separator(mip)
+
+    values = [ str(args[val]) for val in seq ]
+
+    if self.order(mip) == "F":
+      values.reverse()
+
+    return sep.join([ self.key(mip), *values ])
+
+  def duration_in_seconds(self):
+    return self.time_resolution_in_seconds(0) * self.num_frames(0)
+
+  def codecs(self, mip):
+    return [ d["name"] for d in self.zarrays[mip].get("codecs", [{}]) ]
+
+  def order(self, mip):
+    return "C" # transpose codec....
+    # return self.zarrays[mip]["order"]
+
+  def background_color(self, mip):
+    color = self.zarrays[mip].get("fill_value", 0)
+    if color == "NaN":
+      return np.nan
+    return color
+
+  def set_background_color(self, mip):
+    self.zarrays[mip]["fill_value"] = 0
+
+  def filename_regexp(self, mip):
+      scale = self.zattrs["multiscales"][0]
+      axes = scale["axes"]
+
+      cf = CloudFiles(self.cloudpath)
+      dsep = '/'
+      if cf.protocol == "file":
+        dsep = os.path.sep  
+      if dsep == '\\':
+        dsep = '\\\\' # compensate for regexp escaping
+
+      regexp = rf"(?P<mip>\d+){dsep}"
+
+      groups = []
+      for axis in axes:
+        groups.append(fr"(?P<{axis['name']}>-?\d+)")
+
+      regexp += self.dimension_separator(mip).join(groups)
+
+      return re.compile(regexp)
+
+  def dimension_separator(self, mip):
+    data = self.zarrays[mip].get("chunk_key_encoding", {
+      "name": "default",
+      "configuration": { "separator": "/" },
+    })
+    config = data.get("configuration", { "separator": "/" })
+    return config.get("separator", "/")
+
+  def commit_info(self):
+    self.render_zarr_metadata()
+
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
+
+    to_upload = []
+    for i, zarray in enumerate(self.zarrays):
+      to_upload.append(
+        (cf.join(str(i), "zarr.json"), zarray)
+      )
+
+    to_upload.append(
+      ( "zarr.json", self.zattrs )
+    )
+
+    compress = "br"
+    if cf.protocol == "file":
+      compress = False # otherwise zarr can't read the file
+
+    cf.put_jsons(to_upload, compress=compress)
+
+  def to_zarr_volume_size(self, mip):
+    axes = self.axes()
+      
+    shape = []
+    for axis in axes:
+      if axis["type"] == "channel":
+        shape.append(self.num_channels)
+      elif axis["type"] == "time":
+        shape.append(1)
+      elif axis["type"] == "space" and axis["name"] == "x":
+        shape.append(self.volume_size(mip)[0])
+      elif axis["type"] == "space" and axis["name"] == "y":
+        shape.append(self.volume_size(mip)[1])
+      elif axis["type"] == "space" and axis["name"] == "z":
+        shape.append(self.volume_size(mip)[2])
+
+    return shape
+
+  def zarr_axes_to_cv_axes(self):
+    axes = self.axes()
+
+    shape = []
+    for i, axis in enumerate(axes):
+      if axis["type"] == "channel":
+        shape.append(3)
+      elif axis["type"] == "time":
+        shape.append(4)
+      elif axis["type"] == "space" and axis["name"] == "x":
+        shape.append(0)
+      elif axis["type"] == "space" and axis["name"] == "y":
+        shape.append(1)
+      elif axis["type"] == "space" and axis["name"] == "z":
+        shape.append(2)
+
+    return shape
+
+  def cv_axes_to_zarr_axes(self):
+    seq = self.zarr_axes_to_cv_axes()
+    shape = [0] * len(seq)
+    for i, val in enumerate(seq):
+      shape[val] = i
+    return shape
+
+  def render_zarr_metadata(self):
+    """Convert the current info file into zarr metadata."""
+    datasets = []
+
+    while len(self.zarrays) < len(self.scales):
+      self.zarrays.append({})
+
+    for mip, scale in enumerate(self.scales):
+      dataset = {
+        "coordinateTransformations": [
+          {
+            "scale": [
+              1,
+              self.num_channels,
+              scale["resolution"][2] / 1000,
+              scale["resolution"][1] / 1000,
+              scale["resolution"][0] / 1000
+            ],
+            "type": "scale"
+          }
+        ],
+        "path": str(mip),
+      }
+      datasets.append(dataset)
+
+      zscale = self.zarrays[mip] or {}
+
+      zscale["data_type"] = CV_TO_ZARR_DTYPE[self.data_type]
+
+      zscale["chunk_grid"] = {
+        "name": "regular", // core
+        "configuration": { 
+          "chunk_shape":  [ 1, self.num_channels ] + list(scale["chunk_sizes"][0][::-1])
+        }
+      }
+      zscale["shape"] = self.to_zarr_volume_size(mip)
+
+      zscale["fill_value"] = zscale.get("fill_value", 0)
+      # zscale["order"] = zscale.get("order", 'C')
+      zscale["zarr_format"] = 3
+      zscale["chunk_key_encoding"] = zscale.get("chunk_key_encoding", {
+        "name": "default",
+        "configuration": {
+          "separator": "/",
+        },
+      })
+      zscale["codecs"] = zscale.get("codecs", [
+        {"configuration":{"endian":"little"},"name":"bytes"},
+      ])
+
+      self.zarrays[mip] = zscale
+
+    self.attributes["ome"]["multiscales"][0]["datasets"] = datasets
+
+  def zarr_to_info(self, zarrays, zattrs):
+    def extract_spatial(attr, dtype):
+      scale = zattrs["multiscales"][0]
+      axes = scale["axes"]
+      
+      spatial = np.ones([3], dtype=dtype)
+      for axis, res in zip(axes, attr):
+        if axis["type"] != "space":
+          continue
+        if axis["name"] == "x":
+          spatial[0] = res
+        elif axis["name"] == "y":
+          spatial[1] = res
+        elif axis["name"] == "z":
+          spatial[2] = res
+
+      return spatial
+
+    def extract_spatial_size(mip):
+      shape = zarrays[mip]["shape"]
+      return extract_spatial(shape, int)
+      
+    def get_full_resolution(mip):
+      scale = zattrs["ome"]["multiscales"][0]
+      axes = scale["axes"]
+      return np.array(scale["datasets"][mip]["coordinateTransformations"][0]["scale"])
+
+    try:
+      num_channels = len([ 
+        chan for chan in zattrs["omero"]["channels"] if chan["active"] 
+      ])
+    except KeyError:
+      num_channels = 1
+
+    if not zarrays:
+      raise exceptions.InfoUnavailableError()
+
+    base_res = self.spatial_resolution_in_nm(0, zattrs, zarrays)
+
+    def extract_chunk_size(chunk_size):
+      chunk_size = list(chunk_size)
+      if zarrays[0]["order"] == "C":
+        while len(chunk_size) > 3:
+          chunk_size.pop(0)
+        chunk_size.reverse()
+      else:
+        chunk_size = chunk_size[:3]
+      return chunk_size
+
+    info = PrecomputedMetadata.create_info(
+      num_channels=num_channels,
+      layer_type='image',
+      data_type=str(np.dtype(zarrays[0]["dtype"])),
+      encoding=zarrays[0]["compressor"].get("id", "raw"),
+      resolution=base_res,
+      voxel_offset=[0,0,0],
+      volume_size=extract_spatial_size(0),
+      chunk_size=extract_chunk_size(zarrays[0]["chunks"]),
+    )
+
+    num_mips = len(zattrs["multiscales"][0]["datasets"])
+
+    for mip in range(1, num_mips):
+      res = self.spatial_resolution_in_nm(mip, zattrs, zarrays)
+      factor = np.round(res / base_res)
+
+      zarray = zarrays[mip]
+
+      if zarray is None:
+        continue
+
+      chunk_size = extract_chunk_size(zarray["chunks"])
+      self.add_scale(
+        factor,
+        chunk_size=chunk_size,
+        encoding=zarray["compressor"].get("id", "raw"),
+        info=info
+      )
+
+    return info
+
+  def key(self, mip):
+    datasets = self.attributes["ome"]["multiscales"][0]["datasets"]
+    return datasets[mip].get("path", mip+1)
+
+  def fetch_info(self):
+    cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
+    self.zinfo = cf.get_json("zarr.json")
+
+    if self.zinfo is None:
+      raise InfoUnavailableError("No zarr.json file was found.")
+
+    if 'attributes' in self.zinfo:
+      self.attributes = self.zinfo["attributes"]
+    else:
+      self.attributes = self.default_attributes()
+
+    datasets = []
+    if "ome" in self.attributes:
+      datasets = self.attributes["ome"]["multiscales"][0]["datasets"]
+
+    zarray_paths = [
+      f"{ds.get('path', i+1)}/zarr.json" for i, ds in enumerate(datasets)
+    ]
+    res = cf.get_json(zarray_paths)
+
+    if res is not None:
+      self.zarrays.extend(res)
+
+    return self.zarr_to_info(self.zarrays, self.zattrs)
+
+  def zarr_chunk_size(self, mip):
+    cs = self.chunk_size(mip)
+
+    attr = []
+    for axis in self.axes():
+      if axis["name"] == 't':
+        attr.append(self.time_chunk_size(mip))
+      elif axis["name"] == 'c':
+        attr.append(self.num_channels)
+      elif axis["name"] == 'x':
+        attr.append(cs[0])
+      elif axis["name"] == 'y':
+        attr.append(cs[1])
+      elif axis["name"] == 'z':
+        attr.append(cs[2])
+
+    return attr
+
+  def commit_provenance(self):
+    """Zarr doesn't support provenance files."""
+    pass
+
+  def fetch_provenance(self):
+    """Zarr doesn't support provenance files."""
+    pass
+
+# Example zarr.json array file
+
+# {
+#   "chunk_grid": {
+#     "configuration":{
+#       "chunk_shape":[64,64,64]
+#     },
+#     "name":"regular"
+#   },
+#   "chunk_key_encoding":{
+#     "name":"default"
+#   },
+#   "codecs":[{
+#     "configuration":{"endian":"little"},
+#     "name":"bytes"
+#   }],
+#   "data_type": "uint32",
+#   "fill_value": 0,
+#   "node_type": "array",
+#   "shape": [1460,1491,3281],
+#   "zarr_format":3
+# }
+
+# Example zarr.json group file
+
+# {
+#     "zarr_format": 3,
+#     "node_type": "group",
+#     "attributes": {
+#         "ome": {
+#             "version": "0.5",
+#             "multiscales": [
+#                 {
+#                     "axes": [
+#                         {
+#                             "name": "c",
+#                             "type": "channel"
+#                         },
+#                         {
+#                             "name": "x",
+#                             "type": "space",
+#                             "unit": "nanometer"
+#                         },
+#                         {
+#                             "name": "y",
+#                             "type": "space",
+#                             "unit": "nanometer"
+#                         },
+#                         {
+#                             "name": "z",
+#                             "type": "space",
+#                             "unit": "nanometer"
+#                         }
+#                     ],
+#                     "datasets": [
+#                         {
+#                             "path": "1",
+#                             "coordinateTransformations": [
+#                                 {
+#                                     "type": "scale",
+#                                     "scale": [
+#                                         1.0,
+#                                         650.0,
+#                                         748.0,
+#                                         748.0
+#                                     ]
+#                                 }
+#                             ]
+#                         },
+#                         {
+#                             "path": "2",
+#                             "coordinateTransformations": [
+#                                 {
+#                                     "type": "scale",
+#                                     "scale": [
+#                                         1.0,
+#                                         1300.0,
+#                                         1496.0,
+#                                         1496.0
+#                                     ]
+#                                 }
+#                             ]
+#                         },
+#                         {
+#                             "path": "4",
+#                             "coordinateTransformations": [
+#                                 {
+#                                     "type": "scale",
+#                                     "scale": [
+#                                         1.0,
+#                                         2600.0,
+#                                         2992.0,
+#                                         2992.0
+#                                     ]
+#                                 }
+#                             ]
+#                         },
+#                         {
+#                             "path": "8",
+#                             "coordinateTransformations": [
+#                                 {
+#                                     "type": "scale",
+#                                     "scale": [
+#                                         1.0,
+#                                         5200.0,
+#                                         5984.0,
+#                                         5984.0
+#                                     ]
+#                                 }
+#                             ]
+#                         }
+#                     ]
+#                 }
+#             ]
+#         }
+#     }
+# }
+
+# Example sub zarr.json
+
+# {"chunk_grid":{"configuration":{"chunk_shape":[1,4096,4096,32]},"name":"regular"},"chunk_key_encoding":{"name":"default"},"codecs":[{"configuration":{"chunk_shape":[1,32,32,32],"codecs":[{"configuration":{"order":[3,2,1,0]},"name":"transpose"},{"configuration":{"endian":"little"},"name":"bytes"},{"configuration":{"checksum":true,"level":5},"name":"zstd"}],"index_codecs":[{"configuration":{"endian":"little"},"name":"bytes"},{"name":"crc32c"}]},"name":"sharding_indexed"}],"data_type":"uint16","dimension_names":["c","x","y","z"],"fill_value":0,"node_type":"array","shape":[1,4096,4096,2400],"zarr_format":3}
+
