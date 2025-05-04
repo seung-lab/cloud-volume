@@ -408,10 +408,16 @@ class SpatialIndex(object):
 
     for index_files in iterator:
       for filename, content in index_files.items():
+
+        # Need to delete segid_bbox_dict to avoid this error:
+        # RuntimeError: Tried to re-use a parser while simdjson.Object 
+        #   and/or simdjson.Array objects still exist referencing the 
+        #   old parser.
         segid_bbox_dict = parser.parse(content)
         filename = os.path.basename(filename)
 
-        if label not in segid_bbox_dict: 
+        if label not in segid_bbox_dict:
+          del segid_bbox_dict
           continue 
 
         current_bbox = Bbox.from_list(
@@ -422,6 +428,8 @@ class SpatialIndex(object):
           bbox = current_bbox
         else:
           bbox = Bbox.expand(bbox, current_bbox)
+
+        del segid_bbox_dict
 
     return bbox
 
