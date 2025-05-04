@@ -76,9 +76,14 @@ class N5Metadata(PrecomputedMetadata):
     else:
       resolution = self.attributes["root"]["resolution"]
 
+    try:
+      num_scales = len(self.attributes["root"]["scales"])
+    except KeyError:
+      num_scales = len(self.attributes["root"]["downsamplingFactors"])
+
     scale_dirs = [ 
       cf.join(f"s{i}", "attributes.json") 
-      for i in range(len(self.attributes["root"]["scales"])) 
+      for i in range(num_scales) 
     ]
     scale_attrs = cf.get_json(scale_dirs)
     self.attributes["scales"] = scale_attrs
@@ -103,9 +108,14 @@ class N5Metadata(PrecomputedMetadata):
       chunk_size=scale_attrs[0]["blockSize"],
     )
     
-    for scale in scale_attrs[1:]:
+    for i, scale in enumerate(scale_attrs[1:]):
+      try:
+        ds_factor = scale["downsamplingFactors"]
+      except KeyError:
+        ds_factor = self.attributes["root"]["downsamplingFactors"][i+1]
+
       self.add_scale(
-        scale["downsamplingFactors"],
+        ds_factor,
         chunk_size=scale["blockSize"],
         encoding=scale["compression"]["type"],
         info=info

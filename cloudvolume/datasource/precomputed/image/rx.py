@@ -14,7 +14,7 @@ import fastremap
 from ....exceptions import EmptyVolumeException, EmptyFileException
 from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
-  Bbox, min2, max2, check_bounds, 
+  Bbox, min2, max2, 
   jsonify, red, sip, first
 )
 from .... import chunks

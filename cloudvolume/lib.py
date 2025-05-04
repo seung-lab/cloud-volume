@@ -253,9 +253,11 @@ def min2(a, b):
 def clamp(val, low, high):
   return min(max(val, low), high)
 
-def check_bounds(val, low, high):
+def check_bounds(val, low, high, index):
   if val > high or val < low:
-    raise OutOfBoundsError('Value {} cannot be outside of inclusive range {} to {}'.format(val,low,high))
+    raise OutOfBoundsError(
+      f'Value {val} (index={index}) cannot be outside of inclusive range {low} to {high}'
+    )
   return val
 
 class Vec(np.ndarray):
@@ -398,7 +400,7 @@ class Bbox(object):
       bbx *= np.round(UNIT_SCALES[resolution_unit] / UNIT_SCALES[self.unit])
       bbx //= np.array(resolution) 
       bbx.unit = unit
-      return bbx
+      return bbx.astype(int)
     else:
       bbx = self.astype(np.float32)
       scale_factor = UNIT_SCALES[unit] / UNIT_SCALES[self.unit]
@@ -476,6 +478,8 @@ class Bbox(object):
     typ = type(obj)
     if typ is Bbox:
       obj = obj
+    elif typ in (list, tuple) and len(obj) == 6 and all(isinstance(x, integer_types) for x in obj):
+      obj = Bbox.from_list(obj)
     elif typ in (list, tuple, slice):
       obj = Bbox.from_slices(obj, context, bounded, autocrop)
     elif typ is Vec:
@@ -671,10 +675,10 @@ class Bbox(object):
         elif bounded:
           # if start < 0: # this is support for negative indicies
             # start = self.maxpt[index] + start         
-          check_bounds(start, self.minpt[index], self.maxpt[index])
+          check_bounds(start, self.minpt[index], self.maxpt[index], index)
           # if end < 0: # this is support for negative indicies
           #   end = self.maxpt[index] + end
-          check_bounds(end, self.minpt[index], self.maxpt[index])
+          check_bounds(end, self.minpt[index], self.maxpt[index], index)
 
         slices[index] = slice(start, end, step)
 
@@ -980,8 +984,11 @@ class Bbox(object):
     return int(''.join(map(str, map(int, self.to_list()))))
 
   def __repr__(self):
-    return f"Bbox({list(self.minpt)},{list(self.maxpt)}, dtype=np.{self.dtype}, unit='{self.unit}')"
-
+    normfn = int
+    if np.issubdtype(self.dtype, np.floating):
+      normfn = float
+    return f"Bbox({[ normfn(x) for x in self.minpt ]},{[ normfn(x) for x in self.maxpt ]}, dtype=np.{self.dtype}, unit='{self.unit}')"
+    
 BboxLikeType = Union[Bbox, Sequence[slice], str, Vec]
 
 def save_images(

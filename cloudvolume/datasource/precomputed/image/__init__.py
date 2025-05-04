@@ -125,7 +125,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     res = {}
     def getpt(bbx):
       nonlocal mip
-      value = self.download(bbx, mip)
+      value = self.download(bbx, mip, progress=False)
       res[tuple(bbx.minpt)] = value[0][0][0][0]
 
     fns = ( partial(getpt, bbx) for bbx in bbxs )
@@ -151,7 +151,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     location=None, retain=False,
     use_shared_memory=False, use_file=False,
     order='F', renumber=False, 
-    label=None,
+    label=None, progress=None,
   ):
     """
     Download a cutout image from the dataset.
@@ -184,6 +184,9 @@ class PrecomputedImageSource(ImageSourceInterface):
       else:
         4d ndarray
     """
+    if progress is None:
+      progress = self.config.progress
+
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
@@ -207,7 +210,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         bbox, mip, 
         self.meta, self.cache, self.lru, self._lru_encoding, spec,
         compress=self.config.compress,
-        progress=self.config.progress,
+        progress=progress,
         fill_missing=self.fill_missing,
         order=order,
         background_color=numberfn(self.background_color),
@@ -226,7 +229,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         use_shared_memory=use_shared_memory,
         use_file=use_file,
         fill_missing=self.fill_missing,
-        progress=self.config.progress,
+        progress=progress,
         compress=self.config.compress,
         order=order,
         green=self.config.green,
@@ -683,19 +686,11 @@ class PrecomputedImageSource(ImageSourceInterface):
     reader = self.shard_reader()
     return reader.get_filename(first(morton_codes))
 
-  def make_shard(self, img, bbox, mip=None, spec=None, progress=False):
+  def make_shard_chunks(self, img:np.ndarray, bbox:Bbox, mip=None, spec=None) -> Dict[int, bytes]:
     """
-    Convert an image that represents a single complete shard 
-    into a shard file.
-  
-    img: a volumetric numpy array image
-    bbox: the bbox it represents in voxel coordinates
-    mip: if specified, use the sharding specification from 
-      this mip level, otherwise use the sharding spec from
-      the current implicit mip level in config.
-    spec: use the provided specification (overrides mip parameter)
+    Convert the input image into a dict of:
 
-    Returns: (filename, shard_file)
+    { morton_code: encoded image }
     """
     mip = mip if mip is not None else self.config.mip
     
@@ -727,6 +722,36 @@ class PrecomputedImageSource(ImageSourceInterface):
           block_size=self.meta.compressed_segmentation_block_size(mip),
           compression_params=self.meta.compression_params(mip),
         )
+
+    return labels
+
+  def make_shard(self, img_or_dict, bbox, mip=None, spec=None, progress=False):
+    """
+    Convert an image that represents a single complete shard 
+    into a shard file.
+  
+    img_or_dict: 
+      a volumetric numpy array image OR
+      a dict of morton codes to encoded bytes
+    bbox: the bbox it represents in voxel coordinates
+    mip: if specified, use the sharding specification from 
+      this mip level, otherwise use the sharding spec from
+      the current implicit mip level in config.
+    spec: use the provided specification (overrides mip parameter)
+
+    Returns: (filename, shard_file)
+    """
+    mip = mip if mip is not None else self.config.mip
+    
+    if isinstance(bbox, Bbox):
+      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+
+    spec = self.shard_spec(mip, spec)
+
+    if isinstance(img_or_dict, np.ndarray):
+      labels = self.make_shard_chunks(img_or_dict, bbox, mip=mip, spec=spec)
+    else:
+      labels = img_or_dict
 
     reader = self.shard_reader(mip=mip)
     shard_filename = reader.get_filename(first(labels.keys()))

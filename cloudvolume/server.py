@@ -65,18 +65,30 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
         self.send_error(416, f"{self.headers['Range']} had start >= end.")
         return
 
-    data = CloudFiles(self.cloudpath).get(query)
+    cf = CloudFiles(self.cloudpath)
+    data = cf.get(query)
 
     if data is None:
       self.send_error(404, '/' + path + ": Not Found")
       return 
 
-    self.send_response(200)
-    self.serve_data(data)
+    if self.headers["Range"]:
+      size = cf.size(query["path"])
+      self.send_response(206) # Partial Content
+    else:
+      size = len(data)
+      self.send_response(200)
 
-  def serve_data(self, data):
-    self.send_header('Content-type', 'application/octet-stream')
+    self.serve_data(data, query, size)
+
+  def serve_data(self, data, query, size):
+    self.send_header('Content-Type', 'application/octet-stream')
     self.send_header('Access-Control-Allow-Origin', '*')
-    self.send_header('Content-length', str(len(data)))
+    
+    if "start" in query:
+      self.send_header('Accept-Ranges', 'bytes')
+      self.send_header('Content-Range', f'bytes {query["start"]}-{query["end"] - 1}/{size}')
+
+    self.send_header('Content-Length', str(len(data)))
     self.end_headers()
     self.wfile.write(data)

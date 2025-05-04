@@ -10,7 +10,6 @@ import time
 
 import tenacity
 import numpy as np
-import simdjson
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
@@ -386,6 +385,7 @@ class SpatialIndex(object):
 
     Returns: Bbox in physical coordinates
     """
+    import simdjson
     locations = defaultdict(list)
     parser = simdjson.Parser()
 
@@ -452,6 +452,7 @@ class SpatialIndex(object):
     return self.file_locations_per_label_json(labels, allow_missing)
   
   def file_locations_per_label_json(self, labels, allow_missing=False):
+    import simdjson
     locations = defaultdict(list)
     parser = simdjson.Parser()
     if labels is not None:
@@ -516,6 +517,7 @@ class SpatialIndex(object):
 
     Returns: iterable
     """
+    import simdjson
     bbox = Bbox.create(bbox, context=self.physical_bounds, autocrop=True)
     original_bbox = bbox.clone()
     bbox = bbox.expand_to_chunk_size(self.chunk_size.astype(self.physical_bounds.dtype), offset=self.physical_bounds.minpt)
@@ -607,6 +609,7 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
   print('finished', threading.current_thread().ident)
 
 def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
+  import simdjson
   # handle SQLite vs MySQL syntax quirks
   BIND = '%s' if mysql_syntax else '?'
   AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"

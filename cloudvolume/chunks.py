@@ -220,7 +220,7 @@ def encode_jpegxl(arr, level, effort, decodingspeed):
       lossless=lossless,
       effort=effort,
       decodingspeed=decodingspeed,
-      numthreads=1,
+      numthreads=0,
     )
   elif num_channel == 3:
     arr = np.transpose(arr, axes=[2, 0, 1])
@@ -231,12 +231,12 @@ def encode_jpegxl(arr, level, effort, decodingspeed):
       lossless=lossless,
       effort=effort,
       decodingspeed=decodingspeed,
-      numthreads=1,
+      numthreads=0,
     )
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
 def decode_jpegxl(binary:bytes, shape):
-  data = imagecodecs.jpegxl_decode(binary)
+  data = imagecodecs.jpegxl_decode(binary, numthreads=0)
   if shape[3] == 3:
     data = np.transpose(data, axes=[1, 2, 0])
 
