@@ -223,7 +223,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       return 1
 
   def chunk_name(self, mip, *args):
-    seq = self.cv_axes_to_zarr_axes()
+    seq = self.zarr_axes_to_cv_axes()
     sep = self.dimension_separator(mip)
 
     values = [ str(args[val]) for val in seq ]
@@ -236,7 +236,7 @@ class Zarr3Metadata(PrecomputedMetadata):
     filename = sep.join([ *values ])
 
     if self.is_group():
-      return dsep.join([ self.key(mip), 'c', filename ])
+      return dsep.join([ self.key(mip), filename ])
     else:
       return dsep.join([ 'c', filename ])
 
@@ -271,7 +271,8 @@ class Zarr3Metadata(PrecomputedMetadata):
     regexp = ""
     if len(self.ome["multiscales"][0]["datasets"]):
       regexp = rf"(?P<mip>\d+){dsep}"
-    regexp += f'c{dsep}'
+    else:
+      regexp += f'c{dsep}'
 
     groups = []
     for axis in axes:
@@ -434,6 +435,20 @@ class Zarr3Metadata(PrecomputedMetadata):
 
       return spatial
 
+    def chunk_size_mip(mip):
+      zchunk_size = zarrays[mip]["chunk_grid"]["configuration"]["chunk_shape"]
+      chunk_size = zchunk_size
+      if 'dimension_names' in zarrays[mip]:
+        chunk_size = [0,0,0]
+        for i, axis in enumerate(zarrays[mip]['dimension_names']):
+          if axis == 'x':
+            chunk_size[0] = zchunk_size[i]
+          elif axis == 'y':
+            chunk_size[1] = zchunk_size[i]
+          elif axis == 'z':
+            chunk_size[2] = zchunk_size[i]
+      return chunk_size
+
     def extract_spatial_size(mip):
       shape = zarrays[mip]["shape"]
       return extract_spatial(shape, int)
@@ -467,7 +482,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       resolution=base_res,
       voxel_offset=[0,0,0],
       volume_size=extract_spatial_size(0),
-      chunk_size=zarrays[0]["chunk_grid"]["configuration"]["chunk_shape"],
+      chunk_size=chunk_size_mip(0),
     )
 
     num_mips = len(zarrays)
@@ -481,10 +496,9 @@ class Zarr3Metadata(PrecomputedMetadata):
       if zarray is None:
         continue
 
-      chunk_size = zarrays[mip]["chunk_grid"]["configuration"]["chunk_shape"]
       self.add_scale(
         factor,
-        chunk_size=chunk_size,
+        chunk_size=chunk_size_mip(mip),
         encoding=encoding,
         info=info
       )

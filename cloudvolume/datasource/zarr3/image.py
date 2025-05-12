@@ -56,10 +56,12 @@ class Zarr3ImageSource(ImageSourceInterface):
 
     codecs = self.meta.codecs(mip)
 
-    decoded_binary = binary
+    arr = binary
 
-    for encoding in codecs:
+    for encoding in reversed(codecs):
       if encoding == "bytes":
+        arr = np.frombuffer(arr, dtype=self.meta.dtype)
+        arr = arr.reshape(default_shape, order=self.meta.order(mip))
         continue
       elif encoding == "brotli":
         encoding = "br"
@@ -70,14 +72,15 @@ class Zarr3ImageSource(ImageSourceInterface):
 
       if encoding == "blosc":
         import blosc
-        decoded_binary = blosc.decompress(decoded_binary)
+        arr = blosc.decompress(arr)
       elif encoding in ["zstd", "xz", "br", "gzip"]:
-        decoded_binary = cloudfiles.compression.decompress(decoded_binary, encoding, filename)
+        arr = cloudfiles.compression.decompress(arr, encoding, filename)
+      elif encoding == "transpose":
+        arr = arr.T
       else:
         raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
-      
-    arr = np.frombuffer(decoded_binary, dtype=self.meta.dtype)
-    return arr.reshape(default_shape, order=self.meta.order(mip))
+    
+    return arr
 
   def download(
     self, 
@@ -154,7 +157,6 @@ class Zarr3ImageSource(ImageSourceInterface):
       chunk = self.decode_chunk(binary, mip, fname, self.meta.zarr_chunk_size(mip))
       if chunk is None:
         continue
-      chunk = np.transpose(chunk, axes=axis_mapping)
       if taxis:
         chunk = chunk[...,tslice]
       slcs = (chunk_bbox - chunk_bbox.minpt).to_slices()
