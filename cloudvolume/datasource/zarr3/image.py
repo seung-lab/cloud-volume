@@ -147,7 +147,7 @@ class Zarr3ImageSource(ImageSourceInterface):
 
     for fname, binary in all_chunks.items():
       m = re.search(regexp, fname).groupdict()
-      assert mip == int(m["mip"])
+      assert mip == int(m.get("mip", 0))
       gridpoint = Vec(*[ int(i) for i in [ m["x"], m["y"], m["z"] ] ])
       chunk_bbox = Bbox(gridpoint, gridpoint + 1) * cv_chunk_size
       chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))

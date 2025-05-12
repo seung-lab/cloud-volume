@@ -211,6 +211,10 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return sep.join([ self.key(mip), *values ])
 
+  @property
+  def ndim(self):
+    return len(self.axes())
+
   def duration_in_seconds(self):
     return self.time_resolution_in_seconds(0) * self.num_frames(0)
 
@@ -231,7 +235,7 @@ class Zarr3Metadata(PrecomputedMetadata):
     self.zarrays[mip]["fill_value"] = 0
 
   def filename_regexp(self, mip):
-      scale = self.zattrs["multiscales"][0]
+      scale = self.ome["multiscales"][0]
       axes = scale["axes"]
 
       cf = CloudFiles(self.cloudpath)
@@ -241,7 +245,11 @@ class Zarr3Metadata(PrecomputedMetadata):
       if dsep == '\\':
         dsep = '\\\\' # compensate for regexp escaping
 
-      regexp = rf"(?P<mip>\d+){dsep}"
+
+      regexp = ""
+      if len(self.ome["multiscales"][0]["datasets"]):
+        regexp = rf"(?P<mip>\d+){dsep}"
+      regexp += f'c{dsep}'
 
       groups = []
       for axis in axes:
