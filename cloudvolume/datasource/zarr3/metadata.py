@@ -248,7 +248,7 @@ class Zarr3Metadata(PrecomputedMetadata):
     return self.time_resolution_in_seconds(0) * self.num_frames(0)
 
   def codecs(self, mip):
-    return [ d["name"] for d in self.zarrays[mip].get("codecs", [{}]) ]
+    return self.zarrays[mip].get("codecs", [{}])
 
   def order(self, mip):
     return "C" # transpose codec....

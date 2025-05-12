@@ -55,10 +55,10 @@ class Zarr3ImageSource(ImageSourceInterface):
         raise exceptions.EmptyVolumeException(f"{filename} is missing.")
 
     codecs = self.meta.codecs(mip)
-
     arr = binary
 
-    for encoding in reversed(codecs):
+    for codec in reversed(codecs):
+      encoding = codec["name"]
       if encoding == "bytes":
         arr = np.frombuffer(arr, dtype=self.meta.dtype)
         arr = arr.reshape(default_shape, order=self.meta.order(mip))
@@ -76,7 +76,7 @@ class Zarr3ImageSource(ImageSourceInterface):
       elif encoding in ["zstd", "xz", "br", "gzip"]:
         arr = cloudfiles.compression.decompress(arr, encoding, filename)
       elif encoding == "transpose":
-        arr = arr.T
+        arr = np.transpose(arr, axes=codec["configuration"]["order"])
       else:
         raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
     
