@@ -45,7 +45,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     self.zarrays = []
     self.zinfo = {}
-    self.attributes = self.default_attributes()
+    self.ome = self.default_attributes(3)
 
     if orig_info is None:
       self.info = self.fetch_info()
@@ -54,50 +54,47 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     self.provenance = DataLayerProvenance()
 
-  def default_attributes(self):
-    return {
-      "ome": {
-        "version": "0.5",
-        "multiscales": [
-          {
-            "axes": [
-              {
-                "name": "t",
-                "type": "time",
-                "unit": "millisecond"
-              },
-              {
-                "name": "c",
-                "type": "channel"
-              },
-              {
-                "name": "z",
-                "type": "space",
-                "unit": "nanometer"
-              },
-              {
-                "name": "y",
-                "type": "space",
-                "unit": "nanometer"
-              },
-              {
-                "name": "x",
-                "type": "space",
-                "unit": "nanometer"
-              }
-            ],
-            "datasets": [
-              
-            ],
+  def default_attributes(self, num_axes):
+    ome = {
+      "version": "0.5",
+      "multiscales": [
+        {
+          "axes": [
+            {
+              "name": "t",
+              "type": "time",
+              "unit": "millisecond"
+            },
+            {
+              "name": "c",
+              "type": "channel"
+            },
+            {
+              "name": "z",
+              "type": "space",
+              "unit": "nanometer"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "nanometer"
+            },
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "nanometer"
+            }
+          ],
+          "datasets": [
+            
+          ],
         }
       ],
     }
-  }
+    ome["multiscales"][0]["axes"] = ome["multiscales"][0]["axes"][-num_axes:]
+    return ome
 
-  def spatial_resolution_in_nm(self, mip, attrs):
-    if attrs is None or not "ome" in attrs:
-      return np.ones([3], dtype=np.float32)
-
+  def spatial_resolution_in_nm(self, mip):
     def unit2factor(unit):
       if unit == "meter":
         return 1
@@ -116,7 +113,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     scale_factors = np.ones([3], dtype=np.float32)
     positions = [0,0,0]
-    for i, axis in enumerate(attrs["ome"]["multiscales"][0]["axes"]):
+    for i, axis in enumerate(self.ome["multiscales"][0]["axes"]):
       if axis["type"] != "space":
         continue
       
@@ -130,12 +127,15 @@ class Zarr3Metadata(PrecomputedMetadata):
         scale_factors[2] = unit2factor(axis.get("unit", "nanometer"))
         positions[2] = i
 
-    resolution = attrs["ome"]["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
-    resolution = np.array([
-      resolution[positions[0]],
-      resolution[positions[1]],
-      resolution[positions[2]]
-    ], dtype=np.float32)
+    try:
+      resolution = self.ome["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+      resolution = np.array([
+        resolution[positions[0]],
+        resolution[positions[1]],
+        resolution[positions[2]]
+      ], dtype=np.float32)
+    except IndexError:
+      resolution = np.ones([3], dtype=np.float32)
 
     return resolution * (scale_factors / 1e-9)
 
@@ -160,8 +160,11 @@ class Zarr3Metadata(PrecomputedMetadata):
     elif unit == "nanosecond":
       scale_factor = 1e-9
 
-    resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
-    return resolution[i] * scale_factor
+    try:
+      resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
+      return resolution[i] * scale_factor
+    except IndexError:
+      return scale_factor
 
   def has_time_axis(self):
     try:
@@ -170,10 +173,10 @@ class Zarr3Metadata(PrecomputedMetadata):
       return False
 
   def datasets(self):
-    return self.attributes["ome"]["multiscales"][0]["datasets"]
+    return self.ome["multiscales"][0]["datasets"]
 
   def axes(self):
-    return self.attributes["ome"]["multiscales"][0]["axes"]
+    return self.ome["multiscales"][0]["axes"]
 
   def time_index(self):
     for i, axis in enumerate(self.axes()):
@@ -350,7 +353,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       zscale["data_type"] = CV_TO_ZARR_DTYPE[self.data_type]
 
       zscale["chunk_grid"] = {
-        "name": "regular", // core
+        "name": "regular", # core
         "configuration": { 
           "chunk_shape":  [ 1, self.num_channels ] + list(scale["chunk_sizes"][0][::-1])
         }
@@ -372,14 +375,14 @@ class Zarr3Metadata(PrecomputedMetadata):
 
       self.zarrays[mip] = zscale
 
-    self.attributes["ome"]["multiscales"][0]["datasets"] = datasets
+    self.ome["multiscales"][0]["datasets"] = datasets
 
-  def zarr_to_info(self, zarrays, zattrs):
+  def zarr_to_info(self, zarrays):
     def extract_spatial(attr, dtype):
-      scale = zattrs["multiscales"][0]
+      spatial = np.ones([3], dtype=dtype)
+      scale = self.ome["multiscales"][0]
       axes = scale["axes"]
       
-      spatial = np.ones([3], dtype=dtype)
       for axis, res in zip(axes, attr):
         if axis["type"] != "space":
           continue
@@ -397,47 +400,41 @@ class Zarr3Metadata(PrecomputedMetadata):
       return extract_spatial(shape, int)
       
     def get_full_resolution(mip):
-      scale = zattrs["ome"]["multiscales"][0]
+      scale = self.ome["multiscales"][0]
       axes = scale["axes"]
       return np.array(scale["datasets"][mip]["coordinateTransformations"][0]["scale"])
 
     try:
       num_channels = len([ 
-        chan for chan in zattrs["omero"]["channels"] if chan["active"] 
+        chan for chan in self.ome["channels"] if chan["active"] 
       ])
     except KeyError:
       num_channels = 1
 
     if not zarrays:
-      raise exceptions.InfoUnavailableError()
+      raise exceptions.InfoUnavailableError("Missing mip level zarr.json")
 
-    base_res = self.spatial_resolution_in_nm(0, zattrs, zarrays)
+    base_res = self.spatial_resolution_in_nm(0)
 
-    def extract_chunk_size(chunk_size):
-      chunk_size = list(chunk_size)
-      if zarrays[0]["order"] == "C":
-        while len(chunk_size) > 3:
-          chunk_size.pop(0)
-        chunk_size.reverse()
-      else:
-        chunk_size = chunk_size[:3]
-      return chunk_size
+    encoding = zarrays[0]["codecs"][0].get("name", "raw")
+    if encoding == "bytes":
+      encoding = "raw"
 
     info = PrecomputedMetadata.create_info(
       num_channels=num_channels,
       layer_type='image',
-      data_type=str(np.dtype(zarrays[0]["dtype"])),
-      encoding=zarrays[0]["compressor"].get("id", "raw"),
+      data_type=str(np.dtype(zarrays[0]["data_type"])),
+      encoding=encoding,
       resolution=base_res,
       voxel_offset=[0,0,0],
       volume_size=extract_spatial_size(0),
-      chunk_size=extract_chunk_size(zarrays[0]["chunks"]),
+      chunk_size=zarrays[0]["chunk_grid"]["configuration"]["chunk_shape"],
     )
 
-    num_mips = len(zattrs["multiscales"][0]["datasets"])
+    num_mips = len(zarrays)
 
     for mip in range(1, num_mips):
-      res = self.spatial_resolution_in_nm(mip, zattrs, zarrays)
+      res = self.spatial_resolution_in_nm(mip)
       factor = np.round(res / base_res)
 
       zarray = zarrays[mip]
@@ -445,18 +442,20 @@ class Zarr3Metadata(PrecomputedMetadata):
       if zarray is None:
         continue
 
-      chunk_size = extract_chunk_size(zarray["chunks"])
+      chunk_size = zarrays[mip]["chunk_grid"]["configuration"]["chunk_shape"]
       self.add_scale(
         factor,
         chunk_size=chunk_size,
-        encoding=zarray["compressor"].get("id", "raw"),
+        encoding=encoding,
         info=info
       )
 
     return info
 
   def key(self, mip):
-    datasets = self.attributes["ome"]["multiscales"][0]["datasets"]
+    datasets = self.ome["multiscales"][0]["datasets"]
+    if len(datasets) == 0:
+      return 'c'
     return datasets[mip].get("path", mip+1)
 
   def fetch_info(self):
@@ -466,24 +465,22 @@ class Zarr3Metadata(PrecomputedMetadata):
     if self.zinfo is None:
       raise InfoUnavailableError("No zarr.json file was found.")
 
-    if 'attributes' in self.zinfo:
-      self.attributes = self.zinfo["attributes"]
-    else:
-      self.attributes = self.default_attributes()
-
     datasets = []
-    if "ome" in self.attributes:
-      datasets = self.attributes["ome"]["multiscales"][0]["datasets"]
+    if "ome" in self.zinfo:
+      self.ome = self.zinfo["ome"]
+      datasets = self.ome["multiscales"][0]["datasets"]
 
     zarray_paths = [
       f"{ds.get('path', i+1)}/zarr.json" for i, ds in enumerate(datasets)
     ]
     res = cf.get_json(zarray_paths)
 
-    if res is not None:
+    if res:
       self.zarrays.extend(res)
+    else:
+      self.zarrays.append(self.zinfo)
 
-    return self.zarr_to_info(self.zarrays, self.zattrs)
+    return self.zarr_to_info(self.zarrays)
 
   def zarr_chunk_size(self, mip):
     cs = self.chunk_size(mip)
