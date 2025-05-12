@@ -53,6 +53,10 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     self.provenance = DataLayerProvenance()
 
+  @property
+  def zarr_format(self):
+    return self.zinfo["zarr_format"]
+
   def default_zattrs(self):
     return {
       "multiscales": [

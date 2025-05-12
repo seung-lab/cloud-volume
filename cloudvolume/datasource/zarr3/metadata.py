@@ -54,6 +54,10 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     self.provenance = DataLayerProvenance()
 
+  @property
+  def zarr_format(self):
+    return self.zinfo["zarr_format"]
+
   def default_attributes(self, num_axes):
     ome = {
       "version": "0.5",
@@ -166,6 +170,9 @@ class Zarr3Metadata(PrecomputedMetadata):
     except IndexError:
       return scale_factor
 
+  def is_group(self):
+    return len(self.ome["multiscales"][0]["datasets"]) > 0
+
   def has_time_axis(self):
     try:
       return self.time_index() is not None
@@ -183,6 +190,21 @@ class Zarr3Metadata(PrecomputedMetadata):
       if axis["type"] == "time":
         return i
     raise ValueError("No time axis.")
+
+  def spatial_chunk_size(self, mip):
+    axes = self.axes()
+
+    shape = [0,0,0]
+    for i, axis in enumerate(axes):
+      if axis["type"] == "space" and axis["name"] == "x":
+        shape[0] = i
+      elif axis["type"] == "space" and axis["name"] == "y":
+        shape[1] = i
+      elif axis["type"] == "space" and axis["name"] == "z":
+        shape[2] = i
+
+    cs = self.zarrays[0]["chunk_grid"]["configuration"]["chunk_shape"]
+    return np.array([ cs[shape[0]], cs[shape[1]], cs[shape[2]] ], dtype=int)
 
   def time_chunk_size(self, mip):
     i = self.time_index()
@@ -209,7 +231,14 @@ class Zarr3Metadata(PrecomputedMetadata):
     if self.order(mip) == "F":
       values.reverse()
 
-    return sep.join([ self.key(mip), *values ])
+    dsep = self.directory_separator()
+
+    filename = sep.join([ *values ])
+
+    if self.is_group():
+      return dsep.join([ self.key(mip), 'c', filename ])
+    else:
+      return dsep.join([ 'c', filename ])
 
   @property
   def ndim(self):
@@ -235,29 +264,31 @@ class Zarr3Metadata(PrecomputedMetadata):
     self.zarrays[mip]["fill_value"] = 0
 
   def filename_regexp(self, mip):
-      scale = self.ome["multiscales"][0]
-      axes = scale["axes"]
+    scale = self.ome["multiscales"][0]
+    axes = scale["axes"]
 
-      cf = CloudFiles(self.cloudpath)
-      dsep = '/'
-      if cf.protocol == "file":
-        dsep = os.path.sep  
-      if dsep == '\\':
-        dsep = '\\\\' # compensate for regexp escaping
+    dsep = self.directory_separator()
+    regexp = ""
+    if len(self.ome["multiscales"][0]["datasets"]):
+      regexp = rf"(?P<mip>\d+){dsep}"
+    regexp += f'c{dsep}'
 
+    groups = []
+    for axis in axes:
+      groups.append(fr"(?P<{axis['name']}>-?\d+)")
 
-      regexp = ""
-      if len(self.ome["multiscales"][0]["datasets"]):
-        regexp = rf"(?P<mip>\d+){dsep}"
-      regexp += f'c{dsep}'
+    regexp += self.dimension_separator(mip).join(groups)
 
-      groups = []
-      for axis in axes:
-        groups.append(fr"(?P<{axis['name']}>-?\d+)")
+    return re.compile(regexp)
 
-      regexp += self.dimension_separator(mip).join(groups)
-
-      return re.compile(regexp)
+  def directory_separator(self):
+    cf = CloudFiles(self.cloudpath)
+    dsep = '/'
+    if cf.protocol == "file":
+      dsep = os.path.sep  
+    if dsep == '\\':
+      dsep = '\\\\' # compensate for regexp escaping
+    return dsep
 
   def dimension_separator(self, mip):
     data = self.zarrays[mip].get("chunk_key_encoding", {
@@ -463,7 +494,7 @@ class Zarr3Metadata(PrecomputedMetadata):
   def key(self, mip):
     datasets = self.ome["multiscales"][0]["datasets"]
     if len(datasets) == 0:
-      return 'c'
+      return ''
     return datasets[mip].get("path", mip+1)
 
   def fetch_info(self):
@@ -476,7 +507,10 @@ class Zarr3Metadata(PrecomputedMetadata):
     datasets = []
     if "ome" in self.zinfo:
       self.ome = self.zinfo["ome"]
-      datasets = self.ome["multiscales"][0]["datasets"]
+    elif "attributes" in self.zinfo:
+      self.ome = self.zinfo["attributes"]["ome"]
+
+    datasets = self.ome["multiscales"][0]["datasets"]
 
     zarray_paths = [
       f"{ds.get('path', i+1)}/zarr.json" for i, ds in enumerate(datasets)

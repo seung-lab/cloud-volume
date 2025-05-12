@@ -108,10 +108,10 @@ class Zarr3ImageSource(ImageSourceInterface):
       green=self.config.green,
     )
 
-    cv_chunk_size = self.meta.chunk_size(mip)
+    spatial_chunk_size = self.meta.spatial_chunk_size(mip)
 
-    realized_bbox = bounds.expand_to_chunk_size(cv_chunk_size)
-    grid_bbox = realized_bbox // cv_chunk_size
+    realized_bbox = bounds.expand_to_chunk_size(spatial_chunk_size)
+    grid_bbox = realized_bbox // spatial_chunk_size
 
     try:
       tchunk = int(t / self.meta.num_time_chunks(mip))
@@ -147,9 +147,9 @@ class Zarr3ImageSource(ImageSourceInterface):
 
     for fname, binary in all_chunks.items():
       m = re.search(regexp, fname).groupdict()
-      assert mip == int(m.get("mip", 0))
+      assert self.meta.key(mip) == m.get("mip", '0')
       gridpoint = Vec(*[ int(i) for i in [ m["x"], m["y"], m["z"] ] ])
-      chunk_bbox = Bbox(gridpoint, gridpoint + 1) * cv_chunk_size
+      chunk_bbox = Bbox(gridpoint, gridpoint + 1) * spatial_chunk_size
       chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
       chunk = self.decode_chunk(binary, mip, fname, self.meta.zarr_chunk_size(mip))
       if chunk is None:
