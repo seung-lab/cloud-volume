@@ -82,6 +82,35 @@ class Zarr3ImageSource(ImageSourceInterface):
     
     return arr
 
+  def encode_chunk(self, arr:np.ndarray, mip:int) -> bytes:
+    codecs = self.meta.codecs(mip)
+
+    binary = arr
+    for codec in codecs:
+      encoding = codec["name"]
+
+      if encoding == "bytes":
+        binary = binary.tobytes('C')
+        continue
+      elif encoding == "brotli":
+        encoding = "br"
+      elif encoding == "zlib":
+        encoding = "gzip"
+      elif encoding == "lzma":
+        encoding = "xz"
+
+      if encoding == "blosc":
+        import blosc
+        binary = blosc.compress(binary)
+      elif encoding in ["zstd", "xz", "br", "gzip"]:
+        binary = cloudfiles.compression.compress(binary, encoding)
+      elif encoding == "transpose":
+        binary = np.transpose(binary, axes=codec["configuration"]["order"])
+      else:
+        raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
+
+    return binary
+
   def download(
     self, 
     bbox:BboxLikeType, 
@@ -191,10 +220,12 @@ class Zarr3ImageSource(ImageSourceInterface):
       throw_error=True, # (self.non_aligned_writes == False)
     )
 
-    expanded = bounds.expand_to_chunk_size(self.meta.chunk_size(mip), self.meta.voxel_offset(mip))
+    spatial_chunk_size = self.meta.spatial_chunk_size(mip)
+
+    expanded = bounds.expand_to_chunk_size(spatial_chunk_size, self.meta.voxel_offset(mip))
     all_chunknames = self._chunknames(
       expanded, self.meta.bounds(mip), 
-      mip, self.meta.chunk_size(mip),
+      mip, spatial_chunk_size,
       t=t,
     )
 
@@ -205,22 +236,13 @@ class Zarr3ImageSource(ImageSourceInterface):
 
     axis_mapping = self.meta.cv_axes_to_zarr_axes()
 
-    compressor_args = copy.deepcopy(self.meta.zarrays[mip]["compressor"])
-    compressor_args.pop("id", None)
-    compressor_args.pop("blocksize", None)
-
     def all_chunks_by_channel(all_chunks):
       for ispt, iept, vol_spt, vol_ept in all_chunks:
         for c in range(self.meta.num_channels):
           yield image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, c ]
 
     for filename, imgchunk in zip(all_chunknames, all_chunks_by_channel(all_chunks)):
-      zarr_imgchunk = np.transpose(imgchunk[..., np.newaxis], axes=axis_mapping)
-      binary = zarr_imgchunk.tobytes(order)
-      del zarr_imgchunk
-      del imgchunk
-
-      binary = blosc.compress(binary, **compressor_args)
+      binary = self.encode_chunk(imgchunk, mip)
       to_upload.append(
         (filename, binary)
       )
