@@ -254,7 +254,12 @@ class Zarr3ImageSource(ImageSourceInterface):
     cf = CloudFiles(self.meta.cloudpath)
     num_channels = self.meta.num_channels
 
-    tchunk = int(t / self.meta.num_time_chunks(mip))
+    has_t = self.meta.has_time_axis()
+    tchunk = 0
+    if has_t:
+      tchunk = int(t / self.meta.num_time_chunks(mip))
+
+    axes = [ (axis["type"], axis["name"]) for axis in self.meta.axes() ]
 
     class ZarrChunkNamesIterator():
       def __len__(self):
@@ -271,9 +276,21 @@ class Zarr3ImageSource(ImageSourceInterface):
 
         for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
           for c in range(num_channels):
-            filename = sep.join([
-              str(tchunk), str(c), str(z), str(y), str(x)
-            ])
+            params = []
+            
+            for typ, name in axes:
+              if typ == "time":
+                params.append(str(tchunk))
+              elif typ == "space" and name == "x":
+                params.append(str(x))
+              elif typ == "space" and name == "y":
+                params.append(str(y))
+              elif typ == "space" and name == "z":
+                params.append(str(z))
+              elif typ == "channel":
+                params.append(str(c))
+
+            filename = sep.join(params)
             yield cf.join(str(mip), filename)
 
     return ZarrChunkNamesIterator()
