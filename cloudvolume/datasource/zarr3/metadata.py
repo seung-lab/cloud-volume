@@ -536,7 +536,7 @@ class Zarr3Metadata(PrecomputedMetadata):
     if "ome" in self.zinfo:
       self.ome = self.zinfo["ome"]
     elif "attributes" in self.zinfo:
-      self.ome = self.zinfo["attributes"]["ome"]
+      self.ome = self.zinfo["attributes"].get("ome", self.default_attributes(len(self.zinfo["shape"])))
 
     datasets = self.ome["multiscales"][0]["datasets"]
 
