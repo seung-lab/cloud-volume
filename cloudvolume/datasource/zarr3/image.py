@@ -73,6 +73,16 @@ class Zarr3ImageSource(ImageSourceInterface):
       if encoding == "blosc":
         import blosc
         arr = blosc.decompress(arr)
+      elif encoding == "crc32c":
+        import crc32c
+        stored_crc = int.from_bytes(arr[:-4], byteorder='little')
+        calculated_crc = crc32c.crc32c(arr[:-4])
+        if stored_crc != calculated_crc:
+          raise ValueError(
+            f"Stored crc32c {stored_crc} did not match "
+            f"calculated crc32c {calculated_crc} for file {filename}."
+          )
+        arr = arr[:-4]
       elif encoding in ["zstd", "xz", "br", "gzip"]:
         arr = cloudfiles.compression.decompress(arr, encoding, filename)
       elif encoding == "transpose":
@@ -102,6 +112,10 @@ class Zarr3ImageSource(ImageSourceInterface):
       if encoding == "blosc":
         import blosc
         binary = blosc.compress(binary)
+      elif encoding == "crc32c":
+        import crc32c
+        calculated_crc = crc32c.crc32c(binary)
+        binary += calculated_crc.to_bytes('little')
       elif encoding in ["zstd", "xz", "br", "gzip"]:
         binary = cloudfiles.compression.compress(binary, encoding)
       elif encoding == "transpose":
