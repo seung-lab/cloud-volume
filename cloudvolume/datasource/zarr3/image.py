@@ -117,7 +117,9 @@ class Zarr3ImageSource(ImageSourceInterface):
         calculated_crc = crc32c.crc32c(binary)
         binary += calculated_crc.to_bytes('little')
       elif encoding in ["zstd", "xz", "br", "gzip"]:
-        binary = cloudfiles.compression.compress(binary, encoding)
+        compress_level = codec.get("configuration", { "level": 1 })
+        compress_level = level.get("level", 1)
+        binary = cloudfiles.compression.compress(binary, encoding, compress_level=compress_level)
       elif encoding == "transpose":
         binary = np.transpose(binary, axes=codec["configuration"]["order"])
       else:
