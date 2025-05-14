@@ -235,10 +235,20 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     filename = sep.join([ *values ])
 
-    if self.is_group():
-      return dsep.join([ self.key(mip), filename ])
+    chunk_key_encoding = self.chunk_key_encoding(mip)["name"]
+
+    if chunk_key_encoding == "default":
+      if self.is_group():
+        return dsep.join([ self.key(mip), 'c', filename ])
+      else:
+        return dsep.join([ 'c', filename ])
+    elif chunk_key_encoding == "v2":
+      if self.is_group():
+        return dsep.join([ self.key(mip), filename ])
+      else:
+        return filename
     else:
-      return dsep.join([ 'c', filename ])
+      raise ValueError(f"chunk_key_encoding '{chunk_key_encoding}' is not supported.")
 
   @property
   def ndim(self):
@@ -271,7 +281,8 @@ class Zarr3Metadata(PrecomputedMetadata):
     regexp = ""
     if len(self.ome["multiscales"][0]["datasets"]):
       regexp = rf"(?P<mip>\d+){dsep}"
-    else:
+    
+    if self.chunk_key_encoding(mip)["name"] == "default":
       regexp += f'c{dsep}'
 
     groups = []
@@ -291,11 +302,14 @@ class Zarr3Metadata(PrecomputedMetadata):
       dsep = '\\\\' # compensate for regexp escaping
     return dsep
 
-  def dimension_separator(self, mip):
-    data = self.zarrays[mip].get("chunk_key_encoding", {
+  def chunk_key_encoding(self, mip):
+    return self.zarrays[mip].get("chunk_key_encoding", {
       "name": "default",
       "configuration": { "separator": "/" },
     })
+
+  def dimension_separator(self, mip):
+    data = self.chunk_key_encoding(mip)
     config = data.get("configuration", { "separator": "/" })
     return config.get("separator", "/")
 
