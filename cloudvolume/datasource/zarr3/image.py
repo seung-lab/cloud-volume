@@ -136,7 +136,9 @@ class Zarr3ImageSource(ImageSourceInterface):
     label:Optional[int] = None,
     t:int = 0,
   ) -> VolumeCutout:
-    if parallel != 1:
+    if self.meta.is_sharded(mip):
+      raise NotImplementedError("sharded volumes are not currently supported.")
+    elif parallel != 1:
       raise ValueError("Only parallel=1 is supported for zarr.")
     elif renumber != False:
       raise ValueError("Only renumber=False is supported for zarr.")
@@ -218,6 +220,9 @@ class Zarr3ImageSource(ImageSourceInterface):
 
   @readonlyguard
   def upload(self, image, offset, mip, parallel=1, t=0):
+    if self.meta.is_sharded(mip):
+      raise NotImplementedError("sharded volumes are not currently supported.")
+
     import blosc
 
     if not np.issubdtype(image.dtype, np.dtype(self.meta.dtype).type):

@@ -173,6 +173,12 @@ class Zarr3Metadata(PrecomputedMetadata):
   def is_group(self):
     return len(self.ome["multiscales"][0]["datasets"]) > 0
 
+  def is_sharded(self, mip):
+    for codec in self.codecs(mip):
+      if codec.get("name", "") == "sharding_indexed":
+        return True
+    return False
+
   def has_time_axis(self):
     try:
       return self.time_index() is not None
