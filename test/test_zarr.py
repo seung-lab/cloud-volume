@@ -33,3 +33,29 @@ def test_zarr3_unsharded():
 	assert np.all(arr[:] == 2)
 	assert np.all(cv[:] == 2)
 
+	shutil.rmtree(test_location)
+
+def test_zarr3_crc():
+	test_location = os.path.join(TEST_DIR, "zarr_unsharded_crc.zarr")
+
+	shape = [100, 100, 50]
+	data = np.zeros(shape, dtype=np.uint8, order="C")
+	data[:20] = 1
+
+	arr = zarr.open(store=test_location, shape=shape, chunks=(100, 100, 10), dtype='uint8', mode='w')
+	arr[:] = data
+	arr.store.close()
+
+	cv = CloudVolume(f"zarr3://file://{test_location}", fill_missing=True)
+
+	codecs = cv.meta.codecs(0)
+	codecs.append({
+		"name": "crc32c",
+		"configuration": { "endian": "little" },
+	})
+
+	cv[:] = 3
+
+	assert np.all(cv[:] == 3)
+
+	shutil.rmtree(test_location)

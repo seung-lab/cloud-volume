@@ -75,7 +75,7 @@ class Zarr3ImageSource(ImageSourceInterface):
         arr = blosc.decompress(arr)
       elif encoding == "crc32c":
         import crc32c
-        stored_crc = int.from_bytes(arr[:-4], byteorder='little')
+        stored_crc = int.from_bytes(arr[-4:], byteorder='little')
         calculated_crc = crc32c.crc32c(arr[:-4])
         if stored_crc != calculated_crc:
           raise ValueError(
@@ -115,7 +115,7 @@ class Zarr3ImageSource(ImageSourceInterface):
       elif encoding == "crc32c":
         import crc32c
         calculated_crc = crc32c.crc32c(binary)
-        binary += calculated_crc.to_bytes('little')
+        binary += calculated_crc.to_bytes(4, byteorder='little')
       elif encoding in ["zstd", "xz", "br", "gzip"]:
         compress_level = codec.get("configuration", { "level": 1 })
         compress_level = compress_level.get("level", 1)
