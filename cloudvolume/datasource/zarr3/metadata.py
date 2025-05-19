@@ -388,16 +388,24 @@ class Zarr3Metadata(PrecomputedMetadata):
       self.zarrays.append({})
 
     for mip, scale in enumerate(self.scales):
+
+      params = []
+      for axis in self.axes():
+        if axis["type"] == "channel":
+          params.append(1.0)
+        elif axis["type"] == "time":
+          params.append(1.0)
+        elif axis["type"] == "space" and axis["name"] == "x":
+          params.append(scale["resolution"][0] / 1000)
+        elif axis["type"] == "space" and axis["name"] == "y":
+          params.append(scale["resolution"][1] / 1000)
+        elif axis["type"] == "space" and axis["name"] == "z":
+          params.append(scale["resolution"][2] / 1000)
+
       dataset = {
         "coordinateTransformations": [
           {
-            "scale": [
-              1,
-              self.num_channels,
-              scale["resolution"][2] / 1000,
-              scale["resolution"][1] / 1000,
-              scale["resolution"][0] / 1000
-            ],
+            "scale": params,
             "type": "scale"
           }
         ],
