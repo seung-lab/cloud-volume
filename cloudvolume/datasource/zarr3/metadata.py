@@ -327,7 +327,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       )
 
     to_upload.append(
-      ( "zarr.json", self.zattrs )
+      ( "zarr.json", self.zinfo )
     )
 
     compress = "br"
