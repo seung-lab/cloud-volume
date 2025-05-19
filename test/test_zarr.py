@@ -13,7 +13,7 @@ TEST_DIR = os.path.dirname("/tmp/removeme/cloudvolume/")
 def test_zarr3_unsharded():
 	test_location = os.path.join(TEST_DIR, "zarr_unsharded.zarr")
 
-	shape = [100, 100, 50]
+	shape = [1000, 1000, 50]
 	data = np.zeros(shape, dtype=np.uint8, order="C")
 	data[:20] = 1
 
