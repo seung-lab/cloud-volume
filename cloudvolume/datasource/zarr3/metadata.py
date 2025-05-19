@@ -389,23 +389,29 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     for mip, scale in enumerate(self.scales):
 
-      params = []
+      scale_params = []
+      chunk_params = []
       for axis in self.axes():
         if axis["type"] == "channel":
-          params.append(1.0)
+          scale_params.append(1.0)
+          chunk_params.append(self.num_channels)
         elif axis["type"] == "time":
-          params.append(1.0)
+          scale_params.append(1.0)
+          chunk_params.append(self.time_chunk_size(mip))
         elif axis["type"] == "space" and axis["name"] == "x":
-          params.append(scale["resolution"][0] / 1000)
+          scale_params.append(scale["resolution"][0] / 1000)
+          chunk_params.append(self.spatial_chunk_size(mip)[0])
         elif axis["type"] == "space" and axis["name"] == "y":
-          params.append(scale["resolution"][1] / 1000)
+          scale_params.append(scale["resolution"][1] / 1000)
+          chunk_params.append(self.spatial_chunk_size(mip)[1])
         elif axis["type"] == "space" and axis["name"] == "z":
-          params.append(scale["resolution"][2] / 1000)
+          scale_params.append(scale["resolution"][2] / 1000)
+          chunk_params.append(self.spatial_chunk_size(mip)[2])
 
       dataset = {
         "coordinateTransformations": [
           {
-            "scale": params,
+            "scale": scale_params,
             "type": "scale"
           }
         ],
@@ -420,7 +426,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       zscale["chunk_grid"] = {
         "name": "regular", # core
         "configuration": { 
-          "chunk_shape":  [ 1, self.num_channels ] + list(scale["chunk_sizes"][0][::-1])
+          "chunk_shape": chunk_params,
         }
       }
       zscale["shape"] = self.to_zarr_volume_size(mip)
