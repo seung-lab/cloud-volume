@@ -222,14 +222,14 @@ class Zarr3Metadata(PrecomputedMetadata):
     except ValueError:
       return 1
 
-  def chunk_name(self, mip, *args):
-    seq = self.zarr_axes_to_cv_axes()
+  def chunk_name(self, mip, *args, convert_order=False):
     sep = self.dimension_separator(mip)
 
-    values = [ str(args[val]) for val in seq ]
-
-    if self.order(mip) == "F":
-      values.reverse()
+    if convert_order:
+      seq = self.zarr_axes_to_cv_axes()
+      values = [ str(args[val]) for val in seq ]
+    else:
+      values = [ str(val) for val in args ]
 
     dsep = self.directory_separator()
 
@@ -259,10 +259,6 @@ class Zarr3Metadata(PrecomputedMetadata):
 
   def codecs(self, mip):
     return self.zarrays[mip].get("codecs", [{}])
-
-  def order(self, mip):
-    return "C" # transpose codec....
-    # return self.zarrays[mip]["order"]
 
   def background_color(self, mip):
     color = self.zarrays[mip].get("fill_value", 0)

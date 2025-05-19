@@ -61,7 +61,7 @@ class Zarr3ImageSource(ImageSourceInterface):
       encoding = codec["name"]
       if encoding == "bytes":
         arr = np.frombuffer(arr, dtype=self.meta.dtype)
-        arr = arr.reshape(default_shape, order=self.meta.order(mip))
+        arr = arr.reshape(default_shape, order='F')
         continue
       elif encoding == "brotli":
         encoding = "br"
@@ -166,11 +166,11 @@ class Zarr3ImageSource(ImageSourceInterface):
     except ValueError:
       tchunk = 0
 
-    paths = [
-      self.meta.chunk_name(mip, x, y, z, c, tchunk)
+    paths = (
+      self.meta.chunk_name(mip, x, y, z, c, tchunk, convert_order=True)
       for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
       for c in range(self.meta.num_channels)
-    ]
+    )
 
     all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
     shape = list(bounds.size3()) + [ self.meta.num_channels ]
@@ -179,8 +179,10 @@ class Zarr3ImageSource(ImageSourceInterface):
       renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order="F")
     else:
       renderbuffer = np.full(
-        shape=shape, fill_value=self.meta.background_color(mip), 
-        dtype=self.meta.dtype, order="F",
+        shape=shape,
+        fill_value=self.meta.background_color(mip),
+        dtype=self.meta.dtype,
+        order="F",
       )
 
     regexp = self.meta.filename_regexp(mip)
@@ -245,8 +247,7 @@ class Zarr3ImageSource(ImageSourceInterface):
       t=t,
     )
 
-    all_chunks = generate_chunks(self.meta, image, offset, mip)
-    order = self.meta.order(mip)
+    all_chunks = generate_chunks(self.meta, image, offset, mip, chunk_size=spatial_chunk_size)
 
     to_upload = []
 
@@ -266,7 +267,7 @@ class Zarr3ImageSource(ImageSourceInterface):
     CloudFiles(self.meta.cloudpath).puts(to_upload)
 
   def _chunknames(self, bbox, volume_bbox, mip, chunk_size, t):
-    sep = self.meta.dimension_separator(mip)
+    meta = self.meta
     cf = CloudFiles(self.meta.cloudpath)
     num_channels = self.meta.num_channels
 
@@ -306,8 +307,7 @@ class Zarr3ImageSource(ImageSourceInterface):
               elif typ == "channel":
                 params.append(str(c))
 
-            filename = sep.join(params)
-            yield cf.join(str(mip), filename)
+            yield meta.chunk_name(mip, *params)
 
     return ZarrChunkNamesIterator()
 
