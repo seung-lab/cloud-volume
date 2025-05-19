@@ -321,10 +321,11 @@ class Zarr3Metadata(PrecomputedMetadata):
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
 
     to_upload = []
-    for i, zarray in enumerate(self.zarrays):
-      to_upload.append(
-        (cf.join(str(i), "zarr.json"), zarray)
-      )
+    if self.is_group():
+      for i, zarray in enumerate(self.zarrays):
+        to_upload.append(
+          (cf.join(str(i), "zarr.json"), zarray)
+        )
 
     to_upload.append(
       ( "zarr.json", self.zinfo )
