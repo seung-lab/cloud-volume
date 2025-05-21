@@ -468,7 +468,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     def chunk_size_mip(mip):
       zchunk_size = zarrays[mip]["chunk_grid"]["configuration"]["chunk_shape"]
-      chunk_size = zchunk_size
+      chunk_size = zchunk_size[::-1]
       if 'dimension_names' in zarrays[mip]:
         chunk_size = [0,0,0]
         for i, axis in enumerate(zarrays[mip]['dimension_names']):
