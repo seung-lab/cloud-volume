@@ -214,7 +214,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
   def time_chunk_size(self, mip):
     i = self.time_index()
-    return self.zinfo[mip]["chunks"][i]
+    return self.zarrays[mip]["chunk_grid"]["configuration"]["chunk_shape"][i]
 
   def num_time_chunks(self, mip):
     nframes = self.num_frames(mip)
