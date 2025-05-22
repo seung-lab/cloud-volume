@@ -272,8 +272,8 @@ class Zarr3Metadata(PrecomputedMetadata):
       return np.nan
     return color
 
-  def set_background_color(self, mip):
-    self.zarrays[mip]["fill_value"] = 0
+  def set_background_color(self, mip, value):
+    self.zarrays[mip]["fill_value"] = value
 
   def filename_regexp(self, mip):
     scale = self.ome["multiscales"][0]
