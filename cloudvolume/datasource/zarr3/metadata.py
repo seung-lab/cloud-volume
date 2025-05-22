@@ -171,7 +171,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       return scale_factor
 
   def is_group(self):
-    return len(self.ome["multiscales"][0]["datasets"]) > 0
+    return len(self.datasets()) > 0
 
   def is_sharded(self, mip):
     for codec in self.codecs(mip):
