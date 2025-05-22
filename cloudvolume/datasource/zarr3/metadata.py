@@ -549,14 +549,27 @@ class Zarr3Metadata(PrecomputedMetadata):
     if self.zinfo is None:
       raise InfoUnavailableError("No zarr.json file was found.")
 
+    if self.zinfo["zarr_format"] != 3:
+      raise exceptions.UnsupportedFormatError(
+        f"zarr3 module cannot parse zarr format version {self.zinfo['zarr_format']}."
+      )
+
     datasets = []
-    if "ome" in self.zinfo:
-      self.ome = self.zinfo["ome"]
-    elif "attributes" in self.zinfo:
+    
+    if "attributes" in self.zinfo:
       try:
+        # Detect OME-Zarr 0.5
+        # https://ngff.openmicroscopy.org/0.5/#metadata
         self.ome = self.zinfo["attributes"]["ome"]
+        assert self.ome["multiscales"][0]["version"] == "0.5" # < 1 version number means anything can change...
       except KeyError: 
-        self.ome = self.default_attributes(len(self.zinfo["shape"]))
+        try:
+          # OME-Zarr 0.4
+          # https://ngff.openmicroscopy.org/0.4/
+          self.ome = self.zinfo["attributes"]
+          assert self.ome["multiscales"][0]["version"] == "0.4" # < 1 version number means anything can change...
+        except KeyError:
+          self.ome = self.default_attributes(3) # make a guess at least...
 
     datasets = self.ome["multiscales"][0]["datasets"]
 
