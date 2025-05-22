@@ -228,10 +228,7 @@ class Zarr3ImageSource(ImageSourceInterface):
   def upload(self, image, offset, mip, parallel=1, t=0):
     if self.meta.is_sharded(mip):
       raise NotImplementedError("sharded volumes are not currently supported.")
-
-    import blosc
-
-    if not np.issubdtype(image.dtype, np.dtype(self.meta.dtype).type):
+    elif not np.issubdtype(image.dtype, np.dtype(self.meta.dtype).type):
       raise ValueError(f"""
         The uploaded image data type must match the volume data type. 
 
