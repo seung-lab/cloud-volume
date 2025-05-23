@@ -145,7 +145,6 @@ def test_zarr3_delete_some():
     cv = CloudVolume("zarr3://file://" + simple_dataset_loc)
     bbx = cv.bounds.clone()
     bbx.maxpt.x = 10
-    print(bbx)
     cv.delete(bbx)
 
     for i in range(10):
