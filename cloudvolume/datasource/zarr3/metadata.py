@@ -197,6 +197,14 @@ class Zarr3Metadata(PrecomputedMetadata):
         return i
     raise ValueError("No time axis.")
 
+  def shape(self, mip):
+    """Returns Vec(x,y,z,channels) shape of the volume similar to numpy.""" 
+    size = self.volume_size(mip)
+    values = [size.x, size.y, size.z, self.num_channels]
+    if self.has_time_axis():
+      values.append(self.num_frames(mip))
+    return Vec(*values)
+
   def spatial_chunk_size(self, mip):
     axes = self.axes()
 
