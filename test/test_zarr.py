@@ -4,13 +4,30 @@ import os
 import shutil
 
 import zarr
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, Bbox
 
 import numpy as np
 
 TEST_DIR = os.path.dirname("/tmp/removeme/cloudvolume/")
 
-def test_zarr3_unsharded():
+def create_simple_dataset():
+    test_location = os.path.join(TEST_DIR, "zarr3_simple_unsharded.zarr")
+
+    if os.path.exists(test_location):
+        shutil.rmtree(test_location)
+
+    shape = [1000, 1000, 50]
+    data = np.zeros(shape, dtype=np.uint8, order="C")
+    data[:20] = 1
+
+    arr = zarr.open(store=test_location, shape=shape, chunks=(100, 100, 10), dtype='uint8', mode='w')
+    arr[:] = data
+    arr.store.close()
+
+    return test_location
+
+
+def test_zarr3_unsharded_read_write():
     test_location = os.path.join(TEST_DIR, "zarr_unsharded.zarr")
 
     shape = [1000, 1000, 50]
@@ -97,7 +114,42 @@ def test_zarr3_blosc():
 
     shutil.rmtree(test_location)
 
+def test_zarr3_delete_all():
+
+    simple_dataset_loc = create_simple_dataset()
+
+    arr = zarr.open(store=simple_dataset_loc)
+
+    chunknames = os.listdir(os.path.join(simple_dataset_loc, 'c', '0', '0'))
+    chunknames.sort()
+    assert chunknames == ['0', '1', '2', '3', '4']
+
+    cv = CloudVolume("zarr3://file://" + simple_dataset_loc)
+    cv.delete(cv.bounds)
+
+    for i in range(10):
+        chunknames = os.listdir(os.path.join(simple_dataset_loc, 'c', '0', str(i)))
+        chunknames.sort()
+        assert chunknames == []
 
 
 
+def test_zarr3_delete_some():
+    simple_dataset_loc = create_simple_dataset()
+    arr = zarr.open(store=simple_dataset_loc)
+
+    chunknames = os.listdir(os.path.join(simple_dataset_loc, 'c', '0', '0'))
+    chunknames.sort()
+    assert chunknames == [ str(i) for i in range(0,5) ]
+
+    cv = CloudVolume("zarr3://file://" + simple_dataset_loc)
+    bbx = cv.bounds.clone()
+    bbx.maxpt.x = 10
+    print(bbx)
+    cv.delete(bbx)
+
+    for i in range(10):
+        chunknames = os.listdir(os.path.join(simple_dataset_loc, 'c', '0', str(i)))
+        chunknames.sort()
+        assert chunknames == [ str(i) for i in range(1,5) ]
 
