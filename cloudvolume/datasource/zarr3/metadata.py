@@ -127,7 +127,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     scale_factors = np.ones([3], dtype=np.float32)
     positions = [0,0,0]
-    for i, axis in enumerate(self.ome["multiscales"][0]["axes"]):
+    for i, axis in enumerate(self.axes()):
       if axis["type"] != "space":
         continue
       
