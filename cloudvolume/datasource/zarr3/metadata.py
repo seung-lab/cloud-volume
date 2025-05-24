@@ -440,7 +440,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       zscale["shape"] = self.to_zarr_volume_size(mip)
 
       zscale["fill_value"] = zscale.get("fill_value", 0)
-      # zscale["order"] = zscale.get("order", 'C')
+      
       zscale["zarr_format"] = 3
       zscale["chunk_key_encoding"] = zscale.get("chunk_key_encoding", {
         "name": "default",
