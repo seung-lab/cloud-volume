@@ -142,7 +142,7 @@ class Zarr3Metadata(PrecomputedMetadata):
         positions[2] = i
 
     try:
-      resolution = self.ome["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+      resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
       resolution = np.array([
         resolution[positions[0]],
         resolution[positions[1]],
