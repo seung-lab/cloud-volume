@@ -153,8 +153,29 @@ class Zarr3Metadata(PrecomputedMetadata):
       i += 1
 
     scale_factor = 1
-    if unit == "kilosecond":
+
+    if unit == "yottasecond":
+      scale_factor = 1e24
+    elif unit == "zettasecond":
+      scale_factor = 1e21
+    elif unit == "exasecond":
+      scale_factor = 1e18
+    elif unit == "petasecond":
+      scale_factor = 1e15
+    elif unit == "terasecond":
+      scale_factor = 1e12
+    elif unit == "gigasecond":
+      scale_factor = 1e9
+    elif unit == "megasecond":
+      scale_factor = 1e6
+    elif unit == "kilosecond":
       scale_factor = 1e3
+    elif unit == "hectosecond":
+      scale_factor = 1e2
+    elif unit == "second":
+      scale_factor = 1.0
+    elif unit == "decisecond":
+      scale_factor = 0.1
     elif unit == "centisecond":
       scale_factor = 1e-2
     elif unit == "millisecond":
@@ -163,6 +184,22 @@ class Zarr3Metadata(PrecomputedMetadata):
       scale_factor = 1e-6
     elif unit == "nanosecond":
       scale_factor = 1e-9
+    elif unit == "picosecond":
+      scale_factor = 1e-12
+    elif unit == "femtosecond":
+      scale_factor = 1e-15
+    elif unit == "attosecond":
+      scale_factor = 1e-18
+    elif unit == "zeptosecond":
+      scale_factor = 1e-21
+    elif unit == "minute":
+      scale_factor = 60.0
+    elif unit == "hour":
+      scale_factor = 3600.0
+    elif unit == "day":
+      scale_factor = 24.0 * 3600.0
+    else:
+      raise ValueError(f"{unit} is not supported.")
 
     try:
       resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
