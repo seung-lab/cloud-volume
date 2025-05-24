@@ -17,8 +17,7 @@ def create_simple_dataset():
         shutil.rmtree(test_location)
 
     shape = [1000, 1000, 50]
-    data = np.zeros(shape, dtype=np.uint8, order="C")
-    data[:20] = 1
+    data = np.ones(shape, dtype=np.uint8, order="C")
 
     arr = zarr.open(store=test_location, shape=shape, chunks=(100, 100, 10), dtype='uint8', mode='w')
     arr[:] = data
@@ -132,7 +131,7 @@ def test_zarr3_delete_all():
         chunknames.sort()
         assert chunknames == []
 
-
+    shutil.rmtree(simple_dataset_loc)
 
 def test_zarr3_delete_some():
     simple_dataset_loc = create_simple_dataset()
@@ -151,4 +150,24 @@ def test_zarr3_delete_some():
         chunknames = os.listdir(os.path.join(simple_dataset_loc, 'c', '0', str(i)))
         chunknames.sort()
         assert chunknames == [ str(i) for i in range(1,5) ]
+
+    shutil.rmtree(simple_dataset_loc)
+
+def test_zarr3_transfer_to():
+    simple_dataset_loc = create_simple_dataset()
+
+    precomputed_loc = os.path.join(TEST_DIR, "precomputed_simple_unsharded.zarr")
+
+    cv_zarr = CloudVolume("zarr3://file://" + simple_dataset_loc)
+    cv_zarr.transfer_to("precomputed://file://" + precomputed_loc, cv_zarr.bounds)
+
+    cv_precomputed = CloudVolume("precomputed://file://" + precomputed_loc)
+
+    assert np.all(cv_zarr[:] == cv_precomputed[:])
+
+    shutil.rmtree(simple_dataset_loc)
+    shutil.rmtree(precomputed_loc)
+
+
+
 
