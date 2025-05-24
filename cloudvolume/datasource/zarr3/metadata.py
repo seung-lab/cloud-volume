@@ -112,6 +112,16 @@ class Zarr3Metadata(PrecomputedMetadata):
         return 1e-9
       elif unit == "picometer":
         return 1e-12
+      elif unit == "femtometer":
+        return 1e-15
+      elif unit == "angstrom":
+        return 1e-10
+      elif unit == "foot":
+        return 0.3048
+      elif unit == "yard":
+        return 3 * 0.3048
+      elif unit == "inch":
+        return 0.0254
       else:
         raise ValueError(f"unit not supported: {unit}")
 
