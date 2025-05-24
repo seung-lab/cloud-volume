@@ -113,6 +113,29 @@ def test_zarr3_blosc():
 
     shutil.rmtree(test_location)
 
+def test_zarr3_exists():
+    simple_dataset_loc = create_simple_dataset()
+
+    chunknames = os.listdir(os.path.join(simple_dataset_loc, 'c', '0', '0'))
+    chunknames.sort()
+    assert chunknames == ['0', '1', '2', '3', '4']
+
+    cv = CloudVolume("zarr3://file://" + simple_dataset_loc)
+    res = cv.exists(cv.bounds)
+
+    paths = []
+    for z in range(10):
+        for y in range(10):
+            for x in range(5):
+                paths.append(os.path.join("c", str(z), str(y), str(x)))
+
+    ans_paths = set(paths)
+    res_paths = set(res.keys())
+
+    assert ans_paths == res_paths
+
+    shutil.rmtree(simple_dataset_loc)
+
 def test_zarr3_delete_all():
 
     simple_dataset_loc = create_simple_dataset()
