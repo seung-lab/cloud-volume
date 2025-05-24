@@ -169,5 +169,21 @@ def test_zarr3_transfer_to():
     shutil.rmtree(precomputed_loc)
 
 
+def test_zarr3_metadata_modification():
+    simple_dataset_loc = create_simple_dataset()
+
+    cv_zarr = CloudVolume("zarr3://file://" + simple_dataset_loc)
+
+    assert all(cv_zarr.chunk_size == [10,100,100])
+
+    cv_zarr.scale["chunk_sizes"] = [[25,200,200]]
+    cv_zarr.commit_info()
+
+    cv_zarr.refresh_info()
+
+    assert all(cv_zarr.chunk_size == [25,200,200])
+
+
+
 
 
