@@ -439,8 +439,8 @@ class Zarr3Metadata(PrecomputedMetadata):
       }
       zscale["shape"] = self.to_zarr_volume_size(mip)
 
-      zscale["fill_value"] = zscale.get("fill_value", 0)
-      
+      zscale["fill_value"] = self.config.background_color
+
       zscale["zarr_format"] = 3
       zscale["chunk_key_encoding"] = zscale.get("chunk_key_encoding", {
         "name": "default",
@@ -448,6 +448,11 @@ class Zarr3Metadata(PrecomputedMetadata):
           "separator": "/",
         },
       })
+
+      # TODO: In the future, figure out how to make it easier to 
+      # render this from info file scales. There's a number of
+      # features that don't really translate across the formats
+      # like e.g. transpose, crc32, codecs.
       zscale["codecs"] = zscale.get("codecs", [
         {"configuration":{"endian":"little"},"name":"bytes"},
       ])
