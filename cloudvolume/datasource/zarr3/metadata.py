@@ -486,7 +486,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       }
       zscale["shape"] = self.to_zarr_volume_size(mip)
 
-      zscale["fill_value"] = self.config.background_color
+      zscale["fill_value"] = self.background_color(mip)
 
       zscale["zarr_format"] = 3
       zscale["chunk_key_encoding"] = zscale.get("chunk_key_encoding", {
