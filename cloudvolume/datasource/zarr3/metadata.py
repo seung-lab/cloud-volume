@@ -607,7 +607,7 @@ class Zarr3Metadata(PrecomputedMetadata):
     self.zinfo = cf.get_json("zarr.json")
 
     if self.zinfo is None:
-      raise InfoUnavailableError("No zarr.json file was found.")
+      raise exceptions.InfoUnavailableError("No zarr.json file was found.")
 
     if self.zinfo["zarr_format"] != 3:
       raise exceptions.UnsupportedFormatError(
