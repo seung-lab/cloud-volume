@@ -207,6 +207,36 @@ def test_zarr3_metadata_modification():
     assert all(cv_zarr.chunk_size == [25,200,200])
 
 
+def test_zarr3_transfer_from_precomputed():
+    loc = os.path.join(TEST_DIR, "precomputed_simple_unsharded.precomputed")
+    loc2 = os.path.join(TEST_DIR, "zarr_simple_unsharded.zarr")
+
+    info = CloudVolume.create_new_info(
+        num_channels    = 1,
+        layer_type      = 'image',
+        data_type       = 'uint8', 
+        encoding        = 'raw', 
+        resolution      = [4, 4, 40], 
+        voxel_offset    = [0, 0, 0],
+        chunk_size      = [ 100, 100, 10 ], 
+        volume_size     = [ 1003, 1001, 105 ],
+    )
+
+    cv = CloudVolume(f"precomputed://file://{loc}", info=info)
+    cv.commit_info()
+    cv[:] = 1
+    
+    zarr_cv = cv.transfer_to(f"zarr3://file://{loc2}", cv.bounds)
+
+    assert cv.meta.path.format == "precomputed"
+    assert zarr_cv.meta.path.format == "zarr3"
+
+    assert np.all(zarr_cv[:] == 1)
+    
+
+
+
+
 
 
 
