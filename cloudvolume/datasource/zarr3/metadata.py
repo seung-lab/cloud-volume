@@ -529,7 +529,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
       return spatial
 
-    def chunk_size_mip(mip):
+    def chunk_size_mip(mip:int):
       zchunk_size = zarrays[mip]["chunk_grid"]["configuration"]["chunk_shape"]
       chunk_size = zchunk_size[::-1]
       if 'dimension_names' in zarrays[mip]:
@@ -543,11 +543,11 @@ class Zarr3Metadata(PrecomputedMetadata):
             chunk_size[2] = zchunk_size[i]
       return chunk_size
 
-    def extract_spatial_size(mip):
+    def extract_spatial_size(mip:int):
       shape = zarrays[mip]["shape"]
       return extract_spatial(shape, int)
       
-    def get_full_resolution(mip):
+    def get_full_resolution(mip:int):
       scale = self.ome["multiscales"][0]
       axes = scale["axes"]
       return np.array(scale["datasets"][mip]["coordinateTransformations"][0]["scale"])
@@ -599,7 +599,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return info
 
-  def key(self, mip):
+  def key(self, mip:int) -> str:
     datasets = self.ome["multiscales"][0]["datasets"]
     if len(datasets) == 0:
       return ''
@@ -648,7 +648,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return self.zarr_to_info(self.zarrays)
 
-  def zarr_chunk_size(self, mip):
+  def zarr_chunk_size(self, mip:int):
     cs = self.chunk_size(mip)
 
     attr = []
