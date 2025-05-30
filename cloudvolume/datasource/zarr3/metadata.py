@@ -56,7 +56,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
   @property
   def zarr_format(self):
-    return self.zinfo["zarr_format"]
+    return self.zinfo.get("zarr_format", None)
 
   def default_attributes(self, num_axes):
     ome = {
@@ -606,12 +606,12 @@ class Zarr3Metadata(PrecomputedMetadata):
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     self.zinfo = cf.get_json("zarr.json")
 
-    if self.zinfo is None:
+    if self.zinfo is None or self.zinfo == {}:
       raise exceptions.InfoUnavailableError("No zarr.json file was found.")
 
-    if self.zinfo["zarr_format"] != 3:
+    if self.zarr_format != 3:
       raise exceptions.UnsupportedFormatError(
-        f"zarr3 module cannot parse zarr format version {self.zinfo['zarr_format']}."
+        f"zarr3 module cannot parse zarr format version {self.zarr_format}."
       )
 
     datasets = []
