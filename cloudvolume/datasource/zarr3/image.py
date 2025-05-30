@@ -203,13 +203,16 @@ class Zarr3ImageSource(ImageSourceInterface):
     if taxis:
       tslice = t - tchunk * self.meta.time_chunk_size(mip)
 
+    seq = self.meta.zarr_axes_to_cv_axes()
+
     for fname, binary in all_chunks.items():
       m = re.search(regexp, fname).groupdict()
       assert self.meta.key(mip) == m.get("mip", '')
       gridpoint = Vec(*[ int(i) for i in [ m["x"], m["y"], m["z"] ] ])
       chunk_bbox = Bbox(gridpoint, gridpoint + 1) * spatial_chunk_size
       chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
-      chunk = self.decode_chunk(binary, mip, fname, self.meta.zarr_chunk_size(mip))
+      chunk_size = chunk_bbox.size()[seq]
+      chunk = self.decode_chunk(binary, mip, fname, chunk_size)
       if chunk is None:
         continue
       if taxis:

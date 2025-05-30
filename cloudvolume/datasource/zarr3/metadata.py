@@ -11,19 +11,12 @@ from cloudvolume.lib import jsonify, Vec, Bbox
 from ... import exceptions
 from ...provenance import DataLayerProvenance
 
-CV_TO_ZARR_DTYPE = {
-  "int8": "|i1",
-  "int16": "<i2",
-  "int32": "<i4",
-  "int64": "<i8",
-
-  "uint8": "|u1",
-  "uint16": "<u2",
-  "uint32": "<u4",
-  "uint64": "<u8",
-
-  "float32": "<f4",
-  "float64": "<f8",
+ZARR3_VALID_DATATYPES = { 
+  "int8", "int16", "int32", "int64",
+  "uint8", "uint16", "uint32", "uint64",
+  "float16", "float32", "float64",
+  "complex64", "complex128",
+  "r8", "r16", "r32", "r64",
 }
 
 class Zarr3Metadata(PrecomputedMetadata):
@@ -476,7 +469,10 @@ class Zarr3Metadata(PrecomputedMetadata):
 
       zscale = self.zarrays[mip] or {}
 
-      zscale["data_type"] = CV_TO_ZARR_DTYPE[self.data_type]
+      if self.data_type not in ZARR3_VALID_DATATYPES:
+        raise ValueError(f"{self.data_type} is not a valid zarr3 data type.")
+
+      zscale["data_type"] = self.data_type
 
       zscale["chunk_grid"] = {
         "name": "regular", # core
@@ -507,6 +503,13 @@ class Zarr3Metadata(PrecomputedMetadata):
       self.zarrays[mip] = zscale
 
     self.ome["multiscales"][0]["datasets"] = datasets
+
+    self.zinfo = self.zarrays[0]
+    if self.is_group():
+      self.zinfo["node_type"] = "group"
+    else:
+      self.zinfo["node_type"] = "array"
+
 
   def zarr_to_info(self, zarrays):
     def extract_spatial(attr, dtype):
