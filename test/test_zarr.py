@@ -232,6 +232,9 @@ def test_zarr3_transfer_from_precomputed():
     assert zarr_cv.meta.path.format == "zarr3"
 
     assert np.all(zarr_cv[:] == 1)
+
+    shutil.rmtree(loc)
+    shutil.rmtree(loc2)
     
 
 

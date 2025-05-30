@@ -19,6 +19,21 @@ ZARR3_VALID_DATATYPES = {
   "r8", "r16", "r32", "r64",
 }
 
+DEFAULT_CODEC = [
+  {"configuration":{"endian":"little"},"name":"bytes"},
+  {
+    "name": "blosc",
+    "configuration": {
+          "cname": "lz4",
+          "clevel": 1,
+          "shuffle": "shuffle",
+          "typesize": 4,
+          "blocksize": 0,
+    },
+  }
+]
+
+
 class Zarr3Metadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache,  info=None):
     
@@ -496,9 +511,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       # render this from info file scales. There's a number of
       # features that don't really translate across the formats
       # like e.g. transpose, crc32, codecs.
-      zscale["codecs"] = zscale.get("codecs", [
-        {"configuration":{"endian":"little"},"name":"bytes"},
-      ])
+      zscale["codecs"] = zscale.get("codecs", DEFAULT_CODEC)
 
       self.zarrays[mip] = zscale
 
