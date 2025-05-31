@@ -263,8 +263,6 @@ class Zarr3ImageSource(ImageSourceInterface):
 
     to_upload = []
 
-    axis_mapping = self.meta.cv_axes_to_zarr_axes()
-
     def all_chunks_by_channel(all_chunks):
       for ispt, iept, vol_spt, vol_ept in all_chunks:
         for c in range(self.meta.num_channels):
