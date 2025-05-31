@@ -183,13 +183,17 @@ class Zarr3ImageSource(ImageSourceInterface):
     all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
     shape = list(bounds.size3()) + [ self.meta.num_channels ]
 
+    dtype = self.meta.dtype
+    if label is not None:
+      dtype = bool
+
     if self.meta.background_color(mip) == 0:
-      renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order="F")
+      renderbuffer = np.zeros(shape=shape, dtype=dtype, order="F")
     else:
       renderbuffer = np.full(
         shape=shape,
         fill_value=self.meta.background_color(mip),
-        dtype=self.meta.dtype,
+        dtype=dtype,
         order="F",
       )
 
@@ -218,14 +222,13 @@ class Zarr3ImageSource(ImageSourceInterface):
       if taxis:
         chunk = chunk[...,tslice]
       slcs = (chunk_bbox - chunk_bbox.minpt).to_slices()
+
+      chunk = chunk[slcs]
+      if label is not None:
+        chunk = chunk == label
       shade(renderbuffer, bounds, chunk[slcs], chunk_bbox, channel=int(m.get("c", 0)))
 
-    data = VolumeCutout.from_volume(self.meta, mip, renderbuffer, bounds)
-
-    if label is not None:
-      return data == label
-
-    return data
+    return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bounds)
 
   @readonlyguard
   def upload(self, image, offset, mip, parallel=1, t=0):

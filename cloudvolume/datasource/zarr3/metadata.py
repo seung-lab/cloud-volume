@@ -33,7 +33,6 @@ DEFAULT_CODEC = [
   }
 ]
 
-
 class Zarr3Metadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache,  info=None):
     

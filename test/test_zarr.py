@@ -111,6 +111,10 @@ def test_zarr3_blosc():
 
     assert np.all(cv[:] == 4)
 
+    binimg = cv.download(cv.bounds, label=4)
+    assert np.all(binimg == 1)
+    assert binimg.dtype == bool
+
     shutil.rmtree(test_location)
 
 def test_zarr3_exists():
