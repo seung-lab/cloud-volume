@@ -226,7 +226,7 @@ class Zarr3ImageSource(ImageSourceInterface):
       chunk = chunk[slcs]
       if label is not None:
         chunk = chunk == label
-      shade(renderbuffer, bounds, chunk[slcs], chunk_bbox, channel=int(m.get("c", 0)))
+      shade(renderbuffer, bounds, chunk, chunk_bbox, channel=int(m.get("c", 0)))
 
     return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bounds)
 
