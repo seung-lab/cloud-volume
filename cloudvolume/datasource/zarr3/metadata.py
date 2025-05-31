@@ -62,6 +62,9 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     self.provenance = DataLayerProvenance()
 
+    if self.ndim > 5:
+      raise ValueError("CloudVolume's zarr3 implementation only supports up to 5 dimensions (x,y,z,channel,time)")
+
   @property
   def zarr_format(self):
     return self.zinfo.get("zarr_format", None)
