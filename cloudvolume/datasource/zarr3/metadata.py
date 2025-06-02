@@ -65,8 +65,47 @@ class Zarr3Metadata(PrecomputedMetadata):
       raise ValueError("CloudVolume's zarr3 implementation only supports up to 5 dimensions (x,y,z,channel,time)")
 
   @property
-  def zarr_format(self):
+  def zarr_format(self) -> int:
     return self.zinfo.get("zarr_format", None)
+
+  def compute_resolution(self, mip:int) -> np.ndarray:
+    scale = self.datasets()[mip]
+
+    transforms = scale["coordinateTransformations"]
+
+    res = np.ones([ self.ndim ], dtype=np.float32)
+
+    for transform in transforms:
+      if transform["type"] != "scale":
+        continue
+
+      if isinstance(transform["scale"], str):
+        raise NotImplementedError(f"Binary scale data not currently supported. Located at {transform['scale'][:1000]}...")
+
+      res *= np.array(transform["scale"], dtype=np.float32)
+
+    return res
+
+  def compute_voxel_offset(self, mip:int) -> np.ndarray:
+    scale = self.datasets()[mip]
+
+    transforms = scale["coordinateTransformations"]
+
+    # given in physical units
+    voxel_offset = np.zeros([ self.ndim ], dtype=np.float32)
+
+    for transform in transforms:
+      if transform["type"] != "translation":
+        continue
+
+      if isinstance(transform["translation"], str):
+        raise NotImplementedError(f"Binary translation data not currently supported. Located at {transform['scale'][:1000]}...")
+
+      voxel_offset += np.array(transform["translation"], dtype=np.float32)
+
+    resolution = self.compute_resolution(mip)
+
+    return voxel_offset // resolution
 
   def default_attributes(self, num_axes):
     ome = {
@@ -152,7 +191,7 @@ class Zarr3Metadata(PrecomputedMetadata):
         positions[2] = i
 
     try:
-      resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
+      resolution = self.compute_resolution(mip)
       resolution = np.array([
         resolution[positions[0]],
         resolution[positions[1]],
@@ -222,7 +261,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       raise ValueError(f"{unit} is not supported.")
 
     try:
-      resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
+      resolution = self.compute_resolution(mip)
       return resolution[i] * scale_factor
     except IndexError:
       return scale_factor
@@ -561,11 +600,6 @@ class Zarr3Metadata(PrecomputedMetadata):
     def extract_spatial_size(mip:int):
       shape = zarrays[mip]["shape"]
       return extract_spatial(shape, int)
-      
-    def get_full_resolution(mip:int):
-      scale = self.ome["multiscales"][0]
-      axes = scale["axes"]
-      return np.array(scale["datasets"][mip]["coordinateTransformations"][0]["scale"])
 
     try:
       num_channels = len([ 
@@ -589,7 +623,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       data_type=str(np.dtype(zarrays[0]["data_type"])),
       encoding=encoding,
       resolution=base_res,
-      voxel_offset=[0,0,0],
+      voxel_offset=self.compute_voxel_offset(0),
       volume_size=extract_spatial_size(0),
       chunk_size=chunk_size_mip(0),
     )
