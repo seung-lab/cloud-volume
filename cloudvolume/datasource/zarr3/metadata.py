@@ -522,7 +522,11 @@ class Zarr3Metadata(PrecomputedMetadata):
           {
             "scale": scale_params,
             "type": "scale"
-          }
+          },
+          {
+            "translation": list(np.array(scale["voxel_offset"]) * np.array(scale["resolution"])),
+            "type": "translation",
+          },
         ],
         "path": str(mip),
       }
