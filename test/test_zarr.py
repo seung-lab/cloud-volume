@@ -221,7 +221,7 @@ def test_zarr3_transfer_from_precomputed():
         data_type       = 'uint8', 
         encoding        = 'raw', 
         resolution      = [4, 4, 40], 
-        voxel_offset    = [0, 0, 0],
+        voxel_offset    = [5, 5, 5],
         chunk_size      = [ 100, 100, 10 ], 
         volume_size     = [ 1003, 1001, 105 ],
     )
