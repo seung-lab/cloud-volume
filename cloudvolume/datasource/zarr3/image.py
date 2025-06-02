@@ -165,19 +165,12 @@ class Zarr3ImageSource(ImageSourceInterface):
     )
 
     spatial_chunk_size = self.meta.spatial_chunk_size(mip)
+    realized_bbox = bounds.expand_to_chunk_size(spatial_chunk_size, offset=self.meta.voxel_offset(mip))
 
-    realized_bbox = bounds.expand_to_chunk_size(spatial_chunk_size)
-    grid_bbox = realized_bbox // spatial_chunk_size
-
-    try:
-      tchunk = int(t / self.meta.num_time_chunks(mip))
-    except ValueError:
-      tchunk = 0
-
-    paths = (
-      self.meta.chunk_name(mip, x, y, z, c, tchunk, convert_order=True)
-      for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
-      for c in range(self.meta.num_channels)
+    paths = self._chunknames(
+      realized_bbox, self.meta.bounds(mip), 
+      mip, spatial_chunk_size,
+      t=t,
     )
 
     all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
@@ -287,6 +280,7 @@ class Zarr3ImageSource(ImageSourceInterface):
       tchunk = int(t / self.meta.num_time_chunks(mip))
 
     axes = [ (axis["type"], axis["name"]) for axis in self.meta.axes() ]
+    voxel_offset = self.meta.voxel_offset(mip)[:3]
 
     class ZarrChunkNamesIterator():
       def __len__(self):
@@ -297,9 +291,8 @@ class Zarr3ImageSource(ImageSourceInterface):
         return n_chunks
       def __iter__(self):
         nonlocal volume_bbox
-        volume_bbox = Bbox.expand_to_chunk_size(volume_bbox, chunk_size)
-        volume_grid = volume_bbox // chunk_size
-        bbox_grid = bbox // chunk_size
+        volume_bbox = Bbox.expand_to_chunk_size(volume_bbox, chunk_size, offset=voxel_offset)
+        bbox_grid = (bbox - voxel_offset) // chunk_size
 
         for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
           for c in range(num_channels):
