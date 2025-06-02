@@ -439,7 +439,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     zinfo = copy.deepcopy(self.zinfo)
     ome = copy.deepcopy(self.ome)
-    ome["multiscales"][0]["version"] = "0.5"
+    ome["version"] = "0.5"
 
     if 'attributes' in zinfo:
       zinfo["attributes"]["ome"] = ome
@@ -692,13 +692,13 @@ class Zarr3Metadata(PrecomputedMetadata):
         # Detect OME-Zarr 0.5
         # https://ngff.openmicroscopy.org/0.5/#metadata
         self.ome = self.zinfo["attributes"]["ome"]
-        assert self.ome["multiscales"][0]["version"] == "0.5" # < 1 version number means anything can change...
+        assert self.ome["version"] == "0.5" # < 1 version number means anything can change...
       except KeyError: 
         try:
           # OME-Zarr 0.4
           # https://ngff.openmicroscopy.org/0.4/
           self.ome = self.zinfo["attributes"]
-          assert self.ome["multiscales"][0]["version"] == "0.4" # < 1 version number means anything can change...
+          assert self.ome["version"] == "0.4" # < 1 version number means anything can change...
         except KeyError:
           self.ome = self.default_attributes(3) # make a guess at least...
 
