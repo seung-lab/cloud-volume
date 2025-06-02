@@ -519,13 +519,13 @@ class Zarr3Metadata(PrecomputedMetadata):
           scale_params.append(1.0)
           chunk_params.append(self.time_chunk_size(mip))
         elif axis["type"] == "space" and axis["name"] == "x":
-          scale_params.append(scale["resolution"][0] / 1000)
+          scale_params.append(scale["resolution"][0])
           chunk_params.append(self.chunk_size(mip)[0])
         elif axis["type"] == "space" and axis["name"] == "y":
-          scale_params.append(scale["resolution"][1] / 1000)
+          scale_params.append(scale["resolution"][1])
           chunk_params.append(self.chunk_size(mip)[1])
         elif axis["type"] == "space" and axis["name"] == "z":
-          scale_params.append(scale["resolution"][2] / 1000)
+          scale_params.append(scale["resolution"][2])
           chunk_params.append(self.chunk_size(mip)[2])
 
       dataset = {
