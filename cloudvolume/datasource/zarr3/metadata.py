@@ -439,6 +439,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     zinfo = copy.deepcopy(self.zinfo)
     ome = copy.deepcopy(self.ome)
+    ome["multiscales"][0]["version"] = "0.5"
 
     if 'attributes' in zinfo:
       zinfo["attributes"]["ome"] = ome
