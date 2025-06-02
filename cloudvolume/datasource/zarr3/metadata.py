@@ -1,3 +1,4 @@
+import copy
 import re
 import os
 
@@ -436,8 +437,11 @@ class Zarr3Metadata(PrecomputedMetadata):
           (cf.join(str(i), "zarr.json"), zarray)
         )
 
+    zinfo = copy.deepcopy(self.zinfo)
+    zinfo["ome"] = copy.deepcopy(self.ome)
+
     to_upload.append(
-      ( "zarr.json", self.zinfo )
+      ( "zarr.json", zinfo )
     )
 
     compress = "br"
