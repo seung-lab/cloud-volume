@@ -438,7 +438,12 @@ class Zarr3Metadata(PrecomputedMetadata):
         )
 
     zinfo = copy.deepcopy(self.zinfo)
-    zinfo["ome"] = copy.deepcopy(self.ome)
+    ome = copy.deepcopy(self.ome)
+
+    if 'attributes' in zinfo:
+      zinfo["attributes"]["ome"] = ome
+    else:
+      zinfo["attributes"] = { "ome": ome }
 
     to_upload.append(
       ( "zarr.json", zinfo )
