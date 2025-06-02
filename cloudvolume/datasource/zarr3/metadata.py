@@ -87,7 +87,12 @@ class Zarr3Metadata(PrecomputedMetadata):
     return res
 
   def compute_voxel_offset(self, mip:int) -> np.ndarray:
-    scale = self.datasets()[mip]
+    ds =  self.datasets()
+
+    if len(ds) == 0:
+      return np.zeros([self.ndim], dtype=int)
+
+    scale = ds[mip]
 
     transforms = scale["coordinateTransformations"]
 
