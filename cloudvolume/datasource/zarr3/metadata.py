@@ -511,22 +511,28 @@ class Zarr3Metadata(PrecomputedMetadata):
 
       scale_params = []
       chunk_params = []
+      translation_params = []
       for axis in self.axes():
         if axis["type"] == "channel":
           scale_params.append(1.0)
           chunk_params.append(self.num_channels)
+          translation_params.append(0.0)
         elif axis["type"] == "time":
           scale_params.append(1.0)
           chunk_params.append(self.time_chunk_size(mip))
+          translation_params.append(0.0)
         elif axis["type"] == "space" and axis["name"] == "x":
           scale_params.append(scale["resolution"][0])
           chunk_params.append(self.chunk_size(mip)[0])
+          translation_params.append(scale_params[-1] * scale["voxel_offset"][0])
         elif axis["type"] == "space" and axis["name"] == "y":
           scale_params.append(scale["resolution"][1])
           chunk_params.append(self.chunk_size(mip)[1])
+          translation_params.append(scale_params[-1] * scale["voxel_offset"][1])
         elif axis["type"] == "space" and axis["name"] == "z":
           scale_params.append(scale["resolution"][2])
           chunk_params.append(self.chunk_size(mip)[2])
+          translation_params.append(scale_params[-1] * scale["voxel_offset"][2])
 
       dataset = {
         "coordinateTransformations": [
@@ -535,10 +541,7 @@ class Zarr3Metadata(PrecomputedMetadata):
             "type": "scale"
           },
           {
-            "translation": [ 
-              int(x) 
-              for x in (np.array(scale["voxel_offset"]) * np.array(scale["resolution"])) 
-            ],
+            "translation": translation_params,
             "type": "translation",
           },
         ],
