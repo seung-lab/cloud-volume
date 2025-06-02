@@ -534,7 +534,10 @@ class Zarr3Metadata(PrecomputedMetadata):
             "type": "scale"
           },
           {
-            "translation": list(np.array(scale["voxel_offset"]) * np.array(scale["resolution"])),
+            "translation": [ 
+              int(x) 
+              for x in (np.array(scale["voxel_offset"]) * np.array(scale["resolution"])) 
+            ],
             "type": "translation",
           },
         ],
@@ -552,7 +555,7 @@ class Zarr3Metadata(PrecomputedMetadata):
       zscale["chunk_grid"] = {
         "name": "regular", # core
         "configuration": { 
-          "chunk_shape": chunk_params,
+          "chunk_shape": [ int(x) for x in chunk_params ],
         }
       }
       zscale["shape"] = self.to_zarr_volume_size(mip)
