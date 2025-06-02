@@ -34,6 +34,80 @@ DEFAULT_CODEC = [
   }
 ]
 
+def spatial_unit_in_meters(unit):
+  if unit == "meter":
+    return 1
+  elif unit == "centimeter":
+    return 1e-2
+  elif unit == "millimeter":
+    return 1e-3
+  elif unit == "micrometer":
+    return 1e-6
+  elif unit == "nanometer":
+    return 1e-9
+  elif unit == "picometer":
+    return 1e-12
+  elif unit == "femtometer":
+    return 1e-15
+  elif unit == "angstrom":
+    return 1e-10
+  elif unit == "foot":
+    return 0.3048
+  elif unit == "yard":
+    return 3 * 0.3048
+  elif unit == "inch":
+    return 0.0254
+  else:
+    raise ValueError(f"unit not supported: {unit}")
+
+def time_unit_in_seconds(unit):
+  if unit == "yottasecond":
+    return 1e24
+  elif unit == "zettasecond":
+    return 1e21
+  elif unit == "exasecond":
+    return 1e18
+  elif unit == "petasecond":
+    return 1e15
+  elif unit == "terasecond":
+    return 1e12
+  elif unit == "gigasecond":
+    return 1e9
+  elif unit == "megasecond":
+    return 1e6
+  elif unit == "kilosecond":
+    return 1e3
+  elif unit == "hectosecond":
+    return 1e2
+  elif unit == "second":
+    return 1.0
+  elif unit == "decisecond":
+    return 0.1
+  elif unit == "centisecond":
+    return 1e-2
+  elif unit == "millisecond":
+    return 1e-3
+  elif unit == "microsecond":
+    return 1e-6
+  elif unit == "nanosecond":
+    return 1e-9
+  elif unit == "picosecond":
+    return 1e-12
+  elif unit == "femtosecond":
+    return 1e-15
+  elif unit == "attosecond":
+    return 1e-18
+  elif unit == "zeptosecond":
+    return 1e-21
+  elif unit == "minute":
+    return 60.0
+  elif unit == "hour":
+    return 3600.0
+  elif unit == "day":
+    return 24.0 * 3600.0
+  else:
+    raise ValueError(f"{unit} is not supported.")
+
 class Zarr3Metadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache,  info=None):
     
@@ -154,46 +228,20 @@ class Zarr3Metadata(PrecomputedMetadata):
     return ome
 
   def spatial_resolution_in_nm(self, mip):
-    def unit2factor(unit):
-      if unit == "meter":
-        return 1
-      elif unit == "centimeter":
-        return 1e-2
-      elif unit == "millimeter":
-        return 1e-3
-      elif unit == "micrometer":
-        return 1e-6
-      elif unit == "nanometer":
-        return 1e-9
-      elif unit == "picometer":
-        return 1e-12
-      elif unit == "femtometer":
-        return 1e-15
-      elif unit == "angstrom":
-        return 1e-10
-      elif unit == "foot":
-        return 0.3048
-      elif unit == "yard":
-        return 3 * 0.3048
-      elif unit == "inch":
-        return 0.0254
-      else:
-        raise ValueError(f"unit not supported: {unit}")
-
-    scale_factors = np.ones([3], dtype=np.float32)
+    scale_factors = np.ones([3], dtype=np.float64)
     positions = [0,0,0]
     for i, axis in enumerate(self.axes()):
       if axis["type"] != "space":
         continue
       
       if axis["name"] == "x":
-        scale_factors[0] = unit2factor(axis.get("unit", "nanometer"))
+        scale_factors[0] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[0] = i
       elif axis["name"] == "y":
-        scale_factors[1] = unit2factor(axis.get("unit", "nanometer"))
+        scale_factors[1] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[1] = i
       elif axis["name"] == "z":
-        scale_factors[2] = unit2factor(axis.get("unit", "nanometer"))
+        scale_factors[2] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[2] = i
 
     try:
@@ -202,9 +250,9 @@ class Zarr3Metadata(PrecomputedMetadata):
         resolution[positions[0]],
         resolution[positions[1]],
         resolution[positions[2]]
-      ], dtype=np.float32)
+      ], dtype=np.float64)
     except IndexError:
-      resolution = np.ones([3], dtype=np.float32)
+      resolution = np.ones([3], dtype=np.float64)
 
     return resolution * (scale_factors / 1e-9)
 
@@ -217,54 +265,7 @@ class Zarr3Metadata(PrecomputedMetadata):
         break
       i += 1
 
-    scale_factor = 1
-
-    if unit == "yottasecond":
-      scale_factor = 1e24
-    elif unit == "zettasecond":
-      scale_factor = 1e21
-    elif unit == "exasecond":
-      scale_factor = 1e18
-    elif unit == "petasecond":
-      scale_factor = 1e15
-    elif unit == "terasecond":
-      scale_factor = 1e12
-    elif unit == "gigasecond":
-      scale_factor = 1e9
-    elif unit == "megasecond":
-      scale_factor = 1e6
-    elif unit == "kilosecond":
-      scale_factor = 1e3
-    elif unit == "hectosecond":
-      scale_factor = 1e2
-    elif unit == "second":
-      scale_factor = 1.0
-    elif unit == "decisecond":
-      scale_factor = 0.1
-    elif unit == "centisecond":
-      scale_factor = 1e-2
-    elif unit == "millisecond":
-      scale_factor = 1e-3
-    elif unit == "microsecond":
-      scale_factor = 1e-6
-    elif unit == "nanosecond":
-      scale_factor = 1e-9
-    elif unit == "picosecond":
-      scale_factor = 1e-12
-    elif unit == "femtosecond":
-      scale_factor = 1e-15
-    elif unit == "attosecond":
-      scale_factor = 1e-18
-    elif unit == "zeptosecond":
-      scale_factor = 1e-21
-    elif unit == "minute":
-      scale_factor = 60.0
-    elif unit == "hour":
-      scale_factor = 3600.0
-    elif unit == "day":
-      scale_factor = 24.0 * 3600.0
-    else:
-      raise ValueError(f"{unit} is not supported.")
+    scale_factor = time_unit_in_seconds(unit)
 
     try:
       resolution = self.compute_resolution(mip)
