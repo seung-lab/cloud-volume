@@ -97,7 +97,7 @@ def get_cache_path_helper(base, cloudpath):
     base, path.protocol, basepath, path.layer
   ))
 
-def generate_chunks(meta, img, offset, mip):
+def generate_chunks(meta, img, offset, mip, chunk_size=None):
   """
   Converts an image into a series of chunks
   described by:
@@ -109,7 +109,10 @@ def generate_chunks(meta, img, offset, mip):
 
   bounds = Bbox( offset, shape + offset)
 
-  alignment_check = bounds.round_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
+  if chunk_size is None:
+    chunk_size = meta.chunk_size(mip)
+
+  alignment_check = bounds.round_to_chunk_size(chunk_size, meta.voxel_offset(mip))
 
   if not np.all(alignment_check.minpt == bounds.minpt):
     raise AlignmentError(f"""
@@ -127,7 +130,7 @@ def generate_chunks(meta, img, offset, mip):
 
   class ChunkIterator():
     def __len__(self):
-      csize = meta.chunk_size(mip)
+      csize = chunk_size
       bbox = Bbox(img_offset, img_end)
       # round up and avoid conversion to float
       n_chunks = (bbox.dx + csize[0] - 1) // csize[0]
@@ -135,9 +138,9 @@ def generate_chunks(meta, img, offset, mip):
       n_chunks *= (bbox.dz + csize[2] - 1) // csize[2]
       return n_chunks
     def __iter__(self):
-      for startpt in xyzrange( img_offset, img_end, meta.chunk_size(mip) ):
+      for startpt in xyzrange( img_offset, img_end, chunk_size ):
         startpt = startpt.clone()
-        endpt = min2(startpt + meta.chunk_size(mip), shape)
+        endpt = min2(startpt + chunk_size, shape)
         spt = (startpt + bounds.minpt).astype(int)
         ept = (endpt + bounds.minpt).astype(int)
         yield (startpt, endpt, spt, ept)

@@ -26,7 +26,7 @@ CV_TO_ZARR_DTYPE = {
   "float64": "<f8",
 }
 
-class ZarrMetadata(PrecomputedMetadata):
+class Zarr2Metadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache,  info=None):
     
     orig_info = info
@@ -52,6 +52,10 @@ class ZarrMetadata(PrecomputedMetadata):
       self.render_zarr_metadata()
 
     self.provenance = DataLayerProvenance()
+
+  @property
+  def zarr_format(self):
+    return self.zinfo["zarr_format"]
 
   def default_zattrs(self):
     return {
@@ -124,13 +128,13 @@ class ZarrMetadata(PrecomputedMetadata):
         continue
       
       if axis["name"] == "x":
-        scale_factors[0] = unit2factor(axis["unit"])
+        scale_factors[0] = unit2factor(axis.get("unit", "nanometer"))
         positions[0] = i
       elif axis["name"] == "y":
-        scale_factors[1] = unit2factor(axis["unit"])
+        scale_factors[1] = unit2factor(axis.get("unit", "nanometer"))
         positions[1] = i
       elif axis["name"] == "z":
-        scale_factors[2] = unit2factor(axis["unit"])
+        scale_factors[2] = unit2factor(axis.get("unit", "nanometer"))
         positions[2] = i
 
     resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]

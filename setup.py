@@ -33,6 +33,12 @@ OTHER_FORMATS = [
   "zstandard",
 ]
 
+ZARR_CODECS = [
+  "blosc",
+  "zstandard",
+]
+
+
 setuptools.setup(
   name="cloud_volume",
   version="12.2.0",
@@ -57,9 +63,11 @@ setuptools.setup(
     "skeleton_viewer": [ 'matplotlib>=3.6' ],
     "all_viewers": [ 'vtk', 'matplotlib>=3.6' ],
     "dask": [ 'dask[array]' ],
-    "zarr": [ 'blosc', 'zstandard' ],
-    "test": [ "pytest", "pytest-cov", "codecov", "requests_mock", "scipy"],
-
+    "zarr": ZARR_CODECS,
+    "test": [ 
+      "pytest", "pytest-cov", "codecov", 
+      "requests_mock", "scipy", "zarr" 
+    ] + ZARR_CODECS,
     # image compression codecs
     "blosc": [ "blosc" ],
     "jxl": [ "imagecodecs" ],

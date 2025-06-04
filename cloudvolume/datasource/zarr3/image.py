@@ -28,7 +28,7 @@ from ...volumecutout import VolumeCutout
 from ..precomputed.image.common import shade
 from ..precomputed.image import xfer
 
-class ZarrImageSource(ImageSourceInterface):
+class Zarr3ImageSource(ImageSourceInterface):
   def __init__(
     self, config, meta, cache,
     autocrop=False, bounded=True,
@@ -54,25 +54,90 @@ class ZarrImageSource(ImageSourceInterface):
       else:
         raise exceptions.EmptyVolumeException(f"{filename} is missing.")
 
-    encoding = self.meta.compressor(mip)
+    codecs = self.meta.codecs(mip)
+    arr = binary
 
-    if encoding == "brotli":
-      encoding = "br"
-    elif encoding == "zlib":
-      encoding = "gzip"
-    elif encoding == "lzma":
-      encoding = "xz"
+    transposed = False
 
-    if encoding == "blosc":
-      import blosc
-      raw_array = blosc.decompress(binary)
-    elif encoding in ["zstd", "xz", "br", "gzip"]:
-      raw_array = cloudfiles.compression.decompress(binary, encoding, filename)
-    else:
-      raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
+    for codec in reversed(codecs):
+      encoding = codec["name"]
+      if encoding == "bytes":
+        arr = np.frombuffer(arr, dtype=self.meta.dtype)
+        arr = arr.reshape(default_shape, order='C')
+        continue
+      elif encoding == "brotli":
+        encoding = "br"
+      elif encoding == "zlib":
+        encoding = "gzip"
+      elif encoding == "lzma":
+        encoding = "xz"
+
+      if encoding == "blosc":
+        import blosc
+        arr = blosc.decompress(arr)
+      elif encoding == "crc32c":
+        import crc32c
+        stored_crc = int.from_bytes(arr[-4:], byteorder='little')
+        calculated_crc = crc32c.crc32c(arr[:-4])
+        if stored_crc != calculated_crc:
+          raise ValueError(
+            f"Stored crc32c {stored_crc} did not match "
+            f"calculated crc32c {calculated_crc} for file {filename}."
+          )
+        arr = arr[:-4]
+      elif encoding in ["zstd", "xz", "br", "gzip"]:
+        arr = cloudfiles.compression.decompress(arr, encoding, filename)
+      elif encoding == "transpose":
+        transposed = True
+        arr = np.transpose(arr, axes=codec["configuration"]["order"])
+      else:
+        raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
     
-    arr = np.frombuffer(raw_array, dtype=self.meta.dtype)
-    return arr.reshape(default_shape, order=self.meta.order(mip))
+    if not transposed:
+      arr = arr.T
+
+    return arr
+
+  def encode_chunk(self, arr:np.ndarray, mip:int) -> bytes:
+    codecs = self.meta.codecs(mip)
+
+    transposed = False
+
+    binary = arr
+    for codec in codecs:
+      encoding = codec["name"]
+
+      if encoding == "bytes":
+        order = 'C'
+        if not transposed:
+          order = 'F'
+        binary = binary.tobytes(order)
+        continue
+      elif encoding == "brotli":
+        encoding = "br"
+      elif encoding == "zlib":
+        encoding = "gzip"
+      elif encoding == "lzma":
+        encoding = "xz"
+
+      if encoding == "blosc":
+        import blosc
+        binary = blosc.compress(binary)
+      elif encoding == "crc32c":
+        import crc32c
+        calculated_crc = crc32c.crc32c(binary)
+        binary += calculated_crc.to_bytes(4, byteorder='little')
+      elif encoding in ["zstd", "xz", "br", "gzip"]:
+        compress_level = codec.get("configuration", { "level": 1 })
+        compress_level = compress_level.get("level", 1)
+        binary = cloudfiles.compression.compress(binary, encoding, compress_level=compress_level)
+      elif encoding == "transpose":
+        transposed = True
+        binary = np.transpose(binary, axes=codec["configuration"]["order"])
+      else:
+        raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
+
+    return binary
 
   def download(
     self, 
@@ -83,7 +148,9 @@ class ZarrImageSource(ImageSourceInterface):
     label:Optional[int] = None,
     t:int = 0,
   ) -> VolumeCutout:
-    if parallel != 1:
+    if self.meta.is_sharded(mip):
+      raise NotImplementedError("sharded volumes are not currently supported.")
+    elif parallel != 1:
       raise ValueError("Only parallel=1 is supported for zarr.")
     elif renumber != False:
       raise ValueError("Only renumber=False is supported for zarr.")
@@ -103,31 +170,30 @@ class ZarrImageSource(ImageSourceInterface):
       green=self.config.green,
     )
 
-    cv_chunk_size = self.meta.chunk_size(mip)
+    spatial_chunk_size = self.meta.spatial_chunk_size(mip)
+    realized_bbox = bounds.expand_to_chunk_size(spatial_chunk_size, offset=self.meta.voxel_offset(mip))
 
-    realized_bbox = bounds.expand_to_chunk_size(cv_chunk_size)
-    grid_bbox = realized_bbox // cv_chunk_size
-
-    try:
-      tchunk = int(t / self.meta.num_time_chunks(mip))
-    except ValueError:
-      tchunk = 0
-
-    paths = [
-      self.meta.chunk_name(mip, x, y, z, c, tchunk)
-      for x,y,z in xyzrange(grid_bbox.minpt, grid_bbox.maxpt)
-      for c in range(self.meta.num_channels)
-    ]
+    paths = self._chunknames(
+      realized_bbox, self.meta.bounds(mip), 
+      mip, spatial_chunk_size,
+      t=t,
+    )
 
     all_chunks = cf.get(paths, parallel=parallel, return_dict=True)
     shape = list(bounds.size3()) + [ self.meta.num_channels ]
 
+    dtype = self.meta.dtype
+    if label is not None:
+      dtype = bool
+
     if self.meta.background_color(mip) == 0:
-      renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order="F")
+      renderbuffer = np.zeros(shape=shape, dtype=dtype, order="F")
     else:
       renderbuffer = np.full(
-        shape=shape, fill_value=self.meta.background_color(mip), 
-        dtype=self.meta.dtype, order="F",
+        shape=shape,
+        fill_value=self.meta.background_color(mip),
+        dtype=dtype,
+        order="F",
       )
 
     regexp = self.meta.filename_regexp(mip)
@@ -140,33 +206,34 @@ class ZarrImageSource(ImageSourceInterface):
     if taxis:
       tslice = t - tchunk * self.meta.time_chunk_size(mip)
 
+    voxel_offset = self.meta.voxel_offset(mip)
+
     for fname, binary in all_chunks.items():
       m = re.search(regexp, fname).groupdict()
-      assert mip == int(m["mip"])
+      assert self.meta.key(mip) == m.get("mip", '')
       gridpoint = Vec(*[ int(i) for i in [ m["x"], m["y"], m["z"] ] ])
-      chunk_bbox = Bbox(gridpoint, gridpoint + 1) * cv_chunk_size
-      chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
-      chunk = self.decode_chunk(binary, mip, fname, self.meta.zarr_chunk_size(mip))
+      chunk_bbox = Bbox(gridpoint, gridpoint + 1) * spatial_chunk_size
+      chunk_bbox += voxel_offset
+      chunk_size = chunk_bbox.size()[axis_mapping]
+      chunk = self.decode_chunk(binary, mip, fname, chunk_size)
       if chunk is None:
         continue
-      chunk = np.transpose(chunk, axes=axis_mapping)
       if taxis:
         chunk = chunk[...,tslice]
       slcs = (chunk_bbox - chunk_bbox.minpt).to_slices()
-      shade(renderbuffer, bounds, chunk[slcs], chunk_bbox, channel=int(m.get("c", 0)))
 
-    data = VolumeCutout.from_volume(self.meta, mip, renderbuffer, bounds)
+      chunk = chunk[slcs]
+      if label is not None:
+        chunk = chunk == label
+      shade(renderbuffer, bounds, chunk, chunk_bbox, channel=int(m.get("c", 0)))
 
-    if label is not None:
-      return data == label
-
-    return data
+    return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bounds)
 
   @readonlyguard
   def upload(self, image, offset, mip, parallel=1, t=0):
-    import blosc
-
-    if not np.issubdtype(image.dtype, np.dtype(self.meta.dtype).type):
+    if self.meta.is_sharded(mip):
+      raise NotImplementedError("sharded volumes are not currently supported.")
+    elif not np.issubdtype(image.dtype, np.dtype(self.meta.dtype).type):
       raise ValueError(f"""
         The uploaded image data type must match the volume data type. 
 
@@ -184,36 +251,33 @@ class ZarrImageSource(ImageSourceInterface):
       throw_error=True, # (self.non_aligned_writes == False)
     )
 
-    expanded = bounds.expand_to_chunk_size(self.meta.chunk_size(mip), self.meta.voxel_offset(mip))
+    spatial_chunk_size = self.meta.spatial_chunk_size(mip)
+
+    expanded = bounds.expand_to_chunk_size(spatial_chunk_size, self.meta.voxel_offset(mip))
     all_chunknames = self._chunknames(
       expanded, self.meta.bounds(mip), 
-      mip, self.meta.chunk_size(mip),
+      mip, spatial_chunk_size,
       t=t,
     )
 
-    all_chunks = generate_chunks(self.meta, image, offset, mip)
-    order = self.meta.order(mip)
+    all_chunks = generate_chunks(self.meta, image, offset, mip, chunk_size=spatial_chunk_size)
 
     to_upload = []
 
-    axis_mapping = self.meta.cv_axes_to_zarr_axes()
-
-    compressor_args = copy.deepcopy(self.meta.zarrays[mip]["compressor"])
-    compressor_args.pop("id", None)
-    compressor_args.pop("blocksize", None)
+    bgcolor = self.meta.background_color(mip)
 
     def all_chunks_by_channel(all_chunks):
       for ispt, iept, vol_spt, vol_ept in all_chunks:
         for c in range(self.meta.num_channels):
-          yield image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, c ]
+          cutout = image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, c ]
+          if np.any(np.array(cutout.shape) < spatial_chunk_size):
+            diff = spatial_chunk_size - np.array(cutout.shape)
+            pad_width = [ (0, diff[0]), (0, diff[1]), (0, diff[2]) ]
+            cutout = np.pad(cutout, pad_width, 'constant', constant_values=bgcolor)
+          yield cutout
 
     for filename, imgchunk in zip(all_chunknames, all_chunks_by_channel(all_chunks)):
-      zarr_imgchunk = np.transpose(imgchunk[..., np.newaxis], axes=axis_mapping)
-      binary = zarr_imgchunk.tobytes(order)
-      del zarr_imgchunk
-      del imgchunk
-
-      binary = blosc.compress(binary, **compressor_args)
+      binary = self.encode_chunk(imgchunk, mip)
       to_upload.append(
         (filename, binary)
       )
@@ -221,11 +285,17 @@ class ZarrImageSource(ImageSourceInterface):
     CloudFiles(self.meta.cloudpath).puts(to_upload)
 
   def _chunknames(self, bbox, volume_bbox, mip, chunk_size, t):
-    sep = self.meta.dimension_separator(mip)
+    meta = self.meta
     cf = CloudFiles(self.meta.cloudpath)
     num_channels = self.meta.num_channels
 
-    tchunk = int(t / self.meta.num_time_chunks(mip))
+    has_t = self.meta.has_time_axis()
+    tchunk = 0
+    if has_t:
+      tchunk = int(t / self.meta.num_time_chunks(mip))
+
+    axes = [ (axis["type"], axis["name"]) for axis in self.meta.axes() ]
+    voxel_offset = self.meta.voxel_offset(mip)[:3]
 
     class ZarrChunkNamesIterator():
       def __len__(self):
@@ -236,16 +306,26 @@ class ZarrImageSource(ImageSourceInterface):
         return n_chunks
       def __iter__(self):
         nonlocal volume_bbox
-        volume_bbox = Bbox.expand_to_chunk_size(volume_bbox, chunk_size)
-        volume_grid = volume_bbox // chunk_size
-        bbox_grid = bbox // chunk_size
+        volume_bbox = Bbox.expand_to_chunk_size(volume_bbox, chunk_size, offset=voxel_offset)
+        bbox_grid = (bbox - voxel_offset) // chunk_size
 
         for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
           for c in range(num_channels):
-            filename = sep.join([
-              str(tchunk), str(c), str(z), str(y), str(x)
-            ])
-            yield cf.join(str(mip), filename)
+            params = []
+            
+            for typ, name in axes:
+              if typ == "time":
+                params.append(str(tchunk))
+              elif typ == "space" and name == "x":
+                params.append(str(x))
+              elif typ == "space" and name == "y":
+                params.append(str(y))
+              elif typ == "space" and name == "z":
+                params.append(str(z))
+              elif typ == "channel":
+                params.append(str(c))
+
+            yield meta.chunk_name(mip, *params)
 
     return ZarrChunkNamesIterator()
 
