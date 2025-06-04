@@ -258,7 +258,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
   def time_resolution_in_seconds(self, mip):
     i = 0
-    unit = None
+    unit = "second"
     for axis in self.axes():
       if axis["type"] == "time":
         unit = axis["unit"]
