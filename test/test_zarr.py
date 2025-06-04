@@ -239,6 +239,8 @@ def test_zarr3_transfer_from_precomputed():
     loc = os.path.join(TEST_DIR, "precomputed_simple_unsharded.precomputed")
     loc2 = os.path.join(TEST_DIR, "zarr_simple_unsharded.zarr")
 
+    volume_size = [ 1003, 1001, 105 ]
+
     info = CloudVolume.create_new_info(
         num_channels    = 1,
         layer_type      = 'image',
@@ -247,19 +249,20 @@ def test_zarr3_transfer_from_precomputed():
         resolution      = [4, 4, 40], 
         voxel_offset    = [5, 5, 5],
         chunk_size      = [ 100, 100, 10 ], 
-        volume_size     = [ 1003, 1001, 105 ],
+        volume_size     = volume_size,
     )
 
     cv = CloudVolume(f"precomputed://file://{loc}", info=info)
     cv.commit_info()
-    cv[:] = 1
+    data = np.random.randint(0, 255, size=volume_size, dtype=np.uint8)
+    cv[:] = data
     
     zarr_cv = cv.transfer_to(f"zarr3://file://{loc2}", cv.bounds)
 
     assert cv.meta.path.format == "precomputed"
     assert zarr_cv.meta.path.format == "zarr3"
 
-    assert np.all(zarr_cv[:] == 1)
+    assert np.all(zarr_cv[:][...,0] == data)
 
     shutil.rmtree(loc)
     shutil.rmtree(loc2)
