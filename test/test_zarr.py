@@ -25,6 +25,20 @@ def create_simple_dataset():
 
     return test_location
 
+def create_simple_ragged_dataset():
+    test_location = os.path.join(TEST_DIR, "zarr3_simple_unsharded.zarr")
+
+    if os.path.exists(test_location):
+        shutil.rmtree(test_location)
+
+    shape = [1005, 1003, 51]
+    data = np.ones(shape, dtype=np.uint8, order="C")
+
+    arr = zarr.open(store=test_location, shape=shape, chunks=(100, 100, 10), dtype='uint8', mode='w')
+    arr[:] = data
+    arr.store.close()
+
+    return test_location
 
 def test_zarr3_unsharded_read_write():
     test_location = os.path.join(TEST_DIR, "zarr_unsharded.zarr")
@@ -48,6 +62,16 @@ def test_zarr3_unsharded_read_write():
     arr = zarr.open(store=test_location, shape=shape, chunks=(100, 100, 10), dtype='uint8', mode='r')
     assert np.all(arr[:] == 2)
     assert np.all(cv[:] == 2)
+
+    shutil.rmtree(test_location)
+
+    test_location = create_simple_ragged_dataset()
+
+    cv = CloudVolume(f"zarr3://file://{test_location}", fill_missing=False)
+
+    # by default zarr3 in C order [z,y,x], so inverting axes
+    # results in a full transposition [x,y,z]
+    assert np.all(cv[:] == 1)
 
     shutil.rmtree(test_location)
 
