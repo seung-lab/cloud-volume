@@ -1109,3 +1109,77 @@ def moving_average(a:np.ndarray, n:int, mode:str = "symmetric") -> np.ndarray:
   ret = (ret[n:] - ret[:-n])[:-n]
   ret /= float(n)
   return ret
+
+def spatial_unit_in_meters(unit:str) -> float:
+  if unit == "meter":
+    return 1.0
+  elif unit == "centimeter":
+    return 1e-2
+  elif unit == "millimeter":
+    return 1e-3
+  elif unit == "micrometer":
+    return 1e-6
+  elif unit == "nanometer":
+    return 1e-9
+  elif unit == "picometer":
+    return 1e-12
+  elif unit == "femtometer":
+    return 1e-15
+  elif unit == "angstrom":
+    return 1e-10
+  elif unit == "foot":
+    return 0.3048
+  elif unit == "yard":
+    return 3 * 0.3048
+  elif unit == "inch":
+    return 0.0254
+  else:
+    raise ValueError(f"unit not supported: {unit}")
+
+def time_unit_in_seconds(unit:str) -> float:
+  if unit == "yottasecond":
+    return 1e24
+  elif unit == "zettasecond":
+    return 1e21
+  elif unit == "exasecond":
+    return 1e18
+  elif unit == "petasecond":
+    return 1e15
+  elif unit == "terasecond":
+    return 1e12
+  elif unit == "gigasecond":
+    return 1e9
+  elif unit == "megasecond":
+    return 1e6
+  elif unit == "kilosecond":
+    return 1e3
+  elif unit == "hectosecond":
+    return 1e2
+  elif unit == "second":
+    return 1.0
+  elif unit == "decisecond":
+    return 0.1
+  elif unit == "centisecond":
+    return 1e-2
+  elif unit == "millisecond":
+    return 1e-3
+  elif unit == "microsecond":
+    return 1e-6
+  elif unit == "nanosecond":
+    return 1e-9
+  elif unit == "picosecond":
+    return 1e-12
+  elif unit == "femtosecond":
+    return 1e-15
+  elif unit == "attosecond":
+    return 1e-18
+  elif unit == "zeptosecond":
+    return 1e-21
+  elif unit == "minute":
+    return 60.0
+  elif unit == "hour":
+    return 3600.0
+  elif unit == "day":
+    return 24.0 * 3600.0
+  else:
+    raise ValueError(f"{unit} is not supported.")

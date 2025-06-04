@@ -6,7 +6,7 @@ import numpy as np
 from cloudfiles import CloudFiles
 
 from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
-from cloudvolume.lib import jsonify, Vec, Bbox
+from cloudvolume.lib import jsonify, Vec, Bbox, spatial_unit_in_meters, time_unit_in_seconds
 
 from ... import exceptions
 from ...provenance import DataLayerProvenance
@@ -105,22 +105,6 @@ class Zarr2Metadata(PrecomputedMetadata):
     if zattrs is None:
       zattrs = self.zattrs
 
-    def unit2factor(unit):
-      if unit == "meter":
-        return 1
-      elif unit == "centimeter":
-        return 1e-2
-      elif unit == "millimeter":
-        return 1e-3
-      elif unit == "micrometer":
-        return 1e-6
-      elif unit == "nanometer":
-        return 1e-9
-      elif unit == "picometer":
-        return 1e-12
-      else:
-        raise ValueError(f"unit not supported: {unit}")
-
     scale_factors = np.ones([3], dtype=np.float32)
     positions = [0,0,0]
     for i, axis in enumerate(self.zattrs["multiscales"][0]["axes"]):
@@ -128,16 +112,16 @@ class Zarr2Metadata(PrecomputedMetadata):
         continue
       
       if axis["name"] == "x":
-        scale_factors[0] = unit2factor(axis.get("unit", "nanometer"))
+        scale_factors[0] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[0] = i
       elif axis["name"] == "y":
-        scale_factors[1] = unit2factor(axis.get("unit", "nanometer"))
+        scale_factors[1] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[1] = i
       elif axis["name"] == "z":
-        scale_factors[2] = unit2factor(axis.get("unit", "nanometer"))
+        scale_factors[2] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[2] = i
 
-    resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+    resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
     resolution = np.array([
       resolution[positions[0]],
       resolution[positions[1]],
@@ -146,28 +130,20 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     return resolution * (scale_factors / 1e-9)
 
-  def time_resolution_in_seconds(self, mip):
+  def time_resolution_in_seconds(self, mip:int) -> float:
     i = 0
     unit = None
-    for axis in self.zattrs["multiscales"][0]["axes"]:
+    for axis in self.axes():
       if axis["type"] == "time":
         unit = axis["unit"]
         break
       i += 1
 
-    scale_factor = 1
-    if unit == "kilosecond":
-      scale_factor = 1e3
-    elif unit == "centisecond":
-      scale_factor = 1e-2
-    elif unit == "millisecond":
-      scale_factor = 1e-3
-    elif unit == "microsecond":
-      scale_factor = 1e-6
-    elif unit == "nanosecond":
-      scale_factor = 1e-9
+    if unit is None:
+      return 1.0
 
-    resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+    scale_factor = time_unit_in_seconds(unit)
+    resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
     return resolution[i] * scale_factor
 
   def has_time_axis(self):
@@ -175,6 +151,9 @@ class Zarr2Metadata(PrecomputedMetadata):
       return self.time_index() is not None
     except ValueError:
       return False
+
+  def datasets(self):
+    return self.zattrs["multiscales"][0]["datasets"]
 
   def axes(self):
     return self.zattrs["multiscales"][0]["axes"]
