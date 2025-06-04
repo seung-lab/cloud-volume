@@ -214,7 +214,6 @@ class Zarr3ImageSource(ImageSourceInterface):
       gridpoint = Vec(*[ int(i) for i in [ m["x"], m["y"], m["z"] ] ])
       chunk_bbox = Bbox(gridpoint, gridpoint + 1) * spatial_chunk_size
       chunk_bbox += voxel_offset
-      chunk_bbox = Bbox.clamp(chunk_bbox, self.meta.bounds(mip))
       chunk_size = chunk_bbox.size()[axis_mapping]
       chunk = self.decode_chunk(binary, mip, fname, chunk_size)
       if chunk is None:
@@ -265,10 +264,17 @@ class Zarr3ImageSource(ImageSourceInterface):
 
     to_upload = []
 
+    bgcolor = self.meta.background_color(mip)
+
     def all_chunks_by_channel(all_chunks):
       for ispt, iept, vol_spt, vol_ept in all_chunks:
         for c in range(self.meta.num_channels):
-          yield image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, c ]
+          cutout = image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, c ]
+          if np.any(np.array(cutout.shape) < spatial_chunk_size):
+            diff = spatial_chunk_size - np.array(cutout.shape)
+            pad_width = [ (0, diff[0]), (0, diff[1]), (0, diff[2]) ]
+            cutout = np.pad(cutout, pad_width, 'constant', constant_values=bgcolor)
+          yield cutout
 
     for filename, imgchunk in zip(all_chunknames, all_chunks_by_channel(all_chunks)):
       binary = self.encode_chunk(imgchunk, mip)
