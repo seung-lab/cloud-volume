@@ -101,12 +101,17 @@ class Zarr3ImageSource(ImageSourceInterface):
   def encode_chunk(self, arr:np.ndarray, mip:int) -> bytes:
     codecs = self.meta.codecs(mip)
 
+    transposed = False
+
     binary = arr
     for codec in codecs:
       encoding = codec["name"]
 
       if encoding == "bytes":
-        binary = binary.tobytes('C')
+        order = 'C'
+        if not transposed:
+          order = 'F'
+        binary = binary.tobytes(order)
         continue
       elif encoding == "brotli":
         encoding = "br"
@@ -127,6 +132,7 @@ class Zarr3ImageSource(ImageSourceInterface):
         compress_level = compress_level.get("level", 1)
         binary = cloudfiles.compression.compress(binary, encoding, compress_level=compress_level)
       elif encoding == "transpose":
+        transposed = True
         binary = np.transpose(binary, axes=codec["configuration"]["order"])
       else:
         raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
