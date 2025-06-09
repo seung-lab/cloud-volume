@@ -1,6 +1,14 @@
 import sys
 import threading
 
+def getsizeof(val:int) -> int:
+  """does sizeof at depth 2 for tuples and lists"""
+  nbytes = 0
+  if isinstance(val, (tuple, list)):
+    for elem in val:
+      nbytes += sys.getsizeof(elem)
+  return nbytes + sys.getsizeof(val)
+
 class DoublyLinkedListIterator:
   def __init__(self, node, reverse=False):
     self.node = ListNode(None, node, node)
@@ -185,7 +193,8 @@ class LRU:
     If size_in_bytes is True, this refers to the size in bytes of the
     stored elements (not counting internal data structures of the LRU)
     as measured by sys.getsizeof which does not handle nested objects
-    (unless they implement a __sizeof__ handler).
+    (unless they implement a __sizeof__ handler). It also handles
+    one level of tuples and lists through custom logic.
 
     Therefore, size_in_bytes is most easily used with Python base types.
     It was designed for with byte strings in mind that represent file
@@ -239,7 +248,7 @@ class LRU:
       while self.is_oversized():
         (key,val) = self.queue.delete_tail()
         del self.hash[key]
-        self.nbytes -= sys.getsizeof(val)
+        self.nbytes -= getsizeof(val)
 
   def delete(self, key):
     with self.lock:
@@ -249,7 +258,7 @@ class LRU:
       node = self.hash[key]
       self.queue.delete(node)
       del self.hash[key]
-      self.nbytes -= sys.getsizeof(node.val)
+      self.nbytes -= getsizeof(node.val)
       return node.val
 
   def pop(self, key, *args):
@@ -280,18 +289,20 @@ class LRU:
       pair = (key,val)
       if key in self.hash:
         node = self.hash[key]
+        self.nbytes -= getsizeof(node.val)
+        self.nbytes += getsizeof(pair)
         node.val = pair
         self.queue.promote_to_head(node)
         return
 
       self.queue.prepend(pair)
       self.hash[key] = self.queue.head
-      self.nbytes += sys.getsizeof(val)
+      self.nbytes += getsizeof(val)
 
       while self.is_oversized():
         (tkey,tval) = self.queue.delete_tail()
         del self.hash[tkey]
-        self.nbytes -= sys.getsizeof(tval)
+        self.nbytes -= getsizeof(tval)
 
   def __contains__(self, key):
     return key in self.hash

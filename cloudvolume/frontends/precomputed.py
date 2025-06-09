@@ -792,7 +792,9 @@ class CloudVolumePrecomputed(object):
     mip = self.meta.to_mip(mip)
     
     if isinstance(bbox, Bbox):
-      bbox = bbox.convert_units('vx', self.meta.resolution(mip))
+      bbox = bbox.convert_units(
+        "vx", self.meta.resolution(mip)
+      ).astype(int)
 
     bbox = Bbox.create(
       bbox, context=self.bounds, 
@@ -858,6 +860,9 @@ class CloudVolumePrecomputed(object):
     Download one or more single voxel values that may be scattered
     across the dataset. You can accelerate this query with an LRU
     if there is some spatial localization.
+
+    If coord_resolution is not specified, pts are assumed to be specified in mip 0,
+    but will request the current mip level.
 
     pts: iterable of triples
     mip: which resolution level to get (default self.mip)

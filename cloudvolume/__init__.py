@@ -65,18 +65,22 @@ from .skeleton import Skeleton, PrecomputedSkeleton
 from . import exceptions
 from . import secrets
 
-__version__ = '10.5.0'
+__version__ = '12.3.1'
 
 # Register plugins
 from .datasource.precomputed import register as register_precomputed
 from .datasource.graphene import register as register_graphene
 from .datasource.n5 import register as register_n5
 from .datasource.zarr import register as register_zarr
+from .datasource.zarr2 import register as register_zarr2
+from .datasource.zarr3 import register as register_zarr3
 
 register_precomputed()
 register_graphene()
 register_n5()
 register_zarr()
+register_zarr2()
+register_zarr3()
 
 try:
   from .datasource.boss import register as register_boss

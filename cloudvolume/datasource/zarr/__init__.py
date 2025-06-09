@@ -1,65 +1,20 @@
-from typing import Optional
+from cloudfiles import CloudFiles
 
-from .image import ZarrImageSource
-from .metadata import ZarrMetadata
+from ..zarr2 import create_zarr2
+from ..zarr3 import create_zarr3
 
-from ...frontends.precomputed import CloudVolumePrecomputed
-
-from .. import get_cache_path
-from ...cacheservice import CacheService
-from ...cloudvolume import (
-  register_plugin, SharedConfiguration,
-  CompressType, ParallelType, CacheType,
-  SecretsType
-)
-from ...paths import strict_extract
+from ...cloudvolume import register_plugin
 
 def create_zarr(
-  cloudpath:str, mip:int=0, bounded:bool=True, autocrop:bool=False,
-  fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
-  cdn_cache:bool=True, progress:bool=False, info:Optional[dict]=None,
-  compress:CompressType=None, compress_level:Optional[int]=None,
-  non_aligned_writes:bool=False, delete_black_uploads:bool=False,
-  parallel:ParallelType=1,green_threads:bool=False, 
-  secrets:SecretsType=None, cache_locking:bool = True,
-  **kwargs # absorb graphene arguments
+  cloudpath:str, *args, **kwargs 
 ):
-    path = strict_extract(cloudpath)
-    config = SharedConfiguration(
-      cdn_cache=cdn_cache,
-      compress=compress,
-      compress_level=None,
-      green=green_threads,
-      mip=mip,
-      parallel=parallel,
-      progress=progress,
-      secrets=secrets,
-      spatial_index_db=None,
-      cache_locking=cache_locking,
-    )
-    cache = CacheService(
-      cloudpath=get_cache_path(cache, cloudpath),
-      enabled=bool(cache),
-      config=config,
-      compress=compress_cache,
-    )
+  cf = CloudFiles(cloudpath)
+  is_zarr3 = cf.exists("zarr.json")
 
-    meta = ZarrMetadata(cloudpath, config=config, cache=cache, info=info)
-    imagesrc = ZarrImageSource(
-      config, meta, cache, 
-      autocrop=bool(autocrop),
-      bounded=bool(bounded),
-      non_aligned_writes=bool(non_aligned_writes),
-      fill_missing=bool(fill_missing),
-    )
-
-    return CloudVolumePrecomputed(
-      meta, cache, config, 
-      imagesrc, mesh=None, skeleton=None,
-      mip=mip
-    )
+  if is_zarr3:
+    return create_zarr3(cloudpath, *args, **kwargs)
+  else:
+    return create_zarr2(cloudpath, *args, **kwargs)
 
 def register():
   register_plugin('zarr', create_zarr)
-  register_plugin('zarr2', create_zarr)
-  register_plugin('zarr3', create_zarr)

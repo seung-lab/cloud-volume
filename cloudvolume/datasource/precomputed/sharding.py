@@ -1024,10 +1024,14 @@ def compute_shard_params_for_image(
   """
   if isinstance(dtype, int):
     byte_width = dtype
-  elif isinstance(dtype, str) or np.issubdtype(dtype, np.integer):
+  elif (
+    isinstance(dtype, str) 
+    or np.issubdtype(dtype, np.integer)
+    or np.issubdtype(dtype, np.floating)
+  ):
     byte_width = np.dtype(dtype).itemsize
   else:
-    raise ValueError(f"{dtype} must be int, str, or np.integer.")
+    raise ValueError(f"{dtype} must be int, str, np.integer, or np.floating.")
 
   def prod(x):
     return reduce(operator.mul, x, 1)

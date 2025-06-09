@@ -6,7 +6,7 @@ import numpy as np
 from cloudfiles import CloudFiles
 
 from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
-from cloudvolume.lib import jsonify, Vec, Bbox
+from cloudvolume.lib import jsonify, Vec, Bbox, spatial_unit_in_meters, time_unit_in_seconds
 
 from ... import exceptions
 from ...provenance import DataLayerProvenance
@@ -26,7 +26,7 @@ CV_TO_ZARR_DTYPE = {
   "float64": "<f8",
 }
 
-class ZarrMetadata(PrecomputedMetadata):
+class Zarr2Metadata(PrecomputedMetadata):
   def __init__(self, cloudpath, config, cache,  info=None):
     
     orig_info = info
@@ -52,6 +52,10 @@ class ZarrMetadata(PrecomputedMetadata):
       self.render_zarr_metadata()
 
     self.provenance = DataLayerProvenance()
+
+  @property
+  def zarr_format(self):
+    return self.zinfo["zarr_format"]
 
   def default_zattrs(self):
     return {
@@ -101,22 +105,6 @@ class ZarrMetadata(PrecomputedMetadata):
     if zattrs is None:
       zattrs = self.zattrs
 
-    def unit2factor(unit):
-      if unit == "meter":
-        return 1
-      elif unit == "centimeter":
-        return 1e-2
-      elif unit == "millimeter":
-        return 1e-3
-      elif unit == "micrometer":
-        return 1e-6
-      elif unit == "nanometer":
-        return 1e-9
-      elif unit == "picometer":
-        return 1e-12
-      else:
-        raise ValueError(f"unit not supported: {unit}")
-
     scale_factors = np.ones([3], dtype=np.float32)
     positions = [0,0,0]
     for i, axis in enumerate(self.zattrs["multiscales"][0]["axes"]):
@@ -124,16 +112,16 @@ class ZarrMetadata(PrecomputedMetadata):
         continue
       
       if axis["name"] == "x":
-        scale_factors[0] = unit2factor(axis["unit"])
+        scale_factors[0] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[0] = i
       elif axis["name"] == "y":
-        scale_factors[1] = unit2factor(axis["unit"])
+        scale_factors[1] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[1] = i
       elif axis["name"] == "z":
-        scale_factors[2] = unit2factor(axis["unit"])
+        scale_factors[2] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[2] = i
 
-    resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+    resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
     resolution = np.array([
       resolution[positions[0]],
       resolution[positions[1]],
@@ -142,32 +130,36 @@ class ZarrMetadata(PrecomputedMetadata):
 
     return resolution * (scale_factors / 1e-9)
 
-  def time_resolution_in_seconds(self, mip):
+  def time_resolution_in_seconds(self, mip:int) -> float:
     i = 0
     unit = None
-    for axis in self.zattrs["multiscales"][0]["axes"]:
+    for axis in self.axes():
       if axis["type"] == "time":
         unit = axis["unit"]
         break
       i += 1
 
-    scale_factor = 1
-    if unit == "kilosecond":
-      scale_factor = 1e3
-    elif unit == "centisecond":
-      scale_factor = 1e-2
-    elif unit == "millisecond":
-      scale_factor = 1e-3
-    elif unit == "microsecond":
-      scale_factor = 1e-6
-    elif unit == "nanosecond":
-      scale_factor = 1e-9
+    if unit is None:
+      return 1.0
 
-    resolution = self.zattrs["multiscales"][0]["datasets"][mip]["coordinateTransformations"][0]["scale"]
+    scale_factor = time_unit_in_seconds(unit)
+    resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
     return resolution[i] * scale_factor
 
+  def has_time_axis(self):
+    try:
+      return self.time_index() is not None
+    except ValueError:
+      return False
+
+  def datasets(self):
+    return self.zattrs["multiscales"][0]["datasets"]
+
+  def axes(self):
+    return self.zattrs["multiscales"][0]["axes"]
+
   def time_index(self):
-    for i, axis in enumerate(self.zattrs["multiscales"][0]["axes"]):
+    for i, axis in enumerate(self.axes()):
       if axis["type"] == "time":
         return i
     raise ValueError("No time axis.")
@@ -182,11 +174,28 @@ class ZarrMetadata(PrecomputedMetadata):
     return int(np.ceil(nframes / t_chunk_size))
 
   def num_frames(self, mip):
-    i = self.time_index()
-    return self.zarrays[mip]["shape"][i]
+    try:
+      i = self.time_index()
+      return self.zarrays[mip]["shape"][i]
+    except ValueError:
+      return 1
+
+  def chunk_name(self, mip, *args):
+    seq = self.cv_axes_to_zarr_axes()
+    sep = self.dimension_separator(mip)
+
+    values = [ str(args[val]) for val in seq ]
+
+    if self.order(mip) == "F":
+      values.reverse()
+
+    return sep.join([ self.key(mip), *values ])
 
   def duration_in_seconds(self):
     return self.time_resolution_in_seconds(0) * self.num_frames(0)
+
+  def compressor(self, mip):
+    return self.zarrays[mip].get("compressor", {}).get("id", "blosc")
 
   def order(self, mip):
     return self.zarrays[mip]["order"]
@@ -243,7 +252,7 @@ class ZarrMetadata(PrecomputedMetadata):
     cf.put_jsons(to_upload, compress=compress)
 
   def to_zarr_volume_size(self, mip):
-    axes = self.zattrs["multiscales"][0]["axes"]
+    axes = self.axes()
       
     shape = []
     for axis in axes:
@@ -261,7 +270,7 @@ class ZarrMetadata(PrecomputedMetadata):
     return shape
 
   def zarr_axes_to_cv_axes(self):
-    axes = self.zattrs["multiscales"][0]["axes"]
+    axes = self.axes()
 
     shape = []
     for i, axis in enumerate(axes):
@@ -360,24 +369,37 @@ class ZarrMetadata(PrecomputedMetadata):
       axes = scale["axes"]
       return np.array(scale["datasets"][mip]["coordinateTransformations"][0]["scale"])
 
-    num_channels = len([ 
-      chan for chan in zattrs["omero"]["channels"] if chan["active"] 
-    ])
+    try:
+      num_channels = len([ 
+        chan for chan in zattrs["omero"]["channels"] if chan["active"] 
+      ])
+    except KeyError:
+      num_channels = 1
 
     if not zarrays:
       raise exceptions.InfoUnavailableError()
 
     base_res = self.spatial_resolution_in_nm(0, zattrs, zarrays)
 
+    def extract_chunk_size(chunk_size):
+      chunk_size = list(chunk_size)
+      if zarrays[0]["order"] == "C":
+        while len(chunk_size) > 3:
+          chunk_size.pop(0)
+        chunk_size.reverse()
+      else:
+        chunk_size = chunk_size[:3]
+      return chunk_size
+
     info = PrecomputedMetadata.create_info(
       num_channels=num_channels,
       layer_type='image',
       data_type=str(np.dtype(zarrays[0]["dtype"])),
-      encoding=zarrays[0]["compressor"]["id"],
+      encoding=zarrays[0]["compressor"].get("id", "raw"),
       resolution=base_res,
       voxel_offset=[0,0,0],
       volume_size=extract_spatial_size(0),
-      chunk_size=zarrays[0]["chunks"][2:][::-1],
+      chunk_size=extract_chunk_size(zarrays[0]["chunks"]),
     )
 
     num_mips = len(zattrs["multiscales"][0]["datasets"])
@@ -391,14 +413,19 @@ class ZarrMetadata(PrecomputedMetadata):
       if zarray is None:
         continue
 
+      chunk_size = extract_chunk_size(zarray["chunks"])
       self.add_scale(
         factor,
-        chunk_size=zarray["chunks"][2:][::-1],
-        encoding=zarray["compressor"]["id"],
+        chunk_size=chunk_size,
+        encoding=zarray["compressor"].get("id", "raw"),
         info=info
       )
 
     return info
+
+  def key(self, mip):
+    datasets = self.zattrs["multiscales"][0]["datasets"]
+    return datasets[mip].get("path", mip+1)
 
   def fetch_info(self):
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
@@ -414,10 +441,10 @@ class ZarrMetadata(PrecomputedMetadata):
     else:
       self.zattrs = self.default_zattrs()
 
-    num_mips = len(self.zattrs["multiscales"][0]["datasets"])
+    datasets = self.zattrs["multiscales"][0]["datasets"]
 
     zarray_paths = [
-      f"{i}/.zarray" for i in range(1, num_mips)
+      f"{ds.get('path', i+1)}/.zarray" for i, ds in enumerate(datasets)
     ]
     res = cf.get_json(zarray_paths)
 
@@ -427,7 +454,23 @@ class ZarrMetadata(PrecomputedMetadata):
     return self.zarr_to_info(self.zarrays, self.zattrs)
 
   def zarr_chunk_size(self, mip):
-    return [1, self.num_channels ] + list(self.chunk_size(mip)[::-1])
+    axes = self.zattrs["multiscales"][0]["axes"]
+    cs = self.chunk_size(mip)
+
+    attr = []
+    for axis in axes:
+      if axis["name"] == 't':
+        attr.append(self.time_chunk_size(mip))
+      elif axis["name"] == 'c':
+        attr.append(self.num_channels)
+      elif axis["name"] == 'x':
+        attr.append(cs[0])
+      elif axis["name"] == 'y':
+        attr.append(cs[1])
+      elif axis["name"] == 'z':
+        attr.append(cs[2])
+
+    return attr
 
   def commit_provenance(self):
     """Zarr doesn't support provenance files."""

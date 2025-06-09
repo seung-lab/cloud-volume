@@ -54,7 +54,7 @@ except ImportError:
 try:
   import imagecodecs
 except ImportError:
-  NEEDS_INSTALL['jpegxl'] = 'imagecodecs'
+  NEEDS_INSTALL['jxl'] = 'imagecodecs'
 
 try:
   import compressed_segmentation as cseg
@@ -77,7 +77,7 @@ DEFAULT_CSEG_BLOCK_SIZE = (8,8,8)
 SUPPORTED_ENCODINGS = (
   "raw", "kempressed", "fpzip",
   "compressed_segmentation", "compresso",
-  "crackle", "jpeg", "jpegxl", "png", "zfpc"
+  "crackle", "jpeg", "jxl", "png", "zfpc"
 )
 
 def encode(
@@ -109,12 +109,12 @@ def encode(
     return crackle.compress(img_chunk[:,:,:,0])
   elif encoding == "jpeg":
     return encode_jpeg(img_chunk, nvl(level, 85))
-  elif encoding == "jpegxl":
+  elif encoding == "jxl":
     return encode_jpegxl(
       img_chunk, 
       level=nvl(level, 85), 
-      effort=compression_params.get("jpegxl_effort", 5),
-      decodingspeed=compression_params.get("jpegxl_decodingspeed", 0),
+      effort=compression_params.get("jxl_effort", 5),
+      decodingspeed=compression_params.get("jxl_decodingspeed", 0),
     )
   elif encoding == "png":
     return encode_png(img_chunk, nvl(level, 9))
@@ -148,6 +148,8 @@ def decode(
       return np.zeros(shape=shape, dtype=dtype, order="F")
     else:
       return np.full(shape=shape, fill_value=background_color, dtype=dtype, order="F")
+  elif isinstance(filedata, np.ndarray):
+    return filedata
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
   elif encoding == "kempressed":
@@ -164,7 +166,7 @@ def decode(
     return crackle.decompress(filedata).reshape(shape)
   elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
-  elif encoding == "jpegxl":
+  elif encoding == "jxl":
     return decode_jpegxl(filedata, shape=shape)
   elif encoding == "png":
     return decode_png(filedata, shape=shape, dtype=dtype)
@@ -218,7 +220,7 @@ def encode_jpegxl(arr, level, effort, decodingspeed):
       lossless=lossless,
       effort=effort,
       decodingspeed=decodingspeed,
-      numthreads=1,
+      numthreads=0,
     )
   elif num_channel == 3:
     arr = np.transpose(arr, axes=[2, 0, 1])
@@ -229,12 +231,12 @@ def encode_jpegxl(arr, level, effort, decodingspeed):
       lossless=lossless,
       effort=effort,
       decodingspeed=decodingspeed,
-      numthreads=1,
+      numthreads=0,
     )
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
 def decode_jpegxl(binary:bytes, shape):
-  data = imagecodecs.jpegxl_decode(binary)
+  data = imagecodecs.jpegxl_decode(binary, numthreads=0)
   if shape[3] == 3:
     data = np.transpose(data, axes=[1, 2, 0])
 
@@ -360,6 +362,8 @@ def labels(
 
   if filedata is None or len(filedata) == 0:
     return np.zeros((0,), dtype=dtype)
+  elif isinstance(filedata, np.ndarray):
+    return fastremap.unique(filedata)
   elif encoding == "raw":
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return fastremap.unique(img)
@@ -395,6 +399,9 @@ def remap(
     return compresso.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
   elif encoding == "crackle":
     return crackle.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
+  elif isinstance(filedata, np.ndarray):
+    img = fastremap.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels, in_place=False)
+    return encode(img, encoding, block_size)    
   else:
     img = decode(filedata, encoding, shape, dtype, block_size)
     fastremap.remap(img, mapping, preserve_missing_labels=preserve_missing_labels, in_place=True)
@@ -428,6 +435,8 @@ def read_voxel(
     out = np.empty((1,1,1,1), dtype=dtype, order="F")
     out[0,0,0,0] = arr[tuple(xyz)]
     return out
+  elif isinstance(filedata, np.ndarray):
+    return filedata[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
   else:
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
     return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
@@ -453,6 +462,8 @@ def contains(
   elif encoding == "crackle":
     arr = crackle.CrackleArray(filedata)
     return label in arr
+  elif isinstance(filedata, np.ndarray):
+    return bool(np.isin(label, filedata))
   else:
     arr = decode(filedata, encoding, shape, dtype, block_size, 0)
     return bool(np.isin(label, arr))
@@ -495,7 +506,7 @@ def transcode(
   src_block_size/dest: parameters for compressed_segentation type. can be ignored
     for other types.
   compression_params: additional params, especially "level" to configure, e.g. 
-    png, jpeg, jpegxl, zfpc, etc compression levels.
+    png, jpeg, jxl, zfpc, etc compression levels.
   force: perform compression even if the destination type matches
     (useful for debugging or altering compression level)
 
@@ -516,14 +527,14 @@ def transcode(
 
   if src_encoding.lower() == dest_encoding.lower() and not force:
     yield from itr
-  elif src_encoding == "jpeg" and dest_encoding == "jpegxl":
+  elif src_encoding == "jpeg" and dest_encoding == "jxl":
     from imagecodecs import jpegxl_encode_jpeg
 
     for label, binary in itr:
       new_binary = jpegxl_encode_jpeg(binary)
 
       yield (label, new_binary)
-  elif src_encoding == "jpegxl" and dest_encoding == "jpeg":
+  elif src_encoding == "jxl" and dest_encoding == "jpeg":
     from imagecodecs import jpegxl_decode_jpeg
 
     for label, binary in itr:

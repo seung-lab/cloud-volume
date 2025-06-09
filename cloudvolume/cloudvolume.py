@@ -1,9 +1,12 @@
 import sys
 import time
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import multiprocessing as mp
 import numpy as np
+from tqdm import tqdm
+
+from cloudfiles.paths import normalize
 
 from .exceptions import UnsupportedFormatError, DimensionError, InfoUnavailableError
 from .lib import generate_random_string
@@ -70,7 +73,8 @@ class CloudVolume:
     max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, segment_prop_dir:Optional[str]=None,
     agglomerate:bool=False, secrets:SecretsType=None, 
     spatial_index_db:Optional[str]=None, lru_bytes:int = 0,
-    cache_locking:bool = True
+    cache_locking:bool = True, lru_encoding:str = "same",
+    timestamp:Optional[int] = None,
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -93,7 +97,7 @@ class CloudVolume:
       
       label = 1
       mesh = vol.mesh.get(label) 
-      skel = vol.skeletons.get(label)
+      skel = vol.skeleton.get(label)
 
     Required:
       cloudpath: Path to the dataset layer. This should match storage's supported
@@ -179,6 +183,12 @@ class CloudVolume:
         tiles in memory. This is an in-memory cache and is completely separate from
         the `cache` parameter that handles disk IO. Tiles are stripped over only their
         second stage compression.
+      lru_encoding: (str) You can set the LRU encoding to be different from the source
+        encoding. This can help reduce the memory usage of the LRU or take advantage of
+        special codec properties. "same" means use the same encoding as the source.
+        Using "raw" will speed up the LRU at the expense of memory if the source encoding is 
+        not raw. Using a different encoding than the source encoding, other than "raw", will
+        initially be slower as chunks will need to be reencoded.
       info: (dict) In lieu of fetching a neuroglancer info file, use this one.
           This is useful when creating new datasets and for repeatedly initializing
           a new cloudvolume instance.
@@ -221,6 +231,8 @@ class CloudVolume:
         database that tiles the dataset. This can be fast enough up to about 100 TVx
         datasets. Above that, a proper database is required for efficient queries.
         We provide multiple SQL database types that the index can be hosted on.
+      timestamp: (int, graphene only) Sets the timestamp for graphene proofreading 
+        volumes so you can get the state at a given proofreading status.
       use_https: (bool) maps gs:// and s3:// to their respective https paths. The 
         https paths hit a cached, read-only version of the data and may be faster.
     """
@@ -233,6 +245,7 @@ class CloudVolume:
     def init(cloudpath):
       path = strict_extract(cloudpath)
       if path.format in REGISTERED_PLUGINS:
+        kwargs["cloudpath"] = normalize(cloudpath)
         return REGISTERED_PLUGINS[path.format](**kwargs)
       else:
         raise UnsupportedFormatError(
@@ -244,7 +257,7 @@ class CloudVolume:
     except InfoUnavailableError as err:
       if 'precomputed://' not in cloudpath and cloudpath[:4] != 'zarr':
         try:
-          return init('zarr2://' + cloudpath)
+          return init('zarr://' + cloudpath)
         except:
           raise err
       else:
@@ -259,12 +272,76 @@ class CloudVolume:
     return CloudVolumePrecomputed.create_new_info(*args, **kwargs)
 
   @classmethod
+  def from_crackle(cls,
+    src:Union[str,bytes],
+    cloudpath:str,
+    resolution:Tuple[int,int,int] = (1,1,1),
+    voxel_offset:Tuple[int,int,int] = (0,0,0),
+    chunk_size:Tuple[int,int,int] = (256,256,16),
+    encoding:str = "compressed_segmentation",
+    compress:str = "gzip",
+    progress:bool = False,
+    allow_mmap:bool = True,
+  ):
+    """
+    Created a precomputed segmentation dataset from a 
+    single crackle file representing a whole dataset.
+    """
+    import crackle
+
+    if isinstance(src, crackle.CrackleArray):
+      arr = src
+    elif isinstance(src, str):
+      arr = crackle.aload(src, allow_mmap=allow_mmap)
+    else:
+      arr = crackle.CrackleArray(src)
+
+    info = cls.create_new_info(
+      num_channels=1, 
+      layer_type="segmentation",
+      data_type=np.dtype(arr.dtype).name,
+      encoding=encoding, 
+      resolution=resolution,
+      voxel_offset=voxel_offset, 
+      volume_size=arr.shape[:3],
+      chunk_size=chunk_size,
+      max_mip=0,
+    )
+    
+    vol = CloudVolume(
+      cloudpath, info=info, bounded=True, 
+      compress=compress, progress=False,
+    )
+    # save the info file
+    vol.commit_info()
+    if isinstance(src, str):
+      vol.provenance.sources = [src]
+    vol.provenance.processing.append({
+      'method': 'from_crackle',
+      'date': time.strftime('%Y-%m-%d %H:%M %Z')
+    })
+    vol.commit_provenance()
+
+    sz = arr.shape[2]
+    cz = chunk_size[2]
+
+    n_z_chunks = int(np.ceil(sz / cz))
+
+    for z_i in tqdm(range(n_z_chunks), desc="Converting", disable=(not progress)):
+      slc = np.s_[:,:, (z_i * cz) : min( (z_i+1) * cz, sz) ]
+      labels = arr[slc]
+      vol[slc] = labels
+
+    return vol
+
+  @classmethod
   def from_numpy(cls, 
     arr, 
     vol_path='file:///tmp/image/' + generate_random_string(),
     resolution=(4,4,40), voxel_offset=(0,0,0), 
     chunk_size=(128,128,64), layer_type=None, max_mip=0,
-    encoding='raw', compress=None, progress=False
+    encoding='raw', compress=None, progress=False,
+    encoding_level=None, encoding_effort=None,
   ):
     """
     Create a new dataset from a numpy array.
@@ -294,7 +371,8 @@ class CloudVolume:
       num_channels, layer_type, np.dtype(arr.dtype).name,
       encoding, resolution,
       voxel_offset, arr.shape[:3],
-      chunk_size=chunk_size, max_mip=max_mip
+      chunk_size=chunk_size, max_mip=max_mip,
+      encoding_level=encoding_level, encoding_effort=encoding_effort, 
     )
     
     vol = CloudVolume(

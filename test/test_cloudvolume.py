@@ -81,11 +81,17 @@ def test_fill_missing():
   vol.cache.flush()
   delete_layer('/tmp/cloudvolume/empty_volume')
 
-def test_background_color():
+@pytest.mark.parametrize("bgcolor", [1, 1.0, float('NaN')])
+def test_background_color(bgcolor):
+
+  data_type = 'uint8'
+  if np.issubdtype(type(bgcolor), np.floating):
+    data_type = 'float32'
+
   info = CloudVolume.create_new_info(
     num_channels=1, 
     layer_type='image', 
-    data_type='uint8', 
+    data_type=data_type, 
     encoding='raw',
     resolution=[ 1,1,1 ], 
     voxel_offset=[0,0,0], 
@@ -101,24 +107,34 @@ def test_background_color():
 
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
                     mip=0, 
-                    background_color=1, 
+                    background_color=bgcolor, 
                     fill_missing=True)
-  assert np.count_nonzero(vol[:] - 1) == 0
+
+  if np.isnan(bgcolor):
+    assert np.isnan(np.unique(vol[:])[0])
+  else:
+    assert np.unique(vol[:])[0] == bgcolor
 
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
                     mip=0, 
-                    background_color=1, 
+                    background_color=bgcolor, 
                     fill_missing=True,
                     bounded=False)
-  assert np.count_nonzero(vol[0:129,0:129,0:1]-1) == 0
+  if np.isnan(bgcolor):
+    assert np.isnan(np.unique(vol[:])[0])
+  else:
+    assert np.unique(vol[0:129,0:129,0:1])[0] == bgcolor
 
   vol = CloudVolume('file:///tmp/cloudvolume/empty_volume', 
                     mip=0, 
-                    background_color=1, 
+                    background_color=bgcolor, 
                     fill_missing=True,
                     bounded=False,
                     parallel=2)
-  assert np.count_nonzero(vol[0:129,0:129,0:1]-1) == 0
+  if np.isnan(bgcolor):
+    assert np.isnan(np.unique(vol[:])[0])
+  else:
+    assert np.unique(vol[0:129,0:129,0:1])[0] == bgcolor
   vol.cache.flush()
   delete_layer('/tmp/cloudvolume/empty_volume')
 
@@ -208,8 +224,7 @@ def test_read_binary_image(green, encoding, lru_bytes):
   img = cv.download(bbox, mip=0, label=0)
   assert img.dtype == bool
   assert np.all(img == (data == 0))
-
-
+  
   bbox = Bbox([1,1,1], [2,2,2])
   img = cv.download(bbox, mip=0, label=data[1,1,1])
   assert img.dtype == bool
@@ -223,10 +238,15 @@ def test_read_binary_image(green, encoding, lru_bytes):
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
-def test_point_reads_sharded(shard_vol, shard_vol_data_cpso, green, encoding, lru_bytes):
+@pytest.mark.parametrize('lru_encoding', ["same", "raw", "crackle"])
+def test_point_reads_sharded(
+  shard_vol, shard_vol_data_cpso, green, 
+  encoding, lru_bytes, lru_encoding
+):
   cv = shard_vol
   data = shard_vol_data_cpso
   cv.green_threads = green
+  cv.image._lru_encoding = lru_encoding
   cv.image.lru.resize(lru_bytes)
 
   N = 25
@@ -242,13 +262,15 @@ def test_point_reads_sharded(shard_vol, shard_vol_data_cpso, green, encoding, lr
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
-def test_point_reads(green, encoding, lru_bytes):
+@pytest.mark.parametrize('lru_encoding', ["same", "raw", "crackle"])
+def test_point_reads_unsharded(green, encoding, lru_bytes, lru_encoding):
   delete_layer()
   cv, data = create_layer(
     size=(256,256,100,1), offset=(0,0,0), 
     encoding=encoding, layer_type="segmentation"
   )
   cv.green_threads = green
+  cv.image._lru_encoding = lru_encoding
   cv.image.lru.resize(lru_bytes)  
 
   N = 200
@@ -1569,7 +1591,7 @@ def test_transfer_lossy():
 
   assert np.all(np.abs(img.astype(np.int32) - jpgimg.astype(np.int32)) < 3)
 
-  dcv.transfer_to('file:///tmp/removeme/transfer3/', cv.bounds, encoding="jpegxl", compress=False)
+  dcv.transfer_to('file:///tmp/removeme/transfer3/', cv.bounds, encoding="jxl", compress=False)
 
   dcv2 = CloudVolume('file:///tmp/removeme/transfer3/')
 

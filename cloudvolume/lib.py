@@ -253,9 +253,11 @@ def min2(a, b):
 def clamp(val, low, high):
   return min(max(val, low), high)
 
-def check_bounds(val, low, high):
+def check_bounds(val, low, high, index):
   if val > high or val < low:
-    raise OutOfBoundsError('Value {} cannot be outside of inclusive range {} to {}'.format(val,low,high))
+    raise OutOfBoundsError(
+      f'Value {val} (index={index}) cannot be outside of inclusive range {low} to {high}'
+    )
   return val
 
 class Vec(np.ndarray):
@@ -398,7 +400,7 @@ class Bbox(object):
       bbx *= np.round(UNIT_SCALES[resolution_unit] / UNIT_SCALES[self.unit])
       bbx //= np.array(resolution) 
       bbx.unit = unit
-      return bbx
+      return bbx.astype(int)
     else:
       bbx = self.astype(np.float32)
       scale_factor = UNIT_SCALES[unit] / UNIT_SCALES[self.unit]
@@ -476,7 +478,9 @@ class Bbox(object):
     typ = type(obj)
     if typ is Bbox:
       obj = obj
-    elif typ in (list, tuple):
+    elif typ in (list, tuple) and len(obj) == 6 and all(isinstance(x, integer_types) for x in obj):
+      obj = Bbox.from_list(obj)
+    elif typ in (list, tuple, slice):
       obj = Bbox.from_slices(obj, context, bounded, autocrop)
     elif typ is Vec:
       obj = Bbox.from_vec(obj)
@@ -671,10 +675,10 @@ class Bbox(object):
         elif bounded:
           # if start < 0: # this is support for negative indicies
             # start = self.maxpt[index] + start         
-          check_bounds(start, self.minpt[index], self.maxpt[index])
+          check_bounds(start, self.minpt[index], self.maxpt[index], index)
           # if end < 0: # this is support for negative indicies
           #   end = self.maxpt[index] + end
-          check_bounds(end, self.minpt[index], self.maxpt[index])
+          check_bounds(end, self.minpt[index], self.maxpt[index], index)
 
         slices[index] = slice(start, end, step)
 
@@ -980,8 +984,11 @@ class Bbox(object):
     return int(''.join(map(str, map(int, self.to_list()))))
 
   def __repr__(self):
-    return f"Bbox({list(self.minpt)},{list(self.maxpt)}, dtype=np.{self.dtype}, unit='{self.unit}')"
-
+    normfn = int
+    if np.issubdtype(self.dtype, np.floating):
+      normfn = float
+    return f"Bbox({[ normfn(x) for x in self.minpt ]},{[ normfn(x) for x in self.maxpt ]}, dtype=np.{self.dtype}, unit='{self.unit}')"
+    
 BboxLikeType = Union[Bbox, Sequence[slice], str, Vec]
 
 def save_images(
@@ -1082,3 +1089,97 @@ def save_images(
       img2d.save(path, image_format)
 
   return toabs(directory)
+
+# From SO: https://stackoverflow.com/questions/14313510/how-to-calculate-rolling-moving-average-using-python-numpy-scipy
+def moving_average(a:np.ndarray, n:int, mode:str = "symmetric") -> np.ndarray:
+  if n <= 0:
+    raise ValueError(f"Window size ({n}), must be >= 1.")
+  elif n == 1:
+    return a
+
+  if len(a) == 0:
+    return a
+
+  if a.ndim == 2:
+    a = np.pad(a, [[n, n],[0,0]], mode=mode)
+  else:
+    a = np.pad(a, [n, n], mode=mode)
+
+  ret = np.cumsum(a, dtype=float, axis=0)
+  ret = (ret[n:] - ret[:-n])[:-n]
+  ret /= float(n)
+  return ret
+
+def spatial_unit_in_meters(unit:str) -> float:
+  if unit == "meter":
+    return 1.0
+  elif unit == "centimeter":
+    return 1e-2
+  elif unit == "millimeter":
+    return 1e-3
+  elif unit == "micrometer":
+    return 1e-6
+  elif unit == "nanometer":
+    return 1e-9
+  elif unit == "picometer":
+    return 1e-12
+  elif unit == "femtometer":
+    return 1e-15
+  elif unit == "angstrom":
+    return 1e-10
+  elif unit == "foot":
+    return 0.3048
+  elif unit == "yard":
+    return 3 * 0.3048
+  elif unit == "inch":
+    return 0.0254
+  else:
+    raise ValueError(f"unit not supported: {unit}")
+
+def time_unit_in_seconds(unit:str) -> float:
+  if unit == "yottasecond":
+    return 1e24
+  elif unit == "zettasecond":
+    return 1e21
+  elif unit == "exasecond":
+    return 1e18
+  elif unit == "petasecond":
+    return 1e15
+  elif unit == "terasecond":
+    return 1e12
+  elif unit == "gigasecond":
+    return 1e9
+  elif unit == "megasecond":
+    return 1e6
+  elif unit == "kilosecond":
+    return 1e3
+  elif unit == "hectosecond":
+    return 1e2
+  elif unit == "second":
+    return 1.0
+  elif unit == "decisecond":
+    return 0.1
+  elif unit == "centisecond":
+    return 1e-2
+  elif unit == "millisecond":
+    return 1e-3
+  elif unit == "microsecond":
+    return 1e-6
+  elif unit == "nanosecond":
+    return 1e-9
+  elif unit == "picosecond":
+    return 1e-12
+  elif unit == "femtosecond":
+    return 1e-15
+  elif unit == "attosecond":
+    return 1e-18
+  elif unit == "zeptosecond":
+    return 1e-21
+  elif unit == "minute":
+    return 60.0
+  elif unit == "hour":
+    return 3600.0
+  elif unit == "day":
+    return 24.0 * 3600.0
+  else:
+    raise ValueError(f"{unit} is not supported.")

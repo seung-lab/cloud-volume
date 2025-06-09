@@ -6,23 +6,7 @@ import sys
 import numpy as np
 
 from .exceptions import MeshDecodeError
-from .lib import yellow, Vec
-
-NOTICE = {
-  'vertices': 0,
-  'num_vertices': 0,
-  'faces': 0,
-}
-
-def deprecation_notice(key):
-  if NOTICE[key] < 1:
-    print(yellow("""
-  Deprecation Notice: Meshes, formerly dicts, are now PrecomputedMesh objects
-  as of CloudVolume 0.51.0, renamed to Mesh objects as of 0.53.0
-
-  Please change mesh['{}'] to mesh.{}
-  """.format(key, key)))
-    NOTICE[key] += 1
+from .lib import Vec, Bbox
 
 def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size):
   """
@@ -112,20 +96,6 @@ class Mesh(object):
       self.segid, self.encoding_type
     )
 
-  def __getitem__(self, key):
-    val = None 
-    if key == 'vertices':
-      val = self.vertices
-    elif key == 'num_vertices':
-      val = len(self)
-    elif key == 'faces':
-      val = self.faces
-    else:
-      raise KeyError("{} not found.".format(key))
-
-    deprecation_notice(key)
-    return val
-
   def empty(self):
     return self.vertices.size == 0 or self.faces.size == 0
 
@@ -154,14 +124,7 @@ class Mesh(object):
     but sometimes it is convenient to have a list 
     of triangles in their proper coordinate space.
     """
-    Nf = self.faces.shape[0]
-    tris = np.zeros( (Nf, 3, 3), dtype=np.float32, order='C' ) # triangle, vertices, (x,y,z)
-
-    for i in range(Nf):
-      for j in range(3):
-        tris[i,j,:] = self.vertices[ self.faces[i,j] ]
-
-    return tris
+    return self.vertices[self.faces]
 
   @classmethod
   def concatenate(cls, *meshes, segid=None):
@@ -408,6 +371,56 @@ end_header
 
     return self.deduplicate_vertices(is_chunk_aligned)
 
+  def crop(self, bbox:Bbox):
+    """
+    Create a cropped version of the mesh.
+    """
+    if self.empty():
+      return Mesh([], [], normals=None)
+
+    vert_idx = []
+    mapping = {}
+    discard = set()
+    j = 0
+    for i, vert in enumerate(self.vertices):
+      if bbox.contains(vert):
+        vert_idx.append(i)
+        mapping[i] = j
+        j += 1
+      else:
+        discard.add(i)
+
+    vert_idx = np.array(vert_idx, dtype=int)
+
+    cropped_faces_idx = []
+
+    for i, (f1, f2, f3) in enumerate(self.faces):
+      if f1 in discard or f2 in discard or f3 in discard:
+        continue
+      cropped_faces_idx.append(i)
+
+    cropped_faces_idx = np.array(cropped_faces_idx, dtype=int)
+
+    cropped_verts = self.vertices[vert_idx]
+    cropped_faces = self.faces[cropped_faces_idx]
+    cropped_normals = None
+
+    for face in cropped_faces:
+      face[0] = mapping[face[0]]
+      face[1] = mapping[face[1]]
+      face[2] = mapping[face[2]]
+
+    if self.normals is not None and len(self.normals):
+      cropped_normals = self.normals[cropped_faces_idx]
+
+    return Mesh(
+      cropped_verts, 
+      cropped_faces, 
+      cropped_normals, 
+      segid=self.segid,
+      encoding_type=copy.deepcopy(self.encoding_type),
+      encoding_options=copy.deepcopy(self.encoding_options),
+    )
 
   def viewer(self):
     # thanks to ChatGPT for making it easy to figure out

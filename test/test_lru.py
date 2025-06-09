@@ -6,6 +6,31 @@ import time
 import random
 import sys
 
+def test_lru_size_w_tuple():
+  lru = LRU(int(1e6), size_in_bytes=True)
+  assert lru.nbytes == 0
+  val = (1, b'0' * 1000, b'1' * 1000)
+  lru[1] = val
+
+  ans = (
+    sys.getsizeof(val) 
+    + sys.getsizeof(val[0])
+    + sys.getsizeof(val[1])
+    + sys.getsizeof(val[2])
+  )
+  assert 2000 < ans < 2200
+  assert lru.nbytes == ans
+  val = b'2' * 500
+  lru[2] = val
+  ans += sys.getsizeof(val)
+  assert lru.nbytes == ans
+
+  val2 = b'3' * 1000
+  lru[2] = val2
+  ans -= sys.getsizeof(val)
+  ans += sys.getsizeof(val2)
+  assert lru.nbytes == ans
+
 @pytest.mark.parametrize("size_in_bytes", (False,True))
 def test_lru(size_in_bytes):
   base_size = 5

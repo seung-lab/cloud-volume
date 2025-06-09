@@ -68,6 +68,7 @@ def transfer_by_rerendering(
   shape = np.array(dest_cv.chunk_size * 4)
 
   bbox = bbox.expand_to_chunk_size(dest_cv.chunk_size, offset=dest_cv.voxel_offset)
+  bbox = Bbox.clamp(bbox, dest_cv.bounds)
 
   grid_box = bbox / shape
   grid_size = grid_box.size()

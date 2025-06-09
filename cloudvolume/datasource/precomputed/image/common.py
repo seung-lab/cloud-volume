@@ -248,6 +248,9 @@ def shade(dest_img, dest_bbox, src_img, src_bbox, channel=None):
   The buffer will only be painted in the overlapping
   region of the content.
 
+  The sizes of the bounding boxes should match their
+  respective images!
+
   Note: channel is useful for zarr, not precomputed
 
   Returns: void
