@@ -70,7 +70,7 @@ class CloudVolume:
     compress:CompressType=None, compress_level:Optional[int]=None, 
     non_aligned_writes:bool=False, parallel:ParallelType=1, delete_black_uploads:bool=False, 
     background_color:int=0, green_threads:bool=False, use_https:bool=False,
-    max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
+    max_redirects:int=10, mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, segment_prop_dir:Optional[str]=None,
     agglomerate:bool=False, secrets:SecretsType=None, 
     spatial_index_db:Optional[str]=None, lru_bytes:int = 0,
     cache_locking:bool = True, lru_encoding:str = "same",
@@ -217,6 +217,8 @@ class CloudVolume:
           file, use this one. 
       secrets: (dict) provide per-instance authorization tokens. If not provided,
         defaults to looking in .cloudvolume/secrets for necessary tokens.
+      segment_prop_dir: (str) if not None, override the info['segment_properties'] 
+        key before pulling the segment properties info file.
       skel_dir: (str) if not None, override the info['skeletons'] key before 
         pulling the skeleton info file.
       spatial_index_db: (str) A path to an sqlite3 or mysql database that follows 

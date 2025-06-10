@@ -38,7 +38,7 @@ def warn(text):
 class CloudVolumePrecomputed(object):
   def __init__(self, 
     meta, cache, config,
-    image=None, mesh=None, skeleton=None,
+    image=None, mesh=None, skeleton=None, segment_properties=None
     mip=0
   ):
     self.config = config 
@@ -48,6 +48,7 @@ class CloudVolumePrecomputed(object):
     self.image = image
     self.mesh = mesh 
     self.skeleton = skeleton
+    self.segment_properties = segment_properties
 
     self.green_threads = self.config.green # display warning message
 
@@ -216,7 +217,8 @@ class CloudVolumePrecomputed(object):
   def create_new_info(cls, 
     num_channels, layer_type, data_type, encoding, 
     resolution, voxel_offset, volume_size, 
-    mesh=None, skeletons=None, chunk_size=(64,64,64),
+    mesh=None, skeletons=None, segment_properties= None, 
+    chunk_size=(64,64,64),
     compressed_segmentation_block_size=(8,8,8),
     max_mip=0, factor=Vec(2,2,1), redirect=None, 
     *args, **kwargs
@@ -236,6 +238,7 @@ class CloudVolumePrecomputed(object):
     Optional:
       mesh: (str) name of mesh directory, typically "mesh"
       skeletons: (str) name of skeletons directory, typically "skeletons"
+      segment_properties: (str) name of segment properties directory, typically "segment_properties"
       chunk_size: int (x,y,z), dimensions of each downloadable 3D image chunk in voxels
       compressed_segmentation_block_size: (x,y,z) dimensions of each compressed sub-block
         (only used when encoding is 'compressed_segmentation')
@@ -249,7 +252,7 @@ class CloudVolumePrecomputed(object):
     return PrecomputedMetadata.create_info(
       num_channels, layer_type, data_type, encoding, 
       resolution, voxel_offset, volume_size, 
-      mesh, skeletons, chunk_size,
+      mesh, skeletons, segment_properties, chunk_size,
       compressed_segmentation_block_size,
       max_mip, factor,
       *args, **kwargs
