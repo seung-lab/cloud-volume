@@ -1072,6 +1072,8 @@ def save_images(
 
       if img2d.dtype == np.uint8:
         img2d = Image.fromarray(img2d, 'L')
+      elif img2d.dtype == np.uint16:
+        img2d = Image.fromarray(img2d, 'I;16L')
       elif img2d.dtype == bool:
         img2d = img2d.astype(np.uint8) * 255
         img2d = Image.fromarray(img2d, 'L')
