@@ -1,7 +1,4 @@
-from __future__ import print_function
-
-from six.moves import queue as Queue
-from six.moves import range
+import queue as Queue
 from functools import partial
 import threading
 import time

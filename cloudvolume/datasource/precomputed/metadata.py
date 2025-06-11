@@ -10,8 +10,6 @@ import posixpath
 import json5
 import multiprocessing as mp
 import numpy as np
-from six import string_types
-from six.moves import range
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles 
@@ -149,10 +147,10 @@ class PrecomputedMetadata(object):
       info['scales'][0]['compressed_segmentation_block_size'] = list(map(int, compressed_segmentation_block_size))
 
     if mesh:
-      info['mesh'] = 'mesh' if not isinstance(mesh, string_types) else mesh
+      info['mesh'] = 'mesh' if not isinstance(mesh, str) else mesh
 
     if skeletons:
-      info['skeletons'] = 'skeletons' if not isinstance(skeletons, string_types) else skeletons      
+      info['skeletons'] = 'skeletons' if not isinstance(skeletons, str) else skeletons      
     
     return info
 
@@ -362,7 +360,7 @@ Hops:
   def _cast_provenance(self, prov):
     if isinstance(prov, DataLayerProvenance):
       return prov
-    elif isinstance(prov, string_types):
+    elif isinstance(prov, str):
       prov = json.loads(prov)
 
     provobj = DataLayerProvenance(**prov)

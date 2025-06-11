@@ -256,7 +256,7 @@ class SpatialIndex(object):
     finished_loading_evt = threading.Event()
     query_lock = threading.Lock()
 
-    qu = queue.Queue(maxsize=(2 * parallel + 1))
+    qu = Queue(maxsize=(2 * parallel + 1))
     threads = [ 
       threading.Thread(
         target=thread_safe_insert, 

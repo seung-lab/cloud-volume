@@ -1,7 +1,6 @@
 import os
 
 import json
-from six.moves import range
 
 import numpy as np
 from tqdm import tqdm

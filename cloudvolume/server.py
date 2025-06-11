@@ -4,7 +4,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import json
 import re
-from six.moves import range
 
 import numpy as np
 from tqdm import tqdm

@@ -1,4 +1,3 @@
-from six.moves import range
 from cloudvolume.threaded_queue import ThreadedQueue
 from functools import partial
 

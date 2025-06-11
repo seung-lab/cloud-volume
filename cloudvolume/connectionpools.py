@@ -1,4 +1,4 @@
-from six.moves import queue as Queue
+import queue as Queue
 import threading
 import time
 from functools import partial

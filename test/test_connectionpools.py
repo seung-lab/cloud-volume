@@ -1,6 +1,3 @@
-from __future__ import print_function
-from six.moves import range
-
 import tenacity
 from tqdm import tqdm
 

@@ -22,7 +22,6 @@ requests>=2.22.0
 psutil
 pysimdjson>=3.1.1
 simplejpeg
-six>=1.10.0
 tenacity>=4.10.0
 tqdm
 urllib3[brotli]>=1.25.7

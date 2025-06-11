@@ -9,10 +9,8 @@ import uuid
 import socket
 
 import fastremap
-from six.moves import range
 import numpy as np
 from tqdm import tqdm
-from six import string_types
 import multiprocessing as mp
 
 from .. import lib
