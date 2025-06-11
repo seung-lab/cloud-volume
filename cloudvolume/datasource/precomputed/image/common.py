@@ -104,10 +104,16 @@ def parallel_execution(
       )
       proc.start()
 
+    # Ensure processes do not accidentally inherit
+    # locks from forking and deadlock. Instead launch
+    # new interpreters.
+    ctx = mp.get_context("spawn")
+
     with concurrent.futures.ProcessPoolExecutor(
       max_workers=parallel,
       initializer=initialize_synchronization,
       initargs=(progress_queue,fs_lock),
+      mp_context=ctx,
     ) as pool:
       pool.map(fn, sip(items, block_size))
   finally: 
