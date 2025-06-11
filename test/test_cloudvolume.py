@@ -302,7 +302,7 @@ def test_save_images():
   directory = img.save_images()
 
   for z, fname in enumerate(sorted(os.listdir(directory))):
-    assert fname == str(z).zfill(3) + '.png'
+    assert fname == str(z).zfill(5) + '.png'
 
   shutil.rmtree(directory)
 
