@@ -10,8 +10,8 @@ import numpy as np
 
 TEST_DIR = os.path.dirname("/tmp/removeme/cloudvolume/")
 
-def create_simple_dataset():
-    test_location = os.path.join(TEST_DIR, "zarr3_simple_unsharded.zarr")
+def create_simple_dataset(version=3):
+    test_location = os.path.join(TEST_DIR, f"zarr{version}_simple_unsharded.zarr")
 
     if os.path.exists(test_location):
         shutil.rmtree(test_location)
@@ -19,7 +19,14 @@ def create_simple_dataset():
     shape = [1000, 1000, 50]
     data = np.ones(shape, dtype=np.uint8, order="C")
 
-    arr = zarr.open(store=test_location, shape=shape, chunks=(100, 100, 10), dtype='uint8', mode='w')
+    arr = zarr.open(
+        store=test_location, 
+        shape=shape, 
+        chunks=(100, 100, 10), 
+        dtype='uint8', 
+        mode='w',
+        zarr_version=version,
+    )
     arr[:] = data
     arr.store.close()
 
@@ -40,18 +47,26 @@ def create_simple_ragged_dataset():
 
     return test_location
 
-def test_zarr3_unsharded_read_write():
-    test_location = os.path.join(TEST_DIR, "zarr_unsharded.zarr")
+@pytest.mark.parametrize("version", [2,3])
+def test_zarr3_unsharded_read_write(version):
+    test_location = os.path.join(TEST_DIR, f"zarr{version}_unsharded.zarr")
 
     shape = [1000, 1000, 50]
     data = np.zeros(shape, dtype=np.uint8, order="C")
     data[:20] = 1
 
-    arr = zarr.open(store=test_location, shape=shape, chunks=(100, 100, 10), dtype='uint8', mode='w')
+    arr = zarr.open(
+        store=test_location, 
+        shape=shape, 
+        chunks=(100, 100, 10), 
+        dtype='uint8', 
+        mode='w', 
+        zarr_version=version
+    )
     arr[:] = data
     arr.store.close()
 
-    cv = CloudVolume(f"zarr3://file://{test_location}", fill_missing=True)
+    cv = CloudVolume(f"zarr{version}://file://{test_location}", fill_missing=True)
 
     # by default zarr3 in C order [z,y,x], so inverting axes
     # results in a full transposition [x,y,z]
@@ -59,7 +74,14 @@ def test_zarr3_unsharded_read_write():
 
     cv[:] = 2
 
-    arr = zarr.open(store=test_location, shape=shape, chunks=(100, 100, 10), dtype='uint8', mode='r')
+    arr = zarr.open(
+        store=test_location, 
+        shape=shape, 
+        chunks=(100, 100, 10), 
+        dtype='uint8', 
+        mode='r',
+        zarr_version=version,
+    )
     assert np.all(arr[:] == 2)
     assert np.all(cv[:] == 2)
 
@@ -67,7 +89,7 @@ def test_zarr3_unsharded_read_write():
 
     test_location = create_simple_ragged_dataset()
 
-    cv = CloudVolume(f"zarr3://file://{test_location}", fill_missing=False)
+    cv = CloudVolume(f"zarr{version}://file://{test_location}", fill_missing=False)
 
     # by default zarr3 in C order [z,y,x], so inverting axes
     # results in a full transposition [x,y,z]
@@ -204,12 +226,13 @@ def test_zarr3_delete_some():
 
     shutil.rmtree(simple_dataset_loc)
 
-def test_zarr3_transfer_to():
-    simple_dataset_loc = create_simple_dataset()
+@pytest.mark.parametrize("version", [2,3])
+def test_zarr_transfer_to(version):
+    simple_dataset_loc = create_simple_dataset(version)
 
     precomputed_loc = os.path.join(TEST_DIR, "precomputed_simple_unsharded.zarr")
 
-    cv_zarr = CloudVolume("zarr3://file://" + simple_dataset_loc)
+    cv_zarr = CloudVolume(f"zarr{version}://file://" + simple_dataset_loc)
     cv_zarr.transfer_to("precomputed://file://" + precomputed_loc, cv_zarr.bounds)
 
     cv_precomputed = CloudVolume("precomputed://file://" + precomputed_loc)
