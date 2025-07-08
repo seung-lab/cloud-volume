@@ -436,10 +436,12 @@ def read_voxel(
     out[0,0,0,0] = arr[tuple(xyz)]
     return out
   elif isinstance(filedata, np.ndarray):
-    return filedata[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
+    # Need to copy to prevent a read-only view which can cause problems with fastremap
+    return np.copy(filedata[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis], order="F")
   else:
+    # Need to copy to prevent a read-only view which can cause problems with fastremap
     img = decode(filedata, encoding, shape, dtype, block_size, background_color)
-    return img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis]
+    return np.copy(img[tuple(xyz)][:, np.newaxis, np.newaxis, np.newaxis], order="F")
 
 def contains(
   filedata:bytes,
