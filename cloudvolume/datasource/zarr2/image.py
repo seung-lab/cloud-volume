@@ -202,13 +202,17 @@ class Zarr2ImageSource(ImageSourceInterface):
     compressor_args.pop("id", None)
     compressor_args.pop("blocksize", None)
 
+    if 'level' in compressor_args:
+      compressor_args['clevel'] = compressor_args['level']
+      del compressor_args['level']
+
     def all_chunks_by_channel(all_chunks):
       for ispt, iept, vol_spt, vol_ept in all_chunks:
         for c in range(self.meta.num_channels):
           yield image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, c ]
 
     for filename, imgchunk in zip(all_chunknames, all_chunks_by_channel(all_chunks)):
-      zarr_imgchunk = np.transpose(imgchunk[..., np.newaxis], axes=axis_mapping)
+      zarr_imgchunk = np.transpose(imgchunk, axes=axis_mapping)
       binary = zarr_imgchunk.tobytes(order)
       del zarr_imgchunk
       del imgchunk
@@ -221,11 +225,14 @@ class Zarr2ImageSource(ImageSourceInterface):
     CloudFiles(self.meta.cloudpath).puts(to_upload)
 
   def _chunknames(self, bbox, volume_bbox, mip, chunk_size, t):
+    meta = self.meta
     sep = self.meta.dimension_separator(mip)
     cf = CloudFiles(self.meta.cloudpath)
     num_channels = self.meta.num_channels
 
     tchunk = int(t / self.meta.num_time_chunks(mip))
+    voxel_offset = self.meta.voxel_offset(mip)[:3]
+    axes = [ (axis["type"], axis["name"]) for axis in self.meta.axes() ]
 
     class ZarrChunkNamesIterator():
       def __len__(self):
@@ -236,16 +243,26 @@ class Zarr2ImageSource(ImageSourceInterface):
         return n_chunks
       def __iter__(self):
         nonlocal volume_bbox
-        volume_bbox = Bbox.expand_to_chunk_size(volume_bbox, chunk_size)
-        volume_grid = volume_bbox // chunk_size
-        bbox_grid = bbox // chunk_size
+        volume_bbox = Bbox.expand_to_chunk_size(volume_bbox, chunk_size, offset=voxel_offset)
+        bbox_grid = (bbox - voxel_offset) // chunk_size
 
         for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
           for c in range(num_channels):
-            filename = sep.join([
-              str(tchunk), str(c), str(z), str(y), str(x)
-            ])
-            yield cf.join(str(mip), filename)
+            params = []
+            
+            for typ, name in axes:
+              if typ == "time":
+                params.append(str(tchunk))
+              elif typ == "space" and name == "x":
+                params.append(str(x))
+              elif typ == "space" and name == "y":
+                params.append(str(y))
+              elif typ == "space" and name == "z":
+                params.append(str(z))
+              elif typ == "channel":
+                params.append(str(c))
+
+            yield meta.chunk_name(mip, *params)
 
     return ZarrChunkNamesIterator()
 

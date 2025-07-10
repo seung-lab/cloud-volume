@@ -196,7 +196,10 @@ class Zarr2Metadata(PrecomputedMetadata):
 
   def num_time_chunks(self, mip):
     nframes = self.num_frames(mip)
-    t_chunk_size = self.time_chunk_size(mip)
+    try:
+      t_chunk_size = self.time_chunk_size(mip)
+    except ValueError:
+      return 1
     return int(np.ceil(nframes / t_chunk_size))
 
   def num_frames(self, mip):
