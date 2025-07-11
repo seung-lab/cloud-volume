@@ -144,6 +144,11 @@ def schedule_jobs(
   ):
     return schedule_single_threaded_jobs(fns, progress, total)
 
+  if isinstance(total, int):
+    concurrency = min(concurrency, max(total, 1))
+  elif hasattr(fns, "__len__"):
+    concurrency = min(concurrency, max(len(fns), 1))
+
   if green:
     return schedule_green_jobs(fns, concurrency, progress, total)
 
