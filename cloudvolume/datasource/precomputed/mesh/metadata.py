@@ -49,7 +49,8 @@ class PrecomputedMeshMetadata(object):
     # Igneous has long used mesh_mip_N_err_M to store
     # some information about the meshing job. Let's 
     # exploit that for now.
-    matches = re.search(MESH_MIP_REGEXP, self.mesh_path)
+    path = self.mesh_path or ""
+    matches = re.search(MESH_MIP_REGEXP, path)
     if matches is None:
       return None 
 
