@@ -484,6 +484,7 @@ def repopulate_lru_from_shm(
       img3d, encoding,
       meta.compressed_segmentation_block_size(mip),
       compression_params=meta.compression_params(mip),
+      num_threads=meta.config.codec_threads,
     )
     lru[chunkname] = (encoding, binary)
 
@@ -599,6 +600,7 @@ def download_chunk(
           img3d, lru_encoding, 
           block_size,
           compression_params=meta.compression_params(mip),
+          num_threads=meta.config.codec_threads,
         )
         
       lru[filename] = (lru_encoding, content)
@@ -690,7 +692,7 @@ def decode(
   Returns: ndarray
   """
   return _decode_helper(  
-    chunks.decode, 
+    partial(chunks.decode, num_threads=meta.config.codec_threads),
     meta, input_bbox, 
     content, fill_missing, 
     mip, background_color,
@@ -740,7 +742,7 @@ def decode_binary_image(
       return np.zeros(shape, dtype=bool, order="F")
 
   return _decode_helper(
-    partial(chunks.decode_binary_image, label), 
+    partial(chunks.decode_binary_image, label, num_threads=meta.config.codec_threads),
     meta, input_bbox, 
     content, fill_missing, 
     mip, 

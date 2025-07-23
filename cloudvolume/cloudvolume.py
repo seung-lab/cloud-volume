@@ -28,8 +28,10 @@ def register_plugin(key, creation_function):
 def compute_num_threads(num_threads:ParallelType) -> int:
   if isinstance(num_threads, bool):
     return mp.cpu_count() if num_threads == True else 1
+  elif num_threads == 0:
+    return mp.cpu_count()
   elif num_threads <= 0:
-    raise ValueError(f'Number of processes or threads must be >= 1. Got: {num_threads}')
+    raise ValueError(f'Number of processes or threads must be >= 0. Got: {num_threads}')
   else:
     return max(int(num_threads), 1)
 
