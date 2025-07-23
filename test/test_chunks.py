@@ -132,7 +132,8 @@ def test_jpeg(shape, num_channels, quality):
 @pytest.mark.parametrize("shape", ( (64,64,64), (64,61,50), (128,128,16), ))
 @pytest.mark.parametrize("num_channels", [1,3])
 @pytest.mark.parametrize("quality", [None,85,75,100])
-def test_jpegxl(shape, num_channels, quality):
+@pytest.mark.parametrize("num_threads", [0,1,2])
+def test_jpegxl(shape, num_channels, quality, num_threads):
   import imagecodecs
 
   xshape = list(shape) + [ num_channels ]
@@ -143,7 +144,8 @@ def test_jpegxl(shape, num_channels, quality):
     encode_decode(data + 255, 'jxl', shape, num_channels, level=quality)
 
   jpgxl = imagecodecs.jpegxl_decode(
-    encode(data, 'jxl', compression_params={ "level": quality }),
+    encode(data, 'jxl', compression_params={ "level": quality }, num_threads=num_threads),
+    numthreads=num_threads,
   )
   if num_channels == 1:
     assert jpgxl.shape[0] == shape[1] * shape[2]
@@ -157,8 +159,8 @@ def test_jpegxl(shape, num_channels, quality):
   # but it should have nearly the same average power
   random_data = np.random.randint(255, size=xshape, dtype=np.uint8)
   pre_avg = random_data.copy().flatten().mean()
-  encoded = encode(random_data, 'jxl', compression_params={ "level": quality })
-  decoded = decode(encoded, 'jxl', shape=xshape, dtype=np.uint8)
+  encoded = encode(random_data, 'jxl', compression_params={ "level": quality }, num_threads=num_threads)
+  decoded = decode(encoded, 'jxl', shape=xshape, dtype=np.uint8, num_threads=num_threads)
   post_avg = decoded.copy().flatten().mean()
 
   assert abs(pre_avg - post_avg) < 1
