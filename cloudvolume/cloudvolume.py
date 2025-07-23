@@ -25,6 +25,14 @@ REGISTERED_PLUGINS = {}
 def register_plugin(key, creation_function):
   REGISTERED_PLUGINS[key.lower()] = creation_function
 
+def compute_num_threads(num_threads:ParallelType) -> int:
+  if isinstance(num_threads, bool):
+    return mp.cpu_count() if num_threads == True else 1
+  elif num_threads <= 0:
+    raise ValueError(f'Number of processes or threads must be >= 1. Got: {num_threads}')
+  else:
+    return max(int(num_threads), 1)
+
 class SharedConfiguration(object):
   """
   Hack around python's inability to
@@ -39,22 +47,17 @@ class SharedConfiguration(object):
     compress_level:Optional[int], green:bool,
     mip:int, parallel:ParallelType, progress:bool, secrets:SecretsType,
     spatial_index_db:Optional[str], cache_locking:bool,
+    codec_threads:ParallelType,
     *args, **kwargs
   ):
-    if type(parallel) == bool:
-      parallel = mp.cpu_count() if parallel == True else 1
-    elif parallel <= 0:
-      raise ValueError('Number of processes must be >= 1. Got: ' + str(parallel))
-    else:
-      parallel = int(parallel)
-
     self.cdn_cache = cdn_cache
     self.cache_locking = bool(cache_locking)
+    self.codec_threads = compute_num_threads(codec_threads)
     self.compress = compress
     self.compress_level = compress_level
     self.green = bool(green)
     self.mip = mip
-    self.parallel = parallel 
+    self.parallel = compute_num_threads(parallel) 
     self.progress = bool(progress)
     self.secrets = secrets
     self.spatial_index_db = spatial_index_db
@@ -92,6 +95,7 @@ class CloudVolume:
     cache_locking:bool = True,
     lru_encoding:str = "same",
     timestamp:Optional[int] = None,
+    codec_threads:int = 0,
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
@@ -163,6 +167,9 @@ class CloudVolume:
         - int: number of seconds for cache to be considered fresh (max-age)
         - bool: True: max-age=3600, False: no-cache
         - str: set the header manually
+      codec_threads: (int) for data codecs which support
+        multithreading (e.g. JPEG-XL), this sets the number of threads to use. 
+        0 means use all cores.
       compress: (bool, str, None) pick which compression method to use.
           None: (default) gzip for raw arrays and no additional compression
             for compressed_segmentation and fpzip.
