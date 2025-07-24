@@ -16,7 +16,6 @@ from .. import (
 
 from ...types import CompressType, MipType
 from ... import compression
-from ... import chunks
 from ... import exceptions 
 from ...lib import ( 
   colorize, red, mkdir, Vec, Bbox, BboxLikeType, 
