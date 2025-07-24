@@ -97,7 +97,7 @@ class CloudVolume:
     cache_locking:bool = True,
     lru_encoding:str = "same",
     timestamp:Optional[int] = None,
-    codec_threads:int = 0,
+    codec_threads:int = 1,
   ):
     """
     A "serverless" Python client for reading and writing arbitrarily large 
