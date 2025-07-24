@@ -568,6 +568,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress=compress,
         compress_level=compress_level,
         encoding=encoding,
+        codec_threads=self.config.codec_threads,
       )
     elif not sharded and self.is_sharded(mip):
       return xfer.transfer_any_to_unsharded(
@@ -577,6 +578,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress=compress,
         compress_level=compress_level,
         encoding=encoding,
+        codec_threads=self.config.codec_threads,
       )
     elif sharded and self.is_sharded(mip):
       return xfer.transfer_sharded_to_sharded(
@@ -587,6 +589,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress=compress, 
         compress_level=compress_level, 
         encoding=encoding,
+        codec_threads=self.config.codec_threads,
       )
     elif not sharded and not self.is_sharded(mip):
       return xfer.transfer_unsharded_to_unsharded(
@@ -597,6 +600,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress=compress,
         compress_level=compress_level, 
         encoding=encoding,
+        codec_threads=self.config.codec_threads,
       )
     else:
       return xfer.transfer_unsharded_to_sharded(
@@ -606,6 +610,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress=compress, 
         compress_level=compress_level, 
         encoding=encoding,
+        codec_threads=self.config.codec_threads,
       )
 
   def shard_reader(self, mip=None):
