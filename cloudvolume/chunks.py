@@ -499,6 +499,7 @@ def transcode(
   compression_params:dict = {},
   force:bool = False,
   total:Optional[int] = None,
+  num_threads:int = 1,
 ):
   """
   Convert one image encoding into another in the most efficient way
@@ -545,14 +546,14 @@ def transcode(
     from imagecodecs import jpegxl_encode_jpeg
 
     for label, binary in itr:
-      new_binary = jpegxl_encode_jpeg(binary)
+      new_binary = jpegxl_encode_jpeg(binary, numthreads=num_threads)
 
       yield (label, new_binary)
   elif src_encoding == "jxl" and dest_encoding == "jpeg":
     from imagecodecs import jpegxl_decode_jpeg
 
     for label, binary in itr:
-      new_binary = jpegxl_decode_jpeg(binary)
+      new_binary = jpegxl_decode_jpeg(binary, numthreads=num_threads)
       yield (label, new_binary)
   else:
     for label, binary in itr:
@@ -563,6 +564,7 @@ def transcode(
         dtype=dtype,
         block_size=src_block_size,
         background_color=background_color,
+        num_threads=num_threads,
       )
       while image.ndim < 4:
         image = image[..., np.newaxis]
@@ -571,6 +573,7 @@ def transcode(
         encoding=dest_encoding,
         block_size=dest_block_size,
         compression_params=compression_params,
+        num_threads=num_threads,
       )
       yield (label, new_binary)
 
