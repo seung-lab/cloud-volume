@@ -82,9 +82,10 @@ SUPPORTED_ENCODINGS = (
 
 def encode(
   img_chunk:np.ndarray, 
-  encoding:str, 
+  encoding:str,
   block_size:Optional[Sequence[int]] = None,
   compression_params:dict = {},
+  num_threads:int = 0,
 ) -> bytes:
   level = compression_params.get("level", None)
 
@@ -106,7 +107,7 @@ def encode(
   elif encoding == "compresso":
     return compresso.compress(img_chunk[:,:,:,0])
   elif encoding == "crackle":
-    return crackle.compress(img_chunk[:,:,:,0])
+    return crackle.compress(img_chunk[:,:,:,0], parallel=num_threads)
   elif encoding == "jpeg":
     return encode_jpeg(img_chunk, nvl(level, 85))
   elif encoding == "jxl":
@@ -115,6 +116,7 @@ def encode(
       level=nvl(level, 85), 
       effort=compression_params.get("jxl_effort", 5),
       decodingspeed=compression_params.get("jxl_decodingspeed", 0),
+      num_threads=num_threads,
     )
   elif encoding == "png":
     return encode_png(img_chunk, nvl(level, 9))
@@ -133,7 +135,8 @@ def decode(
   shape:Optional[Sequence[int]] = None, 
   dtype:Any = None, 
   block_size:Optional[Sequence[int]] = None, 
-  background_color:int = 0
+  background_color:int = 0,
+  num_threads:int = 0,
 ) -> np.ndarray:
   if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed', 'crackle', 'compresso'):
     raise ValueError(
@@ -163,11 +166,11 @@ def decode(
   elif encoding == "compresso":
     return compresso.decompress(filedata).reshape(shape)
   elif encoding == "crackle":
-    return crackle.decompress(filedata).reshape(shape)
+    return crackle.decompress(filedata, parallel=num_threads).reshape(shape)
   elif encoding == "jpeg":
     return decode_jpeg(filedata, shape=shape, dtype=dtype)
   elif encoding == "jxl":
-    return decode_jpegxl(filedata, shape=shape)
+    return decode_jpegxl(filedata, shape=shape, num_threads=num_threads)
   elif encoding == "png":
     return decode_png(filedata, shape=shape, dtype=dtype)
   elif encoding == "npz":
@@ -183,13 +186,22 @@ def decode_binary_image(
   dtype:Any = None, 
   block_size:Optional[Sequence[int]] = None, 
   background_color:int = 0,
+  num_threads:int = 0,
 ):
   check_installed(encoding)
 
   if encoding == "crackle":
     return crackle.decompress(filedata, label=label).reshape(shape)
 
-  labels = decode(filedata, encoding, shape, dtype, block_size, background_color)
+  labels = decode(
+    filedata, 
+    encoding=encoding, 
+    shape=shape, 
+    dtype=dtype, 
+    block_size=block_size, 
+    background_color=background_color, 
+    num_threads=num_threads
+  )
   return labels == label
 
 def as2d(arr):
@@ -205,7 +217,7 @@ def as2d(arr):
   )
   return reshaped, num_channel
 
-def encode_jpegxl(arr, level, effort, decodingspeed):
+def encode_jpegxl(arr, level, effort, decodingspeed, num_threads):
   if not np.issubdtype(arr.dtype, np.uint8):
     raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
 
@@ -220,7 +232,7 @@ def encode_jpegxl(arr, level, effort, decodingspeed):
       lossless=lossless,
       effort=effort,
       decodingspeed=decodingspeed,
-      numthreads=0,
+      numthreads=num_threads,
     )
   elif num_channel == 3:
     arr = np.transpose(arr, axes=[2, 0, 1])
@@ -231,12 +243,12 @@ def encode_jpegxl(arr, level, effort, decodingspeed):
       lossless=lossless,
       effort=effort,
       decodingspeed=decodingspeed,
-      numthreads=0,
+      numthreads=num_threads,
     )
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
-def decode_jpegxl(binary:bytes, shape):
-  data = imagecodecs.jpegxl_decode(binary, numthreads=0)
+def decode_jpegxl(binary:bytes, shape:tuple[int,int,int], num_threads:int = 0):
+  data = imagecodecs.jpegxl_decode(binary, numthreads=num_threads)
   if shape[3] == 3:
     data = np.transpose(data, axes=[1, 2, 0])
 
@@ -487,6 +499,7 @@ def transcode(
   compression_params:dict = {},
   force:bool = False,
   total:Optional[int] = None,
+  num_threads:int = 1,
 ):
   """
   Convert one image encoding into another in the most efficient way
@@ -533,14 +546,14 @@ def transcode(
     from imagecodecs import jpegxl_encode_jpeg
 
     for label, binary in itr:
-      new_binary = jpegxl_encode_jpeg(binary)
+      new_binary = jpegxl_encode_jpeg(binary, numthreads=num_threads)
 
       yield (label, new_binary)
   elif src_encoding == "jxl" and dest_encoding == "jpeg":
     from imagecodecs import jpegxl_decode_jpeg
 
     for label, binary in itr:
-      new_binary = jpegxl_decode_jpeg(binary)
+      new_binary = jpegxl_decode_jpeg(binary, numthreads=num_threads)
       yield (label, new_binary)
   else:
     for label, binary in itr:
@@ -551,6 +564,7 @@ def transcode(
         dtype=dtype,
         block_size=src_block_size,
         background_color=background_color,
+        num_threads=num_threads,
       )
       while image.ndim < 4:
         image = image[..., np.newaxis]
@@ -559,6 +573,7 @@ def transcode(
         encoding=dest_encoding,
         block_size=dest_block_size,
         compression_params=compression_params,
+        num_threads=num_threads,
       )
       yield (label, new_binary)
 

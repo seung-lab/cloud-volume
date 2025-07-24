@@ -22,6 +22,7 @@ def create_zarr3(
   non_aligned_writes:bool=False, delete_black_uploads:bool=False,
   parallel:ParallelType=1,green_threads:bool=False, 
   secrets:SecretsType=None, cache_locking:bool = True,
+  codec_threads:ParallelType = 1,
   **kwargs # absorb graphene arguments
 ):
     path = strict_extract(cloudpath)
@@ -36,6 +37,7 @@ def create_zarr3(
       secrets=secrets,
       spatial_index_db=None,
       cache_locking=cache_locking,
+      codec_threads=codec_threads,
     )
     cache = CacheService(
       cloudpath=get_cache_path(cache, cloudpath),

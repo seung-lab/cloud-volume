@@ -323,6 +323,7 @@ def threaded_upload_chunks(
         imgchunk, encoding, 
         meta.compressed_segmentation_block_size(mip),
         compression_params=meta.compression_params(mip),
+        num_threads=meta.config.codec_threads,
       )
 
     if lru is not None:
@@ -333,6 +334,7 @@ def threaded_upload_chunks(
           imgchunk, lru_encoding, 
           meta.compressed_segmentation_block_size(mip),
           compression_params=meta.compression_params(mip),
+          num_threads=meta.config.codec_threads,
         )
         lru[cloudpath] = (lru_encoding, lru_encoded)
     

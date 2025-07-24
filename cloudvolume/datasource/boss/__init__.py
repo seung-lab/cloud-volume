@@ -19,8 +19,9 @@ def create_boss(
     fill_missing:bool = False, cache:CacheType = False, compress_cache:CompressType = None,
     cdn_cache:bool = True, progress:bool = False, info:Optional[dict] = None, 
     provenance:Optional[dict] = None, compress:CompressType = None, 
-    non_aligned_writes:bool = False, parallel:int = 1, delete_black_uploads:bool = False, 
-    green_threads:bool = False, cache_locking:bool = True,
+    non_aligned_writes:bool = False, parallel:ParallelType = 1, delete_black_uploads:bool = False, 
+    green_threads:bool = False, cache_locking:bool = True, codec_threads:ParallelType = 1,
+    *args, **kwargs # absorb graphene arguments
   ):
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
@@ -34,6 +35,7 @@ def create_boss(
       secrets=secrets,
       spatial_index_db=None,
       cache_locking=cache_locking,
+      codec_threads=codec_threads,
     )
     cache = CacheService(
       cloudpath=get_cache_path(cache, cloudpath),

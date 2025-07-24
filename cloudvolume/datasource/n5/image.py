@@ -82,6 +82,7 @@ class N5ImageSource(ImageSourceInterface):
       encoding='raw', 
       shape=dims, 
       dtype=self.meta.dtype,
+      num_threads=self.config.codec_threads,
     )
     return data, dims
 

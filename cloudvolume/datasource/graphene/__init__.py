@@ -28,6 +28,7 @@ def create_graphene(
     spatial_index_db:Optional[str]=None, 
     lru_bytes:int = 0, cache_locking:bool = True,
     timestamp:Optional[int] = None,
+    codec_threads:ParallelType = 1,
     **kwargs
   ):
     from ...frontends import CloudVolumeGraphene
@@ -44,6 +45,7 @@ def create_graphene(
       secrets=secrets,
       spatial_index_db=spatial_index_db,
       cache_locking=cache_locking,
+      codec_threads=codec_threads,
     )
 
     def mkcache(cloudpath):
