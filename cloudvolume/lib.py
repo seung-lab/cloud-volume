@@ -650,6 +650,15 @@ class Bbox(object):
     while len(slices) < self.ndim:
       slices.append( slice(None, None, None) )
 
+    while len(slices) > self.ndim:
+      slc = slices[-1]
+      if slc.start is None and slc.stop is None:
+        slices.pop()
+      elif abs(slc.stop - slc.start) == 1:
+        slices.pop()
+      else:
+        raise ValueError(f"Too many slices {slices} for this context {self}")
+
     # First three slices are x,y,z, last is channel. 
     # Handle only x,y,z here, channel seperately
     for index, slc in enumerate(slices):
