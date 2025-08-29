@@ -201,9 +201,6 @@ class PrecomputedImageSource(ImageSourceInterface):
     numberfn = int if np.issubdtype(self.meta.dtype, np.integer) else float
 
     if self.is_sharded(mip):
-      if renumber:
-        raise ValueError("renumber is only supported for non-sharded volumes.")
-
       scale = self.meta.scale(mip)
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_sharded(
@@ -215,6 +212,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         order=order,
         background_color=numberfn(self.background_color),
         label=label,
+        renumber=renumber,
       )
     else:
       return rx.download(
