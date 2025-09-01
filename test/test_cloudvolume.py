@@ -236,6 +236,33 @@ def test_read_binary_image(green, encoding, lru_bytes):
 
 
 @pytest.mark.parametrize('green', (True, False))
+@pytest.mark.parametrize('encoding', ('raw', 'compressed_segmentation', 'crackle'))
+@pytest.mark.parametrize('lru_bytes', (0,1e6))
+def test_read_sharded_renumber(shard_vol, shard_vol_data_cpso, green, encoding, lru_bytes):
+  shard_vol.green_threads = green
+  shard_vol.image.lru.resize(lru_bytes)
+  data = shard_vol_data_cpso
+
+  bbox = Bbox([0,0,0], data.shape)
+  
+  img, remap = shard_vol.download(shard_vol.bounds, mip=0, renumber=True)
+
+  assert img.dtype == np.uint16
+  uniq = np.unique(img)
+  assert uniq.size == uniq[-1] + 1
+  
+  bbox = Bbox([1,1,1], [2,2,2])
+  img, remap = shard_vol.download(bbox, mip=0, label=data[1,1,1], renumber=True)
+  assert img.dtype == bool
+  assert np.all(img == True)
+
+  img, remap = shard_vol.download(bbox, mip=0, renumber=True)
+  assert img.dtype == np.uint16
+  assert np.all(img == 1)
+  assert remap[data[1,1,1]] == 1
+
+
+@pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
 @pytest.mark.parametrize('lru_encoding', ["same", "raw", "crackle"])
