@@ -330,12 +330,12 @@ def download(
       with lock:
         for lbl in img_labels:
           if lbl not in remap:
-            remap[lbl] = N
+            remap[int(lbl)] = N
             N += 1
         if N > np.iinfo(renderbuffer.dtype).max:
           renderbuffer = fastremap.refit(renderbuffer, value=N, increase_only=True)
 
-        fastremap.remap(img3d, remap, in_place=True)
+        img3d = fastremap.remap(img3d, remap, in_place=True)
         shade(renderbuffer, requested_bbox, img3d, bbox)
 
     fn = process
