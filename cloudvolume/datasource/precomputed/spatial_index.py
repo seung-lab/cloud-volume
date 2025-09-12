@@ -697,11 +697,11 @@ class SpatialIndex(object):
 
     return labels
 
-def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
+def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax, postgres_syntax=False):
   conn = connect(path)
   cur = conn.cursor()
 
-  set_journaling_to_performance_mode(cur, mysql_syntax)
+  set_journaling_to_performance_mode(cur, mysql_syntax, postgres_syntax)
 
   print("started thread", threading.current_thread().ident)
   try:
@@ -711,7 +711,7 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
       except queue.Empty:
         time.sleep(0.1)
         continue
-      insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax)
+      insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax, postgres_syntax)
       qu.task_done()
   finally:
     cur.close()
@@ -719,10 +719,14 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
 
   print('finished', threading.current_thread().ident)
 
-def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
+def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax, postgres_syntax=False):
   import simdjson
   # handle SQLite vs MySQL syntax quirks
-  BIND = '%s' if mysql_syntax else '?'
+  if mysql_syntax or postgres_syntax:
+    BIND = '%s'
+  else:
+    BIND = '?'
+
   AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
   INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
 
@@ -771,7 +775,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
     total=len(all_values)
   )
 
-  block_size = 500000 if mysql_syntax else 15000
+  block_size = 500000 if (mysql_syntax or postgres_syntax) else 15000
 
   with pbar:
     for chunked_values in sip(all_values, block_size):
@@ -779,8 +783,10 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
       conn.commit()
       pbar.update(len(chunked_values))
 
-def set_journaling_to_performance_mode(cur, mysql_syntax):
+def set_journaling_to_performance_mode(cur, mysql_syntax, postgres_syntax=False):
   if mysql_syntax:
+    cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+  elif postgres_syntax:
     cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
   else: # sqlite
     cur.execute("PRAGMA journal_mode = MEMORY")
