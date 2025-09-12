@@ -40,6 +40,7 @@ def parse_db_path(path):
   """
   sqlite paths: filename.db
   mysql paths: mysql://{user}:{pwd}@{host}/{database}
+  postgres paths: postgres://{user}:{pwd}@{host}/{database}
 
   database defaults to "spatial_index"
   """
@@ -75,28 +76,42 @@ def connect(path, use_database=True):
 
   if result["scheme"] == "sqlite":
     return sqlite3.connect(result["path"])
+  elif result["scheme"] == "mysql":
+    if any([ result[x] is None for x in ("username", "password") ]):
+      credentials = mysql_credentials(result["hostname"])
+      if result["password"] is None:
+        result["password"] = credentials["password"]
+      if result["username"] is None:
+        result["username"] = credentials["username"]
 
-  if result["scheme"] != "mysql":
+    import mysql.connector
+    return mysql.connector.connect(
+      host=result["hostname"],
+      user=result["username"],
+      passwd=result["password"],
+      port=(result["port"] or 3306), # default MySQL port
+      database=(result["path"] if use_database else None),
+    )
+  elif result["scheme"] in ("postgres", "postgresql"):
+    import psycopg2
+    kwargs = {
+      "host": result["hostname"],
+      "user": result["username"],
+      "password": result["password"],
+      "port": (result["port"] or 5432),
+    }
+    if use_database:
+      kwargs["database"] = result["path"]
+
+    # psycopg2 doesn't like None values for keyword arguments
+    kwargs = { k: v for k, v in kwargs.items() if v is not None }
+
+    return psycopg2.connect(**kwargs)
+  else:
     raise ValueError(
       f"{result['scheme']} is not a supported "
-      f"spatial database connector."
+      f"spatial database connector. Supported: sqlite, mysql, postgres"
     )
-
-  if any([ result[x] is None for x in ("username", "password") ]):
-    credentials = mysql_credentials(result["hostname"])
-    if result["password"] is None:
-      result["password"] = credentials["password"]
-    if result["username"] is None:
-      result["username"] = credentials["username"]
-
-  import mysql.connector
-  return mysql.connector.connect(
-    host=result["hostname"],
-    user=result["username"],
-    passwd=result["password"],
-    port=(result["port"] or 3306), # default MySQL port
-    database=(result["path"] if use_database else None),
-  )
 
 class SpatialIndex(object):
   """
