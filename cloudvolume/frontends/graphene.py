@@ -500,6 +500,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     renumber:bool = False, 
     coord_resolution:Optional[Sequence[int]] = None,
     label:Optional[int] = None,
+    out:Optional[np.ndarray] = None,
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -591,7 +592,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       mip=mip, 
       parallel=parallel, 
       renumber=renumber,
-      label=(label if direct_binary_image else None)
+      label=(label if direct_binary_image else None),
+      out=out,
     )
     if direct_binary_image:
       if renumber_return:
