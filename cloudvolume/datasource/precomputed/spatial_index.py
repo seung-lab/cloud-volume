@@ -506,11 +506,17 @@ class SpatialIndex(object):
     if self.sql_db:
       conn = connect(self.sql_db)
       cur = conn.cursor()
-      cur.execute("""
+
+      db_type = parse_db_path(self.sql_db)["scheme"]
+      BIND = '?'
+      if db_type == 'mysql' or db_type in ('postgres', 'postgresql'):
+        BIND = '%s'
+
+      cur.execute(f"""
         select index_files.filename  
         from file_lookup, index_files
         where file_lookup.fid = index_files.id
-          and file_lookup.label = ?
+          and file_lookup.label = {BIND}
       """, (label,))
       iterator = [ self.fetch_index_files(( row[0] for row in cur.fetchall() )) ]
       conn.close()
