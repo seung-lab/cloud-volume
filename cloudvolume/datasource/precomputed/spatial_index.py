@@ -268,6 +268,8 @@ class SpatialIndex(object):
       )
     """)
 
+    conn.commit()
+
     finished_loading_evt = threading.Event()
     query_lock = threading.Lock()
 
@@ -320,11 +322,89 @@ class SpatialIndex(object):
         progress=progress,
         parallel=parallel,
       )
+    elif parse["scheme"] in ("postgres", "postgresql"):
+      return self.to_postgres(
+        path,
+        create_indices=create_indices,
+        allow_missing=allow_missing,
+        progress=progress,
+        parallel=parallel,
+      )
     else:
       raise ValueError(
         f"Unsupported database type. {path}\n"
-        "Supported types: sqlite:// and mysql://"
+        "Supported types: sqlite://, mysql://, and postgres://"
       )
+
+  def to_postgres(
+    self, path,
+    create_indices=True, allow_missing=False,
+    progress=None, parallel=1
+  ):
+    """
+    Create a postgres database of labels and filenames
+    from the JSON spatial_index for faster performance.
+    """
+    import psycopg2
+    import psycopg2.extensions
+    progress = nvl(progress, self.config.progress)
+    parse = parse_db_path(path)
+
+    database_name = parse["path"] or "spatial_index"
+
+    if re.search(r'[^a-zA-Z0-9_]', database_name):
+      raise ValueError(
+        f"Invalid characters in database name. "
+        f"Only alphanumerics and underscores are allowed. "
+        f"Got: {database_name}"
+      )
+
+    try:
+      # Connect to default 'postgres' db to create new db
+      # Use urllib.parse for robust URI manipulation
+      original_uri_parts = urllib.parse.urlparse(path)
+      new_uri_parts = original_uri_parts._replace(path='/postgres')
+      postgres_db_path_uri = urllib.parse.urlunparse(new_uri_parts)
+
+      conn = connect(postgres_db_path_uri, use_database=True)
+      conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+      cur = conn.cursor()
+    except psycopg2.Error as e:
+      raise ConnectionError(
+        f"Failed to connect to default 'postgres' database to create '{database_name}'. "
+        f"Check that the server is running and that you have permissions to connect. "
+        f"Original error: {e}"
+      ) from e
+
+    try:
+      cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database_name,))
+      exists = cur.fetchone()
+
+      if not exists:
+          try:
+            cur.execute(f'CREATE DATABASE "{database_name}"')
+          except psycopg2.Error as e:
+            raise PermissionError(
+              f"Failed to create database '{database_name}'. "
+              f"The user in the connection string must have CREATEDB privileges. "
+              f"Original error: {e}"
+            ) from e
+    finally:
+      cur.close()
+      conn.close()
+
+    # now connect to the newly created database
+    conn = connect(path, use_database=True)
+    cur = conn.cursor()
+
+    self._to_sql_common(
+      conn, cur, path,
+      create_indices, allow_missing, progress,
+      mysql_syntax=False, postgres_syntax=True, parallel=parallel,
+    )
+
+    cur.close()
+    conn.close()
 
   def to_mysql(
     self, path, 
