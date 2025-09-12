@@ -11,7 +11,7 @@ from tqdm import tqdm
 from cloudfiles import reset_connection_pools, CloudFiles, compression
 import fastremap
 
-from ....exceptions import EmptyVolumeException, EmptyFileException
+from ....exceptions import EmptyVolumeException, EmptyFileException, DimensionError
 from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, 
@@ -43,7 +43,7 @@ def download_sharded(
   compress, progress,
   fill_missing, 
   order, background_color,
-  label, renumber,
+  label, renumber, out,
 ):
   full_bbox = requested_bbox.expand_to_chunk_size(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
@@ -52,7 +52,13 @@ def download_sharded(
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
-  if label is None:
+  if isinstance(out, np.ndarray):
+    if out.shape != tuple(shape):
+      raise DimensionError(f"out array must match requested dimenions: Got: {out.shape}, Needed: {tuple(shape)}")
+    if not renumber and np.dtype(out.dtype).itemsize < np.dtype(meta.dtype).itemsize:
+      raise OverflowError(f"out array dtype too small for this volume. Got: {out.dtype}, Need: {meta.dtype}")
+    renderbuffer = out
+  elif label is None:
     dtype = np.uint16 if renumber else meta.dtype
     renderbuffer = np.full(
       shape=shape, fill_value=background_color,
@@ -243,7 +249,7 @@ def download(
   use_file, compress, order='F',
   green=False, secrets=None,
   renumber=False, background_color=0,
-  label=None
+  label=None, out=None,
 ):
   """Cutout a requested bounding box from storage and return it as a numpy array."""
   
@@ -306,6 +312,12 @@ def download(
       )
       if not retain:
         os.unlink(location)
+    elif isinstance(out, np.ndarray):
+      if out.shape != tuple(shape):
+        raise DimensionError(f"out array must match requested dimenions: Got: {out.shape}, Needed: {tuple(shape)}")
+      if not renumber and np.dtype(out.dtype).itemsize < np.dtype(meta.dtype).itemsize:
+        raise OverflowError(f"out array dtype too small for this volume. Got: {out.dtype}, Need: {meta.dtype}")
+      renderbuffer = out      
     elif background_color == 0:
       renderbuffer = np.zeros(shape, dtype=dtype, order=order)
     else:

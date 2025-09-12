@@ -152,6 +152,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     use_shared_memory=False, use_file=False,
     order='F', renumber=False, 
     label=None, progress=None,
+    out=None,
   ):
     """
     Download a cutout image from the dataset.
@@ -177,6 +178,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     label: If provided, downloads a binary image where the selected
       label is foreground. This can help reduce memory usage 1-byte
       per voxel instead of the volume's dtype (max: 8-bytes per voxel).
+    out: if provided a numpy array and the dimensions match what is requested,
+      then use this array to write the download into to avoid an additional
+      memory allocation. If the dimensions do not match, throw an error.
 
     Returns:
       if renumber:
@@ -213,6 +217,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         background_color=numberfn(self.background_color),
         label=label,
         renumber=renumber,
+        out=out,
       )
     else:
       return rx.download(
@@ -235,6 +240,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         renumber=renumber,
         background_color=numberfn(self.background_color),
         label=label,
+        out=out,
       )
 
   def download_files(

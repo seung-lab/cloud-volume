@@ -753,6 +753,7 @@ class CloudVolumePrecomputed(object):
     renumber:bool = False, 
     coord_resolution:Optional[Sequence[int]] = None,
     label:Optional[int] = None,
+    out:Optional[np.ndarray] = None,
   ) -> VolumeCutout:
     """
     Downloads segmentation from the indicated cutout
@@ -776,6 +777,8 @@ class CloudVolumePrecomputed(object):
       higher res layer and this can help correct that.
     label: download as a binary image where this label is foreground (True)
       and everything else is background (False)
+    out: Attempt to use this array to write the output in order to avoid additional
+      allocations. If dimensions do not match, it won't work. If
 
     agglomerate, timestamp, and stop_layer are just there to 
     absorb arguments to what could be a graphene frontend.
@@ -818,6 +821,7 @@ class CloudVolumePrecomputed(object):
       parallel=parallel, 
       renumber=bool(renumber),
       label=label,
+      out=out,
     )
     
     if renumber:
