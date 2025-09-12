@@ -238,23 +238,39 @@ class SpatialIndex(object):
   def _to_sql_common(
     self, conn, cur, path,
     create_indices, allow_missing, 
-    progress, mysql_syntax=False, parallel=1
+    progress, mysql_syntax=False, postgres_syntax=False, parallel=1
   ):
     # handle SQLite vs MySQL syntax quirks
-    BIND = '%s' if mysql_syntax else '?'
-    AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
-    INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
+    if mysql_syntax:
+      BIND = '%s'
+      AUTOINC = "AUTO_INCREMENT"
+      INTEGER = "BIGINT UNSIGNED"
+      ID_INTEGER = INTEGER
+    elif postgres_syntax:
+      BIND = '%s'
+      AUTOINC = ""
+      INTEGER = "BIGINT" # no unsigned
+      ID_INTEGER = "BIGSERIAL"
+    else: # sqlite
+      BIND = '?'
+      AUTOINC = "AUTOINCREMENT"
+      INTEGER = "INTEGER"
+      ID_INTEGER = INTEGER
 
     progress = nvl(progress, self.config.progress)
     if parallel < 1 or parallel != int(parallel):
       raise ValueError(f"parallel must be an integer >= 1. Got: {parallel}")
 
-    cur.execute("""DROP TABLE IF EXISTS index_files""")
-    cur.execute("""DROP TABLE IF EXISTS file_lookup""")
+    if postgres_syntax:
+      cur.execute("""DROP TABLE IF EXISTS file_lookup CASCADE""")
+      cur.execute("""DROP TABLE IF EXISTS index_files CASCADE""")
+    else:
+      cur.execute("""DROP TABLE IF EXISTS file_lookup""")
+      cur.execute("""DROP TABLE IF EXISTS index_files""")
 
     cur.execute(f"""
       CREATE TABLE index_files (
-        id {INTEGER} PRIMARY KEY {AUTOINC},
+        id {ID_INTEGER} PRIMARY KEY {AUTOINC},
         filename VARCHAR(100) NOT NULL
       )
     """)
@@ -277,7 +293,7 @@ class SpatialIndex(object):
     threads = [ 
       threading.Thread(
         target=thread_safe_insert, 
-        args=(path, query_lock, finished_loading_evt, qu, progress, mysql_syntax)
+        args=(path, query_lock, finished_loading_evt, qu, progress, mysql_syntax, postgres_syntax)
       )
       for i in range(parallel) 
     ]
