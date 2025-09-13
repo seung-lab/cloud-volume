@@ -25,3 +25,4 @@ simplejpeg
 tenacity>=4.10.0
 tqdm
 urllib3[brotli]>=1.25.7
+psycopg2
