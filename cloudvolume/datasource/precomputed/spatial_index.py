@@ -7,6 +7,7 @@ import queue
 import sqlite3
 import threading
 import time
+from enum import StrEnum
 
 import tenacity
 import numpy as np
@@ -21,6 +22,11 @@ from ...lib import (
   Bbox, Vec, xyzrange, min2, 
   toiter, sip, nvl, getprecision
 )
+
+class DbType(StrEnum):
+  SQLITE = "sqlite"
+  MYSQL = "mysql"
+  POSTGRES = "postgres"
 
 retry = tenacity.retry(
   reraise=True, 
@@ -237,16 +243,16 @@ class SpatialIndex(object):
 
   def _to_sql_common(
     self, conn, cur, path,
-    create_indices, allow_missing, 
-    progress, mysql_syntax=False, postgres_syntax=False, parallel=1
+    create_indices, allow_missing,
+    progress, db_type, parallel=1
   ):
     # handle SQLite vs MySQL syntax quirks
-    if mysql_syntax:
+    if db_type == DbType.MYSQL:
       BIND = '%s'
       AUTOINC = "AUTO_INCREMENT"
       INTEGER = "BIGINT UNSIGNED"
       ID_INTEGER = INTEGER
-    elif postgres_syntax:
+    elif db_type == DbType.POSTGRES:
       BIND = '%s'
       AUTOINC = ""
       INTEGER = "BIGINT" # no unsigned
@@ -261,7 +267,7 @@ class SpatialIndex(object):
     if parallel < 1 or parallel != int(parallel):
       raise ValueError(f"parallel must be an integer >= 1. Got: {parallel}")
 
-    if postgres_syntax:
+    if db_type == DbType.POSTGRES:
       cur.execute("""DROP TABLE IF EXISTS file_lookup CASCADE""")
       cur.execute("""DROP TABLE IF EXISTS index_files CASCADE""")
     else:
@@ -293,7 +299,7 @@ class SpatialIndex(object):
     threads = [ 
       threading.Thread(
         target=thread_safe_insert, 
-        args=(path, query_lock, finished_loading_evt, qu, progress, mysql_syntax, postgres_syntax)
+        args=(path, query_lock, finished_loading_evt, qu, progress, db_type)
       )
       for i in range(parallel) 
     ]
@@ -322,7 +328,9 @@ class SpatialIndex(object):
   ):
     path = path or self.sql_db
     parse = parse_db_path(path)
-    if parse["scheme"] == "sqlite":
+    scheme = parse["scheme"]
+
+    if scheme == DbType.SQLITE:
       if parallel != 1:
         raise ValueError("sqlite supports only one writer at a time.")
       return self.to_sqlite(
@@ -331,14 +339,14 @@ class SpatialIndex(object):
         allow_missing=allow_missing, 
         progress=progress,
       )
-    elif parse["scheme"] == "mysql":
+    elif scheme == DbType.MYSQL:
       return self.to_mysql(path, 
         create_indices=create_indices, 
         allow_missing=allow_missing, 
         progress=progress,
         parallel=parallel,
       )
-    elif parse["scheme"] in ("postgres", "postgresql"):
+    elif scheme in (DbType.POSTGRES, "postgresql"):
       return self.to_postgres(
         path,
         create_indices=create_indices,
@@ -416,15 +424,15 @@ class SpatialIndex(object):
     self._to_sql_common(
       conn, cur, path,
       create_indices, allow_missing, progress,
-      mysql_syntax=False, postgres_syntax=True, parallel=parallel,
+      db_type=DbType.POSTGRES, parallel=parallel,
     )
 
     cur.close()
     conn.close()
 
   def to_mysql(
-    self, path, 
-    create_indices=True, allow_missing=False, 
+    self, path,
+    create_indices=True, allow_missing=False,
     progress=None, parallel=1
   ):
     """
@@ -456,16 +464,16 @@ class SpatialIndex(object):
     cur.execute(f"use {database_name}")
 
     self._to_sql_common(
-      conn, cur, path, 
-      create_indices, allow_missing, progress, 
-      mysql_syntax=True, parallel=parallel,
+      conn, cur, path,
+      create_indices, allow_missing, progress,
+      db_type=DbType.MYSQL, parallel=parallel,
     )
-    
+
     cur.close()
     conn.close()
 
   def to_sqlite(
-    self, path="spatial_index.db", 
+    self, path="spatial_index.db",
     create_indices=True, allow_missing=False,
     progress=None
   ):
@@ -479,17 +487,16 @@ class SpatialIndex(object):
     """
     conn = sqlite3.connect(path)
     cur = conn.cursor()
-    set_journaling_to_performance_mode(cur, mysql_syntax=False)
+    set_journaling_to_performance_mode(cur, db_type=DbType.SQLITE)
     self._to_sql_common(
-      conn, cur, path, 
-      create_indices, allow_missing, progress, 
-      mysql_syntax=False
+      conn, cur, path,
+      create_indices, allow_missing, progress,
+      db_type=DbType.SQLITE
     )
     cur.execute("PRAGMA journal_mode = DELETE")
     cur.execute("PRAGMA synchronous = FULL")
     cur.close()
     conn.close()
-
   def get_bbox(self, label):
     """
     Given a label, compute an enclosing bounding box for it.
@@ -507,9 +514,15 @@ class SpatialIndex(object):
       conn = connect(self.sql_db)
       cur = conn.cursor()
 
-      db_type = parse_db_path(self.sql_db)["scheme"]
+      db_type_str = parse_db_path(self.sql_db)["scheme"]
+      db_type = DbType.SQLITE
+      if db_type_str == DbType.MYSQL:
+        db_type = DbType.MYSQL
+      elif db_type_str in (DbType.POSTGRES, "postgresql"):
+        db_type = DbType.POSTGRES
+
       BIND = '?'
-      if db_type == 'mysql' or db_type in ('postgres', 'postgresql'):
+      if db_type in (DbType.MYSQL, DbType.POSTGRES):
         BIND = '%s'
 
       cur.execute(f"""
@@ -703,11 +716,11 @@ class SpatialIndex(object):
 
     return labels
 
-def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax, postgres_syntax=False):
+def thread_safe_insert(path, lock, evt, qu, progress, db_type):
   conn = connect(path)
   cur = conn.cursor()
 
-  set_journaling_to_performance_mode(cur, mysql_syntax, postgres_syntax)
+  set_journaling_to_performance_mode(cur, db_type)
 
   print("started thread", threading.current_thread().ident)
   try:
@@ -717,7 +730,7 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax, postgres_syn
       except queue.Empty:
         time.sleep(0.1)
         continue
-      insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax, postgres_syntax)
+      insert_index_files(index_files, lock, conn, cur, progress, db_type)
       qu.task_done()
   finally:
     cur.close()
@@ -725,16 +738,23 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax, postgres_syn
 
   print('finished', threading.current_thread().ident)
 
-def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax, postgres_syntax=False):
+def insert_index_files(index_files, lock, conn, cur, progress, db_type):
   import simdjson
   # handle SQLite vs MySQL syntax quirks
-  if mysql_syntax or postgres_syntax:
+  if db_type in (DbType.MYSQL, DbType.POSTGRES):
     BIND = '%s'
   else:
     BIND = '?'
 
-  AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
-  INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
+  if db_type == DbType.MYSQL:
+    AUTOINC = "AUTO_INCREMENT"
+    INTEGER = "BIGINT UNSIGNED"
+  elif db_type == DbType.POSTGRES:
+    AUTOINC = ""
+    INTEGER = "BIGINT"
+  else: # sqlite
+    AUTOINC = "AUTOINCREMENT"
+    INTEGER = "INTEGER"
 
   values = [ os.path.basename(filename) for filename in index_files.keys() ]
 
@@ -781,7 +801,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax, pos
     total=len(all_values)
   )
 
-  block_size = 500000 if (mysql_syntax or postgres_syntax) else 15000
+  block_size = 500000 if db_type in (DbType.MYSQL, DbType.POSTGRES) else 15000
 
   with pbar:
     for chunked_values in sip(all_values, block_size):
@@ -789,10 +809,8 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax, pos
       conn.commit()
       pbar.update(len(chunked_values))
 
-def set_journaling_to_performance_mode(cur, mysql_syntax, postgres_syntax=False):
-  if mysql_syntax:
-    cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
-  elif postgres_syntax:
+def set_journaling_to_performance_mode(cur, db_type):
+  if db_type in (DbType.MYSQL, DbType.POSTGRES):
     cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
   else: # sqlite
     cur.execute("PRAGMA journal_mode = MEMORY")
