@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from cloudfiles import CloudFiles
 
-from ...secrets import mysql_credentials
+from ...secrets import mysql_credentials, psql_credentials
 from ...exceptions import SpatialIndexGapError
 from ... import paths
 from ...lib import (
@@ -99,6 +99,13 @@ def connect(path, use_database=True):
       database=(result["path"] if use_database else None),
     )
   elif result["scheme"] in ("postgres", "postgresql"):
+    if any([ result[x] is None for x in ("username", "password") ]):
+      credentials = psql_credentials(result["hostname"])
+      if result["password"] is None:
+        result["password"] = credentials["password"]
+      if result["username"] is None:
+        result["username"] = credentials["username"]
+
     import psycopg2
     kwargs = {
       "host": result["hostname"],
@@ -193,7 +200,7 @@ class SpatialIndex(object):
   def fetch_all_index_files(self, allow_missing=False, progress=None):
     """Generator returning batches of (filename, json)"""
     all_index_paths = self.index_file_paths_for_bbox(self.physical_bounds)
-    
+
     progress = nvl(progress, self.config.progress)
 
     N = 500

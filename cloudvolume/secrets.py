@@ -200,3 +200,27 @@ def mysql_credentials(domain=""):
 
   MYSQL_CREDENTIALS_CACHE[domain] = credentials
   return credentials  
+
+PSQL_CREDENTIALS_CACHE:CredentialCacheType = defaultdict(dict)
+def psql_credentials(domain=""):
+  global PSQL_CREDENTIALS_CACHE
+
+  if domain in PSQL_CREDENTIALS_CACHE.keys():
+    return PSQL_CREDENTIALS_CACHE[domain]
+
+  default_file_path = secretpath('secrets','psql-secret.json')
+
+  paths = [ default_file_path ]
+
+  if domain:
+    paths = [ secretpath("secrets",f"{domain}-psql-secret.json") ] + paths
+
+  credentials = {}
+  for path in paths:
+    if os.path.exists(path):
+      with open(path, 'rt') as f:
+        credentials = json.loads(f.read())
+      break
+
+  PSQL_CREDENTIALS_CACHE[domain] = credentials
+  return credentials
