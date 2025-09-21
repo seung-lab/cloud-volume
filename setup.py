@@ -68,6 +68,9 @@ setuptools.setup(
       "pytest", "pytest-cov", "codecov", 
       "requests_mock", "scipy", "zarr" 
     ] + ZARR_CODECS,
+    "psql": [ "psycopg2" ],
+    "mysql": [ "mysql-connector-python" ],
+    "all_sql": [ "psycopg2", "mysql-connector-python" ],
     # image compression codecs
     "blosc": [ "blosc" ],
     "jxl": [ "imagecodecs" ],

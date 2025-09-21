@@ -90,7 +90,11 @@ def connect(path, use_database=True):
       if result["username"] is None:
         result["username"] = credentials["username"]
 
-    import mysql.connector
+    try:
+      import mysql.connector
+    except ImportError:
+      raise ImportError("""`mysql-connector-python` is not installed. Please install it via `pip install cloud-volume[mysql]`""")
+
     return mysql.connector.connect(
       host=result["hostname"],
       user=result["username"],
@@ -106,7 +110,10 @@ def connect(path, use_database=True):
       if result["username"] is None:
         result["username"] = credentials["username"]
 
-    import psycopg2
+    try:
+      import psycopg2
+    except ImportError:
+      raise ImportError("""`psycopg2` is not installed. Please install it via `pip install cloud-volume[psql]`""")
     kwargs = {
       "host": result["hostname"],
       "user": result["username"],
@@ -376,8 +383,12 @@ class SpatialIndex(object):
     Create a postgres database of labels and filenames
     from the JSON spatial_index for faster performance.
     """
-    import psycopg2
-    import psycopg2.extensions
+    try:
+      import psycopg2
+      import psycopg2.extensions
+    except ImportError:
+      raise ImportError("""`psycopg2` is not installed. Please install it via `pip install cloud-volume[psql]`""")
+
     progress = nvl(progress, self.config.progress)
     parse = parse_db_path(path)
 
