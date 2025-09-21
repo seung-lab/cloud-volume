@@ -97,6 +97,8 @@ setuptools.setup(
       "requests_mock",
       "scipy",
       "pillow",
+      "psycopg2",
+      "mysql-connector-python",
     ],
   },
   author="William Silversmith, Nico Kemnitz, Ignacio Tartavull, and others",
