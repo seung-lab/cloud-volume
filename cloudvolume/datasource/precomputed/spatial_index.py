@@ -540,7 +540,7 @@ class SpatialIndex(object):
           break
         # Sqlite only stores signed integers, so we need to coerce negative
         # integers back into unsigned.
-        labels_list.append(np.fromiter((row[0] for row in rows), dtype=np.uint64))
+        labels_list.append(np.fromiter((row[0] for row in rows), dtype=np.uint64, count=len(rows)))
 
       cur.close()
       conn.close()
