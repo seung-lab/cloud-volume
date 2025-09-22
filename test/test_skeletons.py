@@ -799,6 +799,24 @@ def test_integer_spatial_index():
   bbox = spatial_index.get_bbox(59524925)
   assert bbox == Bbox([80, 6864, 19960], [400, 8176, 20440])
 
+def test_integer_sqlite_spatial_index():
+  test_dir = os.path.dirname(os.path.abspath(__file__))
+  vol = CloudVolume(f'file://{test_dir}/test_cv')
+  
+  spatial_index = vol.skeleton.spatial_index
 
+  idx_filename = "0-8192_0-8192_0-20480.spatial"
 
+  labels = spatial_index.query(vol.bounds * vol.resolution)
+  labels = list(labels)
+  labels.sort()
 
+  db_path = f"sqlite://{test_dir}/test_cv/spatial_index.db"
+  spatial_index.to_sql(db_path)
+
+  vol = CloudVolume(f'file://{test_dir}/test_cv', spatial_index_db=db_path)
+  labels2 = vol.skeleton.spatial_index.query(vol.bounds * vol.resolution)
+  labels2 = list(labels2)
+  labels2.sort()
+
+  assert labels == labels2
