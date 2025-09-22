@@ -7,6 +7,7 @@ import queue
 import sqlite3
 import threading
 import time
+from enum import StrEnum
 
 import tenacity
 import numpy as np
@@ -14,13 +15,18 @@ from tqdm import tqdm
 
 from cloudfiles import CloudFiles
 
-from ...secrets import mysql_credentials
+from ...secrets import mysql_credentials, psql_credentials
 from ...exceptions import SpatialIndexGapError
 from ... import paths
 from ...lib import (
   Bbox, Vec, xyzrange, min2, 
   toiter, sip, nvl, getprecision
 )
+
+class DbType(StrEnum):
+  SQLITE = "sqlite"
+  MYSQL = "mysql"
+  POSTGRES = "postgres"
 
 retry = tenacity.retry(
   reraise=True, 
@@ -40,6 +46,7 @@ def parse_db_path(path):
   """
   sqlite paths: filename.db
   mysql paths: mysql://{user}:{pwd}@{host}/{database}
+  postgres paths: postgres://{user}:{pwd}@{host}/{database}
 
   database defaults to "spatial_index"
   """
@@ -75,28 +82,56 @@ def connect(path, use_database=True):
 
   if result["scheme"] == "sqlite":
     return sqlite3.connect(result["path"])
+  elif result["scheme"] == "mysql":
+    if any([ result[x] is None for x in ("username", "password") ]):
+      credentials = mysql_credentials(result["hostname"])
+      if result["password"] is None:
+        result["password"] = credentials["password"]
+      if result["username"] is None:
+        result["username"] = credentials["username"]
 
-  if result["scheme"] != "mysql":
+    try:
+      import mysql.connector
+    except ImportError:
+      raise ImportError("""`mysql-connector-python` is not installed. Please install it via `pip install cloud-volume[mysql]`""")
+
+    return mysql.connector.connect(
+      host=result["hostname"],
+      user=result["username"],
+      passwd=result["password"],
+      port=(result["port"] or 3306), # default MySQL port
+      database=(result["path"] if use_database else None),
+    )
+  elif result["scheme"] in ("postgres", "postgresql"):
+    if any([ result[x] is None for x in ("username", "password") ]):
+      credentials = psql_credentials(result["hostname"])
+      if result["password"] is None:
+        result["password"] = credentials["password"]
+      if result["username"] is None:
+        result["username"] = credentials["username"]
+
+    try:
+      import psycopg2
+    except ImportError:
+      raise ImportError("""`psycopg2` is not installed. Please install it via `pip install cloud-volume[psql]`""")
+    kwargs = {
+      "host": result["hostname"],
+      "user": result["username"],
+      "password": result["password"],
+      "port": (result["port"] or 5432),
+    }
+    if use_database:
+      kwargs["database"] = result["path"]
+
+    # psycopg2 doesn't like None values for keyword arguments
+    kwargs = { k: v for k, v in kwargs.items() if v is not None }
+
+    return psycopg2.connect(**kwargs)
+  else:
     raise ValueError(
       f"{result['scheme']} is not a supported "
-      f"spatial database connector."
+      f"spatial database connector. Supported: sqlite, mysql, postgres"
     )
-
-  if any([ result[x] is None for x in ("username", "password") ]):
-    credentials = mysql_credentials(result["hostname"])
-    if result["password"] is None:
-      result["password"] = credentials["password"]
-    if result["username"] is None:
-      result["username"] = credentials["username"]
-
-  import mysql.connector
-  return mysql.connector.connect(
-    host=result["hostname"],
-    user=result["username"],
-    passwd=result["password"],
-    port=(result["port"] or 3306), # default MySQL port
-    database=(result["path"] if use_database else None),
-  )
 
 class SpatialIndex(object):
   """
@@ -172,7 +207,7 @@ class SpatialIndex(object):
   def fetch_all_index_files(self, allow_missing=False, progress=None):
     """Generator returning batches of (filename, json)"""
     all_index_paths = self.index_file_paths_for_bbox(self.physical_bounds)
-    
+
     progress = nvl(progress, self.config.progress)
 
     N = 500
@@ -222,24 +257,40 @@ class SpatialIndex(object):
 
   def _to_sql_common(
     self, conn, cur, path,
-    create_indices, allow_missing, 
-    progress, mysql_syntax=False, parallel=1
+    create_indices, allow_missing,
+    progress, db_type, parallel=1
   ):
     # handle SQLite vs MySQL syntax quirks
-    BIND = '%s' if mysql_syntax else '?'
-    AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
-    INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
+    if db_type == DbType.MYSQL:
+      BIND = '%s'
+      AUTOINC = "AUTO_INCREMENT"
+      INTEGER = "BIGINT UNSIGNED"
+      ID_INTEGER = INTEGER
+    elif db_type == DbType.POSTGRES:
+      BIND = '%s'
+      AUTOINC = ""
+      INTEGER = "BIGINT" # no unsigned
+      ID_INTEGER = "BIGSERIAL"
+    else: # sqlite
+      BIND = '?'
+      AUTOINC = "AUTOINCREMENT"
+      INTEGER = "INTEGER"
+      ID_INTEGER = INTEGER
 
     progress = nvl(progress, self.config.progress)
     if parallel < 1 or parallel != int(parallel):
       raise ValueError(f"parallel must be an integer >= 1. Got: {parallel}")
 
-    cur.execute("""DROP TABLE IF EXISTS index_files""")
-    cur.execute("""DROP TABLE IF EXISTS file_lookup""")
+    if db_type == DbType.POSTGRES:
+      cur.execute("""DROP TABLE IF EXISTS file_lookup CASCADE""")
+      cur.execute("""DROP TABLE IF EXISTS index_files CASCADE""")
+    else:
+      cur.execute("""DROP TABLE IF EXISTS file_lookup""")
+      cur.execute("""DROP TABLE IF EXISTS index_files""")
 
     cur.execute(f"""
       CREATE TABLE index_files (
-        id {INTEGER} PRIMARY KEY {AUTOINC},
+        id {ID_INTEGER} PRIMARY KEY {AUTOINC},
         filename VARCHAR(100) NOT NULL
       )
     """)
@@ -253,6 +304,8 @@ class SpatialIndex(object):
       )
     """)
 
+    conn.commit()
+
     finished_loading_evt = threading.Event()
     query_lock = threading.Lock()
 
@@ -260,7 +313,7 @@ class SpatialIndex(object):
     threads = [ 
       threading.Thread(
         target=thread_safe_insert, 
-        args=(path, query_lock, finished_loading_evt, qu, progress, mysql_syntax)
+        args=(path, query_lock, finished_loading_evt, qu, progress, db_type)
       )
       for i in range(parallel) 
     ]
@@ -289,7 +342,9 @@ class SpatialIndex(object):
   ):
     path = path or self.sql_db
     parse = parse_db_path(path)
-    if parse["scheme"] == "sqlite":
+    scheme = parse["scheme"]
+
+    if scheme == DbType.SQLITE:
       if parallel != 1:
         raise ValueError("sqlite supports only one writer at a time.")
       return self.to_sqlite(
@@ -298,22 +353,104 @@ class SpatialIndex(object):
         allow_missing=allow_missing, 
         progress=progress,
       )
-    elif parse["scheme"] == "mysql":
+    elif scheme == DbType.MYSQL:
       return self.to_mysql(path, 
         create_indices=create_indices, 
         allow_missing=allow_missing, 
         progress=progress,
         parallel=parallel,
       )
+    elif scheme in (DbType.POSTGRES, "postgresql"):
+      return self.to_postgres(
+        path,
+        create_indices=create_indices,
+        allow_missing=allow_missing,
+        progress=progress,
+        parallel=parallel,
+      )
     else:
       raise ValueError(
         f"Unsupported database type. {path}\n"
-        "Supported types: sqlite:// and mysql://"
+        "Supported types: sqlite://, mysql://, and postgres://"
       )
 
+  def to_postgres(
+    self, path,
+    create_indices=True, allow_missing=False,
+    progress=None, parallel=1
+  ):
+    """
+    Create a postgres database of labels and filenames
+    from the JSON spatial_index for faster performance.
+    """
+    try:
+      import psycopg2
+      import psycopg2.extensions
+    except ImportError:
+      raise ImportError("""`psycopg2` is not installed. Please install it via `pip install cloud-volume[psql]`""")
+
+    progress = nvl(progress, self.config.progress)
+    parse = parse_db_path(path)
+
+    database_name = parse["path"] or "spatial_index"
+
+    if re.search(r'[^a-zA-Z0-9_]', database_name):
+      raise ValueError(
+        f"Invalid characters in database name. "
+        f"Only alphanumerics and underscores are allowed. "
+        f"Got: {database_name}"
+      )
+
+    try:
+      # Connect to default 'postgres' db to create new db
+      # Use urllib.parse for robust URI manipulation
+      original_uri_parts = urllib.parse.urlparse(path)
+      new_uri_parts = original_uri_parts._replace(path='/postgres')
+      postgres_db_path_uri = urllib.parse.urlunparse(new_uri_parts)
+
+      conn = connect(postgres_db_path_uri, use_database=True)
+      conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+      cur = conn.cursor()
+    except psycopg2.Error as e:
+      raise ConnectionError(
+        f"Failed to connect to default 'postgres' database to create '{database_name}'. "
+        f"Check that the server is running and that you have permissions to connect. "
+        f"Original error: {e}"
+      ) from e
+
+    try:
+      cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database_name,))
+      exists = cur.fetchone()
+
+      if not exists:
+          try:
+            cur.execute(f'CREATE DATABASE "{database_name}"')
+          except psycopg2.Error as e:
+            raise PermissionError(
+              f"Failed to create database '{database_name}'. "
+              f"The user in the connection string must have CREATEDB privileges. "
+              f"Original error: {e}"
+            ) from e
+    finally:
+      cur.close()
+      conn.close()
+
+    # now connect to the newly created database
+    conn = connect(path, use_database=True)
+    cur = conn.cursor()
+
+    self._to_sql_common(
+      conn, cur, path,
+      create_indices, allow_missing, progress,
+      db_type=DbType.POSTGRES, parallel=parallel,
+    )
+
+    cur.close()
+    conn.close()
+
   def to_mysql(
-    self, path, 
-    create_indices=True, allow_missing=False, 
+    self, path,
+    create_indices=True, allow_missing=False,
     progress=None, parallel=1
   ):
     """
@@ -345,16 +482,16 @@ class SpatialIndex(object):
     cur.execute(f"use {database_name}")
 
     self._to_sql_common(
-      conn, cur, path, 
-      create_indices, allow_missing, progress, 
-      mysql_syntax=True, parallel=parallel,
+      conn, cur, path,
+      create_indices, allow_missing, progress,
+      db_type=DbType.MYSQL, parallel=parallel,
     )
-    
+
     cur.close()
     conn.close()
 
   def to_sqlite(
-    self, path="spatial_index.db", 
+    self, path="spatial_index.db",
     create_indices=True, allow_missing=False,
     progress=None
   ):
@@ -368,17 +505,16 @@ class SpatialIndex(object):
     """
     conn = sqlite3.connect(path)
     cur = conn.cursor()
-    set_journaling_to_performance_mode(cur, mysql_syntax=False)
+    set_journaling_to_performance_mode(cur, db_type=DbType.SQLITE)
     self._to_sql_common(
-      conn, cur, path, 
-      create_indices, allow_missing, progress, 
-      mysql_syntax=False
+      conn, cur, path,
+      create_indices, allow_missing, progress,
+      db_type=DbType.SQLITE
     )
     cur.execute("PRAGMA journal_mode = DELETE")
     cur.execute("PRAGMA synchronous = FULL")
     cur.close()
     conn.close()
-
   def get_bbox(self, label):
     """
     Given a label, compute an enclosing bounding box for it.
@@ -395,11 +531,23 @@ class SpatialIndex(object):
     if self.sql_db:
       conn = connect(self.sql_db)
       cur = conn.cursor()
-      cur.execute("""
+
+      db_type_str = parse_db_path(self.sql_db)["scheme"]
+      db_type = DbType.SQLITE
+      if db_type_str == DbType.MYSQL:
+        db_type = DbType.MYSQL
+      elif db_type_str in (DbType.POSTGRES, "postgresql"):
+        db_type = DbType.POSTGRES
+
+      BIND = '?'
+      if db_type in (DbType.MYSQL, DbType.POSTGRES):
+        BIND = '%s'
+
+      cur.execute(f"""
         select index_files.filename  
         from file_lookup, index_files
         where file_lookup.fid = index_files.id
-          and file_lookup.label = ?
+          and file_lookup.label = {BIND}
       """, (label,))
       iterator = [ self.fetch_index_files(( row[0] for row in cur.fetchall() )) ]
       conn.close()
@@ -586,11 +734,11 @@ class SpatialIndex(object):
 
     return labels
 
-def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
+def thread_safe_insert(path, lock, evt, qu, progress, db_type):
   conn = connect(path)
   cur = conn.cursor()
 
-  set_journaling_to_performance_mode(cur, mysql_syntax)
+  set_journaling_to_performance_mode(cur, db_type)
 
   print("started thread", threading.current_thread().ident)
   try:
@@ -600,7 +748,7 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
       except queue.Empty:
         time.sleep(0.1)
         continue
-      insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax)
+      insert_index_files(index_files, lock, conn, cur, progress, db_type)
       qu.task_done()
   finally:
     cur.close()
@@ -608,12 +756,23 @@ def thread_safe_insert(path, lock, evt, qu, progress, mysql_syntax):
 
   print('finished', threading.current_thread().ident)
 
-def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
+def insert_index_files(index_files, lock, conn, cur, progress, db_type):
   import simdjson
   # handle SQLite vs MySQL syntax quirks
-  BIND = '%s' if mysql_syntax else '?'
-  AUTOINC = "AUTO_INCREMENT" if mysql_syntax else "AUTOINCREMENT"
-  INTEGER = "BIGINT UNSIGNED" if mysql_syntax else "INTEGER"
+  if db_type in (DbType.MYSQL, DbType.POSTGRES):
+    BIND = '%s'
+  else:
+    BIND = '?'
+
+  if db_type == DbType.MYSQL:
+    AUTOINC = "AUTO_INCREMENT"
+    INTEGER = "BIGINT UNSIGNED"
+  elif db_type == DbType.POSTGRES:
+    AUTOINC = ""
+    INTEGER = "BIGINT"
+  else: # sqlite
+    AUTOINC = "AUTOINCREMENT"
+    INTEGER = "INTEGER"
 
   values = [ os.path.basename(filename) for filename in index_files.keys() ]
 
@@ -660,7 +819,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
     total=len(all_values)
   )
 
-  block_size = 500000 if mysql_syntax else 15000
+  block_size = 500000 if db_type in (DbType.MYSQL, DbType.POSTGRES) else 15000
 
   with pbar:
     for chunked_values in sip(all_values, block_size):
@@ -668,8 +827,8 @@ def insert_index_files(index_files, lock, conn, cur, progress, mysql_syntax):
       conn.commit()
       pbar.update(len(chunked_values))
 
-def set_journaling_to_performance_mode(cur, mysql_syntax):
-  if mysql_syntax:
+def set_journaling_to_performance_mode(cur, db_type):
+  if db_type in (DbType.MYSQL, DbType.POSTGRES):
     cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
   else: # sqlite
     cur.execute("PRAGMA journal_mode = MEMORY")
