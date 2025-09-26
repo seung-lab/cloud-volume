@@ -7,7 +7,7 @@ import queue
 import sqlite3
 import threading
 import time
-from enum import StrEnum
+from enum import Enum
 
 import tenacity
 import numpy as np
@@ -23,7 +23,7 @@ from ...lib import (
   toiter, sip, nvl, getprecision
 )
 
-class DbType(StrEnum):
+class DbType(str, Enum):
   SQLITE = "sqlite"
   MYSQL = "mysql"
   POSTGRES = "postgres"
