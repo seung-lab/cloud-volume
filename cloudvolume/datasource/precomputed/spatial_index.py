@@ -7,7 +7,12 @@ import queue
 import sqlite3
 import threading
 import time
-from enum import StrEnum
+try:
+  from enum import StrEnum
+except ImportError:
+  from enum import Enum
+  class StrEnum(str, Enum):
+    pass
 
 import tenacity
 import numpy as np
