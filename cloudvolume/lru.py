@@ -1,12 +1,13 @@
+from typing import Union
 import sys
 import threading
 
-def getsizeof(val:int) -> int:
-  """does sizeof at depth 2 for tuples and lists"""
+def getsizeof(val:Union[int,str,bytes,list,tuple]) -> int:
+  """does sizeof at arbitrary depth for tuples and lists"""
   nbytes = 0
   if isinstance(val, (tuple, list)):
     for elem in val:
-      nbytes += sys.getsizeof(elem)
+      nbytes += getsizeof(elem)
   return nbytes + sys.getsizeof(val)
 
 class DoublyLinkedListIterator:
