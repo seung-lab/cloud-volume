@@ -7,7 +7,12 @@ import queue
 import sqlite3
 import threading
 import time
-from enum import Enum
+try:
+  from enum import StrEnum
+except ImportError:
+  from enum import Enum
+  class StrEnum(str, Enum):
+    pass
 
 import tenacity
 import numpy as np
@@ -23,7 +28,7 @@ from ...lib import (
   toiter, sip, nvl, getprecision
 )
 
-class DbType(str, Enum):
+class DbType(StrEnum):
   SQLITE = "sqlite"
   MYSQL = "mysql"
   POSTGRES = "postgres"
