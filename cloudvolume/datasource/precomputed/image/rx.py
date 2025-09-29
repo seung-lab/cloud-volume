@@ -562,6 +562,7 @@ def child_process_download(
     green=green, secrets=secrets, background_color=background_color
   )
 
+  del dest_img
   array_like.close()
 
   return len(cloudpaths)
