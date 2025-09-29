@@ -470,6 +470,7 @@ def test_parallel_shared_memory_write():
   assert np.all(cv[0,0,:] == 1)
   assert np.all(cv[1,0,:] == 0)
 
+  del shareddata
   mmapfh.close()
   shm.unlink(shm_location)
 
