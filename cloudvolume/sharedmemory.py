@@ -170,9 +170,10 @@ def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
   # was adjusted between the check above and now. Better to make sure
   # that we don't accidently change anything if readonly is set.
   size = 0 if readonly else int(nbytes) 
+  create = (not readonly) and (not preexisting)
 
   try:
-    shm = shared_memory.SharedMemory(name=location, create=(not readonly), size=size)
+    shm = shared_memory.SharedMemory(name=location, create=create, size=size)
     renderbuffer = np.frombuffer(buffer=shm.buf, dtype=dtype)
     renderbuffer = renderbuffer.reshape(shape, order=order)
   except OSError as err:
