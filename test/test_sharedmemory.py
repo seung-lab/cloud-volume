@@ -68,10 +68,12 @@ def test_ndarray_sh():
 	array_like, array = shm.ndarray_shm(shape=(2,2,2), dtype=np.uint8, location=location)
 	assert np.all(array == np.zeros(shape=(2,2,2), dtype=np.uint8))
 	array[:] = 100
+	del array
 	array_like.close()
 
 	array_like, array = shm.ndarray_shm(shape=(2,2,2), dtype=np.uint8, location=location)
 	assert np.all(array[:] == 100)
+	del array
 	array_like.close()
 
 	filename = os.path.join(shm.SHM_DIRECTORY, location)
@@ -86,7 +88,9 @@ def test_ndarray_sh():
 
 	available = psutil.virtual_memory().available
 	array_like, array = shm.ndarray_shm(shape=(available // 10,2,2), dtype=np.uint8, location=location)
+	del array
 	array_like.close()
+	
 	try:
 		array_like, array = shm.ndarray_shm(shape=(available,2,2), dtype=np.uint8, location=location)
 		assert False
