@@ -109,5 +109,7 @@ def test_ndarray_sh():
 	except shm.SharedMemoryReadError:
 		pass
 
+	del array
+	array_like.close()
 	assert shm.unlink_shm(location) == True
 	assert shm.unlink_shm(location) == False
