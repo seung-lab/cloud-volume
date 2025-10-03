@@ -235,6 +235,10 @@ def test_bbox_volume():
   bbx = bbx.astype(np.float32)
   assert bbx.volume() == 8000000000
 
+  bbox = Bbox( (0,0,0), (5824000, 4928000, 448000))
+  assert bbox.volume() > 0
+
+
 def test_jsonify():
   obj = {
     'x': [ np.array([1,2,3,4,5], dtype=np.uint64) ],
