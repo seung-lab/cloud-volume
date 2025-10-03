@@ -746,7 +746,7 @@ class Bbox(object):
 
   def volume(self):
     if np.issubdtype(self.dtype, np.integer):
-      return self.size3().astype(np.int64).rectVolume()
+      return reduce(operator.mul, (int(x) for x in self.size3()))
     else:
       return self.size3().astype(np.float64).rectVolume()
 
