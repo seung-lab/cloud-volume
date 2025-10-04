@@ -753,6 +753,7 @@ class CloudVolumePrecomputed(object):
     renumber:bool = False, 
     coord_resolution:Optional[Sequence[int]] = None,
     label:Optional[int] = None,
+    crackle:bool = False,    
   ) -> VolumeCutout:
     """
     Downloads segmentation from the indicated cutout
@@ -776,6 +777,8 @@ class CloudVolumePrecomputed(object):
       higher res layer and this can help correct that.
     label: download as a binary image where this label is foreground (True)
       and everything else is background (False)
+    crackle: download the image in a very low memory fashion and build
+      a crackle bytestream. 
 
     agglomerate, timestamp, and stop_layer are just there to 
     absorb arguments to what could be a graphene frontend.
@@ -812,6 +815,16 @@ class CloudVolumePrecomputed(object):
       raise exceptions.SubvoxelVolumeError(
         f"{bbox} (after adjusting for coord_resolution) has zero or near zero size."
       )
+
+    if crackle:
+      arr = self.image.download_crackle(
+        bbox, mip, 
+        parallel=parallel, 
+        label=label
+      )
+      if renumber:
+        return arr.renumber(start=int(0 not in arr))
+      return arr
 
     tup = self.image.download(
       bbox, mip, 
