@@ -269,13 +269,12 @@ class PrecomputedImageSource(ImageSourceInterface):
       subbbx.minpt.z += z * cz
       subbbx.maxpt.z = min(subbbx.minpt.z + cz, bbox.maxpt.z)
 
-      labels, remapping = self.download(
+      labels = self.download(
         subbbx, 
         mip=mip, 
         parallel=parallel,
         label=label,
         progress=False,
-        renumber=True,
       )
 
       stack.append(
