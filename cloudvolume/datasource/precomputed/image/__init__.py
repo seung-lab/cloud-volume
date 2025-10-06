@@ -14,6 +14,7 @@ import itertools
 import operator
 import uuid
 
+import crackle
 import numpy as np
 from tqdm import tqdm
 
@@ -22,7 +23,7 @@ from cloudfiles import CloudFiles, compression
 from cloudvolume import lib, exceptions
 from cloudvolume.lru import LRU
 from cloudvolume.scheduler import schedule_jobs, DEFAULT_THREADS
-from ....types import CompressType, MipType
+from ....types import CompressType, MipType, ProgressType
 from .... import paths
 from ....lib import Bbox, Vec, sip, first, BboxLikeType, toiter
 from .... import sharedmemory, chunks
@@ -147,11 +148,18 @@ class PrecomputedImageSource(ImageSourceInterface):
     return res
 
   def download(
-    self, bbox, mip, parallel=1, 
-    location=None, retain=False,
-    use_shared_memory=False, use_file=False,
-    order='F', renumber=False, 
-    label=None, progress=None,
+    self,
+    bbox:Bbox,
+    mip:int,
+    parallel:int = 1, 
+    location:Optional[str] = None,
+    retain:bool = False,
+    use_shared_memory:bool = False,
+    use_file:bool = False,
+    order:str = 'F',
+    renumber:bool = False, 
+    label:Optional[int] = None,
+    progress:Optional[ProgressType] = None,
   ):
     """
     Download a cutout image from the dataset.
@@ -236,6 +244,45 @@ class PrecomputedImageSource(ImageSourceInterface):
         background_color=numberfn(self.background_color),
         label=label,
       )
+
+  def download_crackle(
+    self,
+    bbox:Bbox,
+    mip:int,
+    parallel:int = 1, 
+    label:Optional[int] = None, 
+    progress:Optional[ProgressType] = None,
+  ) -> bytes:
+    if progress is None:
+      progress = self.config.progress
+
+    if self.meta.layer_type != "segmentation":
+      raise ValueError("This method is only valid for segmentation data.")
+
+    cz = self.meta.chunk_size(mip).z
+    nz = int(np.ceil(bbox.size3()[2] / cz))
+
+    stack = []
+
+    for z in tqdm(range(nz), disable=(not progress)):
+      subbbx = bbox.clone()
+      subbbx.minpt.z += z * cz
+      subbbx.maxpt.z = min(subbbx.minpt.z + cz, bbox.maxpt.z)
+
+      labels = self.download(
+        subbbx, 
+        mip=mip, 
+        parallel=parallel,
+        label=label,
+        progress=False,
+      )
+
+      stack.append(
+        crackle.compress(labels)
+      )
+      del labels
+
+    return crackle.CrackleArray(crackle.zstack(stack))
 
   def download_files(
     self, bbox:BboxLikeType, mip:int, 
