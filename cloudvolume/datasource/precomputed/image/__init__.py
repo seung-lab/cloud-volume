@@ -14,7 +14,6 @@ import itertools
 import operator
 import uuid
 
-import crackle
 import numpy as np
 from tqdm import tqdm
 
@@ -253,6 +252,8 @@ class PrecomputedImageSource(ImageSourceInterface):
     label:Optional[int] = None, 
     progress:Optional[ProgressType] = None,
   ) -> bytes:
+    import crackle
+
     if progress is None:
       progress = self.config.progress
 
