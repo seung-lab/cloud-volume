@@ -106,7 +106,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     labels = set(toiter(labels))
 
     dynamic_labels = self.dynamic_exists(labels, progress)
-    remainder_labels = set([ label for label, path in dynamic_labels.items() if path ])
+    remainder_labels = set([ label for label, path in dynamic_labels.items() if not path ])
 
     initial_labels = self.initial_exists(remainder_labels, progress=progress, return_byte_range=False)
 
