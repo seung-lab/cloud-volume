@@ -682,7 +682,14 @@ class SpatialIndex(object):
 
     if self.sql_db and fast_path:
       conn = connect(self.sql_db)
-      cur = conn.cursor()
+      db_type = parse_db_path(self.sql_db)["scheme"]
+      if db_type in ("postgres", "postgresql"):
+        # With psycopg2, the default cursor buffers all results on the client
+        # which can be very slow for large tables. Using a server-side
+        # cursor (by giving the cursor a name) avoids this problem.
+        cur = conn.cursor(f"fast_path_query_{time.time()}") # named cursor
+      else:
+        cur = conn.cursor()
       cur.execute("select distinct label from file_lookup")
 
       labels_list = []
