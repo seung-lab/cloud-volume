@@ -827,30 +827,47 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     fid = filename_id_map[filename]
     all_values.extend(( (int(label), fid) for label in index_labels ))
   
-  @retry
-  def insert_file_lookup_values(cur, chunked_values):
-    nonlocal BIND
-    bindlist = ",".join([f"({BIND},{BIND})"] * len(chunked_values))
-    flattened_values = []
-    for label, fid in chunked_values:
-      flattened_values.append(label)
-      flattened_values.append(fid)
-    cur.execute(f"INSERT INTO file_lookup(label, fid) VALUES {bindlist}", flattened_values)
-
   pbar = tqdm(
     desc="Inserting File Lookups", 
     disable=(not progress), 
     total=len(all_values)
   )
 
-  block_size = 500000 if db_type in (DbType.MYSQL, DbType.POSTGRES) else 15000
+  if db_type == DbType.POSTGRES:
+    conn.commit()
+    import io
 
-  with pbar:
-    for chunked_values in sip(all_values, block_size):
-      insert_file_lookup_values(cur, chunked_values)
+    @retry
+    def postgres_insert_file_lookup_values(cur, values):
+        s = time.time()
+        f = io.StringIO()
+        for label, fid in values:
+            f.write(f"{label}\t{fid}\n")
+        f.seek(0)
+        cur.copy_from(f, 'file_lookup', columns=('label', 'fid'))
+
+    with pbar:
+      postgres_insert_file_lookup_values(cur, all_values)
       conn.commit()
-      pbar.update(len(chunked_values))
+      pbar.update(len(all_values))
+  else:
+    @retry
+    def insert_file_lookup_values(cur, chunked_values):
+      nonlocal BIND
+      bindlist = ",".join([f"({BIND},{BIND})"] * len(chunked_values))
+      flattened_values = []
+      for label, fid in chunked_values:
+        flattened_values.append(label)
+        flattened_values.append(fid)
+      cur.execute(f"INSERT INTO file_lookup(label, fid) VALUES {bindlist}", flattened_values)
 
+    block_size = 500000 if db_type == DbType.MYSQL else 15000
+
+    with pbar:
+      for chunked_values in sip(all_values, block_size):
+        insert_file_lookup_values(cur, chunked_values)
+        conn.commit()
+        pbar.update(len(chunked_values))
 def set_journaling_to_performance_mode(cur, db_type):
   if db_type in (DbType.MYSQL, DbType.POSTGRES):
     cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
