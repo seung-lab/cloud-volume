@@ -871,6 +871,8 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
 def set_journaling_to_performance_mode(cur, db_type):
   if db_type in (DbType.MYSQL, DbType.POSTGRES):
     cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+    if db_type == DbType.POSTGRES:
+        cur.execute("SET synchronous_commit=OFF")
   else: # sqlite
     cur.execute("PRAGMA journal_mode = MEMORY")
     cur.execute("PRAGMA synchronous = OFF")
