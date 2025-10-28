@@ -209,16 +209,26 @@ class SpatialIndex(object):
 
     return { res['filename']: res['content'] for res in results }
 
-  def fetch_all_index_files(self, allow_missing=False, progress=None):
+  def fetch_all_index_files(self, allow_missing=False, progress=None, parallel=1):
     """Generator returning batches of (filename, json)"""
+    import math
+
     all_index_paths = self.index_file_paths_for_bbox(self.physical_bounds)
+    total_files = len(all_index_paths)
 
     progress = nvl(progress, self.config.progress)
 
-    N = 500
-    pbar = tqdm( 
-      total=len(all_index_paths), 
-      disable=(not progress), 
+    # Heuristic for chunk size
+    num_chunks = 4 * parallel
+    if num_chunks == 0:
+        num_chunks = 1
+
+    N = int(math.ceil(total_files / num_chunks))
+    N = max(10, min(N, 500)) # Clamp to a reasonable range
+
+    pbar = tqdm(
+      total=total_files,
+      disable=(not progress),
       desc="Processing Index"
     )
 
@@ -234,7 +244,7 @@ class SpatialIndex(object):
 
       yield index_files
 
-      pbar.update(N)
+      pbar.update(len(index_paths))
     pbar.close()
 
   def index_file_paths_for_bbox(self, bbox):
@@ -325,7 +335,7 @@ class SpatialIndex(object):
     for t in threads:
       t.start()
 
-    for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing):
+    for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing, parallel=parallel):
       qu.put(index_files)
 
     finished_loading_evt.set()
