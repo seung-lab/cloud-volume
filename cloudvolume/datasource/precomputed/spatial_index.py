@@ -303,8 +303,10 @@ class SpatialIndex(object):
       cur.execute("""DROP TABLE IF EXISTS file_lookup""")
       cur.execute("""DROP TABLE IF EXISTS index_files""")
 
+    create_table_prefix = "CREATE UNLOGGED TABLE" if db_type == DbType.POSTGRES else "CREATE TABLE"
+
     cur.execute(f"""
-      CREATE TABLE index_files (
+      {create_table_prefix} index_files (
         id {ID_INTEGER} PRIMARY KEY {AUTOINC},
         filename VARCHAR(100) NOT NULL
       )
@@ -312,7 +314,7 @@ class SpatialIndex(object):
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
     cur.execute(f"""
-      CREATE TABLE file_lookup (
+      {create_table_prefix} file_lookup (
         label {INTEGER} NOT NULL,
         fid {INTEGER} NOT NULL REFERENCES index_files(id),
         PRIMARY KEY(label,fid)
