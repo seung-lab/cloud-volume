@@ -211,7 +211,13 @@ class SpatialIndex(object):
     return { res['filename']: res['content'] for res in results }
 
   def fetch_all_index_files(self, allow_missing=False, progress=None, parallel=1):
-    """Generator returning batches of (filename, json)"""
+    """Generator returning batches of (filename, json)
+
+    The parallel parameter here affects the chunking of files fetched
+    from the cloud, not the direct activation of threads or processes.
+    This is a bit exceptional as 'parallel' usually implies direct
+    threading/multiprocessing at the leaf level of the call tree.
+    """
     import math
 
     all_index_paths = self.index_file_paths_for_bbox(self.physical_bounds)
