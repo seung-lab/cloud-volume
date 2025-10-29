@@ -862,14 +862,20 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
   )
 
   if db_type == DbType.POSTGRES:
+    block_size = 5000000
+  elif db_type == DbType.MYSQL:
+    block_size = 500000
+  else: # sqlite
+    block_size = 15000
+
+  if db_type == DbType.POSTGRES:
     conn.commit()
     with pbar:
-      postgres_insert_file_lookup_values(cur, all_values)
-      conn.commit()
-      pbar.update(len(all_values))
+      for chunked_values in sip(all_values, block_size):
+        postgres_insert_file_lookup_values(cur, chunked_values)
+        conn.commit()
+        pbar.update(len(chunked_values))
   else:
-    block_size = 500000 if db_type == DbType.MYSQL else 15000
-
     with pbar:
       for chunked_values in sip(all_values, block_size):
         insert_file_lookup_values(cur, chunked_values)
