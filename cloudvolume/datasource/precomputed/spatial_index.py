@@ -799,6 +799,25 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     AUTOINC = "AUTOINCREMENT"
     INTEGER = "INTEGER"
 
+  @retry
+  def postgres_insert_file_lookup_values(cur, values):
+      s = time.time()
+      f = io.StringIO()
+      for label, fid in values:
+          f.write(f"{label}\t{fid}\n")
+      f.seek(0)
+      cur.copy_from(f, 'file_lookup', columns=('label', 'fid'))
+
+  @retry
+  def insert_file_lookup_values(cur, chunked_values):
+    nonlocal BIND
+    bindlist = ",".join([f"({BIND},{BIND})"] * len(chunked_values))
+    flattened_values = []
+    for label, fid in chunked_values:
+      flattened_values.append(label)
+      flattened_values.append(fid)
+    cur.execute(f"INSERT INTO file_lookup(label, fid) VALUES {bindlist}", flattened_values)
+
   values = [ os.path.basename(filename) for filename in index_files.keys() ]
 
   # This is a critical region as if multiple inserts and queries occur outside
@@ -836,31 +855,11 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
 
   if db_type == DbType.POSTGRES:
     conn.commit()
-
-    @retry
-    def postgres_insert_file_lookup_values(cur, values):
-        s = time.time()
-        f = io.StringIO()
-        for label, fid in values:
-            f.write(f"{label}\t{fid}\n")
-        f.seek(0)
-        cur.copy_from(f, 'file_lookup', columns=('label', 'fid'))
-
     with pbar:
       postgres_insert_file_lookup_values(cur, all_values)
       conn.commit()
       pbar.update(len(all_values))
   else:
-    @retry
-    def insert_file_lookup_values(cur, chunked_values):
-      nonlocal BIND
-      bindlist = ",".join([f"({BIND},{BIND})"] * len(chunked_values))
-      flattened_values = []
-      for label, fid in chunked_values:
-        flattened_values.append(label)
-        flattened_values.append(fid)
-      cur.execute(f"INSERT INTO file_lookup(label, fid) VALUES {bindlist}", flattened_values)
-
     block_size = 500000 if db_type == DbType.MYSQL else 15000
 
     with pbar:
