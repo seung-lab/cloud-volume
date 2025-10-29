@@ -282,16 +282,19 @@ class SpatialIndex(object):
       AUTOINC = "AUTO_INCREMENT"
       INTEGER = "BIGINT UNSIGNED"
       ID_INTEGER = INTEGER
+      create_table_prefix = "CREATE TABLE"
     elif db_type == DbType.POSTGRES:
       BIND = '%s'
       AUTOINC = ""
       INTEGER = "BIGINT" # no unsigned
       ID_INTEGER = "BIGSERIAL"
+      create_table_prefix = "CREATE UNLOGGED TABLE"
     else: # sqlite
       BIND = '?'
       AUTOINC = "AUTOINCREMENT"
       INTEGER = "INTEGER"
       ID_INTEGER = INTEGER
+      create_table_prefix = "CREATE TABLE"
 
     progress = nvl(progress, self.config.progress)
     if parallel < 1 or parallel != int(parallel):
@@ -303,8 +306,6 @@ class SpatialIndex(object):
     else:
       cur.execute("""DROP TABLE IF EXISTS file_lookup""")
       cur.execute("""DROP TABLE IF EXISTS index_files""")
-
-    create_table_prefix = "CREATE UNLOGGED TABLE" if db_type == DbType.POSTGRES else "CREATE TABLE"
 
     cur.execute(f"""
       {create_table_prefix} index_files (
@@ -697,9 +698,10 @@ class SpatialIndex(object):
       conn = connect(self.sql_db)
       db_type = parse_db_path(self.sql_db)["scheme"]
       if db_type in ("postgres", "postgresql"):
-        # With psycopg2, the default cursor buffers all results on the client
+        # By default, psycopg2 buffers all query results on the client-side
         # which can be very slow for large tables. Using a server-side
-        # cursor (by giving the cursor a name) avoids this problem.
+        # cursor (by giving the cursor a name) avoids this problem by
+        # fetching results from the server in smaller chunks.
         cur = conn.cursor(f"fast_path_query_{time.time()}") # named cursor
       else:
         cur = conn.cursor()
