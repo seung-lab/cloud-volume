@@ -4,6 +4,7 @@ import re
 import urllib.parse
 import os 
 import io
+import math
 import queue
 import sqlite3
 import threading
@@ -218,7 +219,6 @@ class SpatialIndex(object):
     This is a bit exceptional as 'parallel' usually implies direct
     threading/multiprocessing at the leaf level of the call tree.
     """
-    import math
 
     all_index_paths = self.index_file_paths_for_bbox(self.physical_bounds)
     total_files = len(all_index_paths)
