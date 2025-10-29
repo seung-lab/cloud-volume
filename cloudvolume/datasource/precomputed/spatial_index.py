@@ -3,6 +3,7 @@ import itertools
 import re
 import urllib.parse
 import os 
+import io
 import queue
 import sqlite3
 import threading
@@ -835,7 +836,6 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
 
   if db_type == DbType.POSTGRES:
     conn.commit()
-    import io
 
     @retry
     def postgres_insert_file_lookup_values(cur, values):
