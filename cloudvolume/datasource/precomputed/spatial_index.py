@@ -3,6 +3,8 @@ import itertools
 import re
 import urllib.parse
 import os 
+import io
+import math
 import queue
 import sqlite3
 import threading
@@ -209,16 +211,31 @@ class SpatialIndex(object):
 
     return { res['filename']: res['content'] for res in results }
 
-  def fetch_all_index_files(self, allow_missing=False, progress=None):
-    """Generator returning batches of (filename, json)"""
+  def fetch_all_index_files(self, allow_missing=False, progress=None, parallel=1):
+    """Generator returning batches of (filename, json)
+
+    The parallel parameter here affects the chunking of files fetched
+    from the cloud, not the direct activation of threads or processes.
+    This is a bit exceptional as 'parallel' usually implies direct
+    threading/multiprocessing at the leaf level of the call tree.
+    """
+
     all_index_paths = self.index_file_paths_for_bbox(self.physical_bounds)
+    total_files = len(all_index_paths)
 
     progress = nvl(progress, self.config.progress)
 
-    N = 500
-    pbar = tqdm( 
-      total=len(all_index_paths), 
-      disable=(not progress), 
+    # Heuristic for chunk size
+    num_chunks = 4 * parallel
+    if num_chunks == 0:
+        num_chunks = 1
+
+    N = int(math.ceil(total_files / num_chunks))
+    N = max(10, min(N, 500)) # Clamp to a reasonable range
+
+    pbar = tqdm(
+      total=total_files,
+      disable=(not progress),
       desc="Processing Index"
     )
 
@@ -234,7 +251,7 @@ class SpatialIndex(object):
 
       yield index_files
 
-      pbar.update(N)
+      pbar.update(len(index_paths))
     pbar.close()
 
   def index_file_paths_for_bbox(self, bbox):
@@ -271,16 +288,19 @@ class SpatialIndex(object):
       AUTOINC = "AUTO_INCREMENT"
       INTEGER = "BIGINT UNSIGNED"
       ID_INTEGER = INTEGER
+      create_table_prefix = "CREATE TABLE"
     elif db_type == DbType.POSTGRES:
       BIND = '%s'
       AUTOINC = ""
       INTEGER = "BIGINT" # no unsigned
       ID_INTEGER = "BIGSERIAL"
+      create_table_prefix = "CREATE UNLOGGED TABLE"
     else: # sqlite
       BIND = '?'
       AUTOINC = "AUTOINCREMENT"
       INTEGER = "INTEGER"
       ID_INTEGER = INTEGER
+      create_table_prefix = "CREATE TABLE"
 
     progress = nvl(progress, self.config.progress)
     if parallel < 1 or parallel != int(parallel):
@@ -294,7 +314,7 @@ class SpatialIndex(object):
       cur.execute("""DROP TABLE IF EXISTS index_files""")
 
     cur.execute(f"""
-      CREATE TABLE index_files (
+      {create_table_prefix} index_files (
         id {ID_INTEGER} PRIMARY KEY {AUTOINC},
         filename VARCHAR(100) NOT NULL
       )
@@ -302,7 +322,7 @@ class SpatialIndex(object):
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
     cur.execute(f"""
-      CREATE TABLE file_lookup (
+      {create_table_prefix} file_lookup (
         label {INTEGER} NOT NULL,
         fid {INTEGER} NOT NULL REFERENCES index_files(id),
         PRIMARY KEY(label,fid)
@@ -325,7 +345,7 @@ class SpatialIndex(object):
     for t in threads:
       t.start()
 
-    for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing):
+    for index_files in self.fetch_all_index_files(progress=progress, allow_missing=allow_missing, parallel=parallel):
       qu.put(index_files)
 
     finished_loading_evt.set()
@@ -682,7 +702,15 @@ class SpatialIndex(object):
 
     if self.sql_db and fast_path:
       conn = connect(self.sql_db)
-      cur = conn.cursor()
+      db_type = parse_db_path(self.sql_db)["scheme"]
+      if db_type in ("postgres", "postgresql"):
+        # By default, psycopg2 buffers all query results on the client-side
+        # which can be very slow for large tables. Using a server-side
+        # cursor (by giving the cursor a name) avoids this problem by
+        # fetching results from the server in smaller chunks.
+        cur = conn.cursor(f"fast_path_query_{time.time()}") # named cursor
+      else:
+        cur = conn.cursor()
       cur.execute("select distinct label from file_lookup")
 
       labels_list = []
@@ -779,6 +807,24 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     AUTOINC = "AUTOINCREMENT"
     INTEGER = "INTEGER"
 
+  @retry
+  def postgres_insert_file_lookup_values(cur, values):
+      f = io.StringIO()
+      for label, fid in values:
+          f.write(f"{label}\t{fid}\n")
+      f.seek(0)
+      cur.copy_from(f, 'file_lookup', columns=('label', 'fid'))
+
+  @retry
+  def insert_file_lookup_values(cur, chunked_values):
+    nonlocal BIND
+    bindlist = ",".join([f"({BIND},{BIND})"] * len(chunked_values))
+    flattened_values = []
+    for label, fid in chunked_values:
+      flattened_values.append(label)
+      flattened_values.append(fid)
+    cur.execute(f"INSERT INTO file_lookup(label, fid) VALUES {bindlist}", flattened_values)
+
   values = [ os.path.basename(filename) for filename in index_files.keys() ]
 
   # This is a critical region as if multiple inserts and queries occur outside
@@ -808,33 +854,37 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     fid = filename_id_map[filename]
     all_values.extend(( (int(label), fid) for label in index_labels ))
   
-  @retry
-  def insert_file_lookup_values(cur, chunked_values):
-    nonlocal BIND
-    bindlist = ",".join([f"({BIND},{BIND})"] * len(chunked_values))
-    flattened_values = []
-    for label, fid in chunked_values:
-      flattened_values.append(label)
-      flattened_values.append(fid)
-    cur.execute(f"INSERT INTO file_lookup(label, fid) VALUES {bindlist}", flattened_values)
-
   pbar = tqdm(
     desc="Inserting File Lookups", 
     disable=(not progress), 
     total=len(all_values)
   )
 
-  block_size = 500000 if db_type in (DbType.MYSQL, DbType.POSTGRES) else 15000
+  if db_type == DbType.POSTGRES:
+    block_size = 5000000
+  elif db_type == DbType.MYSQL:
+    block_size = 500000
+  else: # sqlite
+    block_size = 15000
 
-  with pbar:
-    for chunked_values in sip(all_values, block_size):
-      insert_file_lookup_values(cur, chunked_values)
-      conn.commit()
-      pbar.update(len(chunked_values))
-
+  if db_type == DbType.POSTGRES:
+    conn.commit()
+    with pbar:
+      for chunked_values in sip(all_values, block_size):
+        postgres_insert_file_lookup_values(cur, chunked_values)
+        conn.commit()
+        pbar.update(len(chunked_values))
+  else:
+    with pbar:
+      for chunked_values in sip(all_values, block_size):
+        insert_file_lookup_values(cur, chunked_values)
+        conn.commit()
+        pbar.update(len(chunked_values))
 def set_journaling_to_performance_mode(cur, db_type):
   if db_type in (DbType.MYSQL, DbType.POSTGRES):
     cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+    if db_type == DbType.POSTGRES:
+        cur.execute("SET synchronous_commit=OFF")
   else: # sqlite
     cur.execute("PRAGMA journal_mode = MEMORY")
     cur.execute("PRAGMA synchronous = OFF")
