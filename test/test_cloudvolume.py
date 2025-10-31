@@ -261,6 +261,23 @@ def test_read_sharded_renumber(shard_vol, shard_vol_data_cpso, green, encoding, 
   assert np.all(img == 1)
   assert remap[data[1,1,1]] == 1
 
+@pytest.mark.parametrize('green', (True, False))
+@pytest.mark.parametrize('lru_bytes', (0,1e6))
+def test_download_crackle_flag(shard_vol, shard_vol_data_cpso, green, lru_bytes):
+  shard_vol.green_threads = green
+  shard_vol.image.lru.resize(lru_bytes)
+  data = shard_vol_data_cpso
+
+  bbox = Bbox([0,0,0], data.shape)
+  
+  img = shard_vol.download(shard_vol.bounds, mip=0, crackle=True)
+
+  assert np.all(img[:] == shard_vol_data_cpso[:])
+  
+  bbox = Bbox([1,1,1], [2,2,2])
+  img = shard_vol.download(bbox, mip=0, label=data[1,1,1])
+  assert img.dtype == bool
+  assert np.all(img[:] == True)
 
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
