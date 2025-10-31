@@ -809,7 +809,6 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
 
   @retry
   def postgres_insert_file_lookup_values(cur, values):
-      s = time.time()
       f = io.StringIO()
       for label, fid in values:
           f.write(f"{label}\t{fid}\n")
