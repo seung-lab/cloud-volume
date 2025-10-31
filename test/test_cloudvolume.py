@@ -236,9 +236,8 @@ def test_read_binary_image(green, encoding, lru_bytes):
 
 
 @pytest.mark.parametrize('green', (True, False))
-@pytest.mark.parametrize('encoding', ('raw', 'compressed_segmentation', 'crackle'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6))
-def test_read_sharded_renumber(shard_vol, shard_vol_data_cpso, green, encoding, lru_bytes):
+def test_read_sharded_renumber(shard_vol, shard_vol_data_cpso, green, lru_bytes):
   shard_vol.green_threads = green
   shard_vol.image.lru.resize(lru_bytes)
   data = shard_vol_data_cpso
