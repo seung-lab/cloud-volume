@@ -270,17 +270,29 @@ class PrecomputedImageSource(ImageSourceInterface):
       subbbx.minpt.z += z * cz
       subbbx.maxpt.z = min(subbbx.minpt.z + cz, bbox.maxpt.z)
 
-      labels = self.download(
-        subbbx, 
-        mip=mip, 
-        parallel=parallel,
-        label=label,
-        progress=False,
-      )
+      if parallel == 1:
+        labels, mapping = self.download(
+          subbbx,
+          mip=mip,
+          parallel=parallel,
+          label=label,
+          progress=False,
+          renumber=True,
+        )
+        binary = crackle.compress(labels, parallel=parallel)
+        binary = crackle.remap(binary, { v:k for k,v in mapping.items() }, in_place=True)
+      else:
+        labels = self.download(
+          subbbx,
+          mip=mip,
+          parallel=parallel,
+          label=label,
+          progress=False,
+          renumber=False,
+        )
+        binary = crackle.compress(labels, parallel=parallel)
 
-      stack.append(
-        crackle.compress(labels)
-      )
+      stack.append(binary)
       del labels
 
     return crackle.CrackleArray(crackle.zstack(stack))
