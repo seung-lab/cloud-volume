@@ -136,6 +136,7 @@ class UnshardedPrecomputedSkeletonSource(object):
     return self.upload(*args, **kwargs)
 
   def list(self) -> npt.NDArray[np.uint64]:
+    dtype = self.meta.meta.dtype
     bbox = self.meta.meta.bounds(self.meta.mip)
     res = self.meta.meta.resolution(self.meta.mip)
     bbox *= res
@@ -147,7 +148,7 @@ class UnshardedPrecomputedSkeletonSource(object):
     else:
       lst = self.spatial_index.query(bbox)
 
-    lst = np.fromiter(lst, dtype=np.uint64)
+    lst = np.fromiter(lst, dtype=dtype)
     lst.sort()
     return lst
 

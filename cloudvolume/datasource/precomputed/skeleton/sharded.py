@@ -94,13 +94,14 @@ class ShardedPrecomputedSkeletonSource(object):
       cache_control='no-cache',      
     )
 
-  def list(self) -> npt.NDArray[np.uint64]:
+  def list(self) -> npt.NDArray[np.integer]:
+    dtype = self.meta.meta.dtype
     if self.spatial_index is not None:
       bbox = self.meta.meta.bounds(self.meta.mip)
       res = self.meta.meta.resolution(self.meta.mip)
       bbox *= res
       all_labels = self.spatial_index.query(bbox)
-      all_labels = np.fromiter(all_labels, dtype=np.uint64)
+      all_labels = np.fromiter(all_labels, dtype=dtype)
     else:
       cf = CloudFiles(self.meta.cloudpath)
       path = cf.join(self.meta.cloudpath, self.meta.skeleton_path)
@@ -109,7 +110,7 @@ class ShardedPrecomputedSkeletonSource(object):
 
       if len(files) > 0:
         files = cf.get_json(files)
-        all_labels = np.concatenate(files)
+        all_labels = np.concatenate(files).astype(dtype, copy=False)
       else:
         files = [ fname for fname in cf.list() if fname.endswith(".shard") ]
         all_labels = set()
@@ -117,7 +118,7 @@ class ShardedPrecomputedSkeletonSource(object):
           all_labels.update(
             self.reader.list_labels(cf.join(self.meta.skeleton_path, fname))
           )
-        all_labels = np.fromiter(all_labels, dtype=np.uint64)
+        all_labels = np.fromiter(all_labels, dtype=dtype)
 
     all_labels.sort()
     return all_labels
