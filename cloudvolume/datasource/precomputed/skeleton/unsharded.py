@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Iterator
 
 import datetime
 import os
@@ -6,6 +6,7 @@ import os
 import posixpath
 
 import numpy as np
+from cloudfiles import CloudFiles
 
 from cloudvolume import lib
 from cloudvolume.exceptions import (
@@ -132,6 +133,22 @@ class UnshardedPrecomputedSkeletonSource(object):
   # harmonize interface with mesh sources
   def put(self, *args, **kwargs):
     return self.upload(*args, **kwargs)
+
+  def list(self) -> npt.NDArray[np.uint64]:
+    bbox = self.meta.meta.bounds(self.meta.mip)
+    res = self.meta.meta.resolution(self.meta.mip)
+    bbox *= res
+    
+    if self.spatial_index is None:
+      lst = (
+        int(os.path.basename(path)) for path in CloudFiles.list(self.meta.skeleton_path) if ':' not in path 
+      )
+    else:
+      lst = self.spatial_index.query(bbox)
+
+    lst = np.fromiter(lst, dtype=np.uint64)
+    lst.sort()
+    return lst
 
   def get_bbox(self, bbox):
     if self.spatial_index is None:

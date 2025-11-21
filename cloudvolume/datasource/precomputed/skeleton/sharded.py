@@ -1,6 +1,7 @@
 from typing import Optional
 
 import numpy as np
+import numpy.typing as npt
 
 from ..sharding import ShardingSpecification, ShardReader, synthesize_shard_files
 from ....skeleton import Skeleton
@@ -92,6 +93,9 @@ class ShardedPrecomputedSkeletonSource(object):
       content_type='application/octet-stream',
       cache_control='no-cache',      
     )
+
+  def list(self) -> npt.NDArray[np.uint64]:
+    raise NotImplementedError("list operator not implemented for sharded.")
 
   def to_sharded(
     self,
