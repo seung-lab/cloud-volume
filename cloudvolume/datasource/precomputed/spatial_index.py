@@ -288,19 +288,19 @@ class SpatialIndex(object):
       AUTOINC = "AUTO_INCREMENT"
       INTEGER = "BIGINT UNSIGNED"
       ID_INTEGER = INTEGER
-      create_table_prefix = "CREATE TABLE"
+      CREATE_TABLE = "CREATE TABLE"
     elif db_type == DbType.POSTGRES:
       BIND = '%s'
       AUTOINC = ""
       INTEGER = "BIGINT" # no unsigned
       ID_INTEGER = "BIGSERIAL"
-      create_table_prefix = "CREATE UNLOGGED TABLE"
+      CREATE_TABLE = "CREATE UNLOGGED TABLE"
     else: # sqlite
       BIND = '?'
       AUTOINC = "AUTOINCREMENT"
       INTEGER = "INTEGER"
       ID_INTEGER = INTEGER
-      create_table_prefix = "CREATE TABLE"
+      CREATE_TABLE = "CREATE TABLE"
 
     progress = nvl(progress, self.config.progress)
     if parallel < 1 or parallel != int(parallel):
@@ -314,7 +314,7 @@ class SpatialIndex(object):
       cur.execute("""DROP TABLE IF EXISTS index_files""")
 
     cur.execute(f"""
-      {create_table_prefix} index_files (
+      {CREATE_TABLE} index_files (
         id {ID_INTEGER} PRIMARY KEY {AUTOINC},
         filename VARCHAR(100) NOT NULL
       )
@@ -322,7 +322,7 @@ class SpatialIndex(object):
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
     cur.execute(f"""
-      {create_table_prefix} file_lookup (
+      {CREATE_TABLE} file_lookup (
         label {INTEGER} NOT NULL,
         fid {INTEGER} NOT NULL REFERENCES index_files(id),
         PRIMARY KEY(label,fid)
