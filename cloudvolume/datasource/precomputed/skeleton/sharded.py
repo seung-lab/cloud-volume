@@ -95,8 +95,7 @@ class ShardedPrecomputedSkeletonSource(object):
     )
 
   def list(self) -> npt.NDArray[np.uint64]:
-    from tqdm import tqdm
-    if False and self.spatial_index is not None:
+    if self.spatial_index is not None:
       bbox = self.meta.meta.bounds(self.meta.mip)
       res = self.meta.meta.resolution(self.meta.mip)
       bbox *= res
