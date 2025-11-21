@@ -95,7 +95,33 @@ class ShardedPrecomputedSkeletonSource(object):
     )
 
   def list(self) -> npt.NDArray[np.uint64]:
-    raise NotImplementedError("list operator not implemented for sharded.")
+    from tqdm import tqdm
+    if False and self.spatial_index is not None:
+      bbox = self.meta.meta.bounds(self.meta.mip)
+      res = self.meta.meta.resolution(self.meta.mip)
+      bbox *= res
+      all_labels = self.spatial_index.query(bbox)
+      all_labels = np.fromiter(all_labels, dtype=np.uint64)
+    else:
+      cf = CloudFiles(self.meta.cloudpath)
+      path = cf.join(self.meta.cloudpath, self.meta.skeleton_path)
+      cf = CloudFiles(path)
+      files = [ fname for fname in cf.list() if fname.endswith(".labels") ]
+
+      if len(files) > 0:
+        files = cf.get_json(files)
+        all_labels = np.concatenate(files)
+      else:
+        files = [ fname for fname in cf.list() if fname.endswith(".shard") ]
+        all_labels = set()
+        for fname in files:
+          all_labels.update(
+            self.reader.list_labels(cf.join(self.meta.skeleton_path, fname))
+          )
+        all_labels = np.fromiter(all_labels, dtype=np.uint64)
+
+    all_labels.sort()
+    return all_labels
 
   def to_sharded(
     self,

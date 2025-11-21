@@ -6,6 +6,7 @@ import os
 import posixpath
 
 import numpy as np
+import numpy.typing as npt
 from cloudfiles import CloudFiles
 
 from cloudvolume import lib
@@ -141,7 +142,7 @@ class UnshardedPrecomputedSkeletonSource(object):
     
     if self.spatial_index is None:
       lst = (
-        int(os.path.basename(path)) for path in CloudFiles.list(self.meta.skeleton_path) if ':' not in path 
+        int(os.path.basename(path)) for path in CloudFiles(self.meta.skeleton_path).list() if ':' not in path 
       )
     else:
       lst = self.spatial_index.query(bbox)
