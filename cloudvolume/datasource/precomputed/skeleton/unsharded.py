@@ -135,7 +135,7 @@ class UnshardedPrecomputedSkeletonSource(object):
   def put(self, *args, **kwargs):
     return self.upload(*args, **kwargs)
 
-  def list(self) -> npt.NDArray[np.uint64]:
+  def list(self) -> npt.NDArray[np.integer]:
     dtype = self.meta.meta.dtype
     bbox = self.meta.meta.bounds(self.meta.mip)
     res = self.meta.meta.resolution(self.meta.mip)
