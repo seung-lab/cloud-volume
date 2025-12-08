@@ -25,11 +25,10 @@ from cloudvolume.volumecutout import VolumeCutout
 
 import cloudvolume.sharedmemory as shm
 
-from ..common import should_compress, content_type
+from ..common import should_compress, content_type, compressed_morton_code
 from .common import (
   parallel_execution, 
   chunknames, shade, gridpoints,
-  compressed_morton_code
 )
 
 from .. import sharding

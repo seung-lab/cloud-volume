@@ -29,7 +29,8 @@ from .... import sharedmemory, chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
-from .common import chunknames, gridpoints, compressed_morton_code, morton_code_to_bbox
+from ..common import  compressed_morton_code, morton_code_to_bbox
+from .common import chunknames, gridpoints
 from . import tx, rx, xfer
 
 class PrecomputedImageSource(ImageSourceInterface):
