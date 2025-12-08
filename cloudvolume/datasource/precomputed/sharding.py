@@ -660,9 +660,9 @@ class ShardReader:
         bundles[-1]['end'] = chunk['end']
 
       bundles[-1]['subranges'].append({
-          'start': chunk['start'],
-          'length': chunk['end'] - chunk['start'],
-          'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
+        'start': chunk['start'],
+        'length': chunk['end'] - chunk['start'],
+        'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
       })
     
     full_path = self.meta.join(self.meta.cloudpath, path)
