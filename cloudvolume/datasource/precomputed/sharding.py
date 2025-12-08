@@ -271,7 +271,7 @@ class ShardingSpecification(object):
   def __str__(self):
     return "ShardingSpecification::" + str(self.to_dict())
 
-class ShardReader(object):
+class ShardReader:
   def __init__(
     self, meta, cache, spec,
     shard_index_cache_size=512,
