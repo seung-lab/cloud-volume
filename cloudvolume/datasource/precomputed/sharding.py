@@ -7,6 +7,7 @@ import json
 import math
 import operator
 from operator import itemgetter
+import os
 from os.path import basename
 import struct
 
@@ -16,6 +17,7 @@ from tqdm import tqdm
 from cloudfiles import CloudFiles
 
 from . import mmh3
+from ...paths import strict_extract
 from ... import compression
 from ...lib import jsonify, toiter, first, Vec, Bbox
 from ...lru import LRU
@@ -273,10 +275,10 @@ class ShardingSpecification(object):
 
 class ShardReader:
   def __init__(
-    self, meta, cache, spec,
+    self, cloudpath, cache, spec,
     shard_index_cache_size=512,
     minishard_index_cache_size=128,
-    green=False
+    green=False,
   ):
     """
     Reads standard Precomputed shard files. 
@@ -288,13 +290,20 @@ class ShardReader:
     shard_index_cache_size: size of LRU cache for fixed indices 
     minishard_index_cache_size: size of LRU cache for minishard indices
     """
-    self.meta = meta
+    self.cloudpath = cloudpath
+    self._path = strict_extract(cloudpath)
     self.cache = cache
     self.spec = spec
     self.green = green
 
     self.shard_index_cache = LRU(shard_index_cache_size)
     self.minishard_index_cache = LRU(minishard_index_cache_size)
+
+  def join(self, *paths):
+    if self._path.protocol == 'file':
+      return os.path.join(*paths)
+    else:
+      return posixpath.join(*paths)
 
   def get_filename(self, label):
     return self.compute_shard_location(label)[0]
@@ -334,7 +343,7 @@ class ShardReader:
     } 
     """
     filenames = toiter(filenames)
-    filenames = [ self.meta.join(path, fname) for fname in filenames ]
+    filenames = [ self.join(path, fname) for fname in filenames ]
     fufilled = { 
       fname: self.shard_index_cache[fname] \
       for fname in filenames \
@@ -446,7 +455,7 @@ class ShardReader:
       for msn, start, end in pending_requests:
         msn_map[(basename(filename), start, end)] = msn
 
-        filepath = self.meta.join(path, filename)
+        filepath = self.join(path, filename)
 
         download_requests.append({
           'path': filepath,
@@ -492,7 +501,7 @@ class ShardReader:
       bytes_start, bytes_end = int(bytes_start), int(bytes_end)
       byte_ranges[msn] = (bytes_start, bytes_end)
 
-    full_path = self.meta.join(self.meta.cloudpath, path)
+    full_path = self.join(self.cloudpath, path)
 
     pending_requests = []
     for msn, (bytes_start, bytes_end) in byte_ranges.items():
@@ -545,7 +554,7 @@ class ShardReader:
 
     results = {}
     for filename, file_minishards in all_minishards.items():
-      filepath = self.meta.join(path, filename)
+      filepath = self.join(path, filename)
       for mini_no, msi in file_minishards.items():
         labels = to_labels[(filename, mini_no)]
 
@@ -622,7 +631,7 @@ class ShardReader:
     cached = {}
     if self.cache.enabled:
       cached = self.cache.get([ 
-        self.meta.join(path, str(lbl)) for lbl in label
+        self.join(path, str(lbl)) for lbl in label
       ], progress=progress)
 
     results = {}
@@ -665,7 +674,7 @@ class ShardReader:
         'slices': slice(chunk['start'] - bundles[-1]['start'], chunk['end'] - bundles[-1]['start'])
       })
     
-    full_path = self.meta.join(self.meta.cloudpath, path)
+    full_path = self.join(self.cloudpath, path)
     bundles_resp = CloudFiles(
       full_path, 
       progress=("Downloading Bundles" if progress else False), 
@@ -700,7 +709,7 @@ class ShardReader:
     
     if self.cache.enabled:
       self.cache.put([ 
-        (self.meta.join(path, str(filepath)), binary) for filepath, binary in binaries.items()
+        (self.join(path, str(filepath)), binary) for filepath, binary in binaries.items()
       ], progress=progress)
 
     results.update(binaries)

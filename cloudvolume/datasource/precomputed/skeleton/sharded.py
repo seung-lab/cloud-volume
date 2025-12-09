@@ -18,7 +18,7 @@ class ShardedPrecomputedSkeletonSource(object):
     self.readonly = bool(readonly)
 
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
-    self.reader = ShardReader(meta, cache, spec)
+    self.reader = ShardReader(meta.cloudpath, cache, spec)
 
     self.spatial_index = None
     if self.meta.spatial_index:

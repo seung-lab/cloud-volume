@@ -1,3 +1,7 @@
+import math
+
+import numpy as np
+
 def content_type(encoding):
   if encoding == 'jpeg':
     return 'image/jpeg'

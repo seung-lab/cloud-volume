@@ -676,7 +676,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     mip = mip if mip is not None else self.config.mip
     scale = self.meta.scale(mip)
     spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
-    return sharding.ShardReader(self.meta, self.cache, spec)
+    return sharding.ShardReader(self.meta.cloudpath, self.cache, spec)
 
   def shard_spec(self, mip, spec=None):
     if spec is None:
@@ -722,7 +722,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     grid_size = self.grid_size(mip)
     chunk_size = self.meta.chunk_size(mip)
-    reader = sharding.ShardReader(self.meta, self.cache, spec)
+    reader = sharding.ShardReader(self.meta.cloudpath, self.cache, spec)
 
     # 3. Gridpoints all within this one shard
     gpts = list(gridpoints(aligned_bbox, self.meta.bounds(mip), chunk_size))
