@@ -19,14 +19,14 @@ class AnnotationType(StrEnum):
 class PrecomputedAnnotationMetadata:
   def __init__(
     self, 
-    annotations_cloudpath,
+    cloudpath:str,
     meta, 
-    cache=None, 
+    cache, 
     config:Optional["SharedConfiguration"] = None, 
     info:Optional[dict] = None, 
     readonly:bool = False
   ):
-    self.annotations_cloudpath = annotations_cloudpath
+    self.cloudpath = cloudpath
     self.meta = meta
     self.cache = cache
     self.config = config
@@ -38,7 +38,7 @@ class PrecomputedAnnotationMetadata:
       self.info = self.fetch_info()
 
   def fetch_info(self):
-    return CloudFiles(self.annotations_cloudpath, secrets=self.config.secrets).get_json('info')
+    return CloudFiles(self.cloudpath, secrets=self.config.secrets).get_json('info')
 
   def default_info(self):
     return {
@@ -65,10 +65,10 @@ class PrecomputedAnnotationMetadata:
   def bounds(self) -> Bbox:
     return Bbox(self.info["lower_bound"], self.info["upper_bound"])
 
-  def chunk_size(self, mip:int) -> np.ndarray
+  def chunk_size(self, mip:int) -> np.ndarray:
     return np.array(self.info["spatial"][mip]["chunk_size"], dtype=int)
 
-  def grid_shape(self, mip:int) -> np.ndarray
+  def grid_shape(self, mip:int) -> np.ndarray:
     return np.array(self.info["spatial"][mip]["grid_shape"], dtype=int)
 
   def is_id_index_sharded(self) -> bool:
