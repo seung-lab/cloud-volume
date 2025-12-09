@@ -2,6 +2,8 @@ import math
 
 import numpy as np
 
+from ...lib import Vec, Bbox
+
 def content_type(encoding):
   if encoding == 'jpeg':
     return 'image/jpeg'
