@@ -62,6 +62,7 @@ class PrecomputedAnnotationSource:
       enabled=bool(cache),
       config=config,
       compress=True,
+      meta=self.meta,
     )
     self.config = None
     self.readonly = bool(readonly)
@@ -90,28 +91,46 @@ class PrecomputedAnnotationSource:
 
     return pts
 
+  def decode_points(self, binary:bytes) -> tuple[np.ndarray, np.ndarray]:
+    ndim = self.meta.ndim
+    num_points = int.from_bytes(binary[:8], 'little')
+    pts = np.frombuffer(
+      binary,
+      offset=8,
+      count=num_points * ndim,
+      dtype=np.float32,
+    ).reshape((num_points, ndim), order="C")
+
+    annotation_ids = np.frombuffer(
+      binary,
+      offset=(8 + pts.nbytes),
+      count=num_points,
+      dtype=np.uint64,
+    )
+    return (pts, annotation_ids)
+
   def get_by_bbox(self, bbox:BboxLikeType, mip:int = 0) -> dict[int, np.ndarray]:
     spatial = self.meta.info["spatial"][mip]
     key = spatial["key"]
 
     spatial_path = self.join(self.cloudpath, key)
 
-    orig_bbox = bbox.clone()
-    bbox = Bbox.create(bbox, self.meta.bounds())
-    bbox = bbox.expand_to_chunk_size(
+    # orig_bbox = bbox.clone()
+    realized_bbox = Bbox.create(bbox, self.meta.bounds())
+    realized_bbox = realized_bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip),
       offset=self.meta.bounds().minpt,
     )
-    bbox = Bbox.clamp(bbox, self.meta.bounds())
-    bbox /= self.meta.chunk_size(mip)
+    realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds())
+    realized_bbox /= self.meta.chunk_size(mip)
 
-    grid = np.mgrid[bbox.to_slices()][...,0,0].T
-
+    grid = np.mgrid[realized_bbox.to_slices()][...,0,0].T
     if spatial.get("sharding", None) is not None:
       codes = compressed_morton_code(grid, self.meta.grid_shape(mip))
       spec = ShardingSpecification.from_dict(spatial["sharding"])
       reader = ShardReader(spatial_path, self.cache, spec)
       annotations = reader.get_data(codes)
+      annotations = [ f["content"] for f in annotations.values() if f is not None ]
     else:
       filenames = [
         "_".join([ str(x) for x in pt ])
@@ -119,46 +138,14 @@ class PrecomputedAnnotationSource:
       ]
       cf = CloudFiles(spatial_path)
       annotations = cf.get(filenames)
+      annotations = [ f["content"] for f in annotations ]
 
-    N = self.meta.ndim
+    all_pts = []
+    for binary in annotations:
+      pts, annotation_ids = self.decode_points(binary)
+      all_pts.append(pts)
 
-    pts = []
-    for file in annotations:
-      binary = file["content"]
-      pts.append(
-        np.frombuffer(binary, dtype=np.float32).reshape((len(binary) // N, 3), order="C")
-      )
-
-    return np.concatenate(*pts, axis=0)
-
-  @classmethod
-  def from_cloudpath(
-    cls, 
-    cloudpath:str, 
-    cache=False, 
-    progress=False,
-    secrets=None,
-    spatial_index_db:Optional[str]=None, 
-    cache_locking:bool = True,
-  ):
-    config = SharedConfiguration(
-      cdn_cache=False,
-      compress=True,
-      compress_level=None,
-      green=False,
-      mip=0,
-      parallel=1,
-      progress=progress,
-      secrets=secrets,
-      spatial_index_db=spatial_index_db,
-      cache_locking=cache_locking,
-    )
-    
-    cache = CacheService(
-      cloudpath=(cache if type(cache) == str else cloudpath),
-      enabled=bool(cache),
-      config=config,
-      compress=True,
-    )
-
-    return PrecomputedAnnotationSource(cloudpath, cache, config)
+    if len(all_pts):
+      return np.concatenate(all_pts, axis=0)
+    else:
+      return np.zeros([0,N], dtype=np.float32)
