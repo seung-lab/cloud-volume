@@ -209,9 +209,9 @@ class PrecomputedAnnotationSource:
     if spatial.get("sharding", None) is not None:
       codes = compressed_morton_code(grid, self.meta.grid_shape(mip))
       spec = ShardingSpecification.from_dict(spatial["sharding"])
-      reader = ShardReader(spatial_path, self.cache, spec)
-      annotations = reader.get_data(codes)
-      annotations = [ f["content"] for f in annotations.values() if f is not None ]
+      reader = ShardReader(self.cloudpath, self.cache, spec)
+      annotations = reader.get_data(codes, path=key)
+      annotations = [ binary for binary in annotations.values() if binary is not None ]
     else:
       filenames = [
         "_".join([ str(x) for x in pt ])
@@ -235,15 +235,15 @@ class PrecomputedAnnotationSource:
         else:
           properties[prop] = np.concatenate([properties[prop], props[prop]])
 
-      if len(all_geo):
-        all_geo = np.concatenate(all_geo, axis=0)
-      else:
-        all_geo = np.zeros([0,N], dtype=np.float32)
+    if len(all_geo):
+      all_geo = np.concatenate(all_geo, axis=0)
+    else:
+      all_geo = np.zeros([0,N], dtype=np.float32)
 
-      if len(ids):
-        ids = np.concatenate(ids)
-      else:
-        ids = np.zeros([0,], dtype=np.uint64)
+    if len(ids):
+      ids = np.concatenate(ids)
+    else:
+      ids = np.zeros([0,], dtype=np.uint64)
 
     return SpatialAnnotation(
       self.meta.annotation_type,
