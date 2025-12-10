@@ -78,6 +78,10 @@ class PrecomputedAnnotationMetadata:
   def ndim(self) -> int:
     return len(self.info["dimensions"])
 
+  @property
+  def properties(self) -> dict:
+    return self.info["properties"]
+
   def bounds(self) -> Bbox:
     return Bbox(self.info["lower_bound"], self.info["upper_bound"])
 

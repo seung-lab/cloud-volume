@@ -99,20 +99,38 @@ class PrecomputedAnnotationSource:
   def decode_points(self, binary:bytes) -> tuple[np.ndarray, np.ndarray]:
     ndim = self.meta.ndim
     num_points = int.from_bytes(binary[:8], 'little')
+    offset = 8
+
     pts = np.frombuffer(
       binary,
-      offset=8,
+      offset=offset,
       count=num_points * ndim,
-      dtype=np.float32,
+      dtype="<f4",
     ).reshape((num_points, ndim), order="C")
+    offset += pts.nbytes
 
-    annotation_ids = np.frombuffer(
+    ids = np.frombuffer(
       binary,
-      offset=(8 + pts.nbytes),
+      offset=offset,
       count=num_points,
-      dtype=np.uint64,
+      dtype="<u8",
     )
-    return (pts, annotation_ids)
+    offset += ids.nbytes
+
+    properties = {}
+    for prop in self.meta.properties:
+      p = np.frombuffer(
+        binary,
+        offset=offset,
+        count=num_points,
+        dtype=prop["type"],
+      )
+      properties[prop["id"]] = p
+      offset += p.nbytes
+
+    assert offset == len(binary)
+
+    return (pts, ids, properties)
 
   def get_by_bbox(self, bbox:BboxLikeType, mip:int = 0) -> dict[int, np.ndarray]:
     spatial = self.meta.info["spatial"][mip]
@@ -147,7 +165,7 @@ class PrecomputedAnnotationSource:
 
     all_pts = []
     for binary in annotations:
-      pts, annotation_ids = self.decode_points(binary)
+      pts, annotation_ids, properties = self.decode_points(binary)
       all_pts.append(pts)
 
     if len(all_pts):
