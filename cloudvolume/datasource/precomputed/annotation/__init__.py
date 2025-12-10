@@ -13,6 +13,7 @@ from ....cacheservice import CacheService
 from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
+from ....types import SecretsType
 from ....lib import Bbox, BboxLikeType
 from ....paths import strict_extract, to_https_protocol, ascloudpath
 from ..common import compressed_morton_code
@@ -31,6 +32,7 @@ class PrecomputedAnnotationSource:
     cache:Optional[str] = None,
     config:Optional[SharedConfiguration] = None,
     readonly:bool = False,
+    secrets:SecretsType = None,
     info:Optional[dict] = None,
     use_https:bool = False,
   ):
@@ -48,14 +50,17 @@ class PrecomputedAnnotationSource:
         mip=0,
         parallel=1,
         progress=False,
-        secrets={},
+        secrets=secrets,
         spatial_index_db=None,
         cache_locking=False,
         codec_threads=1,
       )
 
     self.path = path
-    self.meta = PrecomputedAnnotationMetadata(cloudpath, cache, config, info=info, readonly=readonly)
+    self.meta = PrecomputedAnnotationMetadata(
+      cloudpath, cache, config,
+      info=info, readonly=readonly
+    )
     self.cloudpath = cloudpath
     self.cache = CacheService(
       cloudpath=get_cache_path(cache, cloudpath),
@@ -64,7 +69,7 @@ class PrecomputedAnnotationSource:
       compress=True,
       meta=self.meta,
     )
-    self.config = None
+    self.config = config
     self.readonly = bool(readonly)
 
   def join(self, *paths):
@@ -80,7 +85,7 @@ class PrecomputedAnnotationSource:
       reader = ShardReader(self.cloudpath, self.cache, spec)
       annotations = reader.get_data(segids)
     else:
-      cf = CloudFiles(self.cloudpath)
+      cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
       annotations = cf.get([ f"{segid}" for segid in segids ])
 
     N = len(self.meta.info["dimensions"])
@@ -136,7 +141,7 @@ class PrecomputedAnnotationSource:
         "_".join([ str(x) for x in pt ])
         for pt in grid
       ]
-      cf = CloudFiles(spatial_path)
+      cf = CloudFiles(spatial_path, secrets=self.config.secrets)
       annotations = cf.get(filenames)
       annotations = [ f["content"] for f in annotations ]
 
