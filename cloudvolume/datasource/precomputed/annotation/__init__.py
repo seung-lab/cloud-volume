@@ -16,7 +16,7 @@ from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
 from ....types import SecretsType
-from ....lib import Bbox, BboxLikeType
+from ....lib import Bbox, BboxLikeType, toiter
 from ....paths import strict_extract, to_https_protocol, ascloudpath
 from ..common import compressed_morton_code
 from ..sharding import ShardReader, ShardingSpecification
@@ -32,6 +32,7 @@ class LabelAnnotation:
   type: AnnotationType
   geometry: npt.NDArray[np.float32]
   properties: dict[str, np.ndarray]
+  relationships: dict[str, npt.NDArray[np.uint64]]
 
 @dataclass
 class SpatialAnnotation:
@@ -98,6 +99,35 @@ class PrecomputedAnnotationSource:
     prop_dtypes = [ (prop["id"], prop["type"]) for prop in self.meta.properties ]
     return [('_geometry', 'f4', ndim)] + prop_dtypes
 
+  def decode_single_annotation(self, binary:bytes):
+    ndim = self.meta.ndim
+    offset = 0
+
+    decoded = np.frombuffer(
+      binary,
+      offset=offset,
+      count=1,
+      dtype=self._annotation_dtype(),
+    )
+    geometry = decoded["_geometry"]
+    offset += decoded.nbytes
+
+    properties = {}
+    for prop in self.meta.properties:
+      properties[prop["id"]] = decoded[prop["id"]]
+
+    relationships = {}
+    for relation in self.meta.info["relationships"]:
+      num_obj = int.from_bytes(binary[offset:offset+4], 'little')
+      offset += 4
+      object_ids = np.frombuffer(binary, offset=offset, count=num_obj, dtype=np.uint64)
+      offset += object_ids.nbytes
+      relationships[relation["key"]] = object_ids
+
+    assert offset == len(binary)
+
+    return (geometry, properties, relationships)
+
   def decode_annotations(self, binary:bytes) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     ndim = self.meta.ndim
     num_points = int.from_bytes(binary[:8], 'little')
@@ -127,29 +157,39 @@ class PrecomputedAnnotationSource:
 
     return (geometry, ids, properties)
 
-  def get_by_id(self, segids:Union[int, list[int]]) -> dict[Union[str,int], LabelAnnotation]:
+  def get_by_id(self, label:Union[int, list[int]]) -> dict[Union[str,int], LabelAnnotation]:
+    label, return_multiple = toiter(label, is_iter=True)
+
     annos = {}
 
-    cloudpath = self.join(self.cloudpath, self.meta.info["by_id"]["key"])
+    by_id = self.meta.info["by_id"]
 
     if self.meta.is_id_index_sharded():
-      spec = ShardingSpecification.from_dict(self.meta.info["by_id"]["sharding"])
-      reader = ShardReader(cloudpath, self.cache, spec)
-      annotations = reader.get_data(segids)
+      spec = ShardingSpecification.from_dict(by_id["sharding"])
+      reader = ShardReader(self.cloudpath, self.cache, spec)
+      result = reader.get_data(label, path=by_id["key"])
+
+      for segid, binary in result.items():
+        geometry, properties, relationships = self.decode_single_annotation(binary)
+        annos[segid] = LabelAnnotation(
+          segid,
+          self.meta.annotation_type,
+          geometry,
+          properties,
+          relationships,
+        )
     else:
+      cloudpath = self.join(self.cloudpath, by_id["key"])
       cf = CloudFiles(cloudpath, secrets=self.config.secrets)
-      annotations = cf.get([ f"{segid}" for segid in segids ])
+      annotations = cf.get([ f"{segid}" for segid in label ])
       for file in annotations:
         binary = file["content"]
         segid = int(file["path"])
         annos[segid] = self.decode_annotations(binary)
 
-    return LabelAnnotation(
-      segids,
-      self.meta.annotation_type,
-      all_geo,
-      properties,
-    )
+    if return_multiple:
+      return annos
+    return annos[label[0]]
 
   def get_by_bbox(self, bbox:BboxLikeType, mip:int = 0) -> SpatialAnnotation:
     spatial = self.meta.info["spatial"][mip]
