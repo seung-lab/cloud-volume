@@ -185,7 +185,14 @@ class PrecomputedAnnotationSource:
       for file in annotations:
         binary = file["content"]
         segid = int(file["path"])
-        annos[segid] = self.decode_annotations(binary)
+        geometry, properties, relationships = self.decode_single_annotation(binary)
+        annos[segid] = LabelAnnotation(
+          segid,
+          self.meta.annotation_type,
+          geometry,
+          properties,
+          relationships,
+        )
 
     if return_multiple:
       return annos
