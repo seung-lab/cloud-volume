@@ -9,6 +9,7 @@ import operator
 from operator import itemgetter
 import os
 from os.path import basename
+import posixpath
 import struct
 
 import numpy as np
