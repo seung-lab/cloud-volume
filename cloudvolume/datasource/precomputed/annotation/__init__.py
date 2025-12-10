@@ -164,9 +164,18 @@ class PrecomputedAnnotationSource:
       annotations = [ f["content"] for f in annotations ]
 
     all_pts = []
+    ids = []
+    properties = {}
     for binary in annotations:
-      pts, annotation_ids, properties = self.decode_points(binary)
+      pts, annotation_ids, props = self.decode_points(binary)
       all_pts.append(pts)
+      ids.append(annotation_ids)
+
+      for prop in props.keys():
+        if prop not in properties:
+          properties[prop] = props[prop]
+        else:
+          properties[prop] = np.concatenate([properties[prop], props[prop]])
 
     if len(all_pts):
       return np.concatenate(all_pts, axis=0)
