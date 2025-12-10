@@ -603,8 +603,11 @@ class ShardReader:
     return shattered
 
   def get_data(
-    self, label:int, path:str = "", 
-    progress:Optional[bool] = None, parallel:int = 1,
+    self,
+    label:int,
+    path:str = "", 
+    progress:Optional[bool] = None,
+    parallel:int = 1,
     raw:bool = False
   ):
     """Fetches data from shards.
