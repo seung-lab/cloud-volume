@@ -205,6 +205,9 @@ class PrecomputedAnnotationSource:
     realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds())
     realized_bbox /= self.meta.chunk_size(mip)
 
+    grid_box = Bbox([0,0,0], self.meta.grid_shape(mip))
+    realized_bbox = Bbox.clamp(realized_bbox, grid_box)
+
     grid = np.mgrid[realized_bbox.to_slices()][...,0,0].T
     if spatial.get("sharding", None) is not None:
       codes = compressed_morton_code(grid, self.meta.grid_shape(mip))
