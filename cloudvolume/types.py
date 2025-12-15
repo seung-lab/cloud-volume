@@ -7,3 +7,11 @@ SecretsType = Optional[Union[str,dict]]
 MipType = Union[int, List[int]]
 ShapeType = Tuple[int,int,int]
 ProgressType = Union[bool,str]
+
+
+try:
+	from enum import StrEnum
+except ImportError:
+	import enum
+	class StrEnum(str, enum.Enum):
+		pass

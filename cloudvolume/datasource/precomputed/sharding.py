@@ -744,7 +744,8 @@ class ShardReader:
       labels = np.concatenate([  
         msi[:,0] for msi in minishard_indices
       ])
-      return np.sort(labels)
+      labels.sort()
+      return labels
     else:
       labels = np.concatenate([  
         msi[:,:]
