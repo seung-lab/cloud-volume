@@ -104,7 +104,7 @@ class LabelAnnotation:
       geometry=self.geometry[mask],
       properties={
         k: v[mask]
-        for k,v in properties.items()
+        for k,v in self.properties.items()
       },
       relationships=self.relationships,
     )
@@ -133,7 +133,7 @@ class MultiLabelAnnotation:
       ids=self.geometry[mask],
       properties={
         k: v[mask]
-        for k,v in properties.items()
+        for k,v in self.properties.items()
       },
     )
 
@@ -307,13 +307,14 @@ class PrecomputedAnnotationReader:
     spatial_path = self.meta.join(self.meta.cloudpath, key)
 
     realized_bbox = Bbox.create(bbox, self.meta.bounds)
+    orig_bbox = realized_bbox.clone()
     realized_bbox = realized_bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip),
       offset=self.meta.bounds.minpt,
     )
     realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds)
     realized_bbox /= self.meta.chunk_size(mip)
-    
+
     grid_box = Bbox([0,0,0], self.meta.grid_shape(mip))
     realized_bbox = Bbox.clamp(realized_bbox, grid_box)
 
@@ -362,5 +363,5 @@ class PrecomputedAnnotationReader:
       all_geo,
       ids,
       properties,
-    ).crop(bbox)
+    ).crop(orig_bbox)
 
