@@ -77,6 +77,9 @@ class PrecomputedAnnotationSource:
     self.reader = PrecomputedAnnotationReader(self.meta, self.cache, self.config)
     # self.writer = AnnotationWriter(cloudpath, meta, cache, config)
 
+  def ids(self):
+    return self.reader.ids()
+
   def get_by_bbox(self, query:BboxLikeType, mip:int = 0):
     return self.reader.get_by_bbox(query, mip=mip)
 

@@ -1,6 +1,7 @@
 from typing import Literal, NamedTuple, Optional, Union, Any, cast, Iterable
 
 from collections import OrderedDict
+from dataclasses import dataclass
 
 import posixpath
 import os
@@ -8,10 +9,13 @@ import os
 from cloudfiles import CloudFiles
 
 import numpy as np
+import numpy.typing as npt
 
 from ....types import CacheType, StrEnum
 from ....lib import Bbox
 from ....paths import strict_extract, to_https_protocol
+
+ANNOTATION_INFO_TYPE = "neuroglancer_annotations_v1"
 
 class AnnotationType(StrEnum):
   POINT = "POINT"
@@ -20,12 +24,116 @@ class AnnotationType(StrEnum):
   ELLIPSOID = "ELLIPSOID"
   POLYLINE = "POLYLINE"
 
-ANNOTATION_INFO_TYPE = "neuroglancer_annotations_v1"
+def crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArray[bool]:
+  lower_bound = np.array(bbox.minpt)
+  upper_bound = np.array(bbox.maxpt)
 
-class Annotation(NamedTuple):
+  if type == AnnotationType.POINT:
+    points = geometry
+    mask = np.all(points >= lower_bound, axis=1) & np.all(
+      points <= upper_bound, axis=1
+    )
+  elif type == "line":
+    # Combine point_a and point_b into a single 2D array for vectorized comparison
+    points_a = geometry[:,:,0]
+    points_b = geometry[:,:,1]
+    mask = (
+      np.all(points_a >= lower_bound, axis=1)
+      & np.all(points_a <= upper_bound, axis=1)
+    ) | (
+      np.all(points_b >= lower_bound, axis=1)
+      & np.all(points_b <= upper_bound, axis=1)
+    )
+  elif type == AnnotationType.AXIS_ALIGNED_BOUNDING_BOX:
+    # Combine point_a and point_b into a single 2D array for vectorized comparison
+    points_a = geometry[:,:,0]
+    points_b = geometry[:,:,1]
+    mask = (
+      (
+        np.all(points_a >= lower_bound, axis=1)
+        & np.all(points_a <= upper_bound, axis=1)
+      )
+      | (
+        np.all(points_b >= lower_bound, axis=1)
+        & np.all(points_b <= upper_bound, axis=1)
+      )
+      | (
+        np.all(points_a <= lower_bound, axis=1)
+        & np.all(points_b >= upper_bound, axis=1)
+      )
+      | (
+        np.all(points_b <= lower_bound, axis=1)
+        & np.all(points_a >= upper_bound, axis=1)
+      )
+    )
+  elif type == AnnotationType.ELLIPSOID:
+    # Combine center into a single 2D array for vectorized comparison
+    center = geometry[:,:,0]
+    radius = geometry[:,:,1]
+    mask = np.all(centers >= lower_bound, axis=1) & np.all(
+      centers <= upper_bound, axis=1
+    )
+  else:
+    raise TypeError(f"{type} is not supported by crop.")
+  import pdb; pdb.set_trace()
+  return mask
+
+@dataclass
+class LabelAnnotation:
   id: int
-  encoded: bytes
-  relationships: Iterable[Iterable[int]]
+  type: AnnotationType
+  geometry: npt.NDArray[np.float32]
+  properties: dict[str, np.ndarray]
+  relationships: dict[str, npt.NDArray[np.uint64]]
+
+  def pandas(self):
+    import pandas as pd
+    data = {}
+    data.update(self.properties)
+    data["point"] = self.geometry
+    df = pd.DataFrame(data)
+    return df
+
+  def crop(self, bbox:Bbox) -> "LabelAnnotation":
+    mask = crop_mask(self.type, self.geometry, bbox)
+    return LabelAnnotation(
+      id=self.id,
+      type=self.type,
+      geometry=self.geometry[mask],
+      properties={
+        k: v[mask]
+        for k,v in self.properties.items()
+      },
+      relationships=self.relationships,
+    )
+
+@dataclass
+class MultiLabelAnnotation:
+  type: AnnotationType
+  geometry: npt.NDArray[np.float32]
+  ids: npt.NDArray[np.uint64]
+  properties: dict[str, np.ndarray]
+
+  def pandas(self):
+    import pandas as pd
+    data = { "ids": self.ids }
+    data.update(self.properties)
+    data["point"] = self.geometry
+    df = pd.DataFrame(data)
+    df.set_index("ID", inplace=True)
+    return df
+
+  def crop(self, bbox:Bbox) -> "MultiLabelAnnotation":
+    mask = crop_mask(self.type, self.geometry, bbox)
+    return MultiLabelAnnotation(
+      type=self.type,
+      geometry=self.geometry[mask],
+      ids=self.geometry[mask],
+      properties={
+        k: v[mask]
+        for k,v in self.properties.items()
+      },
+    )
 
 _PROPERTY_DTYPES: dict[
   str, tuple[Union[tuple[str], tuple[str, tuple[int, ...]]], int]
