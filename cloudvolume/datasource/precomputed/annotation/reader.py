@@ -47,7 +47,7 @@ class PrecomputedAnnotationReader:
     self.config = config
     self.readonly = bool(readonly)
 
-  def ids(self) -> Iterable[int]:
+  def ids(self) -> npt.NDArray[np.uint64]:
     """Get all annotation IDs from the kv store.
 
     Returns:
@@ -64,6 +64,13 @@ class PrecomputedAnnotationReader:
     if not key.endswith(cf.sep):
       key += cf.sep
 
+    cache_key = os.path.join(key, "_ids.npy")
+    cache_path = os.path.join(self.cache.path.replace("file://", ""), cache_key)
+
+    if self.cache.enabled:
+      if self.cache.has(cache_key):
+        return np.load(cache_path, allow_pickle=False)
+
     if self.meta.is_id_index_sharded():
       shard_filenames = [ 
         x for x in cf.list(prefix=key, flat=True) 
@@ -79,11 +86,16 @@ class PrecomputedAnnotationReader:
         )
       all_ids = np.concatenate(all_ids, dtype=np.uint64)
       all_ids.sort()
-      return all_ids
     else:
       cf = CloudFiles(self.cloudpath)
       all_ids = ( int(x) for x in cf.list(prefix=key, flat=True) )
-      return np.fromiter(all_ids, dtype=np.uint64)
+      all_ids = np.fromiter(all_ids, dtype=np.uint64)
+
+    if self.cache.enabled:
+      np.save(cache_path, all_ids)
+
+    return all_ids
+
 
   def _annotation_dtype(self):
     ndim = self.meta.ndim
