@@ -268,10 +268,10 @@ class PrecomputedAnnotationMetadata:
     return enums
 
   @property
-  def relationships(self) -> list[str]:
+  def relationships(self) -> dict[str, dict[str, Any]]:
     if "relationships" not in self.info.keys():
       raise ValueError("No relationships found in the info file.")
-    return [ r["key"] for r in self.info["relationships"] ]
+    return { r["id"]: r for r in self.info["relationships"] }
 
   @property
   def property_names(self) -> list[str]:

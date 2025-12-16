@@ -289,6 +289,40 @@ class PrecomputedAnnotationReader:
       properties=properties,
     ).crop(orig_bbox)
 
-  def get_by_relationship(self, relationship:str, id:int):
-    raise NotImplementedError()
+  def get_by_relationship(self, relationship:str, labels:Union[int, Iterable[int]]) -> npt.NDArray[np.uint64]:
+    """
+    Get the annotations corresponding to the relationship type.
+    """
+    labels, return_multiple = toiter(labels, is_iter=True)
 
+    rels = self.meta.relationships
+
+    if relationship not in rels:
+      raise ValueError(f"Relationship {relationship} not found. Available: {','.join(rels.keys())}")
+
+    rel = rels[relationship]
+
+    if 'sharding' in rel:
+      spec = ShardingSpecification.from_dict(rel["sharding"])
+      reader = ShardReader(self.meta.cloudpath, self.cache, spec)
+      binaries = reader.get_data(labels, path=rel["key"])
+    else:
+      cloudpath = self.meta.join(self.meta.cloudpath, rel["key"])
+      cf = CloudFiles(cloudpath, secrets=self.config.secrets)
+      binaries = cf.get([ str(segid) for segid in labels ], return_dict=True)
+    
+    ret = {}
+
+    for label, binary in binaries.items():
+      geometry, ids, properties = self._decode_annotations(binary)
+      ret[label] = MultiLabelAnnotation(
+        type=self.meta.annotation_type,
+        geometry=geometry,
+        ids=ids,
+        properties=properties,
+      )
+
+    if return_multiple:
+      return ret
+
+    return ret[next(iter(ret.keys()))]

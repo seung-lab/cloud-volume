@@ -41,7 +41,7 @@ class PrecomputedAnnotationSource:
     mip:int = 0,
   ):
     from .. import get_cache_path
-    
+
     path = strict_extract(cloudpath)
     if use_https:
       path = to_https_protocol(path)
@@ -109,6 +109,9 @@ class PrecomputedAnnotationSource:
         return self.get_by_id(query)
     else:
       raise ValueError(f"{query} is not a valid query type.")
+
+  def get_by_relationship(self, relationship:str, label:int) -> npt.NDArray[np.uint64]:
+    return self.reader.get_by_relationship(relationship, label)
 
   def __getitem__(self, slcs):
     return self.get_by_bbox(slcs, mip=self.config.mip)
