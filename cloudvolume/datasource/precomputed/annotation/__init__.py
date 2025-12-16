@@ -110,6 +110,6 @@ class PrecomputedAnnotationSource:
       raise ValueError(f"{query} is not a valid query type.")
 
   def __getitem__(self, slcs):
-    return self.get(slcs, mip=self.config.mip)
+    return self.get_by_bbox(slcs, mip=self.config.mip)
 
 
