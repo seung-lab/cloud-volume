@@ -69,14 +69,14 @@ def crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArra
 
   if type == AnnotationType.POINT:
     points = geometry
-    mask = np.all(points >= lower_bound, axis=1) & np.all(
+    return np.all(points >= lower_bound, axis=1) & np.all(
       points <= upper_bound, axis=1
     )
   elif type == "line":
     # Combine point_a and point_b into a single 2D array for vectorized comparison
     points_a = geometry[:,:,0]
     points_b = geometry[:,:,1]
-    mask = (
+    return (
       np.all(points_a >= lower_bound, axis=1)
       & np.all(points_a <= upper_bound, axis=1)
     ) | (
@@ -87,7 +87,7 @@ def crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArra
     # Combine point_a and point_b into a single 2D array for vectorized comparison
     points_a = geometry[:,:,0]
     points_b = geometry[:,:,1]
-    mask = (
+    return (
       (
         np.all(points_a >= lower_bound, axis=1)
         & np.all(points_a <= upper_bound, axis=1)
@@ -108,14 +108,11 @@ def crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArra
   elif type == AnnotationType.ELLIPSOID:
     # Combine center into a single 2D array for vectorized comparison
     center = geometry[:,:,0]
-    radius = geometry[:,:,1]
-    mask = np.all(centers >= lower_bound, axis=1) & np.all(
-      centers <= upper_bound, axis=1
+    return np.all(center >= lower_bound, axis=1) & np.all(
+      center <= upper_bound, axis=1
     )
   else:
     raise TypeError(f"{type} is not supported by crop.")
-
-  return mask
 
 @dataclass
 class LabelAnnotation:
