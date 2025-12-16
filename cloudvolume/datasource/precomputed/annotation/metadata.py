@@ -75,7 +75,7 @@ def crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArra
     )
   else:
     raise TypeError(f"{type} is not supported by crop.")
-  import pdb; pdb.set_trace()
+
   return mask
 
 @dataclass

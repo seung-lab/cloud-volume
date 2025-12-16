@@ -96,7 +96,6 @@ class PrecomputedAnnotationReader:
 
     return all_ids
 
-
   def _annotation_dtype(self):
     ndim = self.meta.ndim
 
