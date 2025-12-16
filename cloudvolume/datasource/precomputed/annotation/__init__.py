@@ -39,6 +39,7 @@ class PrecomputedAnnotationSource:
     readonly:bool = False,
     secrets:SecretsType = None,
     use_https:bool = False,
+    mip:int = 0,
   ):
     path = strict_extract(cloudpath)
     if use_https:
@@ -50,7 +51,7 @@ class PrecomputedAnnotationSource:
       compress=False, 
       compress_level=5,
       green=False,
-      mip=0,
+      mip=mip,
       parallel=1,
       progress=progress,
       secrets=secrets,
@@ -80,13 +81,18 @@ class PrecomputedAnnotationSource:
   def ids(self):
     return self.reader.ids()
 
-  def get_by_bbox(self, query:BboxLikeType, mip:int = 0):
+  def get_by_bbox(self, query:BboxLikeType, mip:Optional[int] = None):
+    if mip is None:
+      mip = self.config.mip
     return self.reader.get_by_bbox(query, mip=mip)
 
   def get_by_id(self, query:list[int]):
     return self.reader.get_by_id(query)
 
-  def get(self, query, mip:int = 0):
+  def get(self, query, mip:Optional[int] = None):
+    if mip is None:
+      mip = self.config.mip
+
     if isinstance(query, Bbox):
       return self.get_by_bbox(query, mip=mip)
     elif isinstance(query, (int, np.integer)):
@@ -103,5 +109,7 @@ class PrecomputedAnnotationSource:
     else:
       raise ValueError(f"{query} is not a valid query type.")
 
+  def __getitem__(self, slcs):
+    return self.get(slcs, mip=self.config.mip)
 
 
