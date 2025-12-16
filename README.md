@@ -3,7 +3,7 @@
 # CloudVolume: IO for Neuroglancer Datasets
 
 ```python
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, PrecomputedAnnotationSource, Bbox
 
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
 image = vol[:,:,:] # Download a whole image stack into a numpy array from the cloud
@@ -12,6 +12,9 @@ vol[:,:,:] = image # Upload an entire image stack from a numpy array to the clou
 label = 1
 mesh = vol.mesh.get(label)
 skel = vol.skeleton.get(label)
+
+asrc = PrecomputedAnnotationSource("gs://mylab/mouse/annotation/synapses")
+annotations = asrc.get(label)
 ```
 
 CloudVolume is a serverless Python client for random access reading and writing of [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/datasource/precomputed#readme)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes compatible system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
@@ -343,6 +346,14 @@ skel = skel.average_smoothing(3) # rolling average, n=3
 
 skel1 == skel2 # check if contents of internal arrays match
 Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
+
+# Annotations
+from cloudvolume import PrecomputedAnnotationSource
+
+asrc = PrecomputedAnnotationSource("gs://mybucket/retina/annotations", cache=True, progress=True)
+annotations = asrc.get([1,2,3,])
+annotations = asrc.get(bbox, mip=3)
+ids = asrc.ids()
 
 # Parallel Operation
 vol = CloudVolume('gs://mybucket/retina/image', parallel=True) # Use all cores
