@@ -7,6 +7,8 @@ from cloudfiles import CloudFiles
 import numpy as np
 import numpy.typing as npt
 
+from tqdm import tqdm
+
 from .metadata import (
   PrecomputedAnnotationMetadata, 
   LabelAnnotation, 
@@ -57,25 +59,30 @@ class PrecomputedAnnotationReader:
     cf = CloudFiles(self.meta.cloudpath)
 
     by_id = self.meta.info["by_id"]
-    if not by_id.endswith(cf.sep):
-      by_id += cf.sep
+
+    key = by_id["key"]
+    if not key.endswith(cf.sep):
+      key += cf.sep
 
     if self.meta.is_id_index_sharded():
-      shard_filenames = ( x for x in cf.list(prefix=by_id, flat=True) if x.endswith('.shard') )
+      shard_filenames = [ 
+        x for x in cf.list(prefix=key, flat=True) 
+        if x.endswith('.shard')
+      ]
       spec = ShardingSpecification.from_dict(by_id["sharding"])
       reader = ShardReader(self.meta.cloudpath, self.cache, spec)
 
       all_ids = []
-      for fname in shard_filenames:
+      for fname in tqdm(shard_filenames, disable=(not self.config.progress), desc="Downloading Labels"):
         all_ids.append(
-          reader.list_labels(fname, path=by_id["key"])
+          reader.list_labels(fname, path=key)
         )
       all_ids = np.concatenate(all_ids, dtype=np.uint64)
       all_ids.sort()
       return all_ids
     else:
       cf = CloudFiles(self.cloudpath)
-      all_ids = ( int(x) for x in cf.list(prefix=by_id["key"]) )
+      all_ids = ( int(x) for x in cf.list(prefix=key, flat=True) )
       return np.fromiter(all_ids, dtype=np.uint64)
 
   def _annotation_dtype(self):

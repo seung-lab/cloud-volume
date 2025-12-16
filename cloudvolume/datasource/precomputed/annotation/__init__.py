@@ -33,10 +33,11 @@ class PrecomputedAnnotationSource:
     self,
     cloudpath:str,
     cache:Optional[str] = None,
-    config:Optional[SharedConfiguration] = None,
+    cache_locking:bool = True,
+    info:Optional[dict] = None,
+    progress:bool = False,
     readonly:bool = False,
     secrets:SecretsType = None,
-    info:Optional[dict] = None,
     use_https:bool = False,
   ):
     path = strict_extract(cloudpath)
@@ -44,20 +45,19 @@ class PrecomputedAnnotationSource:
       path = to_https_protocol(path)
       cloudpath = ascloudpath(path)
     
-    if config is None:
-      config = SharedConfiguration(
-        cdn_cache=False,
-        compress=False, 
-        compress_level=5,
-        green=False,
-        mip=0,
-        parallel=1,
-        progress=False,
-        secrets=secrets,
-        spatial_index_db=None,
-        cache_locking=False,
-        codec_threads=1,
-      )
+    config = SharedConfiguration(
+      cdn_cache=False,
+      compress=False, 
+      compress_level=5,
+      green=False,
+      mip=0,
+      parallel=1,
+      progress=progress,
+      secrets=secrets,
+      spatial_index_db=None,
+      cache_locking=cache_locking,
+      codec_threads=1,
+    )
 
     self.path = path
     self.meta = PrecomputedAnnotationMetadata(
