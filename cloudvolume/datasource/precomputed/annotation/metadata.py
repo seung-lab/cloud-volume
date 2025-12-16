@@ -63,7 +63,7 @@ def _get_dtype_for_properties(properties:Iterable[dict[str, Any]]):
     offset += padding
   return dtype
 
-def crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArray[bool]:
+def _crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArray[bool]:
   lower_bound = np.array(bbox.minpt)
   upper_bound = np.array(bbox.maxpt)
 
@@ -132,7 +132,7 @@ class LabelAnnotation:
     return df
 
   def crop(self, bbox:Bbox) -> "LabelAnnotation":
-    mask = crop_mask(self.type, self.geometry, bbox)
+    mask = _crop_mask(self.type, self.geometry, bbox)
     return LabelAnnotation(
       id=self.id,
       type=self.type,
@@ -169,7 +169,7 @@ class MultiLabelAnnotation:
     return df
 
   def crop(self, bbox:Bbox) -> "MultiLabelAnnotation":
-    mask = crop_mask(self.type, self.geometry, bbox)
+    mask = _crop_mask(self.type, self.geometry, bbox)
     return MultiLabelAnnotation(
       type=self.type,
       geometry=self.geometry[mask],
