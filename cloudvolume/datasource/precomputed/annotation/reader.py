@@ -282,3 +282,6 @@ class PrecomputedAnnotationReader:
       properties=properties,
     ).crop(orig_bbox)
 
+  def get_by_relationship(self, relationship:str, id:int):
+    raise NotImplementedError()
+

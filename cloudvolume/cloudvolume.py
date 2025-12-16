@@ -1,6 +1,6 @@
 import sys
 import time
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, Any
 
 import multiprocessing as mp
 import numpy as np
@@ -21,9 +21,13 @@ try:
 except AttributeError:
   INTERACTIVE = bool(sys.flags.interactive)
 
-REGISTERED_PLUGINS = {}
+REGISTERED_IMAGE_PLUGINS = {}
 def register_plugin(key, creation_function):
-  REGISTERED_PLUGINS[key.lower()] = creation_function
+  REGISTERED_IMAGE_PLUGINS[key.lower()] = creation_function
+
+REGISTERED_ANNOTATION_PLUGINS = {}
+def register_annotation_plugin(key, creation_function):
+  REGISTERED_ANNOTATION_PLUGINS[key.lower()] = creation_function
 
 def compute_num_threads(num_threads:ParallelType) -> int:
   if isinstance(num_threads, bool):
@@ -287,7 +291,6 @@ class CloudVolume:
       else:
         raise err
 
-
   @classmethod
   def create_new_info(cls, *args, **kwargs):
     from .frontends import CloudVolumePrecomputed
@@ -413,3 +416,19 @@ class CloudVolume:
     # save the numpy array
     vol[:,:,:] = arr
     return vol
+
+def create(cloudpath:str, *args, **kwargs) -> Any:
+  """Create the appropriate object for the given cloudpath."""
+  path = strict_extract(cloudpath)
+
+  if path.format != "precomputed":
+    return CloudVolume(cloudpath, *args, **kwargs)
+
+  info = CloudFiles(cloudpath).get_json("info")
+  kwargs["info"] = info
+
+  if info["@type"] == "neuroglancer_annotations_v1":
+    return REGISTERED_ANNOTATION_PLUGINS['precomputed'](cloudpath, *args, **kwargs)
+
+  return CloudVolume(cloudpath, *args, **kwargs)
+

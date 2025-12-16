@@ -180,7 +180,6 @@ class MultiLabelAnnotation:
       },
     )
 
-
 class PrecomputedAnnotationMetadata:
   def __init__(
     self, 
@@ -234,7 +233,6 @@ class PrecomputedAnnotationMetadata:
         # "description": ""
         # "enum_labels": [0,1,2,3,4,5000],
         # "enum_values": ["axon", "dendrite", "astrocyte", "soma", ...]
-        # 
       }],
       # e.g. [ { "id": , "key": ..., "sharding": ...  } ]
       "relationships": [],
@@ -244,8 +242,17 @@ class PrecomputedAnnotationMetadata:
     }
 
   @property
+  def dimensions(self) -> list[list]:
+    return self.info["dimensions"]
+
+  @property
   def ndim(self) -> int:
     return len(self.info["dimensions"])
+
+  @property
+  def rank(self) -> int:
+    """Alias for ndim."""
+    return self.ndim
 
   @property
   def properties(self) -> dict:
@@ -261,7 +268,7 @@ class PrecomputedAnnotationMetadata:
     return enums
 
   @property
-  def relationship_names(self) -> list[str]:
+  def relationships(self) -> list[str]:
     if "relationships" not in self.info.keys():
       raise ValueError("No relationships found in the info file.")
     return [ r["key"] for r in self.info["relationships"] ]
