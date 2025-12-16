@@ -15,14 +15,53 @@ from ....types import CacheType, StrEnum
 from ....lib import Bbox
 from ....paths import strict_extract, to_https_protocol
 
-ANNOTATION_INFO_TYPE = "neuroglancer_annotations_v1"
-
 class AnnotationType(StrEnum):
   POINT = "POINT"
   LINE = "LINE"
   AXIS_ALIGNED_BOUNDING_BOX = "AXIS_ALIGNED_BOUNDING_BOX"
   ELLIPSOID = "ELLIPSOID"
   POLYLINE = "POLYLINE"
+
+ANNOTATION_INFO_TYPE = "neuroglancer_annotations_v1"
+
+_PROPERTY_DTYPES: dict[
+  str, tuple[Union[tuple[str], tuple[str, tuple[int, ...]]], int]
+] = {
+  "uint8": (("|u1",), 1),
+  "uint16": (("<u2",), 2),
+  "uint32": (("<u4",), 4),
+  "int8": (("|i1",), 1),
+  "int16": (("<i2",), 2),
+  "int32": (("<i4",), 4),
+  "float32": (("<f4",), 4),
+  "rgb": (("|u1", (3,)), 1),
+  "rgba": (("|u1", (4,)), 1),
+}
+
+def _get_dtype_for_geometry(annotation_type:AnnotationType, rank:int):
+  geometry_size = rank if annotation_type == AnnotationType.POINT else 2 * rank
+  return [("geometry", "<f4", geometry_size)]
+
+def _get_dtype_for_properties(properties:Iterable[dict[str, Any]]):
+  dtype = []
+  offset = 0
+  for i, p in enumerate(properties):
+    dtype_entry, alignment = _PROPERTY_DTYPES[p["type"]]
+    # if offset % alignment:
+    #     padded_offset = (offset + alignment - 1) // alignment * alignment
+    #     padding = padded_offset - offset
+    #     dtype.append((f"padding{offset}", "|u1", (padding,)))
+    #     offset += padding
+    dtype.append((f"{p['id']}", *dtype_entry))  # type: ignore[arg-type]
+    size = np.dtype(dtype[-1:]).itemsize
+    offset += size
+  alignment = 4
+  if offset % alignment:
+    padded_offset = (offset + alignment - 1) // alignment * alignment
+    padding = padded_offset - offset
+    dtype.append((f"padding{offset}", "|u1", (padding,)))
+    offset += padding
+  return dtype
 
 def crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArray[bool]:
   lower_bound = np.array(bbox.minpt)
@@ -90,7 +129,8 @@ class LabelAnnotation:
     import pandas as pd
     data = {}
     data.update(self.properties)
-    data["point"] = self.geometry
+    for i in range(self.geometry.shape[1]):
+      data[f"axis_{i}"] = self.geometry[:,i]
     df = pd.DataFrame(data)
     return df
 
@@ -116,9 +156,17 @@ class MultiLabelAnnotation:
 
   def pandas(self):
     import pandas as pd
-    data = { "ids": self.ids }
+    data = { "ID": self.ids }
     data.update(self.properties)
-    data["point"] = self.geometry
+
+    if len(self.geometry.shape) > 2 and self.geometry.shape[2] > 1:
+      for j in range(self.geometry.shape[2]):
+        for i in range(self.geometry.shape[1]):
+          data[f"axis_{j}_{i}"] = self.geometry[:,i]
+    else:
+      for i in range(self.geometry.shape[1]):
+        data[f"axis_{i}"] = self.geometry[:,i]
+    
     df = pd.DataFrame(data)
     df.set_index("ID", inplace=True)
     return df
@@ -128,51 +176,13 @@ class MultiLabelAnnotation:
     return MultiLabelAnnotation(
       type=self.type,
       geometry=self.geometry[mask],
-      ids=self.geometry[mask],
+      ids=self.ids[mask],
       properties={
         k: v[mask]
         for k,v in self.properties.items()
       },
     )
 
-_PROPERTY_DTYPES: dict[
-  str, tuple[Union[tuple[str], tuple[str, tuple[int, ...]]], int]
-] = {
-  "uint8": (("|u1",), 1),
-  "uint16": (("<u2",), 2),
-  "uint32": (("<u4",), 4),
-  "int8": (("|i1",), 1),
-  "int16": (("<i2",), 2),
-  "int32": (("<i4",), 4),
-  "float32": (("<f4",), 4),
-  "rgb": (("|u1", (3,)), 1),
-  "rgba": (("|u1", (4,)), 1),
-}
-
-def _get_dtype_for_geometry(annotation_type:AnnotationType, rank:int):
-  geometry_size = rank if annotation_type == AnnotationType.POINT else 2 * rank
-  return [("geometry", "<f4", geometry_size)]
-
-def _get_dtype_for_properties(properties:Iterable[dict[str, Any]]):
-  dtype = []
-  offset = 0
-  for i, p in enumerate(properties):
-    dtype_entry, alignment = _PROPERTY_DTYPES[p["type"]]
-    # if offset % alignment:
-    #     padded_offset = (offset + alignment - 1) // alignment * alignment
-    #     padding = padded_offset - offset
-    #     dtype.append((f"padding{offset}", "|u1", (padding,)))
-    #     offset += padding
-    dtype.append((f"{p['id']}", *dtype_entry))  # type: ignore[arg-type]
-    size = np.dtype(dtype[-1:]).itemsize
-    offset += size
-  alignment = 4
-  if offset % alignment:
-    padded_offset = (offset + alignment - 1) // alignment * alignment
-    padding = padded_offset - offset
-    dtype.append((f"padding{offset}", "|u1", (padding,)))
-    offset += padding
-  return dtype
 
 class PrecomputedAnnotationMetadata:
   def __init__(

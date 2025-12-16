@@ -276,9 +276,9 @@ class PrecomputedAnnotationReader:
       ids = np.zeros([0,], dtype=np.uint64)
 
     return MultiLabelAnnotation(
-      self.meta.annotation_type,
-      all_geo,
-      ids,
-      properties,
+      type=self.meta.annotation_type,
+      geometry=all_geo,
+      ids=ids,
+      properties=properties,
     ).crop(orig_bbox)
 
