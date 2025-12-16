@@ -83,23 +83,23 @@ class PrecomputedAnnotationSource:
   def get_by_bbox(self, query:BboxLikeType, mip:int = 0):
     return self.reader.get_by_bbox(query, mip=mip)
 
-  def get_by_ids(self, query:list[int]):
-    return self.reader.get_by_ids(query)
+  def get_by_id(self, query:list[int]):
+    return self.reader.get_by_id(query)
 
   def get(self, query, mip:int = 0):
     if isinstance(query, Bbox):
       return self.get_by_bbox(query, mip=mip)
     elif isinstance(query, (int, np.integer)):
-      return self.reader.get_by_ids(query)
+      return self.reader.get_by_id(query)
     elif isinstance(query, list):
-      return self.reader.get_by_ids(query)
+      return self.reader.get_by_id(query)
     elif isinstance(query, tuple):
       if len(query) == 0:
         return []
       elif isinstance(query[0], slice):
         return self.get_by_bbox(query, mip=mip)
       else:
-        return self.get_by_ids(query)
+        return self.get_by_id(query)
     else:
       raise ValueError(f"{query} is not a valid query type.")
 
