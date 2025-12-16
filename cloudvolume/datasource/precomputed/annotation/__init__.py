@@ -10,7 +10,6 @@ import numpy.typing as npt
 
 from .metadata import PrecomputedAnnotationMetadata
 
-from .. import get_cache_path
 from ....cacheservice import CacheService
 from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
@@ -41,6 +40,8 @@ class PrecomputedAnnotationSource:
     use_https:bool = False,
     mip:int = 0,
   ):
+    from .. import get_cache_path
+    
     path = strict_extract(cloudpath)
     if use_https:
       path = to_https_protocol(path)

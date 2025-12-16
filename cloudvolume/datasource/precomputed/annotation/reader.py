@@ -15,7 +15,6 @@ from .metadata import (
   MultiLabelAnnotation,
 )
 
-from .. import get_cache_path
 from ....cacheservice import CacheService
 from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration

@@ -6,6 +6,7 @@ import multiprocessing as mp
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
 from cloudfiles.paths import normalize
 
 from .exceptions import UnsupportedFormatError, DimensionError, InfoUnavailableError

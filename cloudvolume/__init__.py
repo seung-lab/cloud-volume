@@ -46,7 +46,7 @@ CloudVolume Example:
   skel = vol.skeletons.get(label)
 """
 
-from .cloudvolume import CloudVolume, register_plugin
+from .cloudvolume import CloudVolume, create, register_plugin
 
 from .connectionpools import ConnectionPool
 from .lib import Bbox, Vec

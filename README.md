@@ -350,9 +350,12 @@ Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differ
 # Annotations
 from cloudvolume import PrecomputedAnnotationSource
 
-asrc = PrecomputedAnnotationSource("gs://mybucket/retina/annotations", cache=True, progress=True)
-annotations = asrc.get([1,2,3,])
+asrc = PrecomputedAnnotationSource("gs://mybucket/retina/annotations", cache=True, progress=True, mip=3)
+annotations = asrc.get([1,2,3,]) # tries to interpret input to mean get_by_id or get_by_bbox
+annotations = asrc.get_by_id([1,2,3,])
 annotations = asrc.get(bbox, mip=3)
+annotations = asrc.get_by_bbox(bbox, mip=3)
+annotations = asrc[bbox] # can use slice notation
 ids = asrc.ids()
 
 # Parallel Operation
