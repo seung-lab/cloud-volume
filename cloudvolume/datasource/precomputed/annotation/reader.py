@@ -112,7 +112,7 @@ class PrecomputedAnnotationReader:
     prop_dtypes = [ (prop["id"], prop["type"]) for prop in self.meta.properties ]
     return geometry_dtype + prop_dtypes
 
-  def decode_single_annotation(self, binary:bytes):
+  def _decode_single_annotation(self, binary:bytes):
     ndim = self.meta.ndim
     offset = 0
 
@@ -144,8 +144,8 @@ class PrecomputedAnnotationReader:
 
     return (geometry, properties, relationships)
 
-  def decode_label_annotation(self, segid:int, binary:bytes) -> LabelAnnotation:
-    (geometry, properties, relationships) = self.decode_single_annotation(binary)
+  def _decode_label_annotation(self, segid:int, binary:bytes) -> LabelAnnotation:
+    (geometry, properties, relationships) = self._decode_single_annotation(binary)
     return LabelAnnotation(
       segid,
       self.meta.annotation_type,
@@ -154,7 +154,7 @@ class PrecomputedAnnotationReader:
       relationships,
     )
 
-  def decode_annotations(self, binary:bytes) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
+  def _decode_annotations(self, binary:bytes) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
     ndim = self.meta.ndim
     num_points = int.from_bytes(binary[:8], 'little')
     offset = 8
@@ -186,9 +186,13 @@ class PrecomputedAnnotationReader:
     return (geometry, ids, properties)
 
   def get_all(self) -> dict[int, LabelAnnotation]:
+    """Retrieve all annotations."""
     return self.get_by_id(self.ids())
 
   def get_by_id(self, label:Union[int, list[int]]) -> Union[LabelAnnotation, dict[int, LabelAnnotation]]:
+    """
+    Retrieve annotations by one or more IDs.
+    """
     label, return_multiple = toiter(label, is_iter=True)
 
     annos = {}
@@ -200,7 +204,7 @@ class PrecomputedAnnotationReader:
       reader = ShardReader(self.meta.cloudpath, self.cache, spec)
       result = reader.get_data(label, path=by_id["key"])
       annos = {
-        segid: self.decode_label_annotation(segid, binary)
+        segid: self._decode_label_annotation(segid, binary)
         for segid, binary in result.items()
       }
     else:
@@ -210,13 +214,17 @@ class PrecomputedAnnotationReader:
       for file in annotations:
         binary = file["content"]
         segid = int(file["path"])
-        annos[segid] = self.decode_label_annotation(segid, binary)
+        annos[segid] = self._decode_label_annotation(segid, binary)
 
     if return_multiple:
       return annos
     return annos[label[0]]
 
   def get_by_bbox(self, bbox:BboxLikeType, mip:int = 0) -> MultiLabelAnnotation:
+    """
+    Query for all annotations in the given bounding box.
+    Bounds are inclusive on both sides.
+    """
     spatial = self.meta.info["spatial"][mip]
     key = spatial["key"]
 
@@ -254,7 +262,7 @@ class PrecomputedAnnotationReader:
     ids = []
     properties = {}
     for binary in annotations:
-      geometry, annotation_ids, props = self.decode_annotations(binary)
+      geometry, annotation_ids, props = self._decode_annotations(binary)
       all_geo.append(geometry)
       ids.append(annotation_ids)
 
