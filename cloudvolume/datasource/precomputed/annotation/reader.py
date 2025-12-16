@@ -187,6 +187,9 @@ class PrecomputedAnnotationReader:
 
     return (geometry, ids, properties)
 
+  def get_all(self) -> dict[int, LabelAnnotation]:
+    return self.get_by_id(self.ids())
+
   def get_by_id(self, label:Union[int, list[int]]) -> Union[LabelAnnotation, dict[int, LabelAnnotation]]:
     label, return_multiple = toiter(label, is_iter=True)
 
