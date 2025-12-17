@@ -100,6 +100,7 @@ class PrecomputedAnnotationReader:
 
     prop_dtypes = [ (prop["id"], prop["type"]) for prop in self.meta.properties ]
 
+    # Derived from Neuroglancer Python code
     if self.meta.annotation_type == AnnotationType.POLYLINE:
       num_pts = np.frombuffer(encoded, dtype="<u4", count=1)[0]
       num_points = ("num_points", "<u4")

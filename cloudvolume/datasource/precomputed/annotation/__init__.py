@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Iterable
 from dataclasses import dataclass
 
 import os
@@ -20,7 +20,12 @@ from ....paths import strict_extract, to_https_protocol, ascloudpath
 from ..common import compressed_morton_code
 from ..sharding import ShardReader, ShardingSpecification
 
-from .metadata import PrecomputedAnnotationMetadata, AnnotationType
+from .metadata import (
+  PrecomputedAnnotationMetadata, 
+  AnnotationType,
+  MultiLabelAnnotation,
+  LabelAnnotation,
+)
 from .reader import PrecomputedAnnotationReader
 # from .writer import AnnotationWriter
 
@@ -79,21 +84,24 @@ class PrecomputedAnnotationSource:
     self.reader = PrecomputedAnnotationReader(self.meta, self.cache, self.config)
     # self.writer = AnnotationWriter(cloudpath, meta, cache, config)
 
-  def ids(self):
+  def ids(self) -> npt.NDArray[np.uint64]:
     return self.reader.ids()
 
-  def get_by_bbox(self, query:BboxLikeType, mip:Optional[int] = None):
+  def get_by_bbox(self, query:BboxLikeType, mip:Optional[int] = None) -> MultiLabelAnnotation:
     if mip is None:
       mip = self.config.mip
     return self.reader.get_by_bbox(query, mip=mip)
 
-  def get_by_id(self, query:list[int]):
+  def get_by_id(self, query:list[int]) -> LabelAnnotation:
     return self.reader.get_by_id(query)
 
-  def get_all(self):
+  def get_by_relationship(self, relationship:str, labels:Union[int, Iterable[int]]) -> MultiLabelAnnotation:
+    return self.reader.get_by_relationship(relationship, labels)
+
+  def get_all(self) -> MultiLabelAnnotation:
     return self.reader.get_all()
 
-  def get(self, query, mip:Optional[int] = None):
+  def get(self, query, mip:Optional[int] = None) -> Union[LabelAnnotation, MultiLabelAnnotation]:
     if mip is None:
       mip = self.config.mip
 
@@ -112,9 +120,6 @@ class PrecomputedAnnotationSource:
         return self.get_by_id(query)
     else:
       raise ValueError(f"{query} is not a valid query type.")
-
-  def get_by_relationship(self, relationship:str, label:int) -> npt.NDArray[np.uint64]:
-    return self.reader.get_by_relationship(relationship, label)
 
   def __getitem__(self, slcs):
     return self.get_by_bbox(slcs, mip=self.config.mip)
