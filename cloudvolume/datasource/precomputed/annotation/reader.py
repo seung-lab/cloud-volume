@@ -195,36 +195,36 @@ class PrecomputedAnnotationReader:
       # by pulling the shards and disassembling them directly
       return self.get_by_id(self.ids())
 
-  def get_by_id(self, label:Union[int, list[int]]) -> Union[LabelAnnotation, dict[int, LabelAnnotation]]:
+  def get_by_id(self, labels:Union[int, list[int]]) -> Union[LabelAnnotation, dict[int, LabelAnnotation]]:
     """
     Retrieve annotations by one or more IDs.
     """
-    label, return_multiple = toiter(label, is_iter=True)
-
-    annos = {}
-
+    labels, return_multiple = toiter(labels, is_iter=True)
     by_id = self.meta.info["by_id"]
 
     if self.meta.is_id_index_sharded():
       spec = ShardingSpecification.from_dict(by_id["sharding"])
       reader = ShardReader(self.meta.cloudpath, self.cache, spec)
-      result = reader.get_data(label, path=by_id["key"])
+      result = reader.get_data(labels, path=by_id["key"])
       annos = {
         segid: self._decode_label_annotation(segid, binary)
         for segid, binary in result.items()
       }
     else:
-      cloudpath = self.meta.join(self.meta.cloudpath, by_id["key"])
-      cf = CloudFiles(cloudpath, secrets=self.config.secrets)
-      annotations = cf.get([ f"{segid}" for segid in label ])
-      for file in annotations:
-        binary = file["content"]
-        segid = int(file["path"])
+      filenames = [
+        self.meta.join(by_id["key"], str(segid))
+        for segid in labels
+      ]
+      annotations = self.cache.download(filenames)
+
+      annos = {}
+      for path, binary in annotations.items():
+        segid = int(os.path.basename(path))
         annos[segid] = self._decode_label_annotation(segid, binary)
 
     if return_multiple:
       return annos
-    return annos[label[0]]
+    return annos[labels[0]]
 
   def get_by_bbox(self, bbox:BboxLikeType, mip:int = 0) -> MultiLabelAnnotation:
     """
