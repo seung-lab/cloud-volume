@@ -85,23 +85,29 @@ class PrecomputedAnnotationSource:
     # self.writer = AnnotationWriter(cloudpath, meta, cache, config)
 
   def ids(self) -> npt.NDArray[np.uint64]:
+    """Get all annotation IDs."""
     return self.reader.ids()
 
   def get_by_bbox(self, query:BboxLikeType, mip:Optional[int] = None) -> MultiLabelAnnotation:
+    """Get all annotations within a bounding box."""
     if mip is None:
       mip = self.config.mip
     return self.reader.get_by_bbox(query, mip=mip)
 
   def get_by_id(self, query:list[int]) -> LabelAnnotation:
+    """Get all annotations by ID."""
     return self.reader.get_by_id(query)
 
   def get_by_relationship(self, relationship:str, labels:Union[int, Iterable[int]]) -> MultiLabelAnnotation:
+    """Get annotations by relationship."""
     return self.reader.get_by_relationship(relationship, labels)
 
   def get_all(self) -> MultiLabelAnnotation:
+    """Get all annotations using the most efficient method available."""
     return self.reader.get_all()
 
   def get(self, query, mip:Optional[int] = None) -> Union[LabelAnnotation, MultiLabelAnnotation]:
+    """Get annotations using the method best matching the input."""
     if mip is None:
       mip = self.config.mip
 
