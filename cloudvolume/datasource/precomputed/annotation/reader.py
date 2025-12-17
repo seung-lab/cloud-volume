@@ -335,10 +335,13 @@ class PrecomputedAnnotationReader:
       reader = ShardReader(self.meta.cloudpath, self.cache, spec)
       binaries = reader.get_data(labels, path=rel["key"])
     else:
-      cloudpath = self.meta.join(self.meta.cloudpath, rel["key"])
-      cf = CloudFiles(cloudpath, secrets=self.config.secrets)
-      binaries = cf.get([ str(segid) for segid in labels ], return_dict=True)
-    
+      filenames = [ self.meta.join(rel["key"], str(segid)) for segid in labels ]
+      binaries = self.cache.download(filenames)
+      binaries = { 
+        int(os.path.basename(path)): binary 
+        for path, binary in binaries.items() 
+      }
+      
     ret = {}
 
     for label, binary in binaries.items():
