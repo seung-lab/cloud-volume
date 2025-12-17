@@ -257,12 +257,14 @@ class PrecomputedAnnotationReader:
       annotations = [ binary for binary in annotations.values() if binary is not None ]
     else:
       filenames = [
-        "_".join([ str(x) for x in pt ])
+        self.meta.join(
+          key, 
+          "_".join([ str(x) for x in pt ])
+        )
         for pt in grid
       ]
-      cf = CloudFiles(spatial_path, secrets=self.config.secrets)
-      annotations = cf.get(filenames)
-      annotations = [ f["content"] for f in annotations ]
+      annotations = self.cache.download(filenames)
+      annotations = [ binary for binary in annotations.values() ]
 
     all_geo = []
     ids = []
