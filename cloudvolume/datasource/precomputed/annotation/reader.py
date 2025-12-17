@@ -95,8 +95,20 @@ class PrecomputedAnnotationReader:
 
     return all_ids
 
-  def _annotation_dtype(self):
+  def _annotation_dtype(self, binary:bytes):
     ndim = self.meta.ndim
+
+    prop_dtypes = [ (prop["id"], prop["type"]) for prop in self.meta.properties ]
+
+    if self.meta.annotation_type == AnnotationType.POLYLINE:
+      num_pts = np.frombuffer(encoded, dtype="<u4", count=1)[0]
+      num_points = ("num_points", "<u4")
+      geometry = (
+        "_pt1",
+        "<f4",
+        (num_points_value * self.coordinate_space.rank,),
+      )
+      return [num_points, geometry] + prop_dtypes
 
     two_point_types = (
       AnnotationType.LINE,
@@ -109,7 +121,6 @@ class PrecomputedAnnotationReader:
     if self.meta.annotation_type in two_point_types:
       geometry_dtype += [('_pt2', 'f4', ndim)]
 
-    prop_dtypes = [ (prop["id"], prop["type"]) for prop in self.meta.properties ]
     return geometry_dtype + prop_dtypes
 
   def _decode_single_annotation(self, binary:bytes):
@@ -120,7 +131,7 @@ class PrecomputedAnnotationReader:
       binary,
       offset=offset,
       count=1,
-      dtype=self._annotation_dtype(),
+      dtype=self._annotation_dtype(binary),
     )
     geometry = decoded["_pt1"]
     if "_pt2" in decoded.dtype.names:
@@ -163,7 +174,7 @@ class PrecomputedAnnotationReader:
       binary,
       offset=offset,
       count=num_points,
-      dtype=self._annotation_dtype(),
+      dtype=self._annotation_dtype(binary),
     )
     geometry = decoded["_pt1"]
     if "_pt2" in decoded.dtype.names:
