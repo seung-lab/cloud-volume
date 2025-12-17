@@ -217,6 +217,12 @@ class PrecomputedAnnotationMetadata:
     else:
       return posixpath.join(*paths)
 
+  def has_id_index(self) -> bool:
+    return self.info.get("by_id", None) is not None
+
+  def has_spatial_index(self) -> bool:
+    return self.info.get("spatial", None) is not None
+
   def fetch_info(self):
     return CloudFiles(self.cloudpath, secrets=self.config.secrets).get_json('info')
 

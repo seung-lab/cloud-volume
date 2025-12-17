@@ -3,7 +3,7 @@
 # CloudVolume: IO for Neuroglancer Datasets
 
 ```python
-from cloudvolume import CloudVolume, PrecomputedAnnotationSource, Bbox
+from cloudvolume import CloudVolume, create, Bbox
 
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
 image = vol[:,:,:] # Download a whole image stack into a numpy array from the cloud
@@ -13,7 +13,7 @@ label = 1
 mesh = vol.mesh.get(label)
 skel = vol.skeleton.get(label)
 
-asrc = PrecomputedAnnotationSource("gs://mylab/mouse/annotation/synapses")
+asrc = create("gs://mylab/mouse/annotation/synapses")
 annotations = asrc.get(label)
 ```
 
@@ -348,14 +348,16 @@ skel1 == skel2 # check if contents of internal arrays match
 Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
 
 # Annotations
-from cloudvolume import PrecomputedAnnotationSource
+import cloudvolume
 
-asrc = PrecomputedAnnotationSource("gs://mybucket/retina/annotations", cache=True, progress=True, mip=3)
+asrc = cloudvolume.create("gs://mybucket/retina/annotations", cache=True, progress=True, mip=3)
 annotations = asrc.get([1,2,3,]) # tries to interpret input to mean get_by_id or get_by_bbox
 annotations = asrc.get_by_id([1,2,3,])
 annotations = asrc.get(bbox, mip=3)
+annotations = asrc.get_all()
 annotations = asrc.get_by_bbox(bbox, mip=3)
 annotations = asrc[bbox] # can use slice notation
+annotations = asrc.get_by_relationship("synapses", 1231)
 ids = asrc.ids()
 
 # Parallel Operation

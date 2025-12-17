@@ -90,6 +90,9 @@ class PrecomputedAnnotationSource:
   def get_by_id(self, query:list[int]):
     return self.reader.get_by_id(query)
 
+  def get_all(self):
+    return self.reader.get_all()
+
   def get(self, query, mip:Optional[int] = None):
     if mip is None:
       mip = self.config.mip

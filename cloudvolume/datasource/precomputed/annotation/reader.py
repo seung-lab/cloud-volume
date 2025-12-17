@@ -187,7 +187,13 @@ class PrecomputedAnnotationReader:
 
   def get_all(self) -> dict[int, LabelAnnotation]:
     """Retrieve all annotations."""
-    return self.get_by_id(self.ids())
+    if self.meta.has_spatial_index():
+      slcs = tuple([ slice(None) for i in range(self.meta.ndim) ])
+      return self.get_by_bbox(slcs)
+    else:
+      # This branch could be radically sped up if needed
+      # by pulling the shards and disassembling them directly
+      return self.get_by_id(self.ids())
 
   def get_by_id(self, label:Union[int, list[int]]) -> Union[LabelAnnotation, dict[int, LabelAnnotation]]:
     """
