@@ -1,3 +1,11 @@
+"""
+Precomputed Annotation Reader code adapted from
+a mixture of these two repositories:
+
+https://github.com/fcollman/precomputed_python
+https://github.com/google/neuroglancer/
+"""
+
 from typing import Optional, Union, Iterable
 
 import os
@@ -322,7 +330,7 @@ class PrecomputedAnnotationReader:
 
     rel = rels[relationship]
 
-    if 'sharding' in rel:
+    if 'sharding' in rel and rel.get("sharding", None) is not None:
       spec = ShardingSpecification.from_dict(rel["sharding"])
       reader = ShardReader(self.meta.cloudpath, self.cache, spec)
       binaries = reader.get_data(labels, path=rel["key"])
