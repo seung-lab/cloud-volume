@@ -127,6 +127,16 @@ class PrecomputedAnnotationSource:
     else:
       raise ValueError(f"{query} is not a valid query type.")
 
+  def summary(self) -> dict:
+    return {
+      "type": self.reader.meta.annotation_type,
+      "bounds": self.reader.meta.bounds,
+      "path": self.reader.meta.cloudpath,
+      "by_id": self.reader.meta.info["by_id"] is not None,
+      "spatial_query": self.reader.meta.info["spatial"] is not None,
+      "relationships": self.reader.meta.relationships,
+    }
+
   def __getitem__(self, slcs):
     return self.get_by_bbox(slcs, mip=self.config.mip)
 

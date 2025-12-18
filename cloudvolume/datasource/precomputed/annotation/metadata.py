@@ -315,7 +315,9 @@ class PrecomputedAnnotationMetadata:
 
   @property
   def bounds(self) -> Bbox:
-    return Bbox(self.info["lower_bound"], self.info["upper_bound"])
+    # assumes all dimensions are 1 unit and same
+    unit = next(iter(self.dimensions.values()))[1] 
+    return Bbox(self.info["lower_bound"], self.info["upper_bound"], unit=unit)
 
   def chunk_size(self, mip:int) -> np.ndarray:
     return np.array(self.info["spatial"][mip]["chunk_size"], dtype=int)
