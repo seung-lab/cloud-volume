@@ -43,7 +43,7 @@ class PrecomputedAnnotationSource:
     readonly:bool = False,
     secrets:SecretsType = None,
     use_https:bool = False,
-    mip:int = 0,
+    mip:int = -1,
   ):
     from .. import get_cache_path
 

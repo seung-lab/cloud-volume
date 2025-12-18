@@ -217,10 +217,14 @@ class PrecomputedAnnotationReader:
       return annos
     return annos[labels[0]]
 
-  def get_by_bbox(self, bbox:BboxLikeType, mip:int = 0) -> MultiLabelAnnotation:
+  def get_by_bbox(self, bbox:BboxLikeType, mip:int = -1) -> MultiLabelAnnotation:
     """
     Query for all annotations in the given bounding box.
     Bounds are inclusive on both sides.
+
+    Note: for annotations, mips are coarsest to finest, 
+    the opposite of images. By default, we pick the finest
+    mip because that is the one that is scientifically useful.
     """
     spatial = self.meta.info["spatial"][mip]
     key = spatial["key"]
