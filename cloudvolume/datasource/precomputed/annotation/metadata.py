@@ -264,7 +264,7 @@ class PrecomputedAnnotationMetadata:
     enums = {}
     for p in self.properties:
       if "enum_labels" in p:
-        self._enum_dict[p['id']] = {
+        enums[p['id']] = {
           k: v for k, v in zip(p["enum_values"], p["enum_labels"])
         }
     return enums
