@@ -122,11 +122,15 @@ def create_precomputed_annotation(
   cloudpath:str, 
   cache:CacheType = False,
   info:Optional[dict] = None,
-  mip:int = 0,
+  mip:int = -1,
   progress:bool = False,
   secrets:SecretsType = None,
   use_https:bool = False,
 ) -> PrecomputedAnnotationSource:
+  """
+  Note: for annotations, mips are coarsest to finest, so -1
+  means pick the finest (i.e. the scientifically useful one).
+  """
   return PrecomputedAnnotationSource(
     cloudpath,
     cache=cache,
