@@ -38,10 +38,6 @@ _PROPERTY_DTYPES: dict[
   "rgba": (("|u1", (4,)), 1),
 }
 
-def _get_dtype_for_geometry(annotation_type:AnnotationType, rank:int):
-  geometry_size = rank if annotation_type == AnnotationType.POINT else 2 * rank
-  return [("geometry", "<f4", geometry_size)]
-
 def _get_dtype_for_properties(properties:Iterable[dict[str, Any]]):
   dtype = []
   offset = 0
@@ -290,12 +286,32 @@ class PrecomputedAnnotationMetadata:
       raise ValueError("No properties found in the info file.")
     return [ p["id"] for p in self.info["properties"] ]
 
-  @property
-  def annotation_dtype(self) -> np.dtype:
-    return (
-      _get_dtype_for_geometry(self.annotation_type, self.ndim)
-      + _get_dtype_for_properties(self.properties)
+  def annotation_dtype(self, binary:bytes) -> np.dtype:
+    prop_dtypes = _get_dtype_for_properties(self.properties)
+
+    # Derived from Neuroglancer Python code
+    if self.annotation_type == AnnotationType.POLYLINE:
+      num_pts = np.frombuffer(encoded, dtype="<u4", count=1)[0]
+      num_points = ("num_points", "<u4")
+      geometry = (
+        "_pt1",
+        "<f4",
+        (num_points_value * self.coordinate_space.rank,),
+      )
+      return [num_points, geometry] + prop_dtypes
+
+    two_point_types = (
+      AnnotationType.LINE,
+      AnnotationType.AXIS_ALIGNED_BOUNDING_BOX,
+      AnnotationType.ELLIPSOID,
     )
+
+    geometry_dtype = [('_pt1', 'f4', self.ndim)]
+
+    if self.annotation_type in two_point_types:
+      geometry_dtype += [('_pt2', 'f4', self.ndim)]
+
+    return geometry_dtype + prop_dtypes
 
   @property
   def bounds(self) -> Bbox:
@@ -317,5 +333,3 @@ class PrecomputedAnnotationMetadata:
 
     index = self.info["by_id"]
     return index.get("sharding", None) is not None
-
-

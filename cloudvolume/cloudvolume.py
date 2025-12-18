@@ -273,9 +273,9 @@ class CloudVolume:
 
     def init(cloudpath):
       path = strict_extract(cloudpath)
-      if path.format in REGISTERED_PLUGINS:
+      if path.format in REGISTERED_IMAGE_PLUGINS:
         kwargs["cloudpath"] = normalize(cloudpath)
-        return REGISTERED_PLUGINS[path.format](**kwargs)
+        return REGISTERED_IMAGE_PLUGINS[path.format](**kwargs)
       else:
         raise UnsupportedFormatError(
           "Unknown format {}".format(path.format)
