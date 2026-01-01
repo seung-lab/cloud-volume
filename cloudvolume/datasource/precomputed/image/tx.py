@@ -407,7 +407,7 @@ def threaded_upload_chunks(
     if callable(progress):
       progress()
 
-  if remote.protocol == "file":
+  if remote.protocol in ("file", "mem"):
     n_threads = 0
 
   schedule_jobs(

@@ -685,7 +685,7 @@ def download_chunks_threaded(
 
   total = len(locations["local"]) + len(locations["remote"])
   n_threads = DEFAULT_THREADS
-  if meta.path.protocol == "file" or are_all_lru_hits:
+  if meta.path.protocol in ("file", "mem") or are_all_lru_hits:
     n_threads = 0
 
   with tqdm(desc=progress, total=total, disable=(not progress)) as pbar:
