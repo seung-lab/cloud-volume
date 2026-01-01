@@ -1,5 +1,4 @@
 from functools import partial
-import os
 
 import fastremap
 import numpy as np
@@ -41,9 +40,10 @@ def upload(
     cdn_cache=None,
     parallel=1,
     progress=False,
-    delete_black_uploads=False, 
+    delete_black_uploads=False,
     background_color=0,
     non_aligned_writes=False,
+    overwrite_partial_chunks=False,
     location=None, location_bbox=None, location_order='F',
     use_shared_memory=False, use_file=False,
     green=False, fill_missing=False, secrets=None
@@ -52,11 +52,18 @@ def upload(
 
   if not np.issubdtype(image.dtype, np.dtype(meta.dtype).type):
     raise ValueError("""
-      The uploaded image data type must match the volume data type. 
+      The uploaded image data type must match the volume data type.
 
       Volume: {}
       Image: {}
       """.format(meta.dtype, image.dtype)
+    )
+
+  if overwrite_partial_chunks and not non_aligned_writes:
+    raise ValueError(
+      "overwrite_partial_chunks=True requires non_aligned_writes=True. "
+      "This parameter only applies to non-aligned writes where shell chunks "
+      "need to be handled. Set non_aligned_writes=True to enable this feature."
     )
 
   shape = Vec(*image.shape)[:3]
@@ -102,12 +109,42 @@ def upload(
     )
     return
 
+  if overwrite_partial_chunks:
+    expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
+
+    padded_shape = list(expanded.size3())
+    if image.ndim > 3:
+      padded_shape.append(image.shape[3])
+    else:
+      padded_shape.append(1)
+
+    padded_image = np.full(padded_shape, background_color, dtype=meta.dtype, order='F')
+
+    delta = bounds.minpt - expanded.minpt
+    user_slices = (
+      slice(delta.x, delta.x + shape.x),
+      slice(delta.y, delta.y + shape.y),
+      slice(delta.z, delta.z + shape.z),
+    )
+
+    if image.ndim > 3:
+      padded_image[user_slices] = image
+    else:
+      padded_image[user_slices + (slice(None),)] = image[..., np.newaxis]
+
+    upload_aligned(
+      meta, cache, lru,
+      padded_image, expanded.minpt, mip,
+      **options
+    )
+    return
+
   # Upload the aligned core
   retracted = bounds.shrink_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
   core_bbox = retracted.clone() - bounds.minpt
 
   if not core_bbox.subvoxel():
-    core_img = image[ core_bbox.to_slices() ] 
+    core_img = image[ core_bbox.to_slices() ]
     upload_aligned(
       meta, cache, lru,
       core_img, retracted.minpt, mip,
@@ -129,9 +166,9 @@ def upload(
     threaded_upload_chunks(
       meta, cache, lru,
       img3d, mip,
-      (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),), 
+      (( Vec(0,0,0), Vec(*img3d.shape[:3]), bbox.minpt, bbox.maxpt),),
       compress=compress, cdn_cache=cdn_cache,
-      progress=False, n_threads=0, 
+      progress=False, n_threads=0,
       delete_black_uploads=delete_black_uploads,
       green=green, secrets=secrets, lru_encoding=lru_encoding,
     )
@@ -140,13 +177,13 @@ def upload(
 
   decode_fn = partial(decode, allow_none=False)
   download_chunks_threaded(
-    meta, cache, None, lru_encoding, mip, shell_chunks, 
+    meta, cache, None, lru_encoding, mip, shell_chunks,
     fn=shade_and_upload, decode_fn=decode_fn,
-    fill_missing=fill_missing, 
-    progress=("Shading Border" if progress else None), 
+    fill_missing=fill_missing,
+    progress=("Shading Border" if progress else None),
     compress_cache=compress_cache,
     green=green, secrets=secrets,
-  )
+    )
 
 def upload_aligned(
     meta, cache, lru,

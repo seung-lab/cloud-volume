@@ -80,10 +80,11 @@ class CloudVolume:
     info:dict = None,
     provenance:dict = None,
     compress:CompressType = None,
-    compress_level:Optional[int] = None, 
+    compress_level:Optional[int] = None,
     non_aligned_writes:bool = False,
+    overwrite_partial_chunks:bool = False,
     parallel:ParallelType = 1,
-    delete_black_uploads:bool = False, 
+    delete_black_uploads:bool = False,
     background_color:int = 0,
     green_threads:bool = False,
     use_https:bool = False,
@@ -226,12 +227,16 @@ class CloudVolume:
       mip: (int or iterable) Which level of downsampling to read and write from.
           0 is the highest resolution. You can also specify the voxel resolution
           like mip=[6,6,30] which will search for the appropriate mip level.
-      non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing 
-          safe without careful design. When not enabled, a 
-          cloudvolume.exceptions.AlignmentError is thrown for non-aligned writes. 
-          
-          https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
+      non_aligned_writes: (bool) Enable non-aligned writes. Not multiprocessing
+          safe without careful design. When not enabled, a
+          cloudvolume.exceptions.AlignmentError is thrown for non-aligned writes.
 
+          https://github.com/seung-lab/cloud-volume/wiki/Advanced-Topic:-Non-Aligned-Writes
+      overwrite_partial_chunks: (bool) When True with non_aligned_writes=True,
+          shell chunks are created filled with background_color instead of being
+          downloaded. Unsafe without careful design, and should only be used when no
+          chunks are written to more than once. Requires non_aligned_writes=True.
+          Defaults to False.
       parallel (int: 1, bool): Number of extra processes to launch, 1 means only 
           use the main process. If parallel is True use the number of CPUs 
           returned by multiprocessing.cpu_count(). When parallel > 1, shared

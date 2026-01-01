@@ -35,10 +35,11 @@ from . import tx, rx, xfer
 class PrecomputedImageSource(ImageSourceInterface):
   def __init__(
     self, config, meta, cache,
-    autocrop:bool = False, 
+    autocrop:bool = False,
     bounded:bool = True,
     non_aligned_writes:bool = False,
-    fill_missing:bool = False, 
+    overwrite_partial_chunks:bool = False,
+    fill_missing:bool = False,
     delete_black_uploads:bool = False,
     background_color:int = 0,
     readonly:bool = False,
@@ -57,6 +58,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     
     self.delete_black_uploads = bool(delete_black_uploads)
     self.background_color = background_color
+    self.overwrite_partial_chunks = bool(overwrite_partial_chunks)
 
     self.shared_memory_id = self.generate_shared_memory_location()
 
@@ -443,6 +445,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       delete_black_uploads=self.delete_black_uploads,
       background_color=self.background_color,
       non_aligned_writes=self.non_aligned_writes,
+      overwrite_partial_chunks=self.overwrite_partial_chunks,
       secrets=self.config.secrets,
       green=self.config.green,
       fill_missing=self.fill_missing, # applies only to unaligned writes
