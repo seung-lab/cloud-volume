@@ -32,6 +32,34 @@ from .rx import download_chunks_threaded, decode
 progress_queue = None # defined in common.initialize_synchronization
 fs_lock = None # defined in common.initialize_synchronization
 
+def upload_with_overwrite_partial_chunks(
+    meta, cache, lru, image, offset, mip,
+    bounds, **options):
+  """
+  Handle uploads when overwrite_partial_chunks is enabled.
+  Creates a padded image and uses shade to copy the user's image,
+  then uploads the padded image as aligned chunks.
+  """
+  background_color = options.get('background_color', 0)
+  expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
+
+  padded_shape = list(expanded.size3())
+  if image.ndim > 3:
+    padded_shape.append(image.shape[3])
+  else:
+    padded_shape.append(1)
+
+  padded_image = np.full(padded_shape, background_color, dtype=meta.dtype, order='F')
+
+  # Use shade to copy user's image into the padded image
+  shade(padded_image, expanded, image, bounds)
+
+  upload_aligned(
+    meta, cache, lru,
+    padded_image, expanded.minpt, mip,
+    **options
+  )
+
 def upload(
     meta, cache, lru, lru_encoding,
     image, offset, mip,
@@ -110,32 +138,9 @@ def upload(
     return
 
   if overwrite_partial_chunks:
-    expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
-
-    padded_shape = list(expanded.size3())
-    if image.ndim > 3:
-      padded_shape.append(image.shape[3])
-    else:
-      padded_shape.append(1)
-
-    padded_image = np.full(padded_shape, background_color, dtype=meta.dtype, order='F')
-
-    delta = bounds.minpt - expanded.minpt
-    user_slices = (
-      slice(delta.x, delta.x + shape.x),
-      slice(delta.y, delta.y + shape.y),
-      slice(delta.z, delta.z + shape.z),
-    )
-
-    if image.ndim > 3:
-      padded_image[user_slices] = image
-    else:
-      padded_image[user_slices + (slice(None),)] = image[..., np.newaxis]
-
-    upload_aligned(
-      meta, cache, lru,
-      padded_image, expanded.minpt, mip,
-      **options
+    upload_with_overwrite_partial_chunks(
+      meta, cache, lru, image, offset, mip,
+      bounds, **options
     )
     return
 
