@@ -321,8 +321,7 @@ def encode_compressed_segmentation(
   return cseg.compress(subvol, block_size=block_size, order=order)
 
 def encode_raw(subvol):
-  if not subvol.flags['F_CONTIGUOUS']:
-    subvol = np.asfortranarray(subvol)
+  subvol = np.asfortranarray(subvol)
   return subvol.tobytes('F')
 
 def encode_kempressed(subvol):
