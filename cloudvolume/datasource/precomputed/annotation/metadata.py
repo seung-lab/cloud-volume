@@ -260,6 +260,7 @@ class PrecomputedAnnotationMetadata:
   def properties(self) -> dict:
     return self.info.get("properties", [])
 
+  @property
   def properties_enum(self) -> dict[str, dict[int, str]]:
     enums = {}
     for p in self.properties:
@@ -267,6 +268,11 @@ class PrecomputedAnnotationMetadata:
         enums[p['id']] = {
           k: v for k, v in zip(p["enum_values"], p["enum_labels"])
         }
+      elif "enum_values" in p:
+        enums[p['id']] = np.asarray(p["enum_values"])
+      else:
+        enums[p['id']] = p["type"]
+    
     return enums
 
   @property
