@@ -106,27 +106,6 @@ class PrecomputedAnnotationSource:
     """Get all annotations using the most efficient method available."""
     return self.reader.get_all()
 
-  def get(self, query, mip:Optional[int] = None) -> Union[LabelAnnotation, MultiLabelAnnotation]:
-    """Get annotations using the method best matching the input."""
-    if mip is None:
-      mip = self.config.mip
-
-    if isinstance(query, Bbox):
-      return self.get_by_bbox(query, mip=mip)
-    elif isinstance(query, (int, np.integer)):
-      return self.reader.get_by_id(query)
-    elif isinstance(query, list):
-      return self.reader.get_by_id(query)
-    elif isinstance(query, tuple):
-      if len(query) == 0:
-        return []
-      elif isinstance(query[0], slice):
-        return self.get_by_bbox(query, mip=mip)
-      else:
-        return self.get_by_id(query)
-    else:
-      raise ValueError(f"{query} is not a valid query type.")
-
   def summary(self) -> dict:
     return {
       "type": self.reader.meta.annotation_type,
