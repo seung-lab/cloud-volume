@@ -418,7 +418,7 @@ class CloudVolume:
     vol[:,:,:] = arr
     return vol
 
-def create(cloudpath:str, *args, **kwargs) -> Any:
+def from_cloudpath(cloudpath:str, *args, **kwargs) -> Any:
   """Create the appropriate object for the given cloudpath."""
   path = strict_extract(cloudpath)
 
