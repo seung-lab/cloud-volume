@@ -164,6 +164,25 @@ class MultiLabelAnnotation:
     df.set_index("ID", inplace=True)
     return df
 
+  def split_by_id(self) -> dict[int,LabelAnnotation]:
+    all_labels = np.unique(self.ids)
+
+    out = {}
+    for label in all_labels:
+      mask = self.ids == label
+      properties = { 
+        name: arr[mask]
+        for name, arr in self.properties.items()
+      }
+      out[label] = LabelAnnotation(
+        label, 
+        self.type,
+        self.geometry[mask],
+        properties,
+        relationships={},
+      )
+    return out
+
   def crop(self, bbox:Bbox) -> "MultiLabelAnnotation":
     mask = _crop_mask(self.type, self.geometry, bbox)
     return MultiLabelAnnotation(
