@@ -213,6 +213,9 @@ class MultiLabelAnnotation:
   ids: npt.NDArray[np.uint64]
   properties: dict[str, np.ndarray]
 
+  def __len__(self) -> int:
+    return len(self.geometry)
+
   def pandas(self):
     import pandas as pd
     data = { "ID": self.ids }
