@@ -3,7 +3,7 @@
 # CloudVolume: IO for Neuroglancer Datasets
 
 ```python
-from cloudvolume import CloudVolume, create, Bbox
+from cloudvolume import CloudVolume, from_cloudpath, Bbox
 
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
 image = vol[:,:,:] # Download a whole image stack into a numpy array from the cloud
@@ -13,7 +13,7 @@ label = 1
 mesh = vol.mesh.get(label)
 skel = vol.skeleton.get(label)
 
-asrc = create("gs://mylab/mouse/annotation/synapses")
+asrc = from_cloudpath("gs://mylab/mouse/annotation/synapses")
 annotations = asrc.get(label)
 ```
 
@@ -350,7 +350,7 @@ Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differ
 # Annotations
 import cloudvolume
 
-asrc = cloudvolume.create("gs://mybucket/retina/annotations", cache=True, progress=True, mip=3)
+asrc = cloudvolume.from_cloudpath("gs://mybucket/retina/annotations", cache=True, progress=True, mip=3)
 annotations = asrc.get([1,2,3,]) # tries to interpret input to mean get_by_id or get_by_bbox
 annotations = asrc.get_by_id([1,2,3,])
 annotations = asrc.get(bbox, mip=3)
