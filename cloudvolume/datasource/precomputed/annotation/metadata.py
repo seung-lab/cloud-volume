@@ -118,6 +118,9 @@ class LabelAnnotation:
   properties: dict[str, np.ndarray]
   relationships: dict[str, npt.NDArray[np.uint64]]
 
+  def __len__(self) -> int:
+    return self.geometry.shape[0]
+
   def tobytes(self) -> bytes:
     raise NotImplementedError()
 
@@ -153,6 +156,11 @@ class PointAnnotation(SpecificLabelAnnotation):
   @property
   def points(self) -> npt.NDArray[np.float32]:
     return self.geometry
+
+  def viewer(self):
+    """View as point cloud."""
+    import microviewer
+    microviewer.objects([ self.points ])
 
 class LineAnnotation(SpecificLabelAnnotation):
   type: AnnotationType = AnnotationType.LINE
@@ -221,6 +229,7 @@ class MultiLabelAnnotation:
         name: arr[mask]
         for name, arr in self.properties.items()
       }
+      label = int(label)
       out[label] = AnnotationClass(
         label,
         self.geometry[mask],
