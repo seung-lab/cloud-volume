@@ -19,8 +19,9 @@ from tqdm import tqdm
 
 from .metadata import (
   PrecomputedAnnotationMetadata, 
-  LabelAnnotation, 
   MultiLabelAnnotation,
+  LabelAnnotation,
+  get_annotation_class,
 )
 
 from ....cacheservice import CacheService
@@ -137,9 +138,9 @@ class PrecomputedAnnotationReader:
 
   def _decode_label_annotation(self, segid:int, binary:bytes) -> LabelAnnotation:
     (geometry, properties, relationships) = self._decode_single_annotation(binary)
-    return LabelAnnotation(
+    AnnotationClass = get_annotation_class(self.meta.annotation_type)
+    return AnnotationClass(
       segid,
-      self.meta.annotation_type,
       geometry,
       properties,
       relationships,

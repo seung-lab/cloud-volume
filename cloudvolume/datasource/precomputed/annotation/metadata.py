@@ -118,6 +118,9 @@ class LabelAnnotation:
   properties: dict[str, np.ndarray]
   relationships: dict[str, npt.NDArray[np.uint64]]
 
+  def tobytes(self) -> bytes:
+    raise NotImplementedError()
+
   def pandas(self):
     import pandas as pd
     data = {}
@@ -139,6 +142,48 @@ class LabelAnnotation:
       },
       relationships=self.relationships,
     )
+
+class SpecificLabelAnnotation(LabelAnnotation):
+  type: AnnotationType = AnnotationType.POINT
+  def __init__(self, id, geometry, properties, relationships):
+    super().__init__(id, self.type, geometry, properties, relationships)
+
+class PointAnnotation(SpecificLabelAnnotation):
+  type: AnnotationType = AnnotationType.POINT
+  @property
+  def points(self) -> npt.NDArray[np.float32]:
+    return self.geometry
+
+class LineAnnotation(SpecificLabelAnnotation):
+  type: AnnotationType = AnnotationType.LINE
+
+class AxisAlignedBoundingBoxAnnotation(SpecificLabelAnnotation):
+  type: AnnotationType = AnnotationType.AXIS_ALIGNED_BOUNDING_BOX
+  def bbox(self, i:int) -> Bbox:
+    return Bbox.from_list(*self.geometry[i,:])
+
+class EllipsoidAnnotation(SpecificLabelAnnotation):
+  type: AnnotationType = AnnotationType.ELLIPSOID
+  @property
+  def radii(self):
+    return self.geometry[:,:,1]
+  @property
+  def centers(self):
+    return self.geometry[:,:,0]
+
+class PolyLineAnnotation(SpecificLabelAnnotation):
+  type: AnnotationType = AnnotationType.POLYLINE
+
+ANNOTATION_CLASS = {
+  AnnotationType.POINT: PointAnnotation,
+  AnnotationType.LINE: LineAnnotation,
+  AnnotationType.ELLIPSOID: EllipsoidAnnotation,
+  AnnotationType.AXIS_ALIGNED_BOUNDING_BOX: AxisAlignedBoundingBoxAnnotation,
+  AnnotationType.POLYLINE: PolyLineAnnotation,
+}
+
+def get_annotation_class(type:AnnotationType):
+  return ANNOTATION_CLASS[type]
 
 @dataclass
 class MultiLabelAnnotation:
@@ -167,6 +212,8 @@ class MultiLabelAnnotation:
   def split_by_id(self) -> dict[int,LabelAnnotation]:
     all_labels = np.unique(self.ids)
 
+    AnnotationClass = get_annotation_class(self.type)
+
     out = {}
     for label in all_labels:
       mask = self.ids == label
@@ -174,9 +221,8 @@ class MultiLabelAnnotation:
         name: arr[mask]
         for name, arr in self.properties.items()
       }
-      out[label] = LabelAnnotation(
-        label, 
-        self.type,
+      out[label] = AnnotationClass(
+        label,
         self.geometry[mask],
         properties,
         relationships={},
