@@ -82,7 +82,6 @@ class PrecomputedAnnotationSource:
     self.config = config
     self.readonly = bool(readonly)
     self.reader = PrecomputedAnnotationReader(self.meta, self.cache, self.config)
-    # self.writer = AnnotationWriter(cloudpath, meta, cache, config)
 
   def ids(self) -> npt.NDArray[np.uint64]:
     """Get all annotation IDs."""
