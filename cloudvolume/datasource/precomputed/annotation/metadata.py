@@ -167,8 +167,21 @@ class LineAnnotation(SpecificLabelAnnotation):
 
 class AxisAlignedBoundingBoxAnnotation(SpecificLabelAnnotation):
   type: AnnotationType = AnnotationType.AXIS_ALIGNED_BOUNDING_BOX
+  
   def bbox(self, i:int) -> Bbox:
     return Bbox.from_list(*self.geometry[i,:])
+
+  def bboxes(self) -> list[Bbox]:
+    return [
+      Bbox.from_list(self.geometry[i,:])
+      for i in range(len(self.geometry))
+    ]
+
+  def viewer(self):
+    """View as point cloud."""
+    import microviewer
+    microviewer.objects(self.bboxes())
+
 
 class EllipsoidAnnotation(SpecificLabelAnnotation):
   type: AnnotationType = AnnotationType.ELLIPSOID
