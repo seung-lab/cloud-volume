@@ -263,6 +263,13 @@ class MultiLabelAnnotation:
       },
     )
 
+  def viewer(self):
+    if self.type != AnnotationType.POINT:
+      raise ValueError(f"Type {self.type} not supported.")
+
+    import microviewer
+    microviewer.objects([ self.geometry ])
+
 class PrecomputedAnnotationMetadata:
   def __init__(
     self, 

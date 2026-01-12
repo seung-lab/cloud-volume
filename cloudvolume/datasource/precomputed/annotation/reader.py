@@ -243,8 +243,8 @@ class PrecomputedAnnotationReader:
 
     grid_box = Bbox([0,0,0], self.meta.grid_shape(mip))
     realized_bbox = Bbox.clamp(realized_bbox, grid_box)
-
-    grid = np.mgrid[realized_bbox.to_slices()][...,0,0].T
+    grid = np.mgrid[realized_bbox.to_slices()]
+    grid = np.stack(grid, axis=-1).reshape(-1, 3)
     if spatial.get("sharding", None) is not None:
       codes = compressed_morton_code(grid, self.meta.grid_shape(mip))
       spec = ShardingSpecification.from_dict(spatial["sharding"])
