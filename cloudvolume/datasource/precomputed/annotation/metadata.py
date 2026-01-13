@@ -117,6 +117,7 @@ class LabelAnnotation:
   geometry: npt.NDArray[np.float32]
   properties: dict[str, np.ndarray]
   relationships: dict[str, npt.NDArray[np.uint64]]
+  properties_enum: Optional[dict[str, dict[int,str]]]
 
   def __len__(self) -> int:
     return self.geometry.shape[0]
@@ -130,7 +131,13 @@ class LabelAnnotation:
     data.update(self.properties)
     for i in range(self.geometry.shape[1]):
       data[f"axis_{i}"] = self.geometry[:,i]
+
     df = pd.DataFrame(data)
+
+    if isinstance(self.properties_enum, dict):
+      for name, enum_dict in self.properties_enum.items():
+        df[name] = df[name].map(enum_dict).astype('category')
+
     return df
 
   def crop(self, bbox:Bbox) -> "LabelAnnotation":
@@ -257,6 +264,7 @@ class MultiLabelAnnotation:
         self.geometry[mask],
         properties,
         relationships={},
+        properties_enum=self.properties_enum,
       )
     return out
 

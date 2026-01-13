@@ -144,6 +144,7 @@ class PrecomputedAnnotationReader:
       geometry,
       properties,
       relationships,
+      properties_enum=self.meta.properties_enum,
     )
 
   def _decode_annotations(self, binary:bytes) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
