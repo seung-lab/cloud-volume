@@ -295,7 +295,7 @@ class PrecomputedAnnotationReader:
       properties_enum=self.meta.properties_enum,
     ).crop(orig_bbox)
 
-  def get_by_relationship(self, relationship:str, labels:Union[int, Iterable[int]]) -> npt.NDArray[np.uint64]:
+  def get_by_relationship(self, relationship:str, labels:Union[int, Iterable[int]]) -> Union[dict[int, MultiLabelAnnotation], MultiLabelAnnotation]:
     """
     Get the annotations corresponding to the relationship type.
     """
