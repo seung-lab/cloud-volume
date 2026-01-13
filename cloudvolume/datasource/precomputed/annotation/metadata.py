@@ -212,6 +212,7 @@ class MultiLabelAnnotation:
   geometry: npt.NDArray[np.float32]
   ids: npt.NDArray[np.uint64]
   properties: dict[str, np.ndarray]
+  properties_enum: Optional[dict[str, dict[int,str]]]
 
   def __len__(self) -> int:
     return len(self.geometry)
@@ -230,6 +231,11 @@ class MultiLabelAnnotation:
         data[f"axis_{i}"] = self.geometry[:,i]
     
     df = pd.DataFrame(data)
+
+    if isinstance(self.properties_enum, dict):
+      for name, enum_dict in self.properties_enum.items():
+        df[name] = df[name].map(enum_dict).astype('category')
+
     df.set_index("ID", inplace=True)
     return df
 
@@ -264,6 +270,7 @@ class MultiLabelAnnotation:
         k: v[mask]
         for k,v in self.properties.items()
       },
+      properties_enum=self.properties_enum,
     )
 
   def viewer(self):
@@ -359,6 +366,17 @@ class PrecomputedAnnotationMetadata:
 
   @property
   def properties_enum(self) -> dict[str, dict[int, str]]:
+    enums = {}
+    for p in self.properties:
+      if "enum_labels" in p:
+        enums[p['id']] = {
+          k: v for k, v in zip(p["enum_values"], p["enum_labels"])
+        }
+    
+    return enums
+
+  @property
+  def properties_summary(self) -> dict[str, dict[int, str]]:
     enums = {}
     for p in self.properties:
       if "enum_labels" in p:

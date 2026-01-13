@@ -109,7 +109,7 @@ class PrecomputedAnnotationSource:
       "by_id": self.reader.meta.info["by_id"] is not None,
       "spatial_query": self.reader.meta.info["spatial"] is not None,
       "relationships": list(self.reader.meta.relationships.keys()),
-      "properties": self.reader.meta.properties_enum,
+      "properties": self.reader.meta.properties_summary,
     }
 
   def __getitem__(self, slcs):

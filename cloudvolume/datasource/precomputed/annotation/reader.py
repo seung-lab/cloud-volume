@@ -291,6 +291,7 @@ class PrecomputedAnnotationReader:
       geometry=all_geo,
       ids=ids,
       properties=properties,
+      properties_enum=self.meta.properties_enum,
     ).crop(orig_bbox)
 
   def get_by_relationship(self, relationship:str, labels:Union[int, Iterable[int]]) -> npt.NDArray[np.uint64]:
@@ -327,6 +328,7 @@ class PrecomputedAnnotationReader:
         geometry=geometry,
         ids=ids,
         properties=properties,
+        properties_enum=self.meta.properties_enum,
       )
 
     if return_multiple:
