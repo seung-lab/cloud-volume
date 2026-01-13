@@ -280,7 +280,7 @@ class PrecomputedAnnotationReader:
     if len(all_geo):
       all_geo = np.concatenate(all_geo, axis=0)
     else:
-      all_geo = np.zeros([0,N], dtype=np.float32)
+      all_geo = np.zeros([0, self.meta.ndim ], dtype=np.float32)
 
     if len(ids):
       ids = np.concatenate(ids)
