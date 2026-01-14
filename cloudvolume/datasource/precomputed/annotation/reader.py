@@ -139,12 +139,14 @@ class PrecomputedAnnotationReader:
   def _decode_label_annotation(self, segid:int, binary:bytes) -> LabelAnnotation:
     (geometry, properties, relationships) = self._decode_single_annotation(binary)
     AnnotationClass = get_annotation_class(self.meta.annotation_type)
+    dims = list(self.meta.dimensions.keys())
     return AnnotationClass(
       segid,
       geometry,
       properties,
       relationships,
       properties_enum=self.meta.properties_enum,
+      dimensions=dims,
     )
 
   def _decode_annotations(self, binary:bytes) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
@@ -295,6 +297,7 @@ class PrecomputedAnnotationReader:
       ids=ids,
       properties=properties,
       properties_enum=self.meta.properties_enum,
+      dimensions=list(self.meta.dimensions.keys()),
     )
 
     if realized_bbox == grid_box:

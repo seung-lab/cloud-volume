@@ -118,6 +118,7 @@ class LabelAnnotation:
   properties: dict[str, np.ndarray]
   relationships: dict[str, npt.NDArray[np.uint64]]
   properties_enum: Optional[dict[str, dict[int,str]]]
+  dimensions: Optional[list[str]]
 
   def __len__(self) -> int:
     return self.geometry.shape[0]
@@ -130,7 +131,10 @@ class LabelAnnotation:
     data = {}
     data.update(self.properties)
     for i in range(self.geometry.shape[1]):
-      data[f"axis_{i}"] = self.geometry[:,i]
+      axis = f"axis_{i}"
+      if i < len(self.dimensions):
+        axis = self.dimensions[i]
+      data[axis] = self.geometry[:,i]
 
     df = pd.DataFrame(data)
 
@@ -155,8 +159,8 @@ class LabelAnnotation:
 
 class SpecificLabelAnnotation(LabelAnnotation):
   type: AnnotationType = AnnotationType.POINT
-  def __init__(self, id, geometry, properties, relationships):
-    super().__init__(id, self.type, geometry, properties, relationships)
+  def __init__(self, id, geometry, properties, relationships, dimensions):
+    super().__init__(id, self.type, geometry, properties, relationships, dimensions)
 
 class PointAnnotation(SpecificLabelAnnotation):
   type: AnnotationType = AnnotationType.POINT
@@ -220,6 +224,7 @@ class MultiLabelAnnotation:
   ids: npt.NDArray[np.uint64]
   properties: dict[str, np.ndarray]
   properties_enum: Optional[dict[str, dict[int,str]]]
+  dimensions: Optional[list[str]]
 
   def __len__(self) -> int:
     return len(self.geometry)
@@ -235,7 +240,10 @@ class MultiLabelAnnotation:
           data[f"axis_{j}_{i}"] = self.geometry[:,i]
     else:
       for i in range(self.geometry.shape[1]):
-        data[f"axis_{i}"] = self.geometry[:,i]
+        axis = f"axis_{i}"
+        if i < len(self.dimensions):
+          axis = self.dimensions[i]
+        data[axis] = self.geometry[:,i]
     
     df = pd.DataFrame(data)
 
@@ -250,6 +258,7 @@ class MultiLabelAnnotation:
     all_labels = np.unique(self.ids)
 
     AnnotationClass = get_annotation_class(self.type)
+    dims = list(self.dimensions.keys())
 
     out = {}
     for label in all_labels:
@@ -265,6 +274,7 @@ class MultiLabelAnnotation:
         properties,
         relationships={},
         properties_enum=self.properties_enum,
+        dimensions=dims,
       )
     return out
 
@@ -279,6 +289,7 @@ class MultiLabelAnnotation:
         for k,v in self.properties.items()
       },
       properties_enum=self.properties_enum,
+      dimensions=self.dimensions,
     )
 
   def viewer(self):
@@ -357,7 +368,7 @@ class PrecomputedAnnotationMetadata:
 
   @property
   def dimensions(self) -> list[list]:
-    return self.info["dimensions"]
+    return OrderedDict(self.info["dimensions"])
 
   @property
   def ndim(self) -> int:

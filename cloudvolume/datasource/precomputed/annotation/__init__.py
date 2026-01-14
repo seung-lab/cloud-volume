@@ -106,6 +106,7 @@ class PrecomputedAnnotationSource:
       "type": self.reader.meta.annotation_type,
       "bounds": self.reader.meta.bounds,
       "path": self.reader.meta.cloudpath,
+      "dimensions": list(self.reader.meta.dimensions.keys()),
       "by_id": self.reader.meta.info["by_id"] is not None,
       "spatial_query": self.reader.meta.info["spatial"] is not None,
       "relationships": list(self.reader.meta.relationships.keys()),
