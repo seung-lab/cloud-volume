@@ -161,8 +161,8 @@ class LabelAnnotation:
 
 class SpecificLabelAnnotation(LabelAnnotation):
   type: AnnotationType = AnnotationType.POINT
-  def __init__(self, id, geometry, properties, relationships, dimensions):
-    super().__init__(id, self.type, geometry, properties, relationships, dimensions)
+  def __init__(self, id, *args, **kwargs):
+    super().__init__(id, self.type, *args, **kwargs)
 
 class PointAnnotation(SpecificLabelAnnotation):
   type: AnnotationType = AnnotationType.POINT
