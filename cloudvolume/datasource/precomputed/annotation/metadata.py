@@ -155,6 +155,8 @@ class LabelAnnotation:
         for k,v in self.properties.items()
       },
       relationships=self.relationships,
+      properties_enum=self.properties_enum,
+      dimensions=self.dimensions,
     )
 
 class SpecificLabelAnnotation(LabelAnnotation):
