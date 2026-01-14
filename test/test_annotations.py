@@ -32,3 +32,6 @@ def test_annotation(asrc):
 
 	pd = all_pts.pandas()
 	assert len(set(pd["class_label"])) == 7
+
+	annos = all_pts.split_by_id()
+	assert len(annos) == 10043
