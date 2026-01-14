@@ -1,4 +1,4 @@
-Note: example taken from the H01 dataset.
+Note: example taken and modified from the H01 dataset.
 
 gs://h01-release/data/20210601/c2/subcompartments/annotations/
 
