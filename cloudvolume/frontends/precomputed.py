@@ -134,6 +134,14 @@ class CloudVolumePrecomputed(object):
     self.image.delete_black_uploads = val
 
   @property
+  def overwrite_partial_chunks(self) -> bool:
+    return self.image.overwrite_partial_chunks
+
+  @overwrite_partial_chunks.setter
+  def overwrite_partial_chunks(self, val: bool):
+    self.image.overwrite_partial_chunks = bool(val)
+
+  @property
   def parallel(self):
     return self.config.parallel
 

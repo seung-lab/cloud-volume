@@ -795,7 +795,75 @@ def test_non_aligned_write(lru_bytes):
   cv[ middle.to_slices() ] = np.ones(shape=middle.size3(), dtype=cv.dtype)
   answer = np.zeros(shape=cv.shape, dtype=cv.dtype)
   answer[ 362:662, 362:662, : ] = 1
-  assert np.all(cv[:] == answer)    
+  assert np.all(cv[:] == answer)
+
+@pytest.mark.parametrize('lru_bytes', (0,1024,1e6))
+def test_overwrite_partial_chunks(lru_bytes):
+  delete_layer()
+  offset = Vec(0, 0, 0)
+  cv, _ = create_layer(size=(128, 128, 128, 1), offset=offset)
+  cv.image.lru.resize(lru_bytes)
+
+  cv.non_aligned_writes = False
+  cv.overwrite_partial_chunks = True
+  try:
+    cv[10:50, 10:50, 10:50] = np.ones(shape=(40,40,40,1), dtype=cv.dtype) * 5
+    assert False
+  except ValueError as e:
+    assert "non_aligned_writes" in str(e)
+
+  cv.overwrite_partial_chunks = False
+  cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
+  cv.non_aligned_writes = True
+  cv.overwrite_partial_chunks = True
+  cv.background_color = 3
+
+  cv[10:50, 10:50, 10:50] = np.ones(shape=(40,40,40,1), dtype=cv.dtype) * 5
+  chunk_data = cv[0:64, 0:64, 0:64]
+
+  assert np.all(chunk_data[10:50, 10:50, 10:50] == 5)
+  assert np.all(chunk_data[0:10, :, :] == 3)
+  assert np.all(chunk_data[50:64, :, :] == 3)
+
+  # Write across chunk boundaries
+  delete_layer()
+  cv, _ = create_layer(size=(128, 128, 128, 1), offset=(0,0,0))
+  cv[:] = np.zeros(shape=cv.shape, dtype=cv.dtype)
+  cv.non_aligned_writes = True
+  cv.overwrite_partial_chunks = True
+  cv.background_color = 2
+
+  cv[50:80, 50:80, 50:80] = np.ones(shape=(30,30,30,1), dtype=cv.dtype) * 8
+
+  assert np.all(cv[50:80, 50:80, 50:80] == 8)
+  chunk1 = cv[0:64, 0:64, 0:64]
+  assert np.all(chunk1[50:64, 50:64, 50:64] == 8)
+  assert np.all(chunk1[0:50, :, :] == 2)
+
+  chunk2 = cv[64:128, 64:128, 64:128]
+  assert np.all(chunk2[0:16, 0:16, 0:16] == 8)
+  assert np.all(chunk2[16:64, :, :] == 2)
+
+def test_overwrite_partial_chunks_multichannel():
+  delete_layer()
+  cv = CloudVolume.from_numpy(
+    np.zeros((64, 64, 64, 3), dtype=np.uint8),
+    vol_path='file:///tmp/removeme/multichannel',
+    resolution=(1,1,1),
+    voxel_offset=(0,0,0),
+    chunk_size=(32, 32, 32),
+    layer_type='image',
+  )
+
+  cv.non_aligned_writes = True
+  cv.overwrite_partial_chunks = True
+  cv.background_color = 7
+  cv[10:30, 10:30, 10:30] = np.ones((20, 20, 20, 3), dtype=np.uint8) * 9
+
+  result = cv[0:32, 0:32, 0:32]
+  assert np.all(result[10:30, 10:30, 10:30] == 9)
+  assert np.all(result[0:10, :, :] == 7)
+  assert np.all(result[30:32, :, :] == 7)
 
 def test_autocropped_write():
   delete_layer()
