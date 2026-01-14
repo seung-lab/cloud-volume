@@ -289,13 +289,18 @@ class PrecomputedAnnotationReader:
     else:
       ids = np.zeros([0,], dtype=np.uint64)
 
-    return MultiLabelAnnotation(
+    annotation = MultiLabelAnnotation(
       type=self.meta.annotation_type,
       geometry=all_geo,
       ids=ids,
       properties=properties,
       properties_enum=self.meta.properties_enum,
-    ).crop(orig_bbox)
+    )
+
+    if realized_bbox == grid_box:
+      return annotation
+    else:
+      return annotation.crop(orig_bbox)
 
   def get_by_relationship(self, relationship:str, labels:Union[int, Iterable[int]]) -> Union[dict[int, MultiLabelAnnotation], MultiLabelAnnotation]:
     """
