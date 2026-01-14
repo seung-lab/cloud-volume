@@ -262,7 +262,6 @@ class MultiLabelAnnotation:
     all_labels = np.unique(self.ids)
 
     AnnotationClass = get_annotation_class(self.type)
-    dims = list(self.dimensions.keys())
 
     out = {}
     for label in all_labels:
@@ -278,7 +277,7 @@ class MultiLabelAnnotation:
         properties,
         relationships={},
         properties_enum=self.properties_enum,
-        dimensions=dims,
+        dimensions=self.dimensions,
       )
     return out
 
