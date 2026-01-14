@@ -351,6 +351,9 @@ Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differ
 import cloudvolume
 
 asrc = cloudvolume.from_cloudpath("gs://mybucket/retina/annotations", cache=True, progress=True, mip=3)
+
+print(asrc.summary()) # get basic info about annotation set
+
 annotations = asrc.get([1,2,3,]) # tries to interpret input to mean get_by_id or get_by_bbox
 annotations = asrc.get_by_id([1,2,3,])
 annotations = asrc.get(bbox, mip=3)

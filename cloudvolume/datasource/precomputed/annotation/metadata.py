@@ -195,7 +195,6 @@ class AxisAlignedBoundingBoxAnnotation(SpecificLabelAnnotation):
     import microviewer
     microviewer.objects(self.bboxes())
 
-
 class EllipsoidAnnotation(SpecificLabelAnnotation):
   type: AnnotationType = AnnotationType.ELLIPSOID
   @property
