@@ -3,7 +3,7 @@
 # CloudVolume: IO for Neuroglancer Datasets
 
 ```python
-from cloudvolume import CloudVolume
+from cloudvolume import CloudVolume, from_cloudpath, Bbox
 
 vol = CloudVolume('gs://mylab/mouse/image', parallel=True, progress=True)
 image = vol[:,:,:] # Download a whole image stack into a numpy array from the cloud
@@ -12,6 +12,9 @@ vol[:,:,:] = image # Upload an entire image stack from a numpy array to the clou
 label = 1
 mesh = vol.mesh.get(label)
 skel = vol.skeleton.get(label)
+
+asrc = from_cloudpath("gs://mylab/mouse/annotation/synapses")
+annotations = asrc.get(label)
 ```
 
 CloudVolume is a serverless Python client for random access reading and writing of [Neuroglancer](https://github.com/google/neuroglancer/) volumes in "[Precomputed](https://github.com/google/neuroglancer/tree/master/src/datasource/precomputed#readme)" format, a set of representations for arbitrarily large volumetric images, meshes, and skeletons. CloudVolume is typically paired with [Igneous](https://github.com/seung-lab/igneous), a Kubernetes compatible system for generating image hierarchies, meshes, skeletons, and other dependency free jobs that can be applied to petavoxel scale images.
@@ -343,6 +346,22 @@ skel = skel.average_smoothing(3) # rolling average, n=3
 
 skel1 == skel2 # check if contents of internal arrays match
 Skeleton.equivalent(skel1, skel2) # ...even if there are differences like differently numbered edges
+
+# Annotations
+import cloudvolume
+
+asrc = cloudvolume.from_cloudpath("gs://mybucket/retina/annotations", cache=True, progress=True, mip=3)
+
+print(asrc.summary()) # get basic info about annotation set
+
+annotations = asrc.get([1,2,3,]) # tries to interpret input to mean get_by_id or get_by_bbox
+annotations = asrc.get_by_id([1,2,3,])
+annotations = asrc.get(bbox, mip=3)
+annotations = asrc.get_all()
+annotations = asrc.get_by_bbox(bbox, mip=3)
+annotations = asrc[bbox] # can use slice notation
+annotations = asrc.get_by_relationship("synapses", 1231)
+ids = asrc.ids()
 
 # Parallel Operation
 vol = CloudVolume('gs://mybucket/retina/image', parallel=True) # Use all cores
@@ -709,7 +728,7 @@ Python 2.7 is no longer supported by CloudVolume. Updated versions of `pip` will
 
 Thank you to everyone that has contributed past or current to CloudVolume or the ecosystem it serves. We love you!  
 
-Jeremy Maitin-Shepard created [Neuroglancer](https://github.com/google/neuroglancer) and defined the Precomputed format. Yann Leprince provided a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. Jeremy Maitin-Shepard and Stephen Plaza created C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg). Peter Lindstrom et al. created [the fpzip algorithm](https://computation.llnl.gov/projects/floating-point-compression), and contributed a C++ implementation and advice. Nico Kemnitz adapted our data to fpzip using the "Kempression" protocol (we named it, not him). Dan Bumbarger contributed code and information helpful for getting CloudVolume working on Windows. Fredrik Kihlander's [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) developed murmurhash3 which is necessary for the sharded format. Ben Falk advocated for and did the bulk of the work on brotli compression. Some of the ideas in CloudVolume are based on work by Jingpeng Wu in [BigArrays.jl](https://github.com/seung-lab/BigArrays.jl).  Sven Dorkenwald, Manuel Castro, and Akhilesh Halageri contributed advice and code towards implementing the graphene interface. Oluwaseun Ogedengbe contributed documentation for the sharded format. Eric Perlman wrote the reader for Neuroglancer Multi-LOD meshes. Ignacio Tartavull and William Silversmith wrote the initial version of CloudVolume.
+Jeremy Maitin-Shepard created [Neuroglancer](https://github.com/google/neuroglancer) and defined the Precomputed format. Yann Leprince provided a [pure Python codec](https://github.com/HumanBrainProject/neuroglancer-scripts) for the compressed_segmentation format. Jeremy Maitin-Shepard and Stephen Plaza created C++ code defining the compression and decompression (respectively) protocol for [compressed_segmentation](https://github.com/janelia-flyem/compressedseg). Peter Lindstrom et al. created [the fpzip algorithm](https://computation.llnl.gov/projects/floating-point-compression), and contributed a C++ implementation and advice. Nico Kemnitz adapted our data to fpzip using the "Kempression" protocol (we named it, not him). Dan Bumbarger contributed code and information helpful for getting CloudVolume working on Windows. Fredrik Kihlander's [pure python implementation](https://github.com/wc-duck/pymmh3) of murmurhash3 and [Austin Appleby](https://github.com/aappleby/smhasher) developed murmurhash3 which is necessary for the sharded format. Ben Falk advocated for and did the bulk of the work on brotli compression. Some of the ideas in CloudVolume are based on work by Jingpeng Wu in [BigArrays.jl](https://github.com/seung-lab/BigArrays.jl).  Sven Dorkenwald, Manuel Castro, and Akhilesh Halageri contributed advice and code towards implementing the graphene interface. Oluwaseun Ogedengbe contributed documentation for the sharded format. Eric Perlman wrote the reader for Neuroglancer Multi-LOD meshes. Forrest Collman and Jeremy Maitin-Shepard both wrote the versions of the annotations service that was then adapted to CloudVolume by William Silversmith. Ignacio Tartavull and William Silversmith wrote the initial version of CloudVolume.
 
 ## Citation
 Please cite the Igneous paper if you used this package in your research:

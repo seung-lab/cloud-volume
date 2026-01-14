@@ -13,7 +13,8 @@ from .... import chunks
 
 from ... import autocropfn, readonlyguard, ImageSourceInterface
 from .. import sharding
-from .common import chunknames, gridpoints, compressed_morton_code, morton_code_to_bbox
+from ..common import compressed_morton_code, morton_code_to_bbox
+from .common import chunknames, gridpoints
 from . import tx
 
 def create_destination(source, cloudpath, mip, encoding):
@@ -259,7 +260,7 @@ def transfer_sharded_to_sharded(
 
   grid_size = np.ceil(source.meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
 
-  reader = sharding.ShardReader(source.meta, source.cache, spec)
+  reader = sharding.ShardReader(source.meta.cloudpath, source.cache, spec)
   bounds = source.meta.bounds(mip)
   
   gpts, morton_codes = source.morton_codes(

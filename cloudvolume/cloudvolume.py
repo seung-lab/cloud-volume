@@ -1,11 +1,12 @@
 import sys
 import time
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, Any
 
 import multiprocessing as mp
 import numpy as np
 from tqdm import tqdm
 
+from cloudfiles import CloudFiles
 from cloudfiles.paths import normalize
 
 from .exceptions import UnsupportedFormatError, DimensionError, InfoUnavailableError
@@ -21,9 +22,13 @@ try:
 except AttributeError:
   INTERACTIVE = bool(sys.flags.interactive)
 
-REGISTERED_PLUGINS = {}
+REGISTERED_IMAGE_PLUGINS = {}
 def register_plugin(key, creation_function):
-  REGISTERED_PLUGINS[key.lower()] = creation_function
+  REGISTERED_IMAGE_PLUGINS[key.lower()] = creation_function
+
+REGISTERED_ANNOTATION_PLUGINS = {}
+def register_annotation_plugin(key, creation_function):
+  REGISTERED_ANNOTATION_PLUGINS[key.lower()] = creation_function
 
 def compute_num_threads(num_threads:ParallelType) -> int:
   if isinstance(num_threads, bool):
@@ -268,9 +273,9 @@ class CloudVolume:
 
     def init(cloudpath):
       path = strict_extract(cloudpath)
-      if path.format in REGISTERED_PLUGINS:
+      if path.format in REGISTERED_IMAGE_PLUGINS:
         kwargs["cloudpath"] = normalize(cloudpath)
-        return REGISTERED_PLUGINS[path.format](**kwargs)
+        return REGISTERED_IMAGE_PLUGINS[path.format](**kwargs)
       else:
         raise UnsupportedFormatError(
           "Unknown format {}".format(path.format)
@@ -286,7 +291,6 @@ class CloudVolume:
           raise err
       else:
         raise err
-
 
   @classmethod
   def create_new_info(cls, *args, **kwargs):
@@ -413,3 +417,19 @@ class CloudVolume:
     # save the numpy array
     vol[:,:,:] = arr
     return vol
+
+def from_cloudpath(cloudpath:str, *args, **kwargs) -> Any:
+  """Create the appropriate object for the given cloudpath."""
+  path = strict_extract(cloudpath)
+
+  if path.format != "precomputed":
+    return CloudVolume(cloudpath, *args, **kwargs)
+
+  info = CloudFiles(cloudpath).get_json("info")
+  kwargs["info"] = info
+
+  if info["@type"] == "neuroglancer_annotations_v1":
+    return REGISTERED_ANNOTATION_PLUGINS['precomputed'](cloudpath, *args, **kwargs)
+
+  return CloudVolume(cloudpath, *args, **kwargs)
+

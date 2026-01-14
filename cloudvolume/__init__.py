@@ -46,7 +46,7 @@ CloudVolume Example:
   skel = vol.skeletons.get(label)
 """
 
-from .cloudvolume import CloudVolume, register_plugin
+from .cloudvolume import CloudVolume, from_cloudpath, register_plugin
 
 from .connectionpools import ConnectionPool
 from .lib import Bbox, Vec
@@ -68,7 +68,10 @@ from . import secrets
 __version__ = '12.8.0'
 
 # Register plugins
-from .datasource.precomputed import register as register_precomputed
+from .datasource.precomputed import (
+  register as register_precomputed, 
+  register_annotation as register_precomputed_annotation,
+)
 from .datasource.graphene import register as register_graphene
 from .datasource.n5 import register as register_n5
 from .datasource.zarr import register as register_zarr
@@ -76,7 +79,9 @@ from .datasource.zarr2 import register as register_zarr2
 from .datasource.zarr3 import register as register_zarr3
 
 register_precomputed()
+register_precomputed_annotation()
 register_graphene()
+
 register_n5()
 register_zarr()
 register_zarr2()

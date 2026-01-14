@@ -1,8 +1,6 @@
 import python_jsonschema_objects as pjs
-import json
+import orjson
 import json5
-
-__all__ = [ 'DatasetProvenance', 'DataLayerProvenance' ]
 
 dataset_provenance_schema = {
   "$schema": "http://json-schema.org/draft-04/schema#",
@@ -108,7 +106,7 @@ class DataLayerProvenance(dict):
     DataLayerProvenanceValidation(**self).validate()
 
   def serialize(self):
-    return json.dumps(self)
+    return orjson.dumps(self).decode("utf8")
 
   def from_json(self, data):
     data = json5.loads(data)
@@ -148,7 +146,9 @@ class DataLayerProvenance(dict):
     self['sources'] = val
     
 
-
+__all__ = [ 
+  DataLayerProvenance
+]
 
 
 

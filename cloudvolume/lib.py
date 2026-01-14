@@ -544,9 +544,14 @@ class Bbox(object):
       if slc.step not in (None, 1):
         raise ValueError("Non-unitary steps are unsupported. Got: " + str(slc.step))
 
+    unit = 'vx'
+    if context:
+      unit = context.unit
+
     return Bbox(
       [ slc.start for slc in slices ],
-      [ (slc.start if slc.stop < slc.start else slc.stop) for slc in slices ]
+      [ (slc.start if slc.stop < slc.start else slc.stop) for slc in slices ],
+      unit=unit,
     )
 
   @classmethod

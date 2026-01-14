@@ -6,7 +6,10 @@ from functools import reduce
 from cloudvolume import CloudVolume, Skeleton
 from cloudvolume.storage import SimpleStorage
 from cloudvolume.datasource.precomputed.image.common import (
-  gridpoints, compressed_morton_code
+  gridpoints
+)
+from cloudvolume.datasource.precomputed.common import (
+  compressed_morton_code
 )
 from cloudvolume.datasource.precomputed.sharding import (
   ShardingSpecification, 

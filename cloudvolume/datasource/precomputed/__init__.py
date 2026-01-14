@@ -1,5 +1,6 @@
 from typing import Optional, Union
 
+from .annotation import PrecomputedAnnotationSource
 from .image import PrecomputedImageSource
 from .metadata import PrecomputedMetadata
 from .mesh import PrecomputedMeshSource
@@ -7,7 +8,8 @@ from .skeleton import PrecomputedSkeletonSource
 
 from .. import get_cache_path
 from ...cloudvolume import (
-  register_plugin, SharedConfiguration,
+  register_plugin, register_annotation_plugin,
+  SharedConfiguration,
   CompressType, ParallelType, CacheType,
   SecretsType
 )
@@ -116,6 +118,31 @@ def create_precomputed(
 
     return cv
 
+def create_precomputed_annotation(
+  cloudpath:str, 
+  cache:CacheType = False,
+  info:Optional[dict] = None,
+  mip:int = -1,
+  progress:bool = False,
+  secrets:SecretsType = None,
+  use_https:bool = False,
+) -> PrecomputedAnnotationSource:
+  """
+  Note: for annotations, mips are coarsest to finest, so -1
+  means pick the finest (i.e. the scientifically useful one).
+  """
+  return PrecomputedAnnotationSource(
+    cloudpath,
+    cache=cache,
+    info=info,
+    mip=mip,
+    progress=progress,
+    secrets=secrets,
+    use_https=use_https,
+  )
+
+def register_annotation():
+  register_annotation_plugin('precomputed', create_precomputed_annotation)
 
 def register():
   register_plugin('precomputed', create_precomputed)

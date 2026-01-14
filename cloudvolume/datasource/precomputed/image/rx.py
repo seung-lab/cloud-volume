@@ -25,11 +25,10 @@ from cloudvolume.volumecutout import VolumeCutout
 
 import cloudvolume.sharedmemory as shm
 
-from ..common import should_compress, content_type
+from ..common import should_compress, content_type, compressed_morton_code
 from .common import (
   parallel_execution, 
   chunknames, shade, gridpoints,
-  compressed_morton_code
 )
 
 from .. import sharding
@@ -67,7 +66,7 @@ def download_sharded(
   chunk_size = meta.chunk_size(mip)
   grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
 
-  reader = sharding.ShardReader(meta, cache, spec)
+  reader = sharding.ShardReader(meta.cloudpath, cache, spec)
   bounds = meta.bounds(mip)
 
   gpts = list(gridpoints(full_bbox, bounds, chunk_size))
@@ -168,7 +167,7 @@ def download_raw_sharded(
   chunk_size = meta.chunk_size(mip)
   grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
 
-  reader = sharding.ShardReader(meta, cache, spec)
+  reader = sharding.ShardReader(meta.cloudpath, cache, spec)
   bounds = meta.bounds(mip)
 
   gpts = list(gridpoints(full_bbox, bounds, chunk_size))
@@ -981,7 +980,7 @@ def unique_sharded(
   chunk_size = meta.chunk_size(mip)
   grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
 
-  reader = sharding.ShardReader(meta, cache, spec)
+  reader = sharding.ShardReader(meta.cloudpath, cache, spec)
   bounds = meta.bounds(mip)
 
   all_gpts = list(gridpoints(full_bbox, bounds, chunk_size))
