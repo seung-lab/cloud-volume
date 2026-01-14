@@ -237,7 +237,10 @@ class MultiLabelAnnotation:
     if len(self.geometry.shape) > 2 and self.geometry.shape[2] > 1:
       for j in range(self.geometry.shape[2]):
         for i in range(self.geometry.shape[1]):
-          data[f"axis_{j}_{i}"] = self.geometry[:,i]
+          axis = f"axis_{j}_{i}"
+          if i < len(self.dimensions):
+            axis = f"axis{j}_{self.dimensions[i]}"
+          data[axis] = self.geometry[:,i,j]
     else:
       for i in range(self.geometry.shape[1]):
         axis = f"axis_{i}"
