@@ -106,7 +106,7 @@ class DataLayerProvenance(dict):
     DataLayerProvenanceValidation(**self).validate()
 
   def serialize(self):
-    return orjson.dumps(self)
+    return orjson.dumps(self).decode("utf8")
 
   def from_json(self, data):
     data = json5.loads(data)
