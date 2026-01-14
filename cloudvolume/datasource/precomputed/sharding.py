@@ -276,10 +276,13 @@ class ShardingSpecification(object):
 
 class ShardReader:
   def __init__(
-    self, cloudpath, cache, spec,
-    shard_index_cache_size=512,
-    minishard_index_cache_size=128,
-    green=False,
+    self, 
+    cloudpath:Optional[str],
+    cache:"CacheService",
+    spec:ShardingSpecification,
+    shard_index_cache_size:int = 512,
+    minishard_index_cache_size:int = 128,
+    green:bool = False,
   ):
     """
     Reads standard Precomputed shard files. 
@@ -292,7 +295,12 @@ class ShardReader:
     minishard_index_cache_size: size of LRU cache for minishard indices
     """
     self.cloudpath = cloudpath
-    self._path = strict_extract(cloudpath)
+
+    if cloudpath is not None:
+      self._path = strict_extract(cloudpath)
+    else:
+      self._path = None
+
     self.cache = cache
     self.spec = spec
     self.green = green
