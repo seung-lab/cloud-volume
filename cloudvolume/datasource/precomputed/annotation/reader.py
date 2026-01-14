@@ -180,11 +180,11 @@ class PrecomputedAnnotationReader:
 
     return (geometry, ids, properties)
 
-  def get_all(self) -> dict[int, LabelAnnotation]:
+  def get_all(self, mip:int = -1) -> dict[int, LabelAnnotation]:
     """Retrieve all annotations."""
     if self.meta.has_spatial_index():
       slcs = tuple([ slice(None) for i in range(self.meta.ndim) ])
-      return self.get_by_bbox(slcs)
+      return self.get_by_bbox(slcs, mip=mip)
     else:
       # This branch could be radically sped up if needed
       # by pulling the shards and disassembling them directly

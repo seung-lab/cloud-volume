@@ -97,9 +97,9 @@ class PrecomputedAnnotationSource:
     """Get annotations by relationship."""
     return self.reader.get_by_relationship(relationship, labels)
 
-  def get_all(self) -> MultiLabelAnnotation:
+  def get_all(self, mip:int = -1) -> MultiLabelAnnotation:
     """Get all annotations using the most efficient method available."""
-    return self.reader.get_all()
+    return self.reader.get_all(mip=mip)
 
   def summary(self) -> dict:
     return {
