@@ -333,6 +333,9 @@ class PrecomputedAnnotationReader:
     ret = {}
 
     for label, binary in binaries.items():
+      if binary is None:
+        raise ValueError(f"Binary for {label} using relationship {relationship} was not found.")
+
       geometry, ids, properties = self._decode_annotations(binary)
       ret[label] = MultiLabelAnnotation(
         type=self.meta.annotation_type,
