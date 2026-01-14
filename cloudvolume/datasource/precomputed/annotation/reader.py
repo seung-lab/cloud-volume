@@ -332,6 +332,8 @@ class PrecomputedAnnotationReader:
       
     ret = {}
 
+    dims = list(self.meta.dimensions.keys())
+
     for label, binary in binaries.items():
       if binary is None:
         raise ValueError(f"Binary for {label} using relationship {relationship} was not found.")
@@ -343,6 +345,7 @@ class PrecomputedAnnotationReader:
         ids=ids,
         properties=properties,
         properties_enum=self.meta.properties_enum,
+        dimensions=dims,
       )
 
     if return_multiple:
