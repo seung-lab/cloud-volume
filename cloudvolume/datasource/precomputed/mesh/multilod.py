@@ -186,7 +186,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     super(ShardedMultiLevelPrecomputedMeshSource, self).__init__(meta, cache, config, readonly)
 
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
-    self.reader = ShardReader(meta, cache, spec)
+    self.reader = ShardReader(meta.cloudpath, cache, spec)
 
     self.vertex_quantization_bits = self.meta.info['vertex_quantization_bits']
     self.lod_scale_multiplier = self.meta.info['lod_scale_multiplier']
