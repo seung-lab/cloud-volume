@@ -27,7 +27,9 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     self.readers = {}
     for level, sharding in self.meta.info['sharding'].items(): # { level: std sharding, ... }
       spec = ShardingSpecification.from_dict(sharding)
-      self.readers[int(level)] = GrapheneShardReader(self.meta.cloudpath, self.cache, spec)
+      reader = GrapheneShardReader(self.meta.cloudpath, self.cache, spec)
+      reader.meta = self.meta
+      self.readers[int(level)] = reader
 
   def initial_path(self, level):
     return self.meta.join(self.meta.mesh_path, self.meta.sharded_mesh_dir, str(level))
