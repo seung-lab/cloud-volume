@@ -329,6 +329,21 @@ end_header
       encoding_options=mesh.encoding_options
     )
 
+  def trimesh(
+    self,
+    process:bool = False,
+    validate:bool = False,
+  ) -> "trimesh.Trimesh":
+    """Convert zmesh.Mesh to a trimesh mesh."""
+    import trimesh
+    return trimesh.Trimesh(
+      vertices=self.vertices,
+      faces=self.faces,
+      vertex_normals=(self.normals if hasattr(self, "normals") else None),
+      process=process,
+      validate=validate,
+    )
+
   def deduplicate_vertices(self, is_chunk_aligned):
     faces = self.faces
     verts = self.vertices
