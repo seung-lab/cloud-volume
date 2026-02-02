@@ -350,6 +350,8 @@ def threaded_upload_chunks(
   ):
     preencoded = fastremap.tobytes(img[:,:,:,0], meta.chunk_size(mip), order="F")
 
+  no_serialize = (remote.protocol == "mem" and meta.encoding(mip) == "raw" and not cache.enabled)
+
   def do_upload(i, imgchunk, cloudpath):
     nonlocal remote_compress
     nonlocal cache_compress
@@ -360,6 +362,8 @@ def threaded_upload_chunks(
     if preencoded:
       encoded = preencoded[i]
       preencoded[i] = None
+    elif no_serialize:
+      encoded = np.asfortranarray(imgchunk)
     else:
       encoded = chunks.encode(
         imgchunk, encoding, 
@@ -383,7 +387,11 @@ def threaded_upload_chunks(
     if cache_compress is None and cache.enabled:
       cache_encoded = encoded
 
-    remote_encoded = compression.compress(encoded, remote_compress)
+    if not no_serialize:
+      remote_encoded = compression.compress(encoded, remote_compress)
+    else:
+      remote_encoded = encoded
+
     cache_encoded = remote_encoded
 
     if cache.enabled and remote_compress != cache_compress:

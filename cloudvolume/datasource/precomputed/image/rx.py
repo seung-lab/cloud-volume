@@ -577,13 +577,16 @@ def download_chunk(
   content = None
   encoding = meta.encoding(mip)
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
+  cf = CloudFiles(cloudpath, secrets=secrets, locking=locking)
+  no_deserialize = (cf.protocol == "mem" and encoding == "raw" and not enable_cache)
 
   try:
     encoding, content = lru[filename]
   except (TypeError, KeyError):
-    (file,) = CloudFiles(
-      cloudpath, secrets=secrets, locking=locking
-    ).get([ filename ], raw=True)
+    (file,) = cf.get([ filename ], raw=True)
+    # (file,) = CloudFiles(
+    #   cloudpath, secrets=secrets, locking=locking
+    # ).get([ filename ], raw=True)
     content = file['content']
 
     if enable_cache:
@@ -605,20 +608,23 @@ def download_chunk(
         decompress = False
       del cache_content
 
-    if content is not None and decompress:
+    if content is not None and decompress and not no_deserialize:
       content = compression.decompress(content, file['compress'])
 
     if lru is not None:
       lru[filename] = (encoding, content)
 
-  img3d = decode_fn(
-    meta, filename, content, 
-    fill_missing, mip, 
-    background_color=background_color,
-    encoding=encoding,
-  )
+  if no_deserialize:
+    img3d = content
+  else:
+    img3d = decode_fn(
+      meta, filename, content, 
+      fill_missing, mip, 
+      background_color=background_color,
+      encoding=encoding,
+    )
 
-  if lru is not None and full_decode: 
+  if lru is not None and full_decode:
     if lru_encoding not in [ "same", encoding ]:
       content = None
       if img3d is not None:
