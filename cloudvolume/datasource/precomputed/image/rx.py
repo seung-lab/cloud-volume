@@ -584,9 +584,6 @@ def download_chunk(
     encoding, content = lru[filename]
   except (TypeError, KeyError):
     (file,) = cf.get([ filename ], raw=True)
-    # (file,) = CloudFiles(
-    #   cloudpath, secrets=secrets, locking=locking
-    # ).get([ filename ], raw=True)
     content = file['content']
 
     if enable_cache:
