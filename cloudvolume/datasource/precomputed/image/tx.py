@@ -340,8 +340,10 @@ def threaded_upload_chunks(
 
   # performance optimization
   preencoded = None
+  no_serialize = (remote.protocol == "mem" and meta.encoding(mip) == "raw" and not cache.enabled)
   if (
-    hasattr(img, "flags")
+    not no_serialize
+    and hasattr(img, "flags")
     and img.flags.f_contiguous
     and meta.encoding(mip) == "raw"
     and not np.any(np.remainder(np.array(img.shape[:3]), meta.chunk_size(mip)))
@@ -349,8 +351,6 @@ def threaded_upload_chunks(
     and psutil.virtual_memory().available > 2 * img.nbytes
   ):
     preencoded = fastremap.tobytes(img[:,:,:,0], meta.chunk_size(mip), order="F")
-
-  no_serialize = (remote.protocol == "mem" and meta.encoding(mip) == "raw" and not cache.enabled)
 
   def do_upload(i, imgchunk, cloudpath):
     nonlocal remote_compress
