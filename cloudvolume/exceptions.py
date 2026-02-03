@@ -89,6 +89,10 @@ class UnsupportedCompressionType(ValueError):
 
 # Inheritance below done for backwards compatibility reasons.
 
+class MeshMissingError(ValueError):
+  """Unable to find a mesh object."""
+  pass
+
 class MeshDecodeError(ValueError):
   """Unable to decode a mesh object."""
   pass

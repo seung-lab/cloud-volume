@@ -1,3 +1,5 @@
+from typing import Union, Iterable
+
 from collections import defaultdict
 from functools import partial
 import re
@@ -14,6 +16,7 @@ from ....scheduler import schedule_jobs
 from ....mesh import Mesh
 from ....lib import yellow, red, toiter, first
 from .... import exceptions
+from ....types import ProgressType
 
 import fastremap
 
@@ -224,7 +227,14 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
       binary, segment_id=segid, shard_offset=byte_start, path=shard_filepath
     )
   
-  def get(self, segids, lod=0, concat=True, progress=None):
+  def get(
+    self,
+    segids:Union[int,Iterable[int]],
+    lod:int = 0,
+    concat:bool = True,
+    progress:ProgressType = None, 
+    allow_missing:bool = False
+  ):
     """Fetch meshes at a given level of detail (lod).
 
     Parameters:
@@ -251,8 +261,8 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
       nonlocal lod
       # Read the manifest (with a tweak to sharding.py to get the offset)
       manifest = self.get_manifest(segid)
-      if manifest == None:
-        raise exceptions.MeshDecodeError(red(
+      if manifest is None:
+        raise exceptions.MeshMissingError(red(
           'Manifest not found for segment {}.'.format(segid)
         ))
 
@@ -287,8 +297,12 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     meshdata = defaultdict(list)
     def get_meshes_and_update(segid):
       nonlocal meshdata
-      meshes = get_segid(segid)
-      meshdata.update(meshes)
+      try:
+        meshes = get_segid(segid)
+        meshdata.update(meshes)
+      except exceptions.MeshMissingError:
+        if not allow_missing:
+          raise
 
     schedule_jobs(
       fns=[ partial(get_meshes_and_update, segid) for segid in segids ],
