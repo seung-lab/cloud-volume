@@ -591,7 +591,10 @@ class CacheService(object):
     def no_compression_ext(fnames):
       results = []
       for fname in fnames:
-        (name, ext) = pathmodule.splitext(fname)
+        dot = fname.rfind(".", -10)
+        if dot == -1:
+          continue
+        (name, ext) = fname[:dot], fname[dot:]
         if ext in COMPRESSION_EXTENSIONS:
           results.append(name)
         else:
