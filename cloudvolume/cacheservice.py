@@ -598,7 +598,6 @@ class CacheService(object):
       parallel=self.config.parallel,
     )
 
-  @profile
   def compute_data_locations(self, cloudpaths):
     if not self.enabled:
       return { 'local': [], 'remote': cloudpaths }
