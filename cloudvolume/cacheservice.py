@@ -1,4 +1,4 @@
-from functools import partial
+from functools import partial, lru_cache
 import json
 import os
 import posixpath
@@ -17,6 +17,22 @@ from .lib import (
 
 def warn(text):
   print(colorize('yellow', text))
+
+@lru_cache
+def no_compression_ext(list_dir:str):
+  fnames = os.listdir(mkdir(list_dir))
+
+  results = []
+  for fname in fnames:
+    dot = fname.rfind(".", -10)
+    if dot == -1:
+      continue
+    (name, ext) = fname[:dot], fname[dot:]
+    if ext in COMPRESSION_EXTENSIONS:
+      results.append(name)
+    else:
+      results.append(fname)
+  return results
 
 class CacheService(object):
   def __init__(
@@ -582,31 +598,19 @@ class CacheService(object):
       parallel=self.config.parallel,
     )
 
+  @profile
   def compute_data_locations(self, cloudpaths):
     if not self.enabled:
       return { 'local': [], 'remote': cloudpaths }
 
     pathmodule = posixpath if self.meta.path.protocol != 'file' else os.path
 
-    def no_compression_ext(fnames):
-      results = []
-      for fname in fnames:
-        dot = fname.rfind(".", -10)
-        if dot == -1:
-          continue
-        (name, ext) = fname[:dot], fname[dot:]
-        if ext in COMPRESSION_EXTENSIONS:
-          results.append(name)
-        else:
-          results.append(fname)
-      return results
-
     list_dirs = set([ pathmodule.dirname(pth) for pth in cloudpaths ])
     filenames = []
 
     for list_dir in list_dirs:
       list_dir = os.path.join(self.path, list_dir)
-      filenames += no_compression_ext(os.listdir(mkdir(list_dir)))
+      filenames += no_compression_ext(list_dir)
 
     basepathmap = { pathmodule.basename(path): pathmodule.dirname(path) for path in cloudpaths }
 
