@@ -8,7 +8,9 @@ from .skeleton import PrecomputedSkeletonSource
 
 from .. import get_cache_path
 from ...cloudvolume import (
-  register_plugin, register_annotation_plugin,
+  register_plugin, 
+  register_annotation_plugin,
+  register_mesh_plugin,
   SharedConfiguration,
   CompressType, ParallelType, CacheType,
   SecretsType
@@ -142,6 +144,80 @@ def create_precomputed_annotation(
     secrets=secrets,
     use_https=use_https,
   )
+
+def create_precomputed_mesh(
+  cloudpath:str,
+  cache:CacheType = False,
+  cache_locking:bool = True,
+  compress_cache:CompressType = None,
+  green_threads:bool = False,
+  info:Optional[dict] = None,
+  parallel:ParallelType = 1,
+  progress:bool = False,
+  secrets:SecretsType = None,
+  use_https:bool = False,
+  spatial_index_db:Optional[str] = None, 
+) -> PrecomputedMeshSource:
+
+  path = strict_extract(cloudpath)
+  mesh_dir = path.layer
+
+  config = SharedConfiguration(
+    cdn_cache=True,
+    compress=True,
+    compress_level=6,
+    green=green_threads,
+    mip=0,
+    parallel=parallel,
+    progress=progress,
+    secrets=secrets,
+    spatial_index_db=spatial_index_db,
+    cache_locking=cache_locking,
+    codec_threads=1,
+  )
+
+  cache_service = CacheService(
+    cloudpath=get_cache_path(cache, cloudpath),
+    enabled=bool(cache),
+    config=config,
+    compress=compress_cache,
+  )
+
+  if cloudpath[-1] == '/':
+    cloudpath = cloudpath[:-1]
+  cloudpath = cloudpath.replace(mesh_dir, '', 1)
+
+  meta = PrecomputedMetadata(
+    cloudpath,
+    config=config,
+    cache=cache_service,
+    info={
+      "type": "segmentation",
+      "mesh": mesh_dir,
+      "num_channels": 1,
+      "scales": [{
+        "chunk_sizes": [[100,100,100]],  
+        "compressed_segmentation_block_size": [8,8,8],
+        "encoding": "compressed_segmentation",
+        "key": "1_1_1",
+        "resolution": [1,1,1],
+        "size": [1,1,1],
+        "voxel_offset": [0,0,0],
+      }],
+    },
+    provenance={},
+    max_redirects=0,
+    use_https=use_https # for parsing redirects
+  )
+
+  return PrecomputedMeshSource(
+    meta, cache_service, config,
+    info=info, 
+    readonly=False,
+  )
+
+def register_mesh():
+  register_mesh_plugin('precomputed', create_precomputed_mesh)
 
 def register_annotation():
   register_annotation_plugin('precomputed', create_precomputed_annotation)

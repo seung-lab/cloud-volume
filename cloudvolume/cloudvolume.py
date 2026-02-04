@@ -30,6 +30,10 @@ REGISTERED_ANNOTATION_PLUGINS = {}
 def register_annotation_plugin(key, creation_function):
   REGISTERED_ANNOTATION_PLUGINS[key.lower()] = creation_function
 
+REGISTERED_MESH_PLUGINS = {}
+def register_mesh_plugin(key, creation_function):
+  REGISTERED_MESH_PLUGINS[key.lower()] = creation_function
+
 def compute_num_threads(num_threads:ParallelType) -> int:
   if isinstance(num_threads, bool):
     return mp.cpu_count() if num_threads == True else 1
@@ -435,6 +439,8 @@ def from_cloudpath(cloudpath:str, *args, **kwargs) -> Any:
 
   if info["@type"] == "neuroglancer_annotations_v1":
     return REGISTERED_ANNOTATION_PLUGINS['precomputed'](cloudpath, *args, **kwargs)
+  elif info["@type"] in ["neuroglancer_legacy_mesh", "neuroglancer_multilod_draco"]:
+    return REGISTERED_MESH_PLUGINS['precomputed'](cloudpath, *args, **kwargs)
 
   return CloudVolume(cloudpath, *args, **kwargs)
 

@@ -69,8 +69,9 @@ __version__ = '12.9.2'
 
 # Register plugins
 from .datasource.precomputed import (
-  register as register_precomputed, 
+  register as register_precomputed,
   register_annotation as register_precomputed_annotation,
+  register_mesh as register_precomputed_mesh,
 )
 from .datasource.graphene import register as register_graphene
 from .datasource.n5 import register as register_n5
@@ -80,6 +81,7 @@ from .datasource.zarr3 import register as register_zarr3
 
 register_precomputed()
 register_precomputed_annotation()
+register_precomputed_mesh()
 register_graphene()
 
 register_n5()
