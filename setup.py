@@ -18,7 +18,7 @@ EM_CODECS = [
 
 SEGMENTATION_CODECS = [ 
   "compressed-segmentation>=2.1.1",
-  "compresso>=3.0.0",
+  "compresso>=3.3.3",
   "crackle-codec>=0.8.0,<2.0.0",
 ]
 
