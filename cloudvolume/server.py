@@ -44,10 +44,31 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
   def do_OPTIONS(self):
     self.send_response(200, "ok")   
     self.send_header('Access-Control-Allow-Origin', '*')              
-    self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS', 'HEAD')
     self.send_header("Access-Control-Allow-Headers", "range")
     self.end_headers()
+
+  def do_HEAD(self):
+    if self.path.find('..') != -1:
+      self.send_error(403, "Relative paths are not allowed.")
+      raise ValueError("Relative paths are not allowed.")
     
+    path = self.path[1:]
+    cf = CloudFiles(self.cloudpath)
+    
+    # Check if file exists
+    size = cf.size(path)
+    if size is None:
+      self.send_error(404, '/' + path + ": Not Found")
+      return
+    
+    self.send_response(200)
+    self.send_header('Content-Type', 'application/octet-stream')
+    self.send_header('Access-Control-Allow-Origin', '*')
+    self.send_header('Accept-Ranges', 'bytes')
+    self.send_header('Content-Length', str(size))
+    self.end_headers()
+
   def do_GET(self):  
     if self.path.find('..') != -1:
       self.send_error(403, "Relative paths are not allowed.")
