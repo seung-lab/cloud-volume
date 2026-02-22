@@ -5,6 +5,7 @@ import urllib.parse
 import os 
 import io
 import math
+import struct
 import queue
 import sqlite3
 import threading
@@ -85,6 +86,49 @@ def _parse_pg_binary_copy_bigint(data):
   row_dt = np.dtype([('nfields', '>i2'), ('length', '>i4'), ('value', '>i8')])
   rows = np.frombuffer(body, dtype=row_dt, count=n_rows)
   return rows['value'].astype(np.uint64)
+
+def _build_pg_binary_copy_two_bigints(col1, col2):
+  """Build a PostgreSQL binary COPY buffer for two BIGINT columns.
+
+  Accepts two array-like inputs (numpy arrays or lists) of equal length.
+  Returns a BytesIO positioned at the start, ready for copy_expert().
+
+  PG binary COPY format:
+    Header: 11-byte signature + 4-byte flags + 4-byte ext_len
+    Per row: 2 (nfields=2) + 4 (len=8) + 8 (val1) + 4 (len=8) + 8 (val2) = 26 bytes
+    Trailer: 2 bytes (-1 as int16)
+  """
+  col1 = np.asarray(col1, dtype=np.int64)
+  col2 = np.asarray(col2, dtype=np.int64)
+  n = len(col1)
+
+  if n == 0:
+    buf = io.BytesIO()
+    buf.write(b'PGCOPY\n\377\r\n\0')
+    buf.write(struct.pack('>ii', 0, 0))
+    buf.write(struct.pack('>h', -1))
+    buf.seek(0)
+    return buf
+
+  row_dt = np.dtype([
+    ('nfields', '>i2'),
+    ('len1', '>i4'), ('val1', '>i8'),
+    ('len2', '>i4'), ('val2', '>i8'),
+  ])
+  rows = np.empty(n, dtype=row_dt)
+  rows['nfields'] = 2
+  rows['len1'] = 8
+  rows['val1'] = col1
+  rows['len2'] = 8
+  rows['val2'] = col2
+
+  buf = io.BytesIO()
+  buf.write(b'PGCOPY\n\377\r\n\0')      # 11-byte signature
+  buf.write(struct.pack('>ii', 0, 0))    # flags + ext_len
+  buf.write(rows.tobytes())
+  buf.write(struct.pack('>h', -1))       # trailer
+  buf.seek(0)
+  return buf
 
 def _pg_parallel_distinct_labels(db_path, n_threads=8):
   """Query distinct labels from file_lookup using parallel range scans.
@@ -410,13 +454,24 @@ class SpatialIndex(object):
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
-    cur.execute(f"""
-      {CREATE_TABLE} file_lookup (
-        label {INTEGER} NOT NULL,
-        fid {INTEGER} NOT NULL REFERENCES index_files(id),
-        PRIMARY KEY(label,fid)
-      )
-    """)
+    if db_type == DbType.POSTGRES:
+      # For Postgres: create without PK/FK constraints during bulk load.
+      # Constraints are added post-load via sort+bulk-build which is
+      # ~10x faster than incremental B-tree maintenance per row.
+      cur.execute(f"""
+        {CREATE_TABLE} file_lookup (
+          label {INTEGER} NOT NULL,
+          fid {INTEGER} NOT NULL
+        )
+      """)
+    else:
+      cur.execute(f"""
+        {CREATE_TABLE} file_lookup (
+          label {INTEGER} NOT NULL,
+          fid {INTEGER} NOT NULL REFERENCES index_files(id),
+          PRIMARY KEY(label,fid)
+        )
+      """)
 
     conn.commit()
 
@@ -440,14 +495,40 @@ class SpatialIndex(object):
     finished_loading_evt.set()
     qu.join()
 
-    if create_indices:
+    if db_type == DbType.POSTGRES:
+      # Now that all data is loaded, build PK and FK via sort+bulk-load.
+      # This is ~10x faster than maintaining the B-tree incrementally
+      # during insertion.
       if progress:
-        print("Creating labels index...")
-      cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
+        print("Building primary key (label, fid)...")
+      cur.execute("ALTER TABLE file_lookup ADD PRIMARY KEY (label, fid)")
+      conn.commit()
+      if progress:
+        print("Adding foreign key constraint...")
+      cur.execute(
+        "ALTER TABLE file_lookup "
+        "ADD CONSTRAINT file_lookup_fid_fkey "
+        "FOREIGN KEY (fid) REFERENCES index_files(id)"
+      )
+      conn.commit()
+
+    if create_indices:
+      if db_type != DbType.POSTGRES:
+        # For Postgres, the PK (label, fid) already covers label-only lookups.
+        # The separate index is redundant and wastes disk/RAM.
+        if progress:
+          print("Creating labels index...")
+        cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
 
       if progress:
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
+
+      if db_type == DbType.POSTGRES:
+        if progress:
+          print("Running ANALYZE...")
+        cur.execute("ANALYZE file_lookup")
+        conn.commit()
 
   def to_sql(
     self, path=None, create_indices=True, 
@@ -803,24 +884,24 @@ class SpatialIndex(object):
         cur = conn.cursor()
         cur.execute("select distinct label from file_lookup")
 
-      labels_list = []
+        labels_list = []
 
-      while True:
-        rows = cur.fetchmany(size=2**24)
-        if len(rows) == 0:
-          break
-        # Sqlite only stores signed integers, so we need to coerce negative
-        # integers back into unsigned.
-        labels_list.append(np.fromiter((row[0] for row in rows), dtype=np.uint64, count=len(rows)))
+        while True:
+          rows = cur.fetchmany(size=2**24)
+          if len(rows) == 0:
+            break
+          # Sqlite only stores signed integers, so we need to coerce negative
+          # integers back into unsigned.
+          labels_list.append(np.fromiter((row[0] for row in rows), dtype=np.uint64, count=len(rows)))
 
-      cur.close()
-      conn.close()
+        cur.close()
+        conn.close()
 
-      labels = np.concatenate(labels_list)
-      del labels_list
+        labels = np.concatenate(labels_list)
+        del labels_list
 
-      labels.sort()
-      return labels
+        labels.sort()
+        return labels
 
     labels = set()
     index_files = self.index_file_paths_for_bbox(bbox)
@@ -887,24 +968,6 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
   else:
     BIND = '?'
 
-  if db_type == DbType.MYSQL:
-    AUTOINC = "AUTO_INCREMENT"
-    INTEGER = "BIGINT UNSIGNED"
-  elif db_type == DbType.POSTGRES:
-    AUTOINC = ""
-    INTEGER = "BIGINT"
-  else: # sqlite
-    AUTOINC = "AUTOINCREMENT"
-    INTEGER = "INTEGER"
-
-  @retry
-  def postgres_insert_file_lookup_values(cur, values):
-      f = io.StringIO()
-      for label, fid in values:
-          f.write(f"{label}\t{fid}\n")
-      f.seek(0)
-      cur.copy_from(f, 'file_lookup', columns=('label', 'fid'))
-
   @retry
   def insert_file_lookup_values(cur, chunked_values):
     nonlocal BIND
@@ -935,36 +998,70 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
 
   parser = simdjson.Parser()
 
-  all_values = []
-  for filename, content in index_files.items():
-    if content is None:
-      continue
-    index_labels = parser.parse(content).keys()
-    filename = os.path.basename(filename)
-    fid = filename_id_map[filename]
-    all_values.extend(( (int(label), fid) for label in index_labels ))
-  
-  pbar = tqdm(
-    desc="Inserting File Lookups", 
-    disable=(not progress), 
-    total=len(all_values)
-  )
-
   if db_type == DbType.POSTGRES:
+    # Vectorized path: build flat numpy arrays, then binary COPY.
+    # Avoids millions of Python tuple allocations and StringIO writes.
+    all_labels = []
+    all_fids = []
+    for filename, content in index_files.items():
+      if content is None:
+        continue
+      index_labels = parser.parse(content).keys()
+      filename = os.path.basename(filename)
+      fid = filename_id_map[filename]
+      chunk_labels = np.array([int(label) for label in index_labels], dtype=np.int64)
+      all_labels.append(chunk_labels)
+      all_fids.append(np.full(len(chunk_labels), fid, dtype=np.int64))
+
+    if not all_labels:
+      return
+
+    labels_arr = np.concatenate(all_labels)
+    fids_arr = np.concatenate(all_fids)
+    total = len(labels_arr)
+
+    del all_labels, all_fids
+
+    pbar = tqdm(
+      desc="Inserting File Lookups",
+      disable=(not progress),
+      total=total
+    )
+
     block_size = 5000000
-  elif db_type == DbType.MYSQL:
-    block_size = 500000
-  else: # sqlite
-    block_size = 15000
-
-  if db_type == DbType.POSTGRES:
     conn.commit()
     with pbar:
-      for chunked_values in sip(all_values, block_size):
-        postgres_insert_file_lookup_values(cur, chunked_values)
+      for start in range(0, total, block_size):
+        end = min(start + block_size, total)
+        buf = _build_pg_binary_copy_two_bigints(
+          labels_arr[start:end], fids_arr[start:end]
+        )
+        cur.copy_expert(
+          "COPY file_lookup(label, fid) FROM STDIN WITH BINARY", buf
+        )
         conn.commit()
-        pbar.update(len(chunked_values))
+        pbar.update(end - start)
   else:
+    all_values = []
+    for filename, content in index_files.items():
+      if content is None:
+        continue
+      index_labels = parser.parse(content).keys()
+      filename = os.path.basename(filename)
+      fid = filename_id_map[filename]
+      all_values.extend(( (int(label), fid) for label in index_labels ))
+
+    pbar = tqdm(
+      desc="Inserting File Lookups",
+      disable=(not progress),
+      total=len(all_values)
+    )
+
+    if db_type == DbType.MYSQL:
+      block_size = 500000
+    else: # sqlite
+      block_size = 15000
+
     with pbar:
       for chunked_values in sip(all_values, block_size):
         insert_file_lookup_values(cur, chunked_values)
