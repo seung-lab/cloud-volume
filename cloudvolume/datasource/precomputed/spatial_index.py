@@ -9,6 +9,7 @@ import queue
 import sqlite3
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 try:
   from enum import StrEnum
 except ImportError:
@@ -48,6 +49,94 @@ def tostr(x):
     return x.decode("utf8")
   else:
     return x
+
+# SQL template for parallel range-partitioned distinct label queries.
+# Each thread fills in {low}/{high} to scan a non-overlapping slice
+# of the PK B-tree index on file_lookup(label, fid).
+# Hash aggregation handles dedup within each range.
+PG_RANGE_DISTINCT_SQL = """
+  COPY (
+    SELECT DISTINCT label FROM file_lookup
+    WHERE label >= {low} AND label < {high}
+    ORDER BY label
+  ) TO STDOUT WITH BINARY
+"""
+
+def _parse_pg_binary_copy_bigint(data):
+  """Parse PostgreSQL binary COPY output for a single BIGINT column
+  into a numpy uint64 array.
+
+  PG binary COPY format:
+    Header: 11-byte signature + 4-byte flags + 4-byte ext_len + ext_data
+    Per row: 2 (field count=1) + 4 (byte length=8) + 8 (big-endian int64) = 14 bytes
+    Trailer: 2 bytes (-1 as int16)
+  """
+  if len(data) < 19:
+    return np.array([], dtype=np.uint64)
+
+  ext_len = int(np.frombuffer(data[15:19], dtype='>u4')[0])
+  header_size = 19 + ext_len
+  body = data[header_size:-2]  # strip trailer
+  if len(body) == 0:
+    return np.array([], dtype=np.uint64)
+
+  ROW_SIZE = 14  # 2 + 4 + 8 bytes per row
+  n_rows = len(body) // ROW_SIZE
+  row_dt = np.dtype([('nfields', '>i2'), ('length', '>i4'), ('value', '>i8')])
+  rows = np.frombuffer(body, dtype=row_dt, count=n_rows)
+  return rows['value'].astype(np.uint64)
+
+def _pg_parallel_distinct_labels(db_path, n_threads=8):
+  """Query distinct labels from file_lookup using parallel range scans.
+
+  Splits the label keyspace into n_threads non-overlapping ranges,
+  queries each on a separate Postgres connection (= separate backend
+  process = separate CPU core), then concatenates the sorted results.
+  """
+  conn = connect(db_path)
+  cur = conn.cursor()
+  cur.execute("SELECT MIN(label), MAX(label) FROM file_lookup")
+  row = cur.fetchone()
+  cur.close()
+  conn.close()
+
+  if row is None or row[0] is None:
+    return np.array([], dtype=np.uint64)
+
+  min_label, max_label = int(row[0]), int(row[1])
+
+  if min_label == max_label:
+    return np.array([min_label], dtype=np.uint64)
+
+  # Split into non-overlapping [low, high) ranges.
+  boundaries = np.linspace(min_label, max_label + 1, n_threads + 1, dtype=np.int64)
+  # Deduplicate in case range is smaller than n_threads
+  boundaries = np.unique(boundaries)
+  actual_threads = len(boundaries) - 1
+
+  def _worker(low, high):
+    wconn = connect(db_path)
+    wcur = wconn.cursor()
+    wcur.execute("SET work_mem = '256MB'")
+    buf = io.BytesIO()
+    sql = PG_RANGE_DISTINCT_SQL.format(low=int(low), high=int(high))
+    wcur.copy_expert(sql, buf)
+    wcur.close()
+    wconn.close()
+    return _parse_pg_binary_copy_bigint(buf.getvalue())
+
+  with ThreadPoolExecutor(max_workers=actual_threads) as executor:
+    futures = [
+      executor.submit(_worker, boundaries[i], boundaries[i + 1])
+      for i in range(actual_threads)
+    ]
+    arrays = [f.result() for f in futures]
+
+  non_empty = [a for a in arrays if len(a) > 0]
+  if not non_empty:
+    return np.array([], dtype=np.uint64)
+
+  return np.concatenate(non_empty)
 
 def parse_db_path(path):
   """
@@ -703,15 +792,16 @@ class SpatialIndex(object):
     if self.sql_db and fast_path:
       conn = connect(self.sql_db)
       db_type = parse_db_path(self.sql_db)["scheme"]
+
       if db_type in ("postgres", "postgresql"):
-        # By default, psycopg2 buffers all query results on the client-side
-        # which can be very slow for large tables. Using a server-side
-        # cursor (by giving the cursor a name) avoids this problem by
-        # fetching results from the server in smaller chunks.
-        cur = conn.cursor(f"fast_path_query_{time.time()}") # named cursor
+        # Parallel range-partitioned distinct label query.
+        # Splits the label space into ranges, each queried on a
+        # separate connection (separate PG backend = separate core).
+        conn.close()
+        return _pg_parallel_distinct_labels(self.sql_db)
       else:
         cur = conn.cursor()
-      cur.execute("select distinct label from file_lookup")
+        cur.execute("select distinct label from file_lookup")
 
       labels_list = []
 
