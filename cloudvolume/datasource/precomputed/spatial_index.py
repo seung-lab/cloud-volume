@@ -850,13 +850,17 @@ class SpatialIndex(object):
     conn.close()
     return locations      
 
-  def query(self, bbox, allow_missing=False):
+  def query(self, bbox, allow_missing=False, nthread=1):
     """
     For the specified bounding box (or equivalent representation),
     list all segment ids enclosed within it.
 
     If allow_missing is set, then don't raise an error if an index
     file is missing.
+
+    nthread: number of threads to use for the Postgres fast path
+    (when the query covers the full dataset). Has no effect for
+    non-Postgres databases or non-fast-path queries.
 
     Returns: iterable
     """
@@ -870,6 +874,12 @@ class SpatialIndex(object):
 
     fast_path = bbox.contains_bbox(self.physical_bounds)
 
+    if nthread > 1 and not (self.sql_db and fast_path):
+      print(
+        "WARNING: nthread > 1 has no effect: requires a Postgres "
+        "sql_db and a bounding box that covers the full dataset (fast path)."
+      )
+
     if self.sql_db and fast_path:
       conn = connect(self.sql_db)
       db_type = parse_db_path(self.sql_db)["scheme"]
@@ -879,8 +889,12 @@ class SpatialIndex(object):
         # Splits the label space into ranges, each queried on a
         # separate connection (separate PG backend = separate core).
         conn.close()
-        return _pg_parallel_distinct_labels(self.sql_db)
+        return _pg_parallel_distinct_labels(self.sql_db, n_threads=nthread)
       else:
+        if nthread > 1:
+          print(
+            "WARNING: nthread > 1 has no effect for non-Postgres databases."
+          )
         cur = conn.cursor()
         cur.execute("select distinct label from file_lookup")
 
