@@ -461,15 +461,30 @@ class SpatialIndex(object):
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
-    # Create file_lookup without PK/FK constraints during bulk load.
-    # Constraints are added post-load via sort+bulk-build which is
-    # ~10x faster than incremental B-tree maintenance per row.
-    cur.execute(f"""
-      {CREATE_TABLE} file_lookup (
-        label {INTEGER} NOT NULL,
-        fid {INTEGER} NOT NULL
-      )
-    """)
+    # For Postgres and SQLite: create file_lookup without PK/FK constraints
+    # during bulk load. Constraints are added post-load via sort+bulk-build
+    # which is ~10x faster than incremental B-tree maintenance per row.
+    #
+    # For MySQL (InnoDB): keep PK/FK inline at CREATE TABLE time. InnoDB uses
+    # a clustered index where the primary key IS the table's physical storage
+    # layout. Deferring PK via ALTER TABLE ADD PRIMARY KEY forces InnoDB to
+    # rebuild the entire table (full data copy + re-sort), which is slower
+    # than incremental insertion into the clustered index during bulk load.
+    if db_type == DbType.MYSQL:
+      cur.execute(f"""
+        {CREATE_TABLE} file_lookup (
+          label {INTEGER} NOT NULL,
+          fid {INTEGER} NOT NULL REFERENCES index_files(id),
+          PRIMARY KEY(label,fid)
+        )
+      """)
+    else:
+      cur.execute(f"""
+        {CREATE_TABLE} file_lookup (
+          label {INTEGER} NOT NULL,
+          fid {INTEGER} NOT NULL
+        )
+      """)
 
     conn.commit()
 
@@ -494,10 +509,12 @@ class SpatialIndex(object):
     qu.join()
 
     if create_indices:
-      # Now that all data is loaded, build PK and FK via sort+bulk-load.
-      # This is ~10x faster than maintaining the B-tree incrementally
-      # during insertion.
-      if db_type in (DbType.POSTGRES, DbType.MYSQL):
+      # Post-load constraint building for databases that deferred PK/FK.
+      # MySQL is excluded: its PK/FK are defined inline at CREATE TABLE
+      # time (see comment above).
+      if db_type == DbType.POSTGRES:
+        # Build PK and FK via sort+bulk-load on the UNLOGGED heap.
+        # This is ~10x faster than maintaining the B-tree incrementally.
         if progress:
           print("Building primary key (label, fid)...")
         cur.execute("ALTER TABLE file_lookup ADD PRIMARY KEY (label, fid)")
@@ -518,9 +535,10 @@ class SpatialIndex(object):
         cur.execute("CREATE UNIQUE INDEX pk_label_fid ON file_lookup (label, fid)")
         conn.commit()
 
-      if db_type != DbType.POSTGRES:
-        # For Postgres, the PK (label, fid) already covers label-only lookups.
-        # The separate index is redundant and wastes disk/RAM.
+      if db_type not in (DbType.POSTGRES, DbType.MYSQL):
+        # For Postgres and MySQL, the PK (label, fid) leading column
+        # already covers label-only lookups. The separate index is
+        # redundant and wastes disk/RAM.
         if progress:
           print("Creating labels index...")
         cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
@@ -529,15 +547,15 @@ class SpatialIndex(object):
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
 
-      if progress:
-        print("Running ANALYZE...")
-      if db_type == DbType.MYSQL:
-        cur.execute("ANALYZE TABLE file_lookup")
-        cur.fetchall()  # MySQL ANALYZE TABLE returns a result set that must be consumed
-      else:
-        # Works for both Postgres and SQLite
+      if db_type != DbType.MYSQL:
+        if progress:
+          print("Running ANALYZE...")
+        # Works for both Postgres and SQLite.
+        # MySQL is excluded: InnoDB's ANALYZE TABLE performs random index
+        # dives but does not materially improve query plans for this
+        # workload and adds unnecessary overhead.
         cur.execute("ANALYZE file_lookup")
-      conn.commit()
+        conn.commit()
 
   def to_sql(
     self, path=None, create_indices=True, 
