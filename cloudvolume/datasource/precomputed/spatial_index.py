@@ -1055,6 +1055,9 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     with pbar:
       for start in range(0, total, block_size):
         end = min(start + block_size, total)
+        # numpy basic slicing returns views (zero-copy);
+        # the copy happens inside _build_pg_binary_copy_two_bigints
+        # when constructing the structured array.
         buf = _build_pg_binary_copy_two_bigints(
           labels_arr[start:end], fids_arr[start:end]
         )
