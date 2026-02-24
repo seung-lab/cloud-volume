@@ -51,6 +51,10 @@ def tostr(x):
   else:
     return x
 
+# 11-byte signature for PostgreSQL binary COPY format.
+# See: https://www.postgresql.org/docs/current/sql-copy.html#SQL-COPY-FILE-FORMATS
+PG_BINARY_COPY_SIGNATURE = b'PGCOPY\n\377\r\n\0'
+
 # SQL template for parallel range-partitioned distinct label queries.
 # Each thread fills in {low}/{high} to scan a non-overlapping slice
 # of the PK B-tree index on file_lookup(label, fid).
@@ -107,7 +111,7 @@ def _build_pg_binary_copy_two_bigints(col1, col2):
 
   if n == 0:
     buf = io.BytesIO()
-    buf.write(b'PGCOPY\n\377\r\n\0')
+    buf.write(PG_BINARY_COPY_SIGNATURE)
     buf.write(struct.pack('>ii', 0, 0))
     buf.write(struct.pack('>h', -1))
     buf.seek(0)
@@ -126,7 +130,7 @@ def _build_pg_binary_copy_two_bigints(col1, col2):
   rows['val2'] = col2
 
   buf = io.BytesIO()
-  buf.write(b'PGCOPY\n\377\r\n\0')      # 11-byte signature
+  buf.write(PG_BINARY_COPY_SIGNATURE)
   buf.write(struct.pack('>ii', 0, 0))    # flags + ext_len
   buf.write(rows.tobytes())
   buf.write(struct.pack('>h', -1))       # trailer
