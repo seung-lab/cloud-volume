@@ -71,6 +71,8 @@ def _parse_pg_binary_copy_bigint(data):
     Header: 11-byte signature + 4-byte flags + 4-byte ext_len + ext_data
     Per row: 2 (field count=1) + 4 (byte length=8) + 8 (big-endian int64) = 14 bytes
     Trailer: 2 bytes (-1 as int16)
+
+  See: https://www.postgresql.org/docs/current/sql-copy.html#SQL-COPY-FILE-FORMATS
   """
   if len(data) < 19:
     return np.array([], dtype=np.uint64)
