@@ -77,9 +77,10 @@ def _parse_pg_binary_copy_bigint(data):
   if len(data) < 19:
     return np.array([], dtype=np.uint64)
 
-  ext_len = int(np.frombuffer(data[15:19], dtype='>u4')[0])
+  mv = memoryview(data)
+  ext_len = int(np.frombuffer(mv[15:19], dtype='>u4')[0])
   header_size = 19 + ext_len
-  body = data[header_size:-2]  # strip trailer
+  body = mv[header_size:-2]  # strip trailer (zero-copy slice)
   if len(body) == 0:
     return np.array([], dtype=np.uint64)
 
