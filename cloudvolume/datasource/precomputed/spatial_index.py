@@ -67,7 +67,7 @@ PG_RANGE_DISTINCT_SQL = """
   ) TO STDOUT WITH BINARY
 """
 
-def _parse_pg_binary_copy_bigint(data):
+def _parse_pg_binary_copy_bigint(data: bytes):
   """Parse PostgreSQL binary COPY output for a single BIGINT column
   into a numpy uint64 array.
 
