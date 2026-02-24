@@ -533,6 +533,7 @@ class SpatialIndex(object):
         print("Running ANALYZE...")
       if db_type == DbType.MYSQL:
         cur.execute("ANALYZE TABLE file_lookup")
+        cur.fetchall()  # MySQL ANALYZE TABLE returns a result set that must be consumed
       else:
         # Works for both Postgres and SQLite
         cur.execute("ANALYZE file_lookup")
