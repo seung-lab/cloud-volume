@@ -529,11 +529,14 @@ class SpatialIndex(object):
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
 
-      if db_type == DbType.POSTGRES:
-        if progress:
-          print("Running ANALYZE...")
+      if progress:
+        print("Running ANALYZE...")
+      if db_type == DbType.MYSQL:
+        cur.execute("ANALYZE TABLE file_lookup")
+      else:
+        # Works for both Postgres and SQLite
         cur.execute("ANALYZE file_lookup")
-        conn.commit()
+      conn.commit()
 
   def to_sql(
     self, path=None, create_indices=True, 
