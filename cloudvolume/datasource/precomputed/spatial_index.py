@@ -493,31 +493,31 @@ class SpatialIndex(object):
     finished_loading_evt.set()
     qu.join()
 
-    # Now that all data is loaded, build PK and FK via sort+bulk-load.
-    # This is ~10x faster than maintaining the B-tree incrementally
-    # during insertion.
-    if db_type in (DbType.POSTGRES, DbType.MYSQL):
-      if progress:
-        print("Building primary key (label, fid)...")
-      cur.execute("ALTER TABLE file_lookup ADD PRIMARY KEY (label, fid)")
-      conn.commit()
-      if progress:
-        print("Adding foreign key constraint...")
-      cur.execute(
-        "ALTER TABLE file_lookup "
-        "ADD CONSTRAINT file_lookup_fid_fkey "
-        "FOREIGN KEY (fid) REFERENCES index_files(id)"
-      )
-      conn.commit()
-    elif db_type == DbType.SQLITE:
-      # SQLite doesn't support ALTER TABLE ADD PRIMARY KEY or FOREIGN KEY.
-      # Use a unique index to enforce the same constraint.
-      if progress:
-        print("Building unique index (label, fid)...")
-      cur.execute("CREATE UNIQUE INDEX pk_label_fid ON file_lookup (label, fid)")
-      conn.commit()
-
     if create_indices:
+      # Now that all data is loaded, build PK and FK via sort+bulk-load.
+      # This is ~10x faster than maintaining the B-tree incrementally
+      # during insertion.
+      if db_type in (DbType.POSTGRES, DbType.MYSQL):
+        if progress:
+          print("Building primary key (label, fid)...")
+        cur.execute("ALTER TABLE file_lookup ADD PRIMARY KEY (label, fid)")
+        conn.commit()
+        if progress:
+          print("Adding foreign key constraint...")
+        cur.execute(
+          "ALTER TABLE file_lookup "
+          "ADD CONSTRAINT file_lookup_fid_fkey "
+          "FOREIGN KEY (fid) REFERENCES index_files(id)"
+        )
+        conn.commit()
+      elif db_type == DbType.SQLITE:
+        # SQLite doesn't support ALTER TABLE ADD PRIMARY KEY or FOREIGN KEY.
+        # Use a unique index to enforce the same constraint.
+        if progress:
+          print("Building unique index (label, fid)...")
+        cur.execute("CREATE UNIQUE INDEX pk_label_fid ON file_lookup (label, fid)")
+        conn.commit()
+
       if db_type != DbType.POSTGRES:
         # For Postgres, the PK (label, fid) already covers label-only lookups.
         # The separate index is redundant and wastes disk/RAM.
