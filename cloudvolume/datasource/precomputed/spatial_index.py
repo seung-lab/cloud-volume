@@ -461,24 +461,15 @@ class SpatialIndex(object):
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
-    if db_type == DbType.POSTGRES:
-      # For Postgres: create without PK/FK constraints during bulk load.
-      # Constraints are added post-load via sort+bulk-build which is
-      # ~10x faster than incremental B-tree maintenance per row.
-      cur.execute(f"""
-        {CREATE_TABLE} file_lookup (
-          label {INTEGER} NOT NULL,
-          fid {INTEGER} NOT NULL
-        )
-      """)
-    else:
-      cur.execute(f"""
-        {CREATE_TABLE} file_lookup (
-          label {INTEGER} NOT NULL,
-          fid {INTEGER} NOT NULL REFERENCES index_files(id),
-          PRIMARY KEY(label,fid)
-        )
-      """)
+    # Create file_lookup without PK/FK constraints during bulk load.
+    # Constraints are added post-load via sort+bulk-build which is
+    # ~10x faster than incremental B-tree maintenance per row.
+    cur.execute(f"""
+      {CREATE_TABLE} file_lookup (
+        label {INTEGER} NOT NULL,
+        fid {INTEGER} NOT NULL
+      )
+    """)
 
     conn.commit()
 
@@ -502,10 +493,10 @@ class SpatialIndex(object):
     finished_loading_evt.set()
     qu.join()
 
-    if db_type == DbType.POSTGRES:
-      # Now that all data is loaded, build PK and FK via sort+bulk-load.
-      # This is ~10x faster than maintaining the B-tree incrementally
-      # during insertion.
+    # Now that all data is loaded, build PK and FK via sort+bulk-load.
+    # This is ~10x faster than maintaining the B-tree incrementally
+    # during insertion.
+    if db_type in (DbType.POSTGRES, DbType.MYSQL):
       if progress:
         print("Building primary key (label, fid)...")
       cur.execute("ALTER TABLE file_lookup ADD PRIMARY KEY (label, fid)")
@@ -517,6 +508,13 @@ class SpatialIndex(object):
         "ADD CONSTRAINT file_lookup_fid_fkey "
         "FOREIGN KEY (fid) REFERENCES index_files(id)"
       )
+      conn.commit()
+    elif db_type == DbType.SQLITE:
+      # SQLite doesn't support ALTER TABLE ADD PRIMARY KEY or FOREIGN KEY.
+      # Use a unique index to enforce the same constraint.
+      if progress:
+        print("Building unique index (label, fid)...")
+      cur.execute("CREATE UNIQUE INDEX pk_label_fid ON file_lookup (label, fid)")
       conn.commit()
 
     if create_indices:
