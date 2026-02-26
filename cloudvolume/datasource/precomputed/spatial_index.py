@@ -5,10 +5,12 @@ import urllib.parse
 import os 
 import io
 import math
+import struct
 import queue
 import sqlite3
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 try:
   from enum import StrEnum
 except ImportError:
@@ -48,6 +50,144 @@ def tostr(x):
     return x.decode("utf8")
   else:
     return x
+
+# 11-byte signature for PostgreSQL binary COPY format.
+# See: https://www.postgresql.org/docs/current/sql-copy.html#SQL-COPY-FILE-FORMATS
+PG_BINARY_COPY_SIGNATURE = b'PGCOPY\n\377\r\n\0'
+
+# SQL template for parallel range-partitioned distinct label queries.
+# Each thread fills in {low}/{high} to scan a non-overlapping slice
+# of the PK B-tree index on file_lookup(label, fid).
+# Hash aggregation handles dedup within each range.
+PG_RANGE_DISTINCT_SQL = """
+  COPY (
+    SELECT DISTINCT label FROM file_lookup
+    WHERE label >= {low} AND label < {high}
+    ORDER BY label
+  ) TO STDOUT WITH BINARY
+"""
+
+def _parse_pg_binary_copy_bigint(data: bytes):
+  """Parse PostgreSQL binary COPY output for a single BIGINT column
+  into a numpy uint64 array.
+
+  PG binary COPY format:
+    Header: 11-byte signature + 4-byte flags + 4-byte ext_len + ext_data
+    Per row: 2 (field count=1) + 4 (byte length=8) + 8 (big-endian int64) = 14 bytes
+    Trailer: 2 bytes (-1 as int16)
+
+  See: https://www.postgresql.org/docs/current/sql-copy.html#SQL-COPY-FILE-FORMATS
+  """
+  if len(data) < 19:
+    return np.array([], dtype=np.uint64)
+
+  mv = memoryview(data)
+  ext_len = int(np.frombuffer(mv[15:19], dtype='>u4')[0])
+  header_size = 19 + ext_len
+  body = mv[header_size:-2]  # strip trailer (zero-copy slice)
+  if len(body) == 0:
+    return np.array([], dtype=np.uint64)
+
+  ROW_SIZE = 14  # 2 + 4 + 8 bytes per row
+  n_rows = len(body) // ROW_SIZE
+  row_dt = np.dtype([('nfields', '>i2'), ('length', '>i4'), ('value', '>i8')])
+  rows = np.frombuffer(body, dtype=row_dt, count=n_rows)
+  return rows['value'].astype(np.uint64)
+
+def _build_pg_binary_copy_two_bigints(col1, col2):
+  """Build a PostgreSQL binary COPY buffer for two BIGINT columns.
+
+  Accepts two array-like inputs (numpy arrays or lists) of equal length.
+  Returns a BytesIO positioned at the start, ready for copy_expert().
+
+  PG binary COPY format:
+    Header: 11-byte signature + 4-byte flags + 4-byte ext_len
+    Per row: 2 (nfields=2) + 4 (len=8) + 8 (val1) + 4 (len=8) + 8 (val2) = 26 bytes
+    Trailer: 2 bytes (-1 as int16)
+  """
+  col1 = np.asarray(col1, dtype=np.int64)
+  col2 = np.asarray(col2, dtype=np.int64)
+  n = len(col1)
+
+  if n == 0:
+    buf = io.BytesIO()
+    buf.write(PG_BINARY_COPY_SIGNATURE)
+    buf.write(struct.pack('>ii', 0, 0))
+    buf.write(struct.pack('>h', -1))
+    buf.seek(0)
+    return buf
+
+  row_dt = np.dtype([
+    ('nfields', '>i2'),
+    ('len1', '>i4'), ('val1', '>i8'),
+    ('len2', '>i4'), ('val2', '>i8'),
+  ])
+  rows = np.empty(n, dtype=row_dt)
+  rows['nfields'] = 2
+  rows['len1'] = 8
+  rows['val1'] = col1
+  rows['len2'] = 8
+  rows['val2'] = col2
+
+  buf = io.BytesIO()
+  buf.write(PG_BINARY_COPY_SIGNATURE)
+  buf.write(struct.pack('>ii', 0, 0))    # flags + ext_len
+  buf.write(rows.tobytes())
+  buf.write(struct.pack('>h', -1))       # trailer
+  buf.seek(0)
+  return buf
+
+def _pg_parallel_distinct_labels(db_path, n_threads=8):
+  """Query distinct labels from file_lookup using parallel range scans.
+
+  Splits the label keyspace into n_threads non-overlapping ranges,
+  queries each on a separate Postgres connection (= separate backend
+  process = separate CPU core), then concatenates the sorted results.
+  """
+  conn = connect(db_path)
+  cur = conn.cursor()
+  cur.execute("SELECT MIN(label), MAX(label) FROM file_lookup")
+  row = cur.fetchone()
+  cur.close()
+  conn.close()
+
+  if row is None or row[0] is None:
+    return np.array([], dtype=np.uint64)
+
+  min_label, max_label = int(row[0]), int(row[1])
+
+  if min_label == max_label:
+    return np.array([min_label], dtype=np.uint64)
+
+  # Split into non-overlapping [low, high) ranges.
+  boundaries = np.linspace(min_label, max_label + 1, n_threads + 1, dtype=np.int64)
+  # Deduplicate in case range is smaller than n_threads
+  boundaries = np.unique(boundaries)
+  actual_threads = len(boundaries) - 1
+
+  def _worker(low, high):
+    wconn = connect(db_path)
+    wcur = wconn.cursor()
+    wcur.execute("SET work_mem = '256MB'")
+    buf = io.BytesIO()
+    sql = PG_RANGE_DISTINCT_SQL.format(low=int(low), high=int(high))
+    wcur.copy_expert(sql, buf)
+    wcur.close()
+    wconn.close()
+    return _parse_pg_binary_copy_bigint(buf.getvalue())
+
+  with ThreadPoolExecutor(max_workers=actual_threads) as executor:
+    futures = [
+      executor.submit(_worker, boundaries[i], boundaries[i + 1])
+      for i in range(actual_threads)
+    ]
+    arrays = [f.result() for f in futures]
+
+  non_empty = [a for a in arrays if len(a) > 0]
+  if not non_empty:
+    return np.array([], dtype=np.uint64)
+
+  return np.concatenate(non_empty)
 
 def parse_db_path(path):
   """
@@ -321,13 +461,30 @@ class SpatialIndex(object):
     """)
     cur.execute("CREATE INDEX idxfname ON index_files (filename)")
 
-    cur.execute(f"""
-      {CREATE_TABLE} file_lookup (
-        label {INTEGER} NOT NULL,
-        fid {INTEGER} NOT NULL REFERENCES index_files(id),
-        PRIMARY KEY(label,fid)
-      )
-    """)
+    # For Postgres and SQLite: create file_lookup without PK/FK constraints
+    # during bulk load. Constraints are added post-load via sort+bulk-build
+    # which is ~10x faster than incremental B-tree maintenance per row.
+    #
+    # For MySQL (InnoDB): keep PK/FK inline at CREATE TABLE time. InnoDB uses
+    # a clustered index where the primary key IS the table's physical storage
+    # layout. Deferring PK via ALTER TABLE ADD PRIMARY KEY forces InnoDB to
+    # rebuild the entire table (full data copy + re-sort), which is slower
+    # than incremental insertion into the clustered index during bulk load.
+    if db_type == DbType.MYSQL:
+      cur.execute(f"""
+        {CREATE_TABLE} file_lookup (
+          label {INTEGER} NOT NULL,
+          fid {INTEGER} NOT NULL REFERENCES index_files(id),
+          PRIMARY KEY(label,fid)
+        )
+      """)
+    else:
+      cur.execute(f"""
+        {CREATE_TABLE} file_lookup (
+          label {INTEGER} NOT NULL,
+          fid {INTEGER} NOT NULL
+        )
+      """)
 
     conn.commit()
 
@@ -352,13 +509,53 @@ class SpatialIndex(object):
     qu.join()
 
     if create_indices:
-      if progress:
-        print("Creating labels index...")
-      cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
+      # Post-load constraint building for databases that deferred PK/FK.
+      # MySQL is excluded: its PK/FK are defined inline at CREATE TABLE
+      # time (see comment above).
+      if db_type == DbType.POSTGRES:
+        # Build PK and FK via sort+bulk-load on the UNLOGGED heap.
+        # This is ~10x faster than maintaining the B-tree incrementally.
+        if progress:
+          print("Building primary key (label, fid)...")
+        cur.execute("ALTER TABLE file_lookup ADD PRIMARY KEY (label, fid)")
+        conn.commit()
+        if progress:
+          print("Adding foreign key constraint...")
+        cur.execute(
+          "ALTER TABLE file_lookup "
+          "ADD CONSTRAINT file_lookup_fid_fkey "
+          "FOREIGN KEY (fid) REFERENCES index_files(id)"
+        )
+        conn.commit()
+      elif db_type == DbType.SQLITE:
+        # SQLite doesn't support ALTER TABLE ADD PRIMARY KEY or FOREIGN KEY.
+        # Use a unique index to enforce the same constraint.
+        if progress:
+          print("Building unique index (label, fid)...")
+        cur.execute("CREATE UNIQUE INDEX pk_label_fid ON file_lookup (label, fid)")
+        conn.commit()
+
+      if db_type not in (DbType.POSTGRES, DbType.MYSQL):
+        # For Postgres and MySQL, the PK (label, fid) leading column
+        # already covers label-only lookups. The separate index is
+        # redundant and wastes disk/RAM.
+        if progress:
+          print("Creating labels index...")
+        cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
 
       if progress:
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
+
+      if db_type != DbType.MYSQL:
+        if progress:
+          print("Running ANALYZE...")
+        # Works for both Postgres and SQLite.
+        # MySQL is excluded: InnoDB's ANALYZE TABLE performs random index
+        # dives but does not materially improve query plans for this
+        # workload and adds unnecessary overhead.
+        cur.execute("ANALYZE file_lookup")
+        conn.commit()
 
   def to_sql(
     self, path=None, create_indices=True, 
@@ -680,13 +877,17 @@ class SpatialIndex(object):
     conn.close()
     return locations      
 
-  def query(self, bbox, allow_missing=False):
+  def query(self, bbox, allow_missing=False, nthread=1):
     """
     For the specified bounding box (or equivalent representation),
     list all segment ids enclosed within it.
 
     If allow_missing is set, then don't raise an error if an index
     file is missing.
+
+    nthread: number of threads to use for the Postgres fast path
+    (when the query covers the full dataset). Has no effect for
+    non-Postgres databases or non-fast-path queries.
 
     Returns: iterable
     """
@@ -700,37 +901,48 @@ class SpatialIndex(object):
 
     fast_path = bbox.contains_bbox(self.physical_bounds)
 
+    if nthread > 1 and not (self.sql_db and fast_path):
+      print(
+        "WARNING: nthread > 1 has no effect: requires a Postgres "
+        "sql_db and a bounding box that covers the full dataset (fast path)."
+      )
+
     if self.sql_db and fast_path:
       conn = connect(self.sql_db)
       db_type = parse_db_path(self.sql_db)["scheme"]
+
       if db_type in ("postgres", "postgresql"):
-        # By default, psycopg2 buffers all query results on the client-side
-        # which can be very slow for large tables. Using a server-side
-        # cursor (by giving the cursor a name) avoids this problem by
-        # fetching results from the server in smaller chunks.
-        cur = conn.cursor(f"fast_path_query_{time.time()}") # named cursor
+        # Parallel range-partitioned distinct label query.
+        # Splits the label space into ranges, each queried on a
+        # separate connection (separate PG backend = separate core).
+        conn.close()
+        return _pg_parallel_distinct_labels(self.sql_db, n_threads=nthread)
       else:
+        if nthread > 1:
+          print(
+            "WARNING: nthread > 1 has no effect for non-Postgres databases."
+          )
         cur = conn.cursor()
-      cur.execute("select distinct label from file_lookup")
+        cur.execute("select distinct label from file_lookup")
 
-      labels_list = []
+        labels_list = []
 
-      while True:
-        rows = cur.fetchmany(size=2**24)
-        if len(rows) == 0:
-          break
-        # Sqlite only stores signed integers, so we need to coerce negative
-        # integers back into unsigned.
-        labels_list.append(np.fromiter((row[0] for row in rows), dtype=np.uint64, count=len(rows)))
+        while True:
+          rows = cur.fetchmany(size=2**24)
+          if len(rows) == 0:
+            break
+          # Sqlite only stores signed integers, so we need to coerce negative
+          # integers back into unsigned.
+          labels_list.append(np.fromiter((row[0] for row in rows), dtype=np.uint64, count=len(rows)))
 
-      cur.close()
-      conn.close()
+        cur.close()
+        conn.close()
 
-      labels = np.concatenate(labels_list)
-      del labels_list
+        labels = np.concatenate(labels_list)
+        del labels_list
 
-      labels.sort()
-      return labels
+        labels.sort()
+        return labels
 
     labels = set()
     index_files = self.index_file_paths_for_bbox(bbox)
@@ -797,24 +1009,6 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
   else:
     BIND = '?'
 
-  if db_type == DbType.MYSQL:
-    AUTOINC = "AUTO_INCREMENT"
-    INTEGER = "BIGINT UNSIGNED"
-  elif db_type == DbType.POSTGRES:
-    AUTOINC = ""
-    INTEGER = "BIGINT"
-  else: # sqlite
-    AUTOINC = "AUTOINCREMENT"
-    INTEGER = "INTEGER"
-
-  @retry
-  def postgres_insert_file_lookup_values(cur, values):
-      f = io.StringIO()
-      for label, fid in values:
-          f.write(f"{label}\t{fid}\n")
-      f.seek(0)
-      cur.copy_from(f, 'file_lookup', columns=('label', 'fid'))
-
   @retry
   def insert_file_lookup_values(cur, chunked_values):
     nonlocal BIND
@@ -845,36 +1039,73 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
 
   parser = simdjson.Parser()
 
-  all_values = []
-  for filename, content in index_files.items():
-    if content is None:
-      continue
-    index_labels = parser.parse(content).keys()
-    filename = os.path.basename(filename)
-    fid = filename_id_map[filename]
-    all_values.extend(( (int(label), fid) for label in index_labels ))
-  
-  pbar = tqdm(
-    desc="Inserting File Lookups", 
-    disable=(not progress), 
-    total=len(all_values)
-  )
-
   if db_type == DbType.POSTGRES:
+    # Vectorized path: build flat numpy arrays, then binary COPY.
+    # Avoids millions of Python tuple allocations and StringIO writes.
+    all_labels = []
+    all_fids = []
+    for filename, content in index_files.items():
+      if content is None:
+        continue
+      index_labels = parser.parse(content).keys()
+      filename = os.path.basename(filename)
+      fid = filename_id_map[filename]
+      chunk_labels = np.array([int(label) for label in index_labels], dtype=np.int64)
+      all_labels.append(chunk_labels)
+      all_fids.append(np.full(len(chunk_labels), fid, dtype=np.int64))
+
+    if not all_labels:
+      return
+
+    labels_arr = np.concatenate(all_labels)
+    fids_arr = np.concatenate(all_fids)
+    total = len(labels_arr)
+
+    del all_labels, all_fids
+
+    pbar = tqdm(
+      desc="Inserting File Lookups",
+      disable=(not progress),
+      total=total
+    )
+
     block_size = 5000000
-  elif db_type == DbType.MYSQL:
-    block_size = 500000
-  else: # sqlite
-    block_size = 15000
-
-  if db_type == DbType.POSTGRES:
     conn.commit()
     with pbar:
-      for chunked_values in sip(all_values, block_size):
-        postgres_insert_file_lookup_values(cur, chunked_values)
+      for start in range(0, total, block_size):
+        end = min(start + block_size, total)
+        # numpy basic slicing returns views (zero-copy);
+        # the copy happens inside _build_pg_binary_copy_two_bigints
+        # when constructing the structured array.
+        buf = _build_pg_binary_copy_two_bigints(
+          labels_arr[start:end], fids_arr[start:end]
+        )
+        cur.copy_expert(
+          "COPY file_lookup(label, fid) FROM STDIN WITH BINARY", buf
+        )
         conn.commit()
-        pbar.update(len(chunked_values))
+        pbar.update(end - start)
   else:
+    all_values = []
+    for filename, content in index_files.items():
+      if content is None:
+        continue
+      index_labels = parser.parse(content).keys()
+      filename = os.path.basename(filename)
+      fid = filename_id_map[filename]
+      all_values.extend(( (int(label), fid) for label in index_labels ))
+
+    pbar = tqdm(
+      desc="Inserting File Lookups",
+      disable=(not progress),
+      total=len(all_values)
+    )
+
+    if db_type == DbType.MYSQL:
+      block_size = 500000
+    else: # sqlite
+      block_size = 15000
+
     with pbar:
       for chunked_values in sip(all_values, block_size):
         insert_file_lookup_values(cur, chunked_values)
