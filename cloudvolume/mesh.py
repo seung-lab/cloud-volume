@@ -344,6 +344,38 @@ end_header
       validate=validate,
     )
 
+  @classmethod
+  def from_trimesh(kls, tmesh:"trimesh.Trimesh") -> "Mesh":
+    return kls(vertices=tmesh.vertices, faces=tmesh.faces, normals=tmesh.vertex_normals)
+
+  def save(self, filename:str):
+    """
+    Open supported file formats. 
+    By default assumes the file is a Wavefront OBJ 
+    unless the file extension says otherwise.
+
+    Supported: obj, ply
+    """
+    with open(filename, "wb") as f:
+      if filename.endswith(".ply"):
+        f.write(self.to_ply())
+      else:
+        f.write(self.to_obj())
+
+  def load(self, filename:str) -> "Mesh":
+    """
+    Save supported file formats. 
+    By default assumes the file is a Wavefront OBJ 
+    unless the file extension says otherwise.
+
+    Supported: obj, ply
+    """
+    with open(filename, "rb") as f:
+      if filename.endswith(".ply"):
+        return Mesh.from_ply(f.read())
+      else:
+        return Mesh.from_obj(f.read())
+
   def deduplicate_vertices(self, is_chunk_aligned):
     faces = self.faces
     verts = self.vertices
