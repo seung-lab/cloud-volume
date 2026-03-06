@@ -610,6 +610,61 @@ class ShardReader:
 
     return shattered
 
+  def disassemble_multires_mesh_shard(self, shard:bytes) -> tuple[dict[int,bytes], dict[int,int]]:
+    """
+    Given an entire shard as a bytestring, convert 
+    it into a dict of { label: byte content }.
+
+    Note: assumes iteration in order of increasing offset.
+    This is not a strict requirement of the shard format.
+
+    Returns: 
+      shard dict: { label: bytes }
+      manifest size: { label: int size }
+    """
+    index = self.decode_index(shard[:self.spec.index_length()])
+    shattered = {}
+    data_offset = {}
+
+    pos = self.spec.index_length()
+
+    for start, end in index:
+      start, end = int(start), int(end)
+      if start == end:
+        continue
+
+      msi = self.decode_minishard_index(shard[start:end])
+      for label, offset, size in msi:
+        offset, size = int(offset), int(size)
+        start = pos
+        end = offset + size 
+        binary = shard[start:end]
+        pos = end
+                
+        shattered[label] = binary
+        data_offset[label] = size
+
+    return shattered, data_offset
+
+  def insert_multires_mesh_to_shard(
+    self, 
+    shard:bytes,
+    label:int, 
+    mesh_binary:bytes,
+    manifest_binary:bytes,
+  ) -> bytes:
+    """
+    For inserting a new multiresolution mesh into a shard. These have a 
+    special construction that makes use of offsets, so is a very specific
+    and tricky case.
+    """
+    label_binary = mesh_binary + manifest_binary
+
+    data, data_offset = self.disassemble_multires_mesh_shard(shard)
+    data[label] = label_binary
+    data_offset[label] = len(manifest_binary)
+    return cv.mesh.reader.spec.synthesize_shard(data, data_offset=data_offset)
+
   def get_data(
     self,
     label:int,
