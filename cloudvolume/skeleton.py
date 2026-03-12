@@ -1,2 +1,2 @@
 from osteoid import Skeleton
-PrecomputedSkeleton = Skeleton # backwards compatibility
+PrecomputedSkeleton: type = Skeleton # backwards compatibility
