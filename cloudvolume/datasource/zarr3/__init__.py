@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Any, Optional
 
 from .image import Zarr3ImageSource
 from .metadata import Zarr3Metadata
@@ -15,16 +17,16 @@ from ...cloudvolume import (
 from ...paths import strict_extract
 
 def create_zarr3(
-  cloudpath:str, mip:int=0, bounded:bool=True, autocrop:bool=False,
-  fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
-  cdn_cache:bool=True, progress:bool=False, info:Optional[dict]=None,
-  compress:CompressType=None, compress_level:Optional[int]=None,
-  non_aligned_writes:bool=False, delete_black_uploads:bool=False,
-  parallel:ParallelType=1,green_threads:bool=False, 
-  secrets:SecretsType=None, cache_locking:bool = True,
-  codec_threads:ParallelType = 1,
-  **kwargs # absorb graphene arguments
-):
+  cloudpath: str, mip: int = 0, bounded: bool = True, autocrop: bool = False,
+  fill_missing: bool = False, cache: CacheType = False, compress_cache: CompressType = None,
+  cdn_cache: bool = True, progress: bool = False, info: Optional[dict] = None,
+  compress: CompressType = None, compress_level: Optional[int] = None,
+  non_aligned_writes: bool = False, delete_black_uploads: bool = False,
+  parallel: ParallelType = 1, green_threads: bool = False,
+  secrets: SecretsType = None, cache_locking: bool = True,
+  codec_threads: ParallelType = 1,
+  **kwargs: Any # absorb graphene arguments
+) -> CloudVolumePrecomputed:
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
@@ -48,7 +50,7 @@ def create_zarr3(
 
     meta = Zarr3Metadata(cloudpath, config=config, cache=cache, info=info)
     imagesrc = Zarr3ImageSource(
-      config, meta, cache, 
+      config, meta, cache,
       autocrop=bool(autocrop),
       bounded=bool(bounded),
       non_aligned_writes=bool(non_aligned_writes),
@@ -56,10 +58,10 @@ def create_zarr3(
     )
 
     return CloudVolumePrecomputed(
-      meta, cache, config, 
+      meta, cache, config,
       imagesrc, mesh=None, skeleton=None,
       mip=mip
     )
 
-def register():
+def register() -> None:
   register_plugin('zarr3', create_zarr3)

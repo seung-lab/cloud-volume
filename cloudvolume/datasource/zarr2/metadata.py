@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import re
 import os
+from typing import Any, Optional
 
 import numpy as np
 
@@ -27,15 +30,15 @@ CV_TO_ZARR_DTYPE = {
 }
 
 class Zarr2Metadata(PrecomputedMetadata):
-  def __init__(self, cloudpath, config, cache,  info=None):
-    
+  def __init__(self, cloudpath: str, config: Any, cache: Any, info: Optional[dict] = None) -> None:
+
     orig_info = info
 
     # some default values, to be overwritten
     if not info:
       info = PrecomputedMetadata.create_info(
-        num_channels=1, layer_type='image', data_type='uint8', 
-        encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0], 
+        num_channels=1, layer_type='image', data_type='uint8',
+        encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0],
         volume_size=[1,1,1]
       )
 
@@ -43,9 +46,9 @@ class Zarr2Metadata(PrecomputedMetadata):
       cloudpath, config, cache, info=info, provenance=None
     )
 
-    self.zarrays = []
-    self.zattrs = self.default_zattrs()
-    self._is_group = False
+    self.zarrays: list[dict] = []
+    self.zattrs: dict[str, Any] = self.default_zattrs()
+    self._is_group: bool = False
 
     if orig_info is None:
       self.info = self.fetch_info()
@@ -55,13 +58,13 @@ class Zarr2Metadata(PrecomputedMetadata):
     self.provenance = DataLayerProvenance()
 
   @property
-  def zarr_format(self):
+  def zarr_format(self) -> Any:
     return self.zinfo["zarr_format"]
 
-  def is_group(self):
+  def is_group(self) -> bool:
     return self._is_group
 
-  def default_zattrs(self, num_dims = 5):
+  def default_zattrs(self, num_dims: int = 5) -> dict[str, Any]:
     attrs = {
       "multiscales": [
         {
@@ -105,7 +108,7 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     return attrs
 
-  def default_datasets(self, num_datasets):
+  def default_datasets(self, num_datasets: int) -> list[dict[str, Any]]:
     ds = []
     for i in range(num_datasets):
       path = ""
@@ -125,7 +128,7 @@ class Zarr2Metadata(PrecomputedMetadata):
       )
     return ds
 
-  def spatial_resolution_in_nm(self, mip, zattrs = None, zarrays = None):
+  def spatial_resolution_in_nm(self, mip: int, zattrs: Optional[dict] = None, zarrays: Optional[list[dict]] = None) -> np.ndarray:
     if zarrays is None:
       zarrays = self.zarrays
     if zattrs is None:
@@ -136,7 +139,7 @@ class Zarr2Metadata(PrecomputedMetadata):
     for i, axis in enumerate(self.axes()):
       if axis["type"] != "space":
         continue
-      
+
       if axis["name"] == "x":
         scale_factors[0] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[0] = i
@@ -156,7 +159,7 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     return resolution * (scale_factors / 1e-9)
 
-  def time_resolution_in_seconds(self, mip:int) -> float:
+  def time_resolution_in_seconds(self, mip: int) -> float:
     i = 0
     unit = None
     for axis in self.axes():
@@ -172,29 +175,29 @@ class Zarr2Metadata(PrecomputedMetadata):
     resolution = self.datasets()[mip]["coordinateTransformations"][0]["scale"]
     return resolution[i] * scale_factor
 
-  def has_time_axis(self):
+  def has_time_axis(self) -> bool:
     try:
       return self.time_index() is not None
     except ValueError:
       return False
 
-  def datasets(self):
+  def datasets(self) -> list[dict[str, Any]]:
     return self.zattrs["multiscales"][0]["datasets"]
 
-  def axes(self):
+  def axes(self) -> list[dict[str, Any]]:
     return self.zattrs["multiscales"][0]["axes"]
 
-  def time_index(self):
+  def time_index(self) -> int:
     for i, axis in enumerate(self.axes()):
       if axis["type"] == "time":
         return i
     raise ValueError("No time axis.")
 
-  def time_chunk_size(self, mip):
+  def time_chunk_size(self, mip: int) -> int:
     i = self.time_index()
     return self.zarrays[mip]["chunks"][i]
 
-  def num_time_chunks(self, mip):
+  def num_time_chunks(self, mip: int) -> int:
     nframes = self.num_frames(mip)
     try:
       t_chunk_size = self.time_chunk_size(mip)
@@ -202,14 +205,14 @@ class Zarr2Metadata(PrecomputedMetadata):
       return 1
     return int(np.ceil(nframes / t_chunk_size))
 
-  def num_frames(self, mip):
+  def num_frames(self, mip: int) -> int:
     try:
       i = self.time_index()
       return self.zarrays[mip]["shape"][i]
     except ValueError:
       return 1
 
-  def chunk_name(self, mip, *args):
+  def chunk_name(self, mip: int, *args: Any) -> str:
     seq = self.cv_axes_to_zarr_axes()
     sep = self.dimension_separator(mip)
 
@@ -223,29 +226,29 @@ class Zarr2Metadata(PrecomputedMetadata):
     else:
       return sep.join([ *values ])
 
-  def duration_in_seconds(self):
+  def duration_in_seconds(self) -> float:
     return self.time_resolution_in_seconds(0) * self.num_frames(0)
 
-  def compressor(self, mip):
+  def compressor(self, mip: int) -> str:
     return self.zarrays[mip].get("compressor", {}).get("id", "blosc")
 
-  def order(self, mip):
+  def order(self, mip: int) -> str:
     return self.zarrays[mip]["order"]
 
-  def background_color(self, mip):
+  def background_color(self, mip: int) -> Any:
     return self.zarrays[mip].get("fill_value", 0)
 
-  def set_background_color(self, mip):
+  def set_background_color(self, mip: int) -> None:
     self.zarrays[mip]["fill_value"] = 0
 
-  def filename_regexp(self, mip):
+  def filename_regexp(self, mip: int) -> re.Pattern:
       scale = self.zattrs["multiscales"][0]
       axes = scale["axes"]
 
       cf = CloudFiles(self.cloudpath)
       dsep = '/'
       if cf.protocol == "file":
-        dsep = os.path.sep  
+        dsep = os.path.sep
       if dsep == '\\':
         dsep = '\\\\' # compensate for regexp escaping
 
@@ -261,10 +264,10 @@ class Zarr2Metadata(PrecomputedMetadata):
 
       return re.compile(regexp)
 
-  def dimension_separator(self, mip):
+  def dimension_separator(self, mip: int) -> str:
     return self.zarrays[mip].get("dimension_separator", ".")
 
-  def commit_info(self):
+  def commit_info(self) -> None:
     self.render_zarr_metadata()
 
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
@@ -285,10 +288,10 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     cf.put_jsons(to_upload, compress=compress)
 
-  def to_zarr_volume_size(self, mip):
+  def to_zarr_volume_size(self, mip: int) -> list[int]:
     axes = self.axes()
-      
-    shape = []
+
+    shape: list[int] = []
     for axis in axes:
       if axis["type"] == "channel":
         shape.append(self.num_channels)
@@ -303,10 +306,10 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     return shape
 
-  def zarr_axes_to_cv_axes(self):
+  def zarr_axes_to_cv_axes(self) -> list[int]:
     axes = self.axes()
 
-    shape = []
+    shape: list[int] = []
     for i, axis in enumerate(axes):
       if axis["type"] == "channel":
         shape.append(3)
@@ -321,14 +324,14 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     return shape
 
-  def cv_axes_to_zarr_axes(self):
+  def cv_axes_to_zarr_axes(self) -> list[int]:
     seq = self.zarr_axes_to_cv_axes()
     shape = [0] * len(seq)
     for i, val in enumerate(seq):
       shape[val] = i
     return shape
 
-  def render_zarr_metadata(self):
+  def render_zarr_metadata(self) -> None:
     """Convert the current info file into zarr metadata."""
     datasets = []
 
@@ -371,16 +374,16 @@ class Zarr2Metadata(PrecomputedMetadata):
         "shuffle": 1,
       })
       zscale["filters"] = zscale.get("filters", None)
-      
+
       self.zarrays[mip] = zscale
 
     self.zattrs["multiscales"][0]["datasets"] = datasets
 
-  def zarr_to_info(self, zarrays, zattrs):
-    def extract_spatial(attr, dtype):
+  def zarr_to_info(self, zarrays: list[dict], zattrs: dict[str, Any]) -> dict:
+    def extract_spatial(attr: Any, dtype: type) -> np.ndarray:
       scale = zattrs["multiscales"][0]
       axes = scale["axes"]
-      
+
       spatial = np.ones([3], dtype=dtype)
       for axis, res in zip(axes, attr):
         if axis["type"] != "space":
@@ -394,18 +397,18 @@ class Zarr2Metadata(PrecomputedMetadata):
 
       return spatial
 
-    def extract_spatial_size(mip):
+    def extract_spatial_size(mip: int) -> np.ndarray:
       shape = zarrays[mip]["shape"]
       return extract_spatial(shape, int)
-      
-    def get_full_resolution(mip):
+
+    def get_full_resolution(mip: int) -> np.ndarray:
       scale = zattrs["multiscales"][0]
       axes = scale["axes"]
       return np.array(scale["datasets"][mip]["coordinateTransformations"][0]["scale"])
 
     try:
-      num_channels = len([ 
-        chan for chan in zattrs["omero"]["channels"] if chan["active"] 
+      num_channels = len([
+        chan for chan in zattrs["omero"]["channels"] if chan["active"]
       ])
     except KeyError:
       num_channels = 1
@@ -415,7 +418,7 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     base_res = self.spatial_resolution_in_nm(0, zattrs, zarrays)
 
-    def extract_chunk_size(chunk_size):
+    def extract_chunk_size(chunk_size: list[int]) -> list[int]:
       chunk_size = list(chunk_size)
       if zarrays[0]["order"] == "C":
         while len(chunk_size) > 3:
@@ -457,11 +460,11 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     return info
 
-  def key(self, mip):
+  def key(self, mip: int) -> Any:
     datasets = self.zattrs["multiscales"][0]["datasets"]
     return datasets[mip].get("path", mip+1)
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict:
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     metadata = cf.get_json([ "0/.zarray", ".zattrs" ])
 
@@ -473,7 +476,7 @@ class Zarr2Metadata(PrecomputedMetadata):
       self._is_group = False
       if self.zarrays[0] is None:
         self.zarrays = []
-    
+
     if metadata[1] is not None:
       self.zattrs = metadata[1]
     else:
@@ -487,7 +490,7 @@ class Zarr2Metadata(PrecomputedMetadata):
       self.zattrs.update(self.default_zattrs(num_dims))
 
     datasets = self.datasets()
-    
+
     if datasets == []:
       self.zattrs["multiscales"][0]["datasets"] = self.default_datasets(len(self.zarrays))
       datasets = self.datasets()
@@ -496,17 +499,17 @@ class Zarr2Metadata(PrecomputedMetadata):
       f"{ds.get('path', i+1)}/.zarray" for i, ds in enumerate(datasets)
     ]
     res = cf.get_json(zarray_paths)
-    
+
     if any([ x is not None for x in res ]):
       self.zarrays.extend(res)
 
     return self.zarr_to_info(self.zarrays, self.zattrs)
 
-  def zarr_chunk_size(self, mip):
+  def zarr_chunk_size(self, mip: int) -> list[int]:
     axes = self.zattrs["multiscales"][0]["axes"]
     cs = self.chunk_size(mip)
 
-    attr = []
+    attr: list[int] = []
     for axis in axes:
       if axis["name"] == 't':
         attr.append(self.time_chunk_size(mip))
@@ -521,11 +524,11 @@ class Zarr2Metadata(PrecomputedMetadata):
 
     return attr
 
-  def commit_provenance(self):
+  def commit_provenance(self) -> None:
     """Zarr doesn't support provenance files."""
     pass
 
-  def fetch_provenance(self):
+  def fetch_provenance(self) -> None:
     """Zarr doesn't support provenance files."""
     pass
 

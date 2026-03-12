@@ -1,4 +1,7 @@
-from typing import Optional
+from __future__ import annotations
+
+import os
+from typing import Any, Optional, Union
 
 from .sharded import GrapheneShardedMeshSource
 from .unsharded import GrapheneUnshardedMeshSource
@@ -10,24 +13,24 @@ from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
 class GrapheneMeshSource(object):
-  def __new__(cls, meta, cache, config, readonly=False):
+  def __new__(cls, meta: Any, cache: Any, config: Any, readonly: bool = False) -> Any:
     mesh_meta = GrapheneMeshMetadata(meta, cache)
 
     if mesh_meta.is_sharded():
-      return GrapheneShardedMeshSource(mesh_meta, cache, config, readonly) 
+      return GrapheneShardedMeshSource(mesh_meta, cache, config, readonly)
 
     return GrapheneUnshardedMeshSource(mesh_meta, cache, config, readonly)
 
   @classmethod
   def from_cloudpath(
-    cls, 
-    cloudpath:str, 
-    cache=False, 
-    progress:bool = False,
-    secrets=None,
-    spatial_index_db:Optional[str] = None, 
-    cache_locking:bool = True,
-  ):
+    cls,
+    cloudpath: str,
+    cache: Any = False,
+    progress: bool = False,
+    secrets: Any = None,
+    spatial_index_db: Optional[str] = None,
+    cache_locking: bool = True,
+  ) -> Any:
     config = SharedConfiguration(
       cdn_cache=False,
       compress=True,

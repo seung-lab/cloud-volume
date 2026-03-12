@@ -1,4 +1,6 @@
-from typing import Optional, Union
+from __future__ import annotations
+
+from typing import Any, Optional, Union
 
 from .image import BossImageSource
 from .metadata import BossMetadata
@@ -15,14 +17,14 @@ from ...cloudvolume import (
 from ...paths import strict_extract
 
 def create_boss(
-    cloudpath, mip:int = 0, bounded:bool = True, autocrop:bool = False,
-    fill_missing:bool = False, cache:CacheType = False, compress_cache:CompressType = None,
-    cdn_cache:bool = True, progress:bool = False, info:Optional[dict] = None, 
-    provenance:Optional[dict] = None, compress:CompressType = None, 
-    non_aligned_writes:bool = False, parallel:ParallelType = 1, delete_black_uploads:bool = False, 
-    green_threads:bool = False, cache_locking:bool = True, codec_threads:ParallelType = 1,
-    *args, **kwargs # absorb graphene arguments
-  ):
+    cloudpath: str, mip: int = 0, bounded: bool = True, autocrop: bool = False,
+    fill_missing: bool = False, cache: CacheType = False, compress_cache: CompressType = None,
+    cdn_cache: bool = True, progress: bool = False, info: Optional[dict] = None,
+    provenance: Optional[dict] = None, compress: CompressType = None,
+    non_aligned_writes: bool = False, parallel: ParallelType = 1, delete_black_uploads: bool = False,
+    green_threads: bool = False, cache_locking: bool = True, codec_threads: ParallelType = 1,
+    *args: Any, **kwargs: Any # absorb graphene arguments
+  ) -> CloudVolumePrecomputed:
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
@@ -46,17 +48,17 @@ def create_boss(
 
     meta = BossMetadata(cloudpath, cache=cache, info=info)
     image = BossImageSource(
-      config, meta, cache, 
+      config, meta, cache,
       autocrop=bool(autocrop),
       bounded=bool(bounded),
-      non_aligned_writes=bool(non_aligned_writes), 
+      non_aligned_writes=bool(non_aligned_writes),
     )
 
     return CloudVolumePrecomputed(
-      meta, cache, config, 
+      meta, cache, config,
       imagesrc, mesh=None, skeleton=None,
       mip=mip
     )
 
-def register():
+def register() -> None:
   register_plugin('boss', create_boss)

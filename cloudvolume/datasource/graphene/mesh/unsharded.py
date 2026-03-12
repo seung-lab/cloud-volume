@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 import itertools
 import json
@@ -5,6 +7,7 @@ import os
 import posixpath
 import re
 import requests
+from typing import Any, Optional, Union
 
 import numpy as np
 from tqdm import tqdm
@@ -21,7 +24,7 @@ from ...precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, Precompute
 
 class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
-  def compute_filename(self, label):
+  def compute_filename(self, label: Any) -> str:
     layer_id = self.meta.meta.decode_layer_id(label)
     chunk_block_shape = Vec(*self.meta.meta.mesh_chunk_size, dtype=np.int64)
     chunk_block_shape *= np.int64(self.meta.meta.fan_out ** max(0, layer_id - 2))
@@ -30,10 +33,10 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     bbx = Bbox(start, start + chunk_block_shape)
     return "{}:0:{}".format(label, bbx.to_filename())
 
-  def exists(self, labels, progress=None):
+  def exists(self, labels: Any, progress: Optional[bool] = None) -> dict[Any, bool]:
     """
     Checks for dynamic mesh existence.
-  
+
     Returns: { label: boolean, ... }
     """
     labels = toiter(labels)
@@ -44,23 +47,23 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     cloudpath = self.meta.join(self.meta.cloudpath, self.meta.mesh_path)
     return CloudFiles(cloudpath, secrets=self.config.secrets).exists(filenames)
 
-  def get_fragment_labels(self, segid, lod=0, level=2, bbox=None, bypass=False):
+  def get_fragment_labels(self, segid: Any, lod: int = 0, level: int = 2, bbox: Optional[Any] = None, bypass: bool = False) -> list[Any]:
     if bypass:
       return [ segid ]
 
     manifest = self.fetch_manifest(segid, lod, level, bbox, return_segids=True, verify=False)
     return manifest["seg_ids"]
 
-  def get_fragment_filenames(self, segid, lod=0, level=2, bbox=None, bypass=False):
+  def get_fragment_filenames(self, segid: Any, lod: int = 0, level: int = 2, bbox: Optional[Any] = None, bypass: bool = False) -> list[str]:
     if bypass:
       return [ self.compute_filename(segid) ]
 
     manifest = self.fetch_manifest(segid, lod, level, bbox, verify=True)
     return manifest["fragments"]
 
-  def fetch_manifest(self, segid, lod=0, level=2, bbox=None, return_segids=False, verify=True):
+  def fetch_manifest(self, segid: Any, lod: int = 0, level: int = 2, bbox: Optional[Any] = None, return_segids: bool = False, verify: bool = True) -> dict:
     """
-    verify: the server calls exists and returns byte ranges. this is intended 
+    verify: the server calls exists and returns byte ranges. this is intended
       to take advantage of the lower latency on the server side, but can be a
       bottleneck.
     """
@@ -86,8 +89,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     return manifest
 
-  def fetch_manifest_remote(self, segid, lod=0, level=2, bbox=None, return_segids=False, verify=True):
-    query_d = {
+  def fetch_manifest_remote(self, segid: Any, lod: int = 0, level: int = 2, bbox: Optional[Any] = None, return_segids: bool = False, verify: bool = True) -> dict:
+    query_d: dict[str, Any] = {
       'verify': bool(verify),
     }
     if return_segids:
@@ -114,7 +117,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     return json.loads(res.content.decode('utf8'))
 
-  def download_segid(self, seg_id, bounding_box, bypass, use_byte_offsets=True):
+  def download_segid(self, seg_id: Any, bounding_box: Optional[Any], bypass: bool, use_byte_offsets: bool = True) -> tuple[Mesh, bool]:
     """
     Download a mesh for a single segment ID.
 
@@ -125,7 +128,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     use_byte_offsets: Applicable only for the sharded format. Reuse the byte_offsets
       into the sharded format that the server precalculated to accelerate download.
       A time when you might want to switch this off is when you're working on a new
-      meshing job with different sharding parameters but are keeping the existing 
+      meshing job with different sharding parameters but are keeping the existing
       meshes for visualization while it runs.
     allow_missing: If set to True, return None if segid missing. If set to False, throw
       an error.
@@ -145,7 +148,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     is_draco = False
     for i, (filename, frag, _) in enumerate(fragiter):
       mesh = None
-      
+
       if frag is not None:
         try:
           # Easier to ask forgiveness than permission
@@ -153,10 +156,10 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
           is_draco = True
         except DracoPy.FileTypeException:
           mesh = Mesh.from_precomputed(frag)
-          
+
       fragments[i] = mesh
-    
-    fragments = [ f for f in fragments if f is not None ] 
+
+    fragments = [ f for f in fragments if f is not None ]
     if len(fragments) == 0:
       raise IndexError('No mesh fragments found for segment {}'.format(seg_id))
 
@@ -165,13 +168,13 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     return mesh, is_draco
 
   def get(
-      self, segids, 
-      remove_duplicate_vertices=False, 
-      fuse=False, bounding_box=None,
-      bypass=False, use_byte_offsets=True,
-      deduplicate_chunk_boundaries=True,
-      allow_missing=False,
-    ):
+      self, segids: Any,
+      remove_duplicate_vertices: bool = False,
+      fuse: bool = False, bounding_box: Optional[Any] = None,
+      bypass: bool = False, use_byte_offsets: bool = True,
+      deduplicate_chunk_boundaries: bool = True,
+      allow_missing: bool = False,
+    ) -> Union[dict[int, Mesh], Mesh]:
     """
     Merge fragments derived from these segids into a single vertex and face list.
 
@@ -184,11 +187,11 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       remove_duplicate_vertices: bool, fuse exactly matching vertices within a chunk
       fuse: bool, merge all downloaded meshes into a single mesh
       bounding_box: Bbox, bounding box to restrict mesh download to
-      bypass: bypass requesting the manifest and attempt to get the 
-        segids from storage directly by testing the dynamic and then the initial mesh. 
-        This is an exceptional usage of this tool and should be applied only with 
+      bypass: bypass requesting the manifest and attempt to get the
+        segids from storage directly by testing the dynamic and then the initial mesh.
+        This is an exceptional usage of this tool and should be applied only with
         an understanding of what that entails.
-      use_byte_offsets: For sharded volumes, we can use the output of 
+      use_byte_offsets: For sharded volumes, we can use the output of
         exists(..., return_byte_offsets) that the server already did in order
         to skip having to query the sharded format again.
       deduplicate_chunk_boundaries: Our meshing is done in chunks and creates duplicate vertices
@@ -196,7 +199,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
         to True. Superceded by remove_duplicate_vertices.
       allow_missing: If set to True, missing segids will be ignored. If set to False, an error
         is thrown.
-    
+
     Returns: Mesh object if fused, else { segid: Mesh, ... }
     """
     segids = list(set([ int(segid) for segid in toiter(segids) ]))
@@ -204,7 +207,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     exceptions = (IndexError,) if allow_missing else ()
 
-    meshes = []
+    meshes: list[Mesh] = []
     for seg_id in tqdm(segids, disable=(not self.config.progress), desc="Downloading Meshes"):
       level = meta.decode_layer_id(seg_id)
       try:
@@ -245,11 +248,10 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
             offset=offset * resolution,
             is_draco=False,
           )
-      
+
       meshes.append(mesh)
 
     if not fuse:
       return { m.segid: m for m in meshes }
 
     return Mesh.concatenate(*meshes).consolidate()
-

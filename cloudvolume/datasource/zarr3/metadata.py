@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import copy
 import re
 import os
+from typing import Any, Optional
 
 import numpy as np
 
@@ -12,7 +15,7 @@ from cloudvolume.lib import jsonify, Vec, Bbox, spatial_unit_in_meters, time_uni
 from ... import exceptions
 from ...provenance import DataLayerProvenance
 
-ZARR3_VALID_DATATYPES = { 
+ZARR3_VALID_DATATYPES = {
   "int8", "int16", "int32", "int64",
   "uint8", "uint16", "uint32", "uint64",
   "float16", "float32", "float64",
@@ -35,15 +38,15 @@ DEFAULT_CODEC = [
 ]
 
 class Zarr3Metadata(PrecomputedMetadata):
-  def __init__(self, cloudpath, config, cache,  info=None):
-    
+  def __init__(self, cloudpath: str, config: Any, cache: Any, info: Optional[dict] = None) -> None:
+
     orig_info = info
 
     # some default values, to be overwritten
     if not info:
       info = PrecomputedMetadata.create_info(
-        num_channels=1, layer_type='image', data_type='uint8', 
-        encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0], 
+        num_channels=1, layer_type='image', data_type='uint8',
+        encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0],
         volume_size=[1,1,1]
       )
 
@@ -51,9 +54,9 @@ class Zarr3Metadata(PrecomputedMetadata):
       cloudpath, config, cache, info=info, provenance=None
     )
 
-    self.zarrays = []
-    self.zinfo = {}
-    self.ome = self.default_attributes(3)
+    self.zarrays: list[dict] = []
+    self.zinfo: dict[str, Any] = {}
+    self.ome: dict[str, Any] = self.default_attributes(3)
 
     if orig_info is None:
       self.info = self.fetch_info()
@@ -66,10 +69,10 @@ class Zarr3Metadata(PrecomputedMetadata):
       raise ValueError("CloudVolume's zarr3 implementation only supports up to 5 dimensions (x,y,z,channel,time)")
 
   @property
-  def zarr_format(self) -> int:
+  def zarr_format(self) -> Optional[int]:
     return self.zinfo.get("zarr_format", None)
 
-  def compute_resolution(self, mip:int) -> np.ndarray:
+  def compute_resolution(self, mip: int) -> np.ndarray:
     scale = self.datasets()[mip]
 
     transforms = scale["coordinateTransformations"]
@@ -87,7 +90,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return res
 
-  def compute_voxel_offset(self, mip:int) -> np.ndarray:
+  def compute_voxel_offset(self, mip: int) -> np.ndarray:
     ds =  self.datasets()
 
     if len(ds) == 0:
@@ -113,8 +116,8 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return voxel_offset // resolution
 
-  def default_attributes(self, num_axes):
-    ome = {
+  def default_attributes(self, num_axes: int) -> dict[str, Any]:
+    ome: dict[str, Any] = {
       "version": "0.5",
       "multiscales": [
         {
@@ -145,7 +148,7 @@ class Zarr3Metadata(PrecomputedMetadata):
             }
           ],
           "datasets": [
-            
+
           ],
         }
       ],
@@ -153,13 +156,13 @@ class Zarr3Metadata(PrecomputedMetadata):
     ome["multiscales"][0]["axes"] = ome["multiscales"][0]["axes"][-num_axes:]
     return ome
 
-  def spatial_resolution_in_nm(self, mip):
+  def spatial_resolution_in_nm(self, mip: int) -> np.ndarray:
     scale_factors = np.ones([3], dtype=np.float64)
     positions = [0,0,0]
     for i, axis in enumerate(self.axes()):
       if axis["type"] != "space":
         continue
-      
+
       if axis["name"] == "x":
         scale_factors[0] = spatial_unit_in_meters(axis.get("unit", "nanometer"))
         positions[0] = i
@@ -182,7 +185,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return resolution * (scale_factors / 1e-9)
 
-  def time_resolution_in_seconds(self, mip):
+  def time_resolution_in_seconds(self, mip: int) -> float:
     i = 0
     unit = "second"
     for axis in self.axes():
@@ -199,42 +202,42 @@ class Zarr3Metadata(PrecomputedMetadata):
     except IndexError:
       return scale_factor
 
-  def is_group(self):
+  def is_group(self) -> bool:
     return len(self.datasets()) > 0
 
-  def is_sharded(self, mip):
+  def is_sharded(self, mip: int) -> bool:
     for codec in self.codecs(mip):
       if codec.get("name", "") == "sharding_indexed":
         return True
     return False
 
-  def has_time_axis(self):
+  def has_time_axis(self) -> bool:
     try:
       return self.time_index() is not None
     except ValueError:
       return False
 
-  def datasets(self):
+  def datasets(self) -> list[dict[str, Any]]:
     return self.ome["multiscales"][0]["datasets"]
 
-  def axes(self):
+  def axes(self) -> list[dict[str, Any]]:
     return self.ome["multiscales"][0]["axes"]
 
-  def time_index(self):
+  def time_index(self) -> int:
     for i, axis in enumerate(self.axes()):
       if axis["type"] == "time":
         return i
     raise ValueError("No time axis.")
 
-  def shape(self, mip):
-    """Returns Vec(x,y,z,channels) shape of the volume similar to numpy.""" 
+  def shape(self, mip: int) -> Vec:
+    """Returns Vec(x,y,z,channels) shape of the volume similar to numpy."""
     size = self.volume_size(mip)
     values = [size.x, size.y, size.z, self.num_channels]
     if self.has_time_axis():
       values.append(self.num_frames(mip))
     return Vec(*values)
 
-  def spatial_chunk_size(self, mip):
+  def spatial_chunk_size(self, mip: int) -> np.ndarray:
     axes = self.axes()
 
     shape = [0,0,0]
@@ -249,23 +252,23 @@ class Zarr3Metadata(PrecomputedMetadata):
     cs = self.zarrays[0]["chunk_grid"]["configuration"]["chunk_shape"]
     return np.array([ cs[shape[0]], cs[shape[1]], cs[shape[2]] ], dtype=int)
 
-  def time_chunk_size(self, mip):
+  def time_chunk_size(self, mip: int) -> int:
     i = self.time_index()
     return self.zarrays[mip]["chunk_grid"]["configuration"]["chunk_shape"][i]
 
-  def num_time_chunks(self, mip):
+  def num_time_chunks(self, mip: int) -> int:
     nframes = self.num_frames(mip)
     t_chunk_size = self.time_chunk_size(mip)
     return int(np.ceil(nframes / t_chunk_size))
 
-  def num_frames(self, mip):
+  def num_frames(self, mip: int) -> int:
     try:
       i = self.time_index()
       return self.zarrays[mip]["shape"][i]
     except ValueError:
       return 1
 
-  def chunk_name(self, mip, *args, convert_order=False):
+  def chunk_name(self, mip: int, *args: Any, convert_order: bool = False) -> str:
     sep = self.dimension_separator(mip)
 
     if convert_order:
@@ -294,25 +297,25 @@ class Zarr3Metadata(PrecomputedMetadata):
       raise ValueError(f"chunk_key_encoding '{chunk_key_encoding}' is not supported.")
 
   @property
-  def ndim(self):
+  def ndim(self) -> int:
     return len(self.axes())
 
-  def duration_in_seconds(self):
+  def duration_in_seconds(self) -> float:
     return self.time_resolution_in_seconds(0) * self.num_frames(0)
 
-  def codecs(self, mip):
+  def codecs(self, mip: int) -> list[dict[str, Any]]:
     return self.zarrays[mip].get("codecs", [{}])
 
-  def background_color(self, mip):
+  def background_color(self, mip: int) -> Any:
     color = self.zarrays[mip].get("fill_value", 0)
     if color == "NaN":
       return np.nan
     return color
 
-  def set_background_color(self, mip, value):
+  def set_background_color(self, mip: int, value: Any) -> None:
     self.zarrays[mip]["fill_value"] = value
 
-  def filename_regexp(self, mip):
+  def filename_regexp(self, mip: int) -> re.Pattern:
     scale = self.ome["multiscales"][0]
     axes = scale["axes"]
 
@@ -320,7 +323,7 @@ class Zarr3Metadata(PrecomputedMetadata):
     regexp = ""
     if len(self.ome["multiscales"][0]["datasets"]):
       regexp = rf"(?P<mip>\d+){dsep}"
-    
+
     if self.chunk_key_encoding(mip)["name"] == "default":
       regexp += f'c{dsep}'
 
@@ -332,32 +335,32 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return re.compile(regexp)
 
-  def directory_separator(self):
+  def directory_separator(self) -> str:
     cf = CloudFiles(self.cloudpath)
     dsep = '/'
     if cf.protocol == "file":
-      dsep = os.path.sep  
+      dsep = os.path.sep
     if dsep == '\\':
       dsep = '\\\\' # compensate for regexp escaping
     return dsep
 
-  def chunk_key_encoding(self, mip):
+  def chunk_key_encoding(self, mip: int) -> dict[str, Any]:
     return self.zarrays[mip].get("chunk_key_encoding", {
       "name": "default",
       "configuration": { "separator": "/" },
     })
 
-  def dimension_separator(self, mip):
+  def dimension_separator(self, mip: int) -> str:
     data = self.chunk_key_encoding(mip)
     config = data.get("configuration", { "separator": "/" })
     return config.get("separator", "/")
 
-  def commit_info(self):
+  def commit_info(self) -> None:
     self.render_zarr_metadata()
 
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
 
-    to_upload = []
+    to_upload: list[tuple[str, Any]] = []
     if self.is_group():
       for i, zarray in enumerate(self.zarrays):
         to_upload.append(
@@ -383,10 +386,10 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     cf.put_jsons(to_upload, compress=compress)
 
-  def to_zarr_volume_size(self, mip):
+  def to_zarr_volume_size(self, mip: int) -> list[int]:
     axes = self.axes()
-      
-    shape = []
+
+    shape: list[int] = []
     for axis in axes:
       if axis["type"] == "channel":
         shape.append(self.num_channels)
@@ -401,10 +404,10 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return shape
 
-  def zarr_axes_to_cv_axes(self):
+  def zarr_axes_to_cv_axes(self) -> list[int]:
     axes = self.axes()
 
-    shape = []
+    shape: list[int] = []
     for i, axis in enumerate(axes):
       if axis["type"] == "channel":
         shape.append(3)
@@ -419,14 +422,14 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return shape
 
-  def cv_axes_to_zarr_axes(self):
+  def cv_axes_to_zarr_axes(self) -> list[int]:
     seq = self.zarr_axes_to_cv_axes()
     shape = [0] * len(seq)
     for i, val in enumerate(seq):
       shape[val] = i
     return shape
 
-  def render_zarr_metadata(self):
+  def render_zarr_metadata(self) -> None:
     """Convert the current info file into zarr metadata."""
     datasets = []
 
@@ -435,9 +438,9 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     for mip, scale in enumerate(self.scales):
 
-      scale_params = []
-      chunk_params = []
-      translation_params = []
+      scale_params: list[float] = []
+      chunk_params: list[int] = []
+      translation_params: list[float] = []
       for axis in self.axes():
         if axis["type"] == "channel":
           scale_params.append(1.0)
@@ -484,7 +487,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
       zscale["chunk_grid"] = {
         "name": "regular", # core
-        "configuration": { 
+        "configuration": {
           "chunk_shape": [ int(x) for x in chunk_params ],
         }
       }
@@ -500,7 +503,7 @@ class Zarr3Metadata(PrecomputedMetadata):
         },
       })
 
-      # TODO: In the future, figure out how to make it easier to 
+      # TODO: In the future, figure out how to make it easier to
       # render this from info file scales. There's a number of
       # features that don't really translate across the formats
       # like e.g. transpose, crc32, codecs.
@@ -517,12 +520,12 @@ class Zarr3Metadata(PrecomputedMetadata):
       self.zinfo["node_type"] = "array"
 
 
-  def zarr_to_info(self, zarrays):
-    def extract_spatial(attr, dtype):
+  def zarr_to_info(self, zarrays: list[dict]) -> dict:
+    def extract_spatial(attr: Any, dtype: type) -> np.ndarray:
       spatial = np.ones([3], dtype=dtype)
       scale = self.ome["multiscales"][0]
       axes = scale["axes"]
-      
+
       for axis, res in zip(axes, attr):
         if axis["type"] != "space":
           continue
@@ -535,7 +538,7 @@ class Zarr3Metadata(PrecomputedMetadata):
 
       return spatial
 
-    def chunk_size_mip(mip:int):
+    def chunk_size_mip(mip: int) -> list[int]:
       zchunk_size = zarrays[mip]["chunk_grid"]["configuration"]["chunk_shape"]
       chunk_size = zchunk_size[::-1]
       if 'dimension_names' in zarrays[mip]:
@@ -549,13 +552,13 @@ class Zarr3Metadata(PrecomputedMetadata):
             chunk_size[2] = zchunk_size[i]
       return chunk_size
 
-    def extract_spatial_size(mip:int):
+    def extract_spatial_size(mip: int) -> np.ndarray:
       shape = zarrays[mip]["shape"]
       return extract_spatial(shape, int)
 
     try:
-      num_channels = len([ 
-        chan for chan in self.ome["channels"] if chan["active"] 
+      num_channels = len([
+        chan for chan in self.ome["channels"] if chan["active"]
       ])
     except KeyError:
       num_channels = 1
@@ -600,13 +603,13 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return info
 
-  def key(self, mip:int) -> str:
+  def key(self, mip: int) -> str:
     datasets = self.ome["multiscales"][0]["datasets"]
     if len(datasets) == 0:
       return ''
     return datasets[mip].get("path", mip+1)
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict:
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     self.zinfo = cf.get_json("zarr.json")
 
@@ -619,14 +622,14 @@ class Zarr3Metadata(PrecomputedMetadata):
       )
 
     datasets = []
-    
+
     if "attributes" in self.zinfo:
       try:
         # Detect OME-Zarr 0.5
         # https://ngff.openmicroscopy.org/0.5/#metadata
         self.ome = self.zinfo["attributes"]["ome"]
         assert self.ome["version"] == "0.5" # < 1 version number means anything can change...
-      except KeyError: 
+      except KeyError:
         try:
           # OME-Zarr 0.4
           # https://ngff.openmicroscopy.org/0.4/
@@ -649,10 +652,10 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return self.zarr_to_info(self.zarrays)
 
-  def zarr_chunk_size(self, mip:int):
+  def zarr_chunk_size(self, mip: int) -> list[int]:
     cs = self.chunk_size(mip)
 
-    attr = []
+    attr: list[int] = []
     for axis in self.axes():
       if axis["name"] == 't':
         attr.append(self.time_chunk_size(mip))
@@ -667,11 +670,11 @@ class Zarr3Metadata(PrecomputedMetadata):
 
     return attr
 
-  def commit_provenance(self):
+  def commit_provenance(self) -> None:
     """Zarr doesn't support provenance files."""
     pass
 
-  def fetch_provenance(self):
+  def fetch_provenance(self) -> None:
     """Zarr doesn't support provenance files."""
     pass
 

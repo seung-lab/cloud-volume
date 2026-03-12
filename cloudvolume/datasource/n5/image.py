@@ -1,4 +1,6 @@
-from typing import Dict, Tuple, Sequence, Union, Optional
+from __future__ import annotations
+
+from typing import Any, Dict, Tuple, Sequence, Union, Optional
 
 import re
 import os
@@ -10,9 +12,9 @@ from .. import autocropfn, readonlyguard, ImageSourceInterface
 
 from ... import compression
 from ... import chunks
-from ... import exceptions 
-from ...lib import ( 
-  colorize, red, mkdir, Vec, Bbox,  
+from ... import exceptions
+from ...lib import (
+  colorize, red, mkdir, Vec, Bbox,
   jsonify, generate_random_string,
   xyzrange, BboxLikeType
 )
@@ -24,16 +26,16 @@ from ..precomputed.image import xfer
 
 class N5ImageSource(ImageSourceInterface):
   def __init__(
-    self, config, meta, cache,
-    autocrop=False, bounded=True,
-    non_aligned_writes=False,
-    delete_black_uploads=False,
-    fill_missing=False,
-    readonly=False,
-  ):
+    self, config: Any, meta: Any, cache: Any,
+    autocrop: bool = False, bounded: bool = True,
+    non_aligned_writes: bool = False,
+    delete_black_uploads: bool = False,
+    fill_missing: bool = False,
+    readonly: bool = False,
+  ) -> None:
     self.config = config
-    self.meta = meta 
-    self.cache = cache 
+    self.meta = meta
+    self.cache = cache
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
@@ -41,7 +43,7 @@ class N5ImageSource(ImageSourceInterface):
     self.non_aligned_writes = bool(non_aligned_writes)
     self.readonly = bool(readonly)
 
-  def parse_chunk(self, binary, mip, filename, default_shape):
+  def parse_chunk(self, binary: Optional[bytes], mip: int, filename: str, default_shape: list[int]) -> tuple[np.ndarray, list[int]]:
     if binary is None:
       if self.fill_missing:
         data = np.zeros(default_shape, dtype=self.meta.dtype, order="F")
@@ -78,15 +80,15 @@ class N5ImageSource(ImageSourceInterface):
       )
 
     data = chunks.decode(
-      compressed_stream, 
-      encoding='raw', 
-      shape=dims, 
+      compressed_stream,
+      encoding='raw',
+      shape=dims,
       dtype=self.meta.dtype,
       num_threads=self.config.codec_threads,
     )
     return data, dims
 
-  def download(self, bbox, mip, parallel=1, renumber=False, label=None):
+  def download(self, bbox: Any, mip: int, parallel: int = 1, renumber: bool = False, label: Optional[int] = None) -> VolumeCutout:
     if parallel != 1:
       raise ValueError("Only parallel=1 is supported for n5.")
     elif renumber != False:
@@ -96,7 +98,7 @@ class N5ImageSource(ImageSourceInterface):
 
     if self.autocrop:
       image, bounds = autocropfn(self.meta, image, bounds, mip)
-    
+
     if bounds.subvoxel():
       raise exceptions.EmptyRequestException(f'Requested less than one pixel of volume. {bounds}')
 
@@ -137,27 +139,27 @@ class N5ImageSource(ImageSourceInterface):
     return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
 
   @readonlyguard
-  def upload(self, image, offset, mip, parallel:int = 1):
+  def upload(self, image: Any, offset: Any, mip: int, parallel: int = 1) -> None:
     raise NotImplementedError()
 
-  def exists(self, bbox, mip=None):
+  def exists(self, bbox: Any, mip: Optional[int] = None) -> Any:
     raise NotImplementedError()
 
   @readonlyguard
-  def delete(self, bbox, mip=None):
+  def delete(self, bbox: Any, mip: Optional[int] = None) -> None:
     raise NotImplementedError()
 
   def transfer_to(
     self,
-    cloudpath:str, 
-    bbox:BboxLikeType, 
-    mip:MipType, 
-    block_size:Optional[int] = None, 
-    compress:CompressType = True, 
-    compress_level:Optional[int] = None, 
-    encoding:Optional[str] = None,
-    sharded:Optional[bool] = None,
-  ):
+    cloudpath: str,
+    bbox: BboxLikeType,
+    mip: MipType,
+    block_size: Optional[int] = None,
+    compress: CompressType = True,
+    compress_level: Optional[int] = None,
+    encoding: Optional[str] = None,
+    sharded: Optional[bool] = None,
+  ) -> Any:
     pth = paths.extract(cloudpath)
 
     if pth.format != self.meta.path.format and encoding is None:

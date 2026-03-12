@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Optional
+
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import ChannelResource, ExperimentResource, CoordinateFrameResource
 from ...secrets import boss_credentials
@@ -5,18 +9,18 @@ from ...secrets import boss_credentials
 from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
 
 class BossMetadata(PrecomputedMetadata):
-  def __init__(self, cloudpath, cache, info=None):
+  def __init__(self, cloudpath: str, cache: Any, info: Optional[dict] = None) -> None:
     super(BossMetadata, self).__init__(
       cloudpath, cache, info=info, provenance=None
     )
 
-  def commit_info(self):
+  def commit_info(self) -> None:
     """BOSS doesn't support editing metadata after creation."""
-    pass 
+    pass
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict:
     experiment = ExperimentResource(
-      name=self.path.dataset, 
+      name=self.path.dataset,
       collection_name=self.path.bucket
     )
     rmt = BossRemote(boss_credentials)
@@ -26,7 +30,7 @@ class BossMetadata(PrecomputedMetadata):
     coord_frame = rmt.get_project(coord_frame)
 
     channel = ChannelResource(self.path.layer, self.path.bucket, self.path.dataset)
-    channel = rmt.get_project(channel)    
+    channel = rmt.get_project(channel)
 
     unit_factors = {
       'nanometers': 1,
@@ -45,7 +49,7 @@ class BossMetadata(PrecomputedMetadata):
       (cf.x_start, cf.y_start, cf.z_start),
       (cf.x_stop, cf.y_stop, cf.z_stop)
     )
-    bbox.maxpt = bbox.maxpt 
+    bbox.maxpt = bbox.maxpt
 
     layer_type = 'unknown'
     if 'type' in channel.raw:
@@ -65,7 +69,7 @@ class BossMetadata(PrecomputedMetadata):
     each_factor = Vec(2,2,1)
     if experiment.hierarchy_method == 'isotropic':
       each_factor = Vec(2,2,2)
-    
+
     factor = each_factor.clone()
     for _ in range(1, experiment.num_hierarchy_levels):
       self.add_scale(factor, info=info)
@@ -73,10 +77,10 @@ class BossMetadata(PrecomputedMetadata):
 
     return info
 
-  def commit_provenance(self):
+  def commit_provenance(self) -> None:
     """BOSS doesn't support provenance files."""
     pass
 
-  def fetch_provenance(self):
+  def fetch_provenance(self) -> None:
     """BOSS doesn't support provenance files."""
     pass
