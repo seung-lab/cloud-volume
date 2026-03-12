@@ -1,4 +1,6 @@
-from typing import List
+from __future__ import annotations
+
+from typing import Any, Generator, List, Optional, Union
 
 from collections.abc import Iterable
 from functools import reduce
@@ -12,46 +14,50 @@ import multiprocessing as mp
 import numpy as np
 from tqdm import tqdm
 
-from cloudfiles import CloudFiles 
+from cloudfiles import CloudFiles
 
 from ... import exceptions
 from ...provenance import DatasetProvenance, DataLayerProvenance
 
 from ... import lib
-from ...lib import ( 
-  colorize, red, mkdir, 
-  Vec, Bbox, jsonify, 
+from ...lib import (
+  colorize, red, mkdir,
+  Vec, Bbox, jsonify,
 )
 from ...paths import strict_extract, ascloudpath, to_https_protocol
 
-def downscale(size, factor_in_mip, roundingfn):
+def downscale(
+  size: tuple,
+  factor_in_mip: Union[Vec, tuple],
+  roundingfn: Any,
+) -> list[int]:
   smaller = Vec(*size, dtype=np.float32) / Vec(*factor_in_mip)
   return list(map(int, roundingfn(smaller)))
 
 class PrecomputedMetadata(object):
   """
   The PrecomputedMetadataService provides methods for fetching,
-  saving, and accessing information about the data type & compression, 
-  bounding box, resolution, and provenance of a given dataset 
-  stored in Precomputed format.  
+  saving, and accessing information about the data type & compression,
+  bounding box, resolution, and provenance of a given dataset
+  stored in Precomputed format.
 
   This class is a building block for building a class that can
   read and write Precomputed data types.
   """
   def __init__(
-    self, cloudpath, config, cache=None, 
-    info=None, provenance=None, 
-    max_redirects=10, use_https=False
-  ):
+    self, cloudpath: str, config: Any, cache: Optional[Any] = None,
+    info: Optional[dict] = None, provenance: Optional[dict] = None,
+    max_redirects: int = 10, use_https: bool = False
+  ) -> None:
     self.path = strict_extract(cloudpath)
     self.cache = cache
     if self.cache:
       self.cache.meta = self
     self.config = config
-    self.info = None
-    self.rois = None
+    self.info: Optional[dict] = None
+    self.rois: Optional[List[Bbox]] = None
 
-    self.redirected_from = []
+    self.redirected_from: list = []
     self.use_https = use_https
 
     if info is None:
@@ -62,38 +68,41 @@ class PrecomputedMetadata(object):
       self.info = info
 
     if provenance is None:
-      self.provenance = None
+      self.provenance: Optional[DataLayerProvenance] = None
       self.refresh_provenance()
       if self.cache.enabled:
         self.cache.check_provenance_validity()
     else:
       self.provenance = self._cast_provenance(provenance)
 
-  def check_for_placeholder_scale(self, mip:int):
+  def check_for_placeholder_scale(self, mip: int) -> bool:
     key = self.key(mip).lower()
     return 'placeholder' in key
 
   @classmethod
-  def create_info(cls, 
-    num_channels, layer_type, data_type, encoding, 
-    resolution, voxel_offset, volume_size, 
-    mesh=None, skeletons=None, chunk_size=(128,128,64),
-    compressed_segmentation_block_size=(8,8,8),
-    max_mip=0, factor=Vec(2,2,1), redirect=None,
-    encoding_level=None, encoding_effort=None,
-  ):
+  def create_info(cls,
+    num_channels: int, layer_type: str, data_type: str, encoding: str,
+    resolution: tuple, voxel_offset: tuple, volume_size: tuple,
+    mesh: Optional[str] = None, skeletons: Optional[str] = None,
+    chunk_size: tuple = (128,128,64),
+    compressed_segmentation_block_size: tuple = (8,8,8),
+    max_mip: int = 0, factor: Vec = Vec(2,2,1),
+    redirect: Optional[str] = None,
+    encoding_level: Optional[int] = None,
+    encoding_effort: Optional[int] = None,
+  ) -> dict:
     """
     Create a new neuroglancer Precomputed info file.
 
     Required:
-      num_channels: (int) 1 for grayscale, 3 for RGB 
+      num_channels: (int) 1 for grayscale, 3 for RGB
       layer_type: (str) typically "image" or "segmentation"
       data_type: (str) e.g. "uint8", "uint16", "uint32", "float32"
       encoding: (str) "raw" for binaries like numpy arrays, "jpeg"
       resolution: float (x,y,z), x,y,z voxel dimensions in nanometers
       voxel_offset: int (x,y,z), beginning of dataset in positive cartesian space
       volume_size: int (x,y,z), extent of dataset in cartesian space from voxel_offset
-    
+
     Optional:
       mesh: (str) name of mesh directory, typically "mesh"
       skeletons: (str) name of skeletons directory, typically "skeletons"
@@ -137,7 +146,7 @@ class PrecomputedMetadata(object):
 
     if redirect is not None:
       info['redirect'] = str(redirect)
- 
+
     # add mip levels
     # the max_mip should be inclusive
     for mip in range(1, max_mip + 1):
@@ -150,13 +159,13 @@ class PrecomputedMetadata(object):
       info['mesh'] = 'mesh' if not isinstance(mesh, str) else mesh
 
     if skeletons:
-      info['skeletons'] = 'skeletons' if not isinstance(skeletons, str) else skeletons      
-    
+      info['skeletons'] = 'skeletons' if not isinstance(skeletons, str) else skeletons
+
     return info
 
-  def refresh_info(self, max_redirects=10, force_fetch=False):
+  def refresh_info(self, max_redirects: int = 10, force_fetch: bool = False) -> dict:
     """
-    Refresh the current info file from the cache (if enabled) 
+    Refresh the current info file from the cache (if enabled)
     or primary storage (e.g. the cloud) if not cached.
 
     max_redirects: number of times to allow redirection. set to 0 to
@@ -164,11 +173,11 @@ class PrecomputedMetadata(object):
     force_fetch: bypass the cache for reading, but allow writing
 
     Raises:
-      cloudvolume.exceptions.InfoUnavailableError when the info file 
+      cloudvolume.exceptions.InfoUnavailableError when the info file
         is unable to be retrieved.
       cloudvolume.exceptions.TooManyRedirects if more than max_redirects
         are followed.
-      cloudvolume.exceptions.CyclicRedirect if a previously visited 
+      cloudvolume.exceptions.CyclicRedirect if a previously visited
         location is revisited.
 
     See also: fetch_info
@@ -188,24 +197,24 @@ class PrecomputedMetadata(object):
       self.cache.maybe_cache_info()
     return self.info
 
-  def parse_rois(self, info) -> List[Bbox]:
+  def parse_rois(self, info: dict) -> Optional[List[Bbox]]:
     """Parse ROIs from the info file at mip 0."""
     scale = info['scales'][0]
     if 'rois' not in scale:
       return None
 
-    bboxes = [ 
-      Bbox.from_list(roi) for roi in scale["rois"] 
+    bboxes = [
+      Bbox.from_list(roi) for roi in scale["rois"]
     ]
     bboxes.sort(key=lambda bx: bx.minpt.z)
     return bboxes
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict:
     """
     Refresh the current info file from primary storage (e.g. the cloud) without
     refrence to the cache. The cache will not be updated.
-  
-    Raises cloudvolume.exceptions.InfoUnavailableError when the info file 
+
+    Raises cloudvolume.exceptions.InfoUnavailableError when the info file
     is unable to be retrieved.
 
     See also: refresh_info
@@ -221,7 +230,7 @@ class PrecomputedMetadata(object):
 
     return info
 
-  def redirectable_fetch_info(self, max_redirects=10):
+  def redirectable_fetch_info(self, max_redirects: int = 10) -> dict:
     """
     Refresh the current info file from primary storage (e.g. the cloud) without
     refrence to the cache. The cache will not be updated. 'redirect' links
@@ -229,22 +238,22 @@ class PrecomputedMetadata(object):
     an exception will be raised.
 
     Raises:
-      cloudvolume.exceptions.InfoUnavailableError when the info file 
+      cloudvolume.exceptions.InfoUnavailableError when the info file
         is unable to be retrieved.
       cloudvolume.exceptions.TooManyRedirects if more than max_redirects
         are followed.
-      cloudvolume.exceptions.CyclicRedirect if a previously visited 
+      cloudvolume.exceptions.CyclicRedirect if a previously visited
         location is revisited.
 
     See also: refresh_info, fetch_info
 
     Optional:
-      max_redirects: if 'redirect' is specified in an info file, 
+      max_redirects: if 'redirect' is specified in an info file,
         follow the link up to this many times to the pointed locations.
 
     Returns: dict
     """
-    visited = []
+    visited: list = []
 
     if max_redirects <= 0:
       return self.fetch_info()
@@ -265,19 +274,19 @@ class PrecomputedMetadata(object):
         path = to_https_protocol(path)
 
       if path == self.path:
-        break 
+        break
       elif path in visited:
         raise exceptions.CyclicRedirect(
           """
 Tried to redirect through a cycle.
 
 Start: {}
-Hops: 
+Hops:
 \t{}
 \n""".format(
-          start, 
-          "\n\t".join([ 
-            str(i+1) + ". " + ascloudpath(v) for i, v in enumerate(visited) 
+          start,
+          "\n\t".join([
+            str(i+1) + ". " + ascloudpath(v) for i, v in enumerate(visited)
           ]))
         )
 
@@ -292,21 +301,21 @@ Hops:
 
     return info
 
-  def commit_info(self):
+  def commit_info(self) -> None:
     """
     Save the current info dict as JSON into cache and primary storage.
 
     Raises KeyError if an encoding of 'compressed_segmentation' is specified
     without 'compressed_segmentation_block_size'.
 
-    Raises ValueError if 'compressed_segmentation' is specified and the 
+    Raises ValueError if 'compressed_segmentation' is specified and the
     data type is not uint32 or uint64.
     """
     for scale in self.scales:
       if scale['encoding'] == 'compressed_segmentation':
         if 'compressed_segmentation_block_size' not in scale.keys():
           raise KeyError("""
-            'compressed_segmentation_block_size' must be set if 
+            'compressed_segmentation_block_size' must be set if
             compressed_segmentation is set as the encoding.
 
             A typical value for compressed_segmentation_block_size is (8,8,8)
@@ -317,9 +326,9 @@ Hops:
         elif self.data_type not in ('uint32', 'uint64'):
           raise ValueError("compressed_segmentation can only be used with uint32 and uint64 data types.")
 
-    infojson = jsonify(self.info, 
+    infojson = jsonify(self.info,
       sort_keys=True,
-      indent=2, 
+      indent=2,
       separators=(',', ': ')
     )
     # use put instead of put_json to preserve formatting
@@ -333,9 +342,9 @@ Hops:
     if self.cache:
       self.cache.maybe_cache_info()
 
-  def refresh_provenance(self):
+  def refresh_provenance(self) -> Optional[DataLayerProvenance]:
     """
-    Refresh the current irovenance file from the cache (if enabled) 
+    Refresh the current irovenance file from the cache (if enabled)
     or primary storage (e.g. the cloud) if not cached. If the provenance
     file does not exist, no error is raised and None is returned.
 
@@ -357,26 +366,26 @@ Hops:
       self.cache.maybe_cache_provenance()
     return self.provenance
 
-  def _cast_provenance(self, prov):
+  def _cast_provenance(self, prov: Union[DataLayerProvenance, str, dict]) -> DataLayerProvenance:
     if isinstance(prov, DataLayerProvenance):
       return prov
     elif isinstance(prov, str):
       prov = json.loads(prov)
 
     provobj = DataLayerProvenance(**prov)
-    provobj.sources = provobj.sources or []  
+    provobj.sources = provobj.sources or []
     provobj.owners = provobj.owners or []
     provobj.processing = provobj.processing or []
     provobj.description = provobj.description or ""
     provobj.validate()
     return provobj
 
-  def fetch_provenance(self):
+  def fetch_provenance(self) -> DataLayerProvenance:
     """
     Refresh the current provenance file from primary storage (e.g. the cloud)
     without reference to cache. The cache will not be updated.
-  
-    Raises cloudvolume.exceptions.provenanceUnavailableError when the info file 
+
+    Raises cloudvolume.exceptions.provenanceUnavailableError when the info file
     is unable to be retrieved.
 
     See also: refresh_provenance
@@ -389,7 +398,7 @@ Hops:
       provfile = provfile.decode('utf-8')
 
       # The json5 decoder is *very* slow
-      # so use the stricter but much faster json 
+      # so use the stricter but much faster json
       # decoder first, and try it only if it fails.
       try:
         provfile = json.loads(provfile)
@@ -397,8 +406,8 @@ Hops:
         try:
           provfile = json5.loads(provfile)
         except ValueError:
-          raise ValueError(red("""The provenance file could not be JSON decoded. 
-            Please reformat the provenance file before continuing. 
+          raise ValueError(red("""The provenance file could not be JSON decoded.
+            Please reformat the provenance file before continuing.
             Contents: {}""".format(provfile)))
     else:
       provfile = {
@@ -410,26 +419,26 @@ Hops:
 
     return self._cast_provenance(provfile)
 
-  def commit_provenance(self):
+  def commit_provenance(self) -> None:
     """
-    Save the current provenance object as JSON into cache (if enabled) 
+    Save the current provenance object as JSON into cache (if enabled)
     and primary storage.
     """
     prov = self.provenance.serialize()
 
     # hack to pretty print provenance files
     prov = json.loads(prov)
-    prov = jsonify(prov, 
+    prov = jsonify(prov,
       sort_keys=True,
-      indent=2, 
+      indent=2,
       separators=(',', ': ')
     )
 
     # need to use put vs put_json to preserve formatting
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     cf.put(
-      'provenance', prov, 
-      cache_control='no-cache', 
+      'provenance', prov,
+      cache_control='no-cache',
       content_type='application/json'
     )
 
@@ -437,88 +446,88 @@ Hops:
       self.cache.maybe_cache_provenance()
 
   @property
-  def dataset(self):
+  def dataset(self) -> str:
     return self.path.dataset
-  
+
   @property
-  def layer(self):
+  def layer(self) -> str:
     return self.path.layer
 
   @property
-  def scales(self):
+  def scales(self) -> list:
     return self.info['scales']
 
   @scales.setter
-  def scales(self, val):
+  def scales(self, val: list) -> None:
     self.info['scales'] = val
 
-  def scale(self, mip):
+  def scale(self, mip: int) -> dict:
     return self.info['scales'][mip]
 
-  def join(self, *paths):
+  def join(self, *paths: str) -> str:
     if self.path.protocol == 'file':
       return os.path.join(*paths)
     else:
       return posixpath.join(*paths)
 
   @property
-  def basepath(self):
+  def basepath(self) -> str:
     return self.path.basepath
-    
-  @property 
-  def layerpath(self):
+
+  @property
+  def layerpath(self) -> str:
     return self.join(self.basepath, self.layer)
 
   @property
-  def base_cloudpath(self):
+  def base_cloudpath(self) -> str:
     return self.path.protocol + "://" + self.basepath
 
-  @property 
-  def cloudpath(self):
-    return self.join(self.base_cloudpath, self.layer)
-  
   @property
-  def infopath(self):
+  def cloudpath(self) -> str:
+    return self.join(self.base_cloudpath, self.layer)
+
+  @property
+  def infopath(self) -> str:
     return self.join(self.cloudpath, 'info')
 
   @property
-  def skeletons(self):
+  def skeletons(self) -> Optional[str]:
     return self.info['skeletons'] if 'skeletons' in self.info else None
 
   @property
-  def mesh(self):
+  def mesh(self) -> Optional[str]:
     return self.info['mesh'] if 'mesh' in self.info else None
 
-  def shape(self, mip):
-    """Returns Vec(x,y,z,channels) shape of the volume similar to numpy.""" 
+  def shape(self, mip: int) -> Vec:
+    """Returns Vec(x,y,z,channels) shape of the volume similar to numpy."""
     size = self.volume_size(mip)
     return Vec(size.x, size.y, size.z, self.num_channels)
 
-  def volume_size(self, mip):
-    """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels).""" 
+  def volume_size(self, mip: int) -> Vec:
+    """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels)."""
     return Vec(*self.info['scales'][mip]['size'])
 
-  def voxels(self, mip):
+  def voxels(self, mip: int) -> int:
     """Returns the number of voxels in this mip level."""
     return reduce(operator.mul, self.volume_size(mip))
 
   @property
-  def available_mips(self):
+  def available_mips(self) -> range:
     """Returns a list of mip levels that are defined."""
     return range(len(self.info['scales']))
 
   @property
-  def available_resolutions(self):
+  def available_resolutions(self) -> Generator:
     """Returns a list of defined resolutions."""
     return (s["resolution"] for s in self.scales)
 
   @property
-  def layer_type(self):
+  def layer_type(self) -> str:
     """e.g. 'image' or 'segmentation'"""
     return self.info['type']
 
   @property
-  def dtype(self):
+  def dtype(self) -> np.dtype:
     """e.g. np.uint8"""
     return np.dtype(self.data_type)
 
@@ -527,7 +536,7 @@ Hops:
     """e.g. 'uint8'"""
     return self.info['data_type']
 
-  def encoding(self, mip, encoding=None):
+  def encoding(self, mip: int, encoding: Optional[str] = None) -> str:
     """
     If encoding is provided, set the encoding for this
     mip level. If the encoding is not provided, this is
@@ -550,7 +559,7 @@ Hops:
 
     return encoding
 
-  def compression_params(self, mip):
+  def compression_params(self, mip: int) -> dict:
     encoding = self.encoding(mip)
     scale = self.scale(mip)
     if encoding == 'zfpc':
@@ -568,7 +577,7 @@ Hops:
     else:
       return {}
 
-  def jpegxl_encoding_params(self, mip):
+  def jpegxl_encoding_params(self, mip: int) -> dict:
     """
     Returns tuning arguments for jpegxl compression.
     """
@@ -579,12 +588,12 @@ Hops:
       "jxl_decodingspeed": scale.get("jxl_decodingspeed", None),
     }
 
-  def zfpc_encoding_params(self, mip):
+  def zfpc_encoding_params(self, mip: int) -> dict:
     """
     Returns tuning arguments for zfpc.compress.
 
     Reads parameters from scale:
-    zfpc_rate, zfpc_precision, zfpc_tolerance, 
+    zfpc_rate, zfpc_precision, zfpc_tolerance,
     and zfpc_correlated_dims ([bool x 4])
     """
     scale = self.scale(mip)
@@ -595,16 +604,16 @@ Hops:
       'correlated_dims': scale.get('zfpc_correlated_dims', [True]*4),
     }
 
-  def compressed_segmentation_block_size(self, mip):
+  def compressed_segmentation_block_size(self, mip: int) -> Optional[list]:
     if 'compressed_segmentation_block_size' in self.info['scales'][mip]:
       return self.info['scales'][mip]['compressed_segmentation_block_size']
     return None
 
   @property
-  def num_channels(self):
+  def num_channels(self) -> int:
     return int(self.info['num_channels'])
 
-  def voxel_offset(self, mip):
+  def voxel_offset(self, mip: int) -> Vec:
     """Vec(x,y,z) start of the dataset in voxels"""
     scale = self.scale(mip)
     if 'voxel_offset' in scale:
@@ -612,13 +621,13 @@ Hops:
     else:
       return Vec(0,0,0)
 
-  def resolution(self, mip):
+  def resolution(self, mip: int) -> Vec:
     """Vec(x,y,z) dimensions of each voxel in nanometers"""
     res = self.info['scales'][mip]['resolution']
     dtype = float if lib.floating(res) else int
     return Vec(*res, dtype=dtype)
 
-  def to_mip(self, mip):
+  def to_mip(self, mip: Union[int, Iterable]) -> int:
     mip = list(mip) if isinstance(mip, Iterable) else int(mip)
     try:
       if isinstance(mip, list):  # mip specified by voxel resolution
@@ -632,7 +641,7 @@ Hops:
         opening_text = "Scale <{}>".format(", ".join(map(str, mip)))
       else:
         opening_text = "MIP {}".format(str(mip))
-  
+
       scales = [ ",".join(map(str, scale)) for scale in self.available_resolutions ]
       scales = [ "<{}>".format(scale) for scale in scales ]
       scales = ", ".join(scales)
@@ -641,44 +650,44 @@ Hops:
       )
       raise exceptions.ScaleUnavailableError(msg)
 
-  def downsample_ratio(self, mip):
+  def downsample_ratio(self, mip: int) -> Vec:
     """Describes how downsampled the current mip level is as an (x,y,z) factor triple."""
     return self.resolution(mip) / self.resolution(0)
 
-  def chunk_size(self, mip):
+  def chunk_size(self, mip: int) -> Vec:
     """Underlying chunk size dimensions in voxels. Synonym for underlying."""
     return Vec(*self.scale(mip)['chunk_sizes'][0])
 
-  def key(self, mip):
+  def key(self, mip: int) -> str:
     """The subdirectory within the data layer containing the chunks for this mip level"""
     return self.scale(mip)['key']
 
   @property
-  def keys(self):
+  def keys(self) -> list[str]:
     return [ self.key(mip) for mip in self.available_mips ]
 
-  def bounds(self, mip):
+  def bounds(self, mip: int) -> Bbox:
     """Returns a 3D spatial bounding box for the dataset with dimensions in voxels."""
     offset = self.voxel_offset(mip)
     shape = self.volume_size(mip)
     return Bbox( offset, offset + shape )
 
-  def bbox(self, mip):
+  def bbox(self, mip: int) -> Bbox:
     bounds = self.bounds(mip)
     minpt = list(bounds.minpt) + [ 0 ]
     maxpt = list(bounds.maxpt) + [ self.num_channels ]
     return Bbox(minpt, maxpt)
 
-  def point_to_mip(self, pt, mip, to_mip):
+  def point_to_mip(self, pt: Any, mip: int, to_mip: int) -> np.ndarray:
     pt = Vec(*pt)
     downsample_ratio = self.resolution(mip).astype(np.float32) / self.resolution(to_mip).astype(np.float32)
     return np.floor(pt * downsample_ratio).astype(np.int64)
 
-  def bbox_to_mip(self, bbox, mip, to_mip):
+  def bbox_to_mip(self, bbox: Any, mip: int, to_mip: int) -> Bbox:
     """Convert bbox or slices from one mip level to another."""
     bbox = Bbox.create(bbox, self.bounds(mip))
 
-    def one_level(bbox, mip, to_mip):
+    def one_level(bbox: Bbox, mip: int, to_mip: int) -> Bbox:
       original_dtype = bbox.dtype
       # setting type required for Python2
       downsample_ratio = self.resolution(mip).astype(np.float32) / self.resolution(to_mip).astype(np.float32)
@@ -696,10 +705,10 @@ Hops:
 
     return bbox
 
-  def overlaps_roi(self, pt_or_bbox, mip = 0) -> bool:
+  def overlaps_roi(self, pt_or_bbox: Any, mip: int = 0) -> bool:
     """Returns True if the point or bbox overlaps the ROI including the boundary."""
     if self.rois is None:
-      return True      
+      return True
 
     if isinstance(pt_or_bbox, Bbox):
       if mip > 0:
@@ -718,30 +727,31 @@ Hops:
 
     return False
 
-  def reset_scales(self):
+  def reset_scales(self) -> None:
     """Used for manually resetting downsamples if something messed up."""
     self.info['scales'] = self.info['scales'][0:1]
 
   def add_resolution(
-    self, res, encoding=None, 
-    chunk_size=None, info=None,
-    encoding_level=None,
-  ):
+    self, res: tuple, encoding: Optional[str] = None,
+    chunk_size: Optional[tuple] = None, info: Optional[dict] = None,
+    encoding_level: Optional[int] = None,
+  ) -> dict:
     if lib.floating(res):
       factor = Vec(*res, dtype=float) / self.resolution(0)
     else:
       factor = Vec(*res) // self.resolution(0)
 
     return self.add_scale(
-      factor, encoding, chunk_size, info, 
+      factor, encoding, chunk_size, info,
       encoding_level=encoding_level
     )
 
   def add_scale(
-    self, factor, 
-    encoding=None, chunk_size=None, info=None,
-    encoding_level=None,
-  ):
+    self, factor: Any,
+    encoding: Optional[str] = None, chunk_size: Optional[tuple] = None,
+    info: Optional[dict] = None,
+    encoding_level: Optional[int] = None,
+  ) -> dict:
     """
     Generate a new downsample scale to for the info file and return an updated dictionary.
     You'll still need to call self.commit_info() to make it permenant.
@@ -769,8 +779,8 @@ Hops:
         )
         break
 
-    # e.g. {"encoding": "raw", "chunk_sizes": [[64, 64, 64]], "key": "4_4_40", 
-    # "resolution": [4, 4, 40], "voxel_offset": [0, 0, 0], 
+    # e.g. {"encoding": "raw", "chunk_sizes": [[64, 64, 64]], "key": "4_4_40",
+    # "resolution": [4, 4, 40], "voxel_offset": [0, 0, 0],
     # "size": [2048, 2048, 256]}
     fullres = info['scales'][0]
 
@@ -778,7 +788,7 @@ Hops:
     # zooming out will slightly shift the data.
     # Imagine the offset is 10
     #    the mip 1 will have an offset of 5
-    #    the mip 2 will have an offset of 2 instead of 2.5 
+    #    the mip 2 will have an offset of 2 instead of 2.5
     #        meaning that it will be half a pixel to the left
     if chunk_size is None:
       chunk_size = lib.find_closest_divisor(fullres['chunk_sizes'][0], closest_to=[64,64,64])
@@ -813,8 +823,8 @@ Hops:
 
     if newscale['encoding'] == 'compressed_segmentation':
       if 'compressed_segmentation_block_size' in fullres:
-        newscale['compressed_segmentation_block_size'] = fullres['compressed_segmentation_block_size']  
-      else: 
+        newscale['compressed_segmentation_block_size'] = fullres['compressed_segmentation_block_size']
+      else:
         newscale['compressed_segmentation_block_size'] = (8,8,8)
 
     newscale[u'key'] = str("_".join([ str(res) for res in newscale['resolution']]))
@@ -829,12 +839,12 @@ Hops:
         info['scales'][index] = newscale
         break
 
-    if not preexisting:    
+    if not preexisting:
       info['scales'].append(newscale)
 
     return newscale
 
-  def lock_mips(self, mips):
+  def lock_mips(self, mips: Union[int, Iterable]) -> None:
     """
     Establishes a write lock on the specified mip levels.
     The lock is written to the cloud info file.
@@ -856,7 +866,7 @@ Hops:
       msg = lib.red("Unable to acquire write lock on mips {}!".format(list(mips)))
       raise exceptions.WriteLockAcquisitionError(msg)
 
-  def unlock_mips(self, mips):
+  def unlock_mips(self, mips: Union[int, Iterable]) -> None:
     """
     Releases a write lock on the specified mip levels.
     The lock is written to the cloud info file.
@@ -878,5 +888,5 @@ Hops:
       msg = lib.yellow("Unable to release lock on mips {}".format(list(mips)))
       raise exceptions.WriteLockReleaseError(msg)
 
-  def locked_mips(self):
+  def locked_mips(self) -> set[int]:
     return set([ i for i, scale in enumerate(self.info['scales']) if scale.get('locked', False) ])

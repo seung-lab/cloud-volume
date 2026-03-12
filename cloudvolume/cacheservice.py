@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 from functools import partial, lru_cache
 import json
 import os
 import posixpath
 import shutil
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from . import scheduler
 
@@ -11,15 +14,15 @@ from cloudfiles import CloudFiles, compression
 from cloudfiles.interfaces import COMPRESSION_EXTENSIONS
 
 from .lib import (
-  Bbox, colorize, jsonify, mkdir, 
+  Bbox, colorize, jsonify, mkdir,
   toabs, Vec, nvl
 )
 
-def warn(text):
+def warn(text: str) -> None:
   print(colorize('yellow', text))
 
 @lru_cache
-def no_compression_ext(list_dir:str):
+def no_compression_ext(list_dir: str) -> List[str]:
   fnames = os.listdir(mkdir(list_dir))
 
   results = []
@@ -36,31 +39,31 @@ def no_compression_ext(list_dir:str):
 
 class CacheService(object):
   def __init__(
-    self, cloudpath,
-    enabled, config,
-    meta=None, compress=None
-  ):
+    self, cloudpath: str,
+    enabled: Union[bool, str], config: Any,
+    meta: Optional[Any] = None, compress: Optional[Union[str, bool]] = None
+  ) -> None:
     """
     enabled: bool or path string
-    config: SharedConfiguration 
+    config: SharedConfiguration
     meta: PrecomputedMetadata
     compress: None = linked to dataset setting, bool = Force
     """
     self.path = cloudpath
 
     self.config = config
-    self._enabled = enabled 
-    self.compress = compress 
+    self._enabled = enabled
+    self.compress = compress
 
     # b/c there's a semi-circular dependency
     # meta is usually set afterwards
-    self.meta = meta 
+    self.meta = meta
 
     self.initialize()
 
-  def initialize(self):
+  def initialize(self) -> None:
     if not self.enabled:
-      return 
+      return
 
     if not os.path.exists(self.path):
       mkdir(self.path)
@@ -69,16 +72,16 @@ class CacheService(object):
       raise IOError('Cache directory needs read/write permission: ' + self.path)
 
   @property
-  def enabled(self):
+  def enabled(self) -> Union[bool, str]:
     return self._enabled
 
   @enabled.setter
-  def enabled(self, val):
-    self._enabled = val 
+  def enabled(self, val: Union[bool, str]) -> None:
+    self._enabled = val
     self.initialize()
-  
-  def num_files(self, all_mips=False):
-    def size(mip):
+
+  def num_files(self, all_mips: bool = False) -> Union[int, List[int]]:
+    def size(mip: int) -> int:
       path_at_mip = os.path.join(self.path, self.meta.key(mip))
       if not os.path.exists(path_at_mip):
         return 0
@@ -92,14 +95,14 @@ class CacheService(object):
     else:
       return size(self.config.mip)
 
-  def num_bytes(self, all_mips=False):
-    def mip_size(mip):
+  def num_bytes(self, all_mips: bool = False) -> Union[int, List[int]]:
+    def mip_size(mip: int) -> int:
       path_at_mip = os.path.join(self.path, self.meta.key(mip))
       if not os.path.exists(path_at_mip):
         return 0
 
-      return sum( 
-        ( os.path.getsize(os.path.join(path_at_mip, filename)) for filename in os.listdir(path_at_mip) ) 
+      return sum(
+        ( os.path.getsize(os.path.join(path_at_mip, filename)) for filename in os.listdir(path_at_mip) )
       )
 
     if all_mips:
@@ -110,16 +113,16 @@ class CacheService(object):
     else:
       return mip_size(self.config.mip)
 
-  def cloudfiles(self):
+  def cloudfiles(self) -> CloudFiles:
     return CloudFiles(
-      'file://' + self.path, 
+      'file://' + self.path,
       locking=self.config.cache_locking
     )
 
-  def has(self, filename):
+  def has(self, filename: str) -> bool:
     return self.cloudfiles().exists(filename)
-    
-  def list(self, mip=None):
+
+  def list(self, mip: Optional[int] = None) -> List[str]:
     mip = self.config.mip if mip is None else mip
 
     path = os.path.join(self.path, self.meta.key(mip))
@@ -129,7 +132,7 @@ class CacheService(object):
 
     return os.listdir(path)
 
-  def list_skeletons(self):
+  def list_skeletons(self) -> List[str]:
     if self.meta.skeletons is None:
       return []
 
@@ -139,7 +142,7 @@ class CacheService(object):
 
     return os.listdir(path)
 
-  def list_meshes(self):
+  def list_meshes(self) -> List[str]:
     if self.meta.mesh is None:
       return []
 
@@ -149,19 +152,19 @@ class CacheService(object):
 
     return os.listdir(path)
 
-  def flush_info(self):
+  def flush_info(self) -> None:
     path = os.path.join(self.path , 'info')
     if not os.path.exists(path):
       return
     os.remove(path)
 
-  def flush_provenance(self):
+  def flush_provenance(self) -> None:
     path = os.path.join(self.path , 'provenance')
     if not os.path.exists(path):
       return
     os.remove(path)
 
-  def delete(self, filenames):
+  def delete(self, filenames: Union[str, Sequence[str]]) -> None:
     filenames = toiter(filenames)
 
     for filename in filenames:
@@ -169,7 +172,7 @@ class CacheService(object):
       if os.path.exists(path):
         os.remove(path)
 
-  def flush(self, preserve=None):
+  def flush(self, preserve: Optional[Bbox] = None) -> None:
     """
     Delete the cache for this dataset. Optionally preserve
     a region. Helpful when working with overlaping volumes.
@@ -179,8 +182,8 @@ class CacheService(object):
 
     Optional:
       preserve (Bbox: None): Preserve chunks located partially
-        or entirely within this bounding box. 
-    
+        or entirely within this bounding box.
+
     Return: void
     """
     self.cloudfiles().clear_locks()
@@ -206,29 +209,29 @@ class CacheService(object):
 
   # flush_cache_region seems like it could be tacked on
   # as a flag to delete, but there are reasons not
-  # to do that. 
-  # 1) reduces the risks of disasterous programming errors. 
+  # to do that.
+  # 1) reduces the risks of disasterous programming errors.
   # 2) doesn't require chunk alignment
   # 3) processes potentially multiple mips at once
 
-  def flush_region(self, region, mips=None):
+  def flush_region(self, region: Bbox, mips: Optional[Sequence[int]] = None) -> None:
     """
-    Delete a cache region at one or more mip levels 
+    Delete a cache region at one or more mip levels
     bounded by a Bbox for this dataset. Bbox coordinates
     should be specified in mip 0 coordinates.
 
     Required:
       region (Bbox): Delete cached chunks located partially
-        or entirely within this bounding box. 
+        or entirely within this bounding box.
     Optional:
       mip (int: None): Flush the cache from this mip. Region
         is in global coordinates.
-    
+
     Return: void
     """
     if not os.path.exists(self.path):
       return
-  
+
     cur_mip = self.config.mip
 
     region = Bbox.create(region, self.meta.bounds(cur_mip))
@@ -245,7 +248,7 @@ class CacheService(object):
         if not Bbox.intersects(region, bbox):
           os.remove(os.path.join(mip_path, filename))
 
-  def check_info_validity(self):
+  def check_info_validity(self) -> None:
     """
     ValueError if cache differs at all from source data layer with
     an excepton for volume_size which prints a warning.
@@ -257,7 +260,7 @@ class CacheService(object):
 
     mismatch_error = ValueError("""
       Data layer info file differs from cache. Please check whether this
-      change invalidates your cache. 
+      change invalidates your cache.
 
       If VALID do one of:
       1) Manually delete the cache (see location below)
@@ -265,9 +268,9 @@ class CacheService(object):
         vol = CloudVolume(..., cache=False) # refreshes from source
         vol.cache = True
         vol.commit_info() # writes to disk
-      If INVALID do one of: 
-      1) Delete the cache manually (see cache location below) 
-      2) Instantiate as follows: 
+      If INVALID do one of:
+      1) Delete the cache manually (see cache location below)
+      2) Instantiate as follows:
         vol = CloudVolume(..., cache=False) # refreshes info from source
         vol.flush_cache() # deletes cache
         vol.cache = True
@@ -277,8 +280,8 @@ class CacheService(object):
       SOURCE: {source}
       CACHE LOCATION: {path}
       """.format(
-      cache=cache_info, 
-      source=fresh_info, 
+      cache=cache_info,
+      source=fresh_info,
       path=self.path
     ))
 
@@ -302,7 +305,7 @@ class CacheService(object):
       cache_sizes, fresh_sizes, self.path
       ))
 
-  def check_provenance_validity(self):
+  def check_provenance_validity(self) -> None:
     try:
       cached_prov = self.get_json('provenance')
     except json.decoder.JSONDecodeError:
@@ -322,39 +325,45 @@ class CacheService(object):
       SOURCE: {}
       """.format(cached_prov.serialize(), fresh_prov.serialize()))
 
-  def get_json(self, filename):
+  def get_json(self, filename: str) -> Optional[Any]:
     return self.cloudfiles().get_json(filename)
 
-  def maybe_cache_info(self):
+  def maybe_cache_info(self) -> None:
     if self.enabled:
       self.cloudfiles().put_json('info', self.meta.info)
 
-  def maybe_cache_provenance(self):
+  def maybe_cache_provenance(self) -> None:
     if self.enabled and self.meta.provenance:
       cf = self.cloudfiles()
       cf.put('provenance', self.meta.provenance.serialize().encode('utf8'))
 
-  def upload_single(self, filename, content, *args, **kwargs):
+  def upload_single(
+    self, filename: str, content: bytes, *args: Any, **kwargs: Any
+  ) -> None:
     kwargs['progress'] = False
     return self.upload( [(filename, content)], *args, **kwargs )
 
-  def upload(self, files, compress, cache_control, compress_level=None, content_type=None, progress=None):
+  def upload(
+    self, files: Any, compress: Optional[Union[str, bool]],
+    cache_control: Optional[str], compress_level: Optional[int] = None,
+    content_type: Optional[str] = None, progress: Optional[bool] = None
+  ) -> None:
     files = list(files)
 
     progress = progress if progress is not None else self.config.progress
 
     cf = CloudFiles(
-      self.meta.cloudpath, 
-      progress=progress, 
+      self.meta.cloudpath,
+      progress=progress,
       secrets=self.config.secrets,
       locking=self.config.cache_locking,
     )
     files = list(compression.transcode(files, encoding=compress, level=compress_level))
-    cf.puts( 
-      files, 
-      compress=compress, 
-      compression_level=compress_level, 
-      cache_control=cache_control, 
+    cf.puts(
+      files,
+      compress=compress,
+      compression_level=compress_level,
+      cache_control=cache_control,
       content_type=content_type,
       raw=True,
     )
@@ -362,7 +371,7 @@ class CacheService(object):
     if self.enabled:
       self.put(files, compress=compress)
       cf_cache = CloudFiles(
-        'file://' + self.path, 
+        'file://' + self.path,
         progress=('to Cache' if progress else None),
         locking=self.config.cache_locking,
       )
@@ -372,9 +381,11 @@ class CacheService(object):
         raw=True
       )
 
-  def download_json(self, path, compress=None):
+  def download_json(
+    self, path: str, compress: Optional[Union[str, bool]] = None
+  ) -> Optional[Any]:
     """
-    Download a single path, but grab from 
+    Download a single path, but grab from
     cache first if present and cache is enabled.
 
     Returns: content or None
@@ -382,19 +393,22 @@ class CacheService(object):
     res = self.download( [ path ], compress=compress, progress=False )
     res = res[path]
     if res is None:
-      return None    
+      return None
     return json.loads(res.decode('utf8'))
 
-  def download_single(self, path, compress=None):
+  def download_single(
+    self, path: str, compress: Optional[Union[str, bool]] = None
+  ) -> Optional[bytes]:
     files = self.download([ path ], compress=compress, progress=False)
     return files[path]
 
   def download_single_as(
-    self, path, local_alias, 
-    compress=None, start=None, end=None
-  ):
+    self, path: str, local_alias: str,
+    compress: Optional[Union[str, bool]] = None,
+    start: Optional[int] = None, end: Optional[int] = None
+  ) -> Optional[bytes]:
     """
-    Download a file or a byte range from a file 
+    Download a file or a byte range from a file
     and save it locally as `local_alias`.
     """
     if self.enabled:
@@ -403,7 +417,7 @@ class CacheService(object):
         return self.get_single(local_alias)
 
     filedata = CloudFiles(
-      self.meta.cloudpath, 
+      self.meta.cloudpath,
       secrets=self.config.secrets,
       locking=self.config.cache_locking,
     )[path, start:end]
@@ -413,7 +427,11 @@ class CacheService(object):
 
     return filedata
 
-  def download_as(self, requests, compress=None, progress=None):
+  def download_as(
+    self, requests: List[Dict[str, Any]],
+    compress: Optional[Union[str, bool]] = None,
+    progress: Optional[bool] = None
+  ) -> Dict[Any, Optional[bytes]]:
     """
     Works with byte ranges.
 
@@ -454,8 +472,8 @@ class CacheService(object):
     remote_path_tuples = list(alias_tuples.values())
 
     cf = CloudFiles(
-      self.meta.cloudpath, 
-      progress=progress, 
+      self.meta.cloudpath,
+      progress=progress,
       secrets=self.config.secrets,
       parallel=self.config.parallel,
       locking=self.config.cache_locking,
@@ -469,17 +487,17 @@ class CacheService(object):
       if frag['error'] is not None:
         raise frag['error']
 
-    remote_fragments = { 
+    remote_fragments = {
       (res['path'], res['byte_range'][0], res['byte_range'][1]): res['content'] \
-      for res in remote_fragments 
+      for res in remote_fragments
     }
 
     if self.enabled:
       self.put(
-        [ 
+        [
           (path_to_alias[file_bytes_tuple], content) \
           for file_bytes_tuple, content in remote_fragments.items() \
-          if content is not None 
+          if content is not None
         ],
         compress=compress,
         progress=progress
@@ -488,10 +506,14 @@ class CacheService(object):
     fragments.update(remote_fragments)
     return fragments
 
-  def download(self, paths, compress=None, progress=None):
+  def download(
+    self, paths: List[str],
+    compress: Optional[Union[str, bool]] = None,
+    progress: Optional[bool] = None
+  ) -> Dict[str, Optional[bytes]]:
     """
     Download the provided paths, but grab them from cache first
-    if they are present and the cache is enabled. 
+    if they are present and the cache is enabled.
 
     Returns: { filename: content, ... }
     """
@@ -510,14 +532,14 @@ class CacheService(object):
 
     # fixes e.g. mesh\info -> mesh/info on Windows
     if self.meta.path.protocol != 'file' and os.path.sep == '\\':
-      fragments = { 
-        "/".join(key.split('\\')): val 
-        for key,val in fragments.items() 
+      fragments = {
+        "/".join(key.split('\\')): val
+        for key,val in fragments.items()
       }
 
     cf = CloudFiles(
-      self.meta.cloudpath, 
-      progress=progress, 
+      self.meta.cloudpath,
+      progress=progress,
       secrets=self.config.secrets,
       parallel=self.config.parallel,
       locking=self.config.cache_locking,
@@ -530,7 +552,7 @@ class CacheService(object):
 
     if self.enabled:
       cf_cache = CloudFiles(
-        'file://' + self.path, 
+        'file://' + self.path,
         progress=('to Cache' if progress else None),
         locking=self.config.cache_locking,
       )
@@ -551,29 +573,38 @@ class CacheService(object):
     fragments.update(remote_fragments_dict)
     return fragments
 
-  def get_single(self, cloudpath, progress=None):
+  def get_single(self, cloudpath: str, progress: Optional[bool] = None) -> Optional[bytes]:
     res = self.get([ cloudpath ], progress=progress)
     return res[cloudpath]
 
-  def get(self, cloudpaths, progress=None):
+  def get(
+    self, cloudpaths: List[str], progress: Optional[bool] = None
+  ) -> Dict[str, Optional[bytes]]:
     progress = self.config.progress if progress is None else progress
-    
+
     cf = CloudFiles(
-      'file://' + self.path, 
-      progress=progress, 
+      'file://' + self.path,
+      progress=progress,
       locking=self.config.cache_locking,
     )
     return cf.get(cloudpaths, return_dict=True)
 
-  def put_single(self, path, content, *args, **kwargs):
+  def put_single(
+    self, path: str, content: bytes, *args: Any, **kwargs: Any
+  ) -> None:
     kwargs['progress'] = False
     return self.put([ (path, content) ], *args, **kwargs)
 
-  def put_json(self, path, content, *args, **kwargs):
+  def put_json(self, path: str, content: Any, *args: Any, **kwargs: Any) -> None:
     content = jsonify(content).encode("utf8")
     return self.put_single(path, content, *args, *kwargs)
 
-  def put(self, files, progress=None, compress=None, compress_level=None):
+  def put(
+    self, files: List[Tuple[str, bytes]],
+    progress: Optional[bool] = None,
+    compress: Optional[Union[str, bool]] = None,
+    compress_level: Optional[int] = None
+  ) -> None:
     """files: [ (filename, content) ]"""
     if progress is None:
       progress = self.config.progress
@@ -583,22 +614,22 @@ class CacheService(object):
 
     if compress is None:
       compress = self.config.compress
-    
+
     save_location = 'file://' + self.path
     progress = 'to Cache' if progress else None
     cf = CloudFiles(
-      save_location, 
-      progress=progress, 
+      save_location,
+      progress=progress,
       locking=self.config.cache_locking
     )
     cf.puts(
-      files, 
-      compress=compress, 
+      files,
+      compress=compress,
       compression_level=compress_level,
       parallel=self.config.parallel,
     )
 
-  def compute_data_locations(self, cloudpaths):
+  def compute_data_locations(self, cloudpaths: List[str]) -> Dict[str, List[str]]:
     if not self.enabled:
       return { 'local': [], 'remote': cloudpaths }
 
@@ -618,12 +649,12 @@ class CacheService(object):
     already_have = requested.intersection(set(filenames))
     to_download = requested.difference(already_have)
 
-    download_paths = [ pathmodule.join(basepathmap[fname], fname) for fname in to_download ]    
+    download_paths = [ pathmodule.join(basepathmap[fname], fname) for fname in to_download ]
     already_have = [ os.path.join(basepathmap[fname], fname) for fname in already_have ]
 
     return { 'local': already_have, 'remote': download_paths }
 
-  def __repr__(self):
+  def __repr__(self) -> str:
     return "CacheService(enabled={}, compress={}, path='{}')".format(
       self.enabled, self.compress, self.path
     )
