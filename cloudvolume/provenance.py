@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Dict, List, Optional, Union
 
 import python_jsonschema_objects as pjs
