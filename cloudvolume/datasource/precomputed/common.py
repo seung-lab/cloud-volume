@@ -1,17 +1,20 @@
+from __future__ import annotations
+
 import math
+from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 
 from ...lib import Vec, Bbox
 
-def content_type(encoding):
+def content_type(encoding: str) -> str:
   if encoding == 'jpeg':
     return 'image/jpeg'
   elif encoding in ('compresso', 'compressed_segmentation', 'fpzip', 'kempressed', 'zfpc', 'crackle'):
     return 'image/x.' + encoding 
   return 'application/octet-stream'
 
-def should_compress(encoding, compress, cache, iscache=False):
+def should_compress(encoding: str, compress: Any, cache: Any, iscache: bool = False) -> Optional[str]:
   if iscache and cache.compress != None:
     return cache.compress
   
@@ -24,7 +27,7 @@ def should_compress(encoding, compress, cache, iscache=False):
   else:
     return compress
 
-def cdn_cache_control(val):
+def cdn_cache_control(val: Any) -> str:
   """Translate cdn_cache into a Cache-Control HTTP header."""
   if val is None:
     return 'max-age=3600, s-max-age=3600'
@@ -48,7 +51,7 @@ def cdn_cache_control(val):
   else:
     raise NotImplementedError(type(val) + ' is not a supported cache_control setting.')
 
-def compressed_morton_code(gridpt, grid_size):
+def compressed_morton_code(gridpt: Any, grid_size: Sequence[int]) -> Union[np.uint64, np.ndarray]:
   if hasattr(gridpt, "__len__") and len(gridpt) == 0: # generators don't have len
     return np.zeros((0,), dtype=np.uint32)
 
@@ -81,7 +84,7 @@ def compressed_morton_code(gridpt, grid_size):
     return code[0]
   return code
 
-def morton_code_to_bbox(code, volume_bbox, chunk_size):
+def morton_code_to_bbox(code: int, volume_bbox: Bbox, chunk_size: Any) -> Bbox:
   chunk_size = Vec(*chunk_size)
 
   grid_size = np.ceil(volume_bbox.size3() / chunk_size).astype(np.int64)
@@ -93,7 +96,7 @@ def morton_code_to_bbox(code, volume_bbox, chunk_size):
   bbox += volume_bbox.minpt
   return bbox
 
-def morton_code_to_gridpt(code, grid_size):
+def morton_code_to_gridpt(code: int, grid_size: Sequence[int]) -> np.ndarray:
   gridpt = np.zeros([3,], dtype=int)
 
   num_bits = [ math.ceil(math.log2(size)) for size in grid_size ]

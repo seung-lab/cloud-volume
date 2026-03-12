@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from collections import defaultdict
 import itertools
 import re
 import urllib.parse
-import os 
+import os
 import io
 import math
 import struct
@@ -11,6 +13,8 @@ import sqlite3
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Generator, Iterable, Optional, Union
+
 try:
   from enum import StrEnum
 except ImportError:
@@ -28,7 +32,7 @@ from ...secrets import mysql_credentials, psql_credentials
 from ...exceptions import SpatialIndexGapError
 from ... import paths
 from ...lib import (
-  Bbox, Vec, xyzrange, min2, 
+  Bbox, Vec, xyzrange, min2,
   toiter, sip, nvl, getprecision
 )
 
@@ -43,7 +47,7 @@ retry = tenacity.retry(
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
-def tostr(x):
+def tostr(x: Any) -> str:
   if isinstance(x, bytearray):
     return bytes(x).decode("utf8")
   elif isinstance(x, bytes):
@@ -67,7 +71,7 @@ PG_RANGE_DISTINCT_SQL = """
   ) TO STDOUT WITH BINARY
 """
 
-def _parse_pg_binary_copy_bigint(data: bytes):
+def _parse_pg_binary_copy_bigint(data: bytes) -> np.ndarray:
   """Parse PostgreSQL binary COPY output for a single BIGINT column
   into a numpy uint64 array.
 
@@ -94,7 +98,7 @@ def _parse_pg_binary_copy_bigint(data: bytes):
   rows = np.frombuffer(body, dtype=row_dt, count=n_rows)
   return rows['value'].astype(np.uint64)
 
-def _build_pg_binary_copy_two_bigints(col1, col2):
+def _build_pg_binary_copy_two_bigints(col1: Any, col2: Any) -> io.BytesIO:
   """Build a PostgreSQL binary COPY buffer for two BIGINT columns.
 
   Accepts two array-like inputs (numpy arrays or lists) of equal length.
@@ -137,7 +141,7 @@ def _build_pg_binary_copy_two_bigints(col1, col2):
   buf.seek(0)
   return buf
 
-def _pg_parallel_distinct_labels(db_path, n_threads=8):
+def _pg_parallel_distinct_labels(db_path: str, n_threads: int = 8) -> np.ndarray:
   """Query distinct labels from file_lookup using parallel range scans.
 
   Splits the label keyspace into n_threads non-overlapping ranges,
@@ -165,7 +169,7 @@ def _pg_parallel_distinct_labels(db_path, n_threads=8):
   boundaries = np.unique(boundaries)
   actual_threads = len(boundaries) - 1
 
-  def _worker(low, high):
+  def _worker(low: int, high: int) -> np.ndarray:
     wconn = connect(db_path)
     wcur = wconn.cursor()
     wcur.execute("SET work_mem = '256MB'")
@@ -189,7 +193,7 @@ def _pg_parallel_distinct_labels(db_path, n_threads=8):
 
   return np.concatenate(non_empty)
 
-def parse_db_path(path):
+def parse_db_path(path: str) -> dict[str, Any]:
   """
   sqlite paths: filename.db
   mysql paths: mysql://{user}:{pwd}@{host}/{database}
@@ -224,7 +228,7 @@ def parse_db_path(path):
     "path": path,
   }
 
-def connect(path, use_database=True):
+def connect(path: str, use_database: bool = True) -> Any:
   result = parse_db_path(path)
 
   if result["scheme"] == "sqlite":
@@ -308,9 +312,9 @@ class SpatialIndex(object):
   Where sx, sy, and sz are given in physical dimensions.
   """
   def __init__(
-    self, cloudpath, bounds, chunk_size, 
-    config=None, sql_db=None, resolution=None
-  ):
+    self, cloudpath: str, bounds: Any, chunk_size: Any,
+    config: Any = None, sql_db: Optional[str] = None, resolution: Any = None
+  ) -> None:
     self.cloudpath = cloudpath
     self.path = paths.extract(cloudpath)
     self.bounds = Bbox.create(bounds)
@@ -335,13 +339,13 @@ class SpatialIndex(object):
     else:
       self.config = config
 
-  def join(self, *paths):
+  def join(self, *paths: str) -> str:
     if self.path.protocol == 'file':
       return os.path.join(*paths)
     else:
-      return posixpath.join(*paths)    
+      return posixpath.join(*paths)
 
-  def fetch_index_files(self, index_files, progress=None):
+  def fetch_index_files(self, index_files: Any, progress: Optional[bool] = None) -> dict[str, Any]:
     progress = nvl(progress, self.config.progress)
     results = CloudFiles(self.cloudpath, progress=progress).get(index_files)
 
@@ -351,7 +355,7 @@ class SpatialIndex(object):
 
     return { res['filename']: res['content'] for res in results }
 
-  def fetch_all_index_files(self, allow_missing=False, progress=None, parallel=1):
+  def fetch_all_index_files(self, allow_missing: bool = False, progress: Optional[bool] = None, parallel: int = 1) -> Generator[dict[str, Any], None, None]:
     """Generator returning batches of (filename, json)
 
     The parallel parameter here affects the chunking of files fetched
@@ -394,7 +398,7 @@ class SpatialIndex(object):
       pbar.update(len(index_paths))
     pbar.close()
 
-  def index_file_paths_for_bbox(self, bbox):
+  def index_file_paths_for_bbox(self, bbox: Any) -> Any:
     """
     Returns an iterator over the spatial index filenames
     that overlap with the bounding box.
@@ -408,9 +412,9 @@ class SpatialIndex(object):
     precision = self.precision
 
     class IndexPathIterator():
-      def __len__(self):
+      def __len__(self) -> int:
         return bbox.num_chunks(chunk_size)
-      def __iter__(self):
+      def __iter__(self) -> Generator[str, None, None]:
         for pt in xyzrange(bbox.minpt, bbox.maxpt, chunk_size):
           search = Bbox( pt, min2(pt + chunk_size, bounds.maxpt) )
           yield search.to_filename(precision) + '.spatial'
@@ -418,10 +422,10 @@ class SpatialIndex(object):
     return IndexPathIterator()
 
   def _to_sql_common(
-    self, conn, cur, path,
-    create_indices, allow_missing,
-    progress, db_type, parallel=1
-  ):
+    self, conn: Any, cur: Any, path: str,
+    create_indices: bool, allow_missing: bool,
+    progress: Optional[bool], db_type: DbType, parallel: int = 1
+  ) -> None:
     # handle SQLite vs MySQL syntax quirks
     if db_type == DbType.MYSQL:
       BIND = '%s'
@@ -558,10 +562,10 @@ class SpatialIndex(object):
         conn.commit()
 
   def to_sql(
-    self, path=None, create_indices=True, 
-    allow_missing=False,
-    progress=None, parallel=1
-  ):
+    self, path: Optional[str] = None, create_indices: bool = True,
+    allow_missing: bool = False,
+    progress: Optional[bool] = None, parallel: int = 1
+  ) -> Any:
     path = path or self.sql_db
     parse = parse_db_path(path)
     scheme = parse["scheme"]
@@ -597,10 +601,10 @@ class SpatialIndex(object):
       )
 
   def to_postgres(
-    self, path,
-    create_indices=True, allow_missing=False,
-    progress=None, parallel=1
-  ):
+    self, path: str,
+    create_indices: bool = True, allow_missing: bool = False,
+    progress: Optional[bool] = None, parallel: int = 1
+  ) -> None:
     """
     Create a postgres database of labels and filenames
     from the JSON spatial_index for faster performance.
@@ -671,10 +675,10 @@ class SpatialIndex(object):
     conn.close()
 
   def to_mysql(
-    self, path,
-    create_indices=True, allow_missing=False,
-    progress=None, parallel=1
-  ):
+    self, path: str,
+    create_indices: bool = True, allow_missing: bool = False,
+    progress: Optional[bool] = None, parallel: int = 1
+  ) -> None:
     """
     Create a mysql database of labels and filenames
     from the JSON spatial_index for faster performance.
@@ -713,10 +717,10 @@ class SpatialIndex(object):
     conn.close()
 
   def to_sqlite(
-    self, path="spatial_index.db",
-    create_indices=True, allow_missing=False,
-    progress=None
-  ):
+    self, path: str = "spatial_index.db",
+    create_indices: bool = True, allow_missing: bool = False,
+    progress: Optional[bool] = None
+  ) -> None:
     """
     Create a sqlite database of labels and filenames
     from the JSON spatial_index for faster performance.
@@ -737,7 +741,7 @@ class SpatialIndex(object):
     cur.execute("PRAGMA synchronous = FULL")
     cur.close()
     conn.close()
-  def get_bbox(self, label):
+  def get_bbox(self, label: Any) -> Optional[Bbox]:
     """
     Given a label, compute an enclosing bounding box for it.
 
@@ -803,7 +807,7 @@ class SpatialIndex(object):
 
     return bbox
 
-  def file_locations_per_label(self, labels=None, allow_missing=False):
+  def file_locations_per_label(self, labels: Any = None, allow_missing: bool = False) -> dict[int, list[str]]:
     """
     Queries entire dataset to find which spatial index files the 
     given labels are located in. Can be expensive. If labels is not 
@@ -821,7 +825,7 @@ class SpatialIndex(object):
       return self.file_locations_per_label_sql(labels)
     return self.file_locations_per_label_json(labels, allow_missing)
   
-  def file_locations_per_label_json(self, labels, allow_missing=False):
+  def file_locations_per_label_json(self, labels: Any, allow_missing: bool = False) -> dict[int, list[str]]:
     import simdjson
     locations = defaultdict(list)
     parser = simdjson.Parser()
@@ -847,7 +851,7 @@ class SpatialIndex(object):
 
     return locations
 
-  def file_locations_per_label_sql(self, labels, sql_db=None):
+  def file_locations_per_label_sql(self, labels: Any, sql_db: Optional[str] = None) -> dict[int, list[str]]:
     sql_db = nvl(sql_db, self.sql_db)
     if sql_db is None:
       raise ValueError("An sqlite database file must be specified.")
@@ -877,7 +881,7 @@ class SpatialIndex(object):
     conn.close()
     return locations      
 
-  def query(self, bbox, allow_missing=False, nthread=1):
+  def query(self, bbox: Any, allow_missing: bool = False, nthread: int = 1) -> Any:
     """
     For the specified bounding box (or equivalent representation),
     list all segment ids enclosed within it.
@@ -979,7 +983,7 @@ class SpatialIndex(object):
 
     return labels
 
-def thread_safe_insert(path, lock, evt, qu, progress, db_type):
+def thread_safe_insert(path: str, lock: threading.Lock, evt: threading.Event, qu: queue.Queue, progress: Optional[bool], db_type: DbType) -> None:
   conn = connect(path)
   cur = conn.cursor()
 
@@ -1001,7 +1005,7 @@ def thread_safe_insert(path, lock, evt, qu, progress, db_type):
 
   print('finished', threading.current_thread().ident)
 
-def insert_index_files(index_files, lock, conn, cur, progress, db_type):
+def insert_index_files(index_files: dict[str, Any], lock: threading.Lock, conn: Any, cur: Any, progress: Optional[bool], db_type: DbType) -> None:
   import simdjson
   # handle SQLite vs MySQL syntax quirks
   if db_type in (DbType.MYSQL, DbType.POSTGRES):
@@ -1010,7 +1014,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
     BIND = '?'
 
   @retry
-  def insert_file_lookup_values(cur, chunked_values):
+  def insert_file_lookup_values(cur: Any, chunked_values: list[tuple[int, int]]) -> None:
     nonlocal BIND
     bindlist = ",".join([f"({BIND},{BIND})"] * len(chunked_values))
     flattened_values = []
@@ -1111,7 +1115,7 @@ def insert_index_files(index_files, lock, conn, cur, progress, db_type):
         insert_file_lookup_values(cur, chunked_values)
         conn.commit()
         pbar.update(len(chunked_values))
-def set_journaling_to_performance_mode(cur, db_type):
+def set_journaling_to_performance_mode(cur: Any, db_type: DbType) -> Any:
   if db_type in (DbType.MYSQL, DbType.POSTGRES):
     cur.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
     if db_type == DbType.POSTGRES:
@@ -1123,10 +1127,10 @@ def set_journaling_to_performance_mode(cur, db_type):
 
 class CachedSpatialIndex(SpatialIndex):
   def __init__(
-    self, cache, config, 
-    cloudpath, bounds, chunk_size,
-    resolution
-  ):
+    self, cache: Any, config: Any,
+    cloudpath: str, bounds: Any, chunk_size: Any,
+    resolution: Any
+  ) -> None:
     self.cache = cache
     self.subdir = os.path.relpath(cloudpath, cache.meta.cloudpath)
 
@@ -1135,7 +1139,7 @@ class CachedSpatialIndex(SpatialIndex):
       resolution=resolution
     )
 
-  def fetch_index_files(self, index_files, progress=None):
+  def fetch_index_files(self, index_files: Any, progress: Optional[bool] = None) -> dict[str, Any]:
     progress = nvl(progress, self.config.progress)
     index_files = [ self.cache.meta.join(self.subdir, fname) for fname in index_files ]
     return self.cache.download(index_files, progress=progress)

@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Any, Optional
 
 import re
 import weakref
@@ -11,12 +13,15 @@ import numpy as np
 MESH_MIP_REGEXP = re.compile(r'mesh_mip_(\d+)')
 
 class PrecomputedMeshMetadata(object):
-  def __init__(self, meta, cache=None, config=None, info=None, readonly=False):
+  def __init__(
+    self, meta: Any, cache: Any = None, config: Any = None,
+    info: Optional[dict[str, Any]] = None, readonly: bool = False
+  ) -> None:
     self.meta = meta
     self.cache = cache
     self.config = config
     self.readonly = readonly
-    self._cv = None
+    self._cv: Any = None
 
     if info:
       self.info = info
@@ -24,71 +29,71 @@ class PrecomputedMeshMetadata(object):
       self.info = self.fetch_info()
 
   @property
-  def cv(self):
+  def cv(self) -> Any:
     return self._cv
 
   @cv.setter
-  def cv(self, vol):
+  def cv(self, vol: Any) -> None:
     self._cv = weakref.ref(vol)
 
   @cv.deleter
-  def cv(self):
+  def cv(self) -> None:
     del self._cv
 
   @property
-  def chunk_size(self):
+  def chunk_size(self) -> Optional[list[int]]:
     if 'chunk_size' in self.info:
       return self.info['chunk_size']
     return None
 
   @property
-  def mip(self):
+  def mip(self) -> Optional[int]:
     if 'mip' in self.info:
       return int(self.info['mip'])
-    
+
     # Igneous has long used mesh_mip_N_err_M to store
-    # some information about the meshing job. Let's 
+    # some information about the meshing job. Let's
     # exploit that for now.
     path = self.mesh_path or ""
     matches = re.search(MESH_MIP_REGEXP, path)
     if matches is None:
-      return None 
+      return None
 
     mip, = matches.groups()
     return int(mip)
 
   @mip.setter
-  def mip(self, val):
+  def mip(self, val: int) -> None:
     self.info["mip"] = int(val)
-  
+
   @property
-  def spatial_index(self):
+  def spatial_index(self) -> Optional[dict[str, Any]]:
     if 'spatial_index' in self.info:
       return self.info['spatial_index']
     return None
 
   @property
-  def mesh_path(self):
+  def mesh_path(self) -> str:
     if 'mesh' in self.meta.info:
       return self.meta.info['mesh']
     return 'mesh'
 
-  def join(self, *paths):
+  def join(self, *paths: str) -> str:
     return self.meta.join(*paths)
 
   @property
-  def basepath(self):
+  def basepath(self) -> str:
     return self.meta.basepath
 
   @property
-  def cloudpath(self):
+  def cloudpath(self) -> str:
     return self.meta.cloudpath
 
   @property
-  def layerpath(self):
+  def layerpath(self) -> str:
     return self.meta.join(self.meta.cloudpath, self.mesh_path)
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict[str, Any]:
     if 'mesh' not in self.meta.info or not self.meta.info['mesh']:
       return self.default_info()
 
@@ -97,35 +102,35 @@ class PrecomputedMeshMetadata(object):
       return self.default_info()
     return info
 
-  def refresh_info(self):
+  def refresh_info(self) -> dict[str, Any]:
     self.info = self.fetch_info()
     return self.info
 
-  def commit_info(self):
+  def commit_info(self) -> None:
     if self.info:
       self.cache.upload_single(
         self.meta.join(self.mesh_path, 'info'),
-        jsonify(self.info), 
+        jsonify(self.info),
         content_type='application/json',
         compress=False,
         cache_control='no-cache',
       )
 
-  def default_info(self):
+  def default_info(self) -> dict[str, Any]:
     return {
       '@type': 'neuroglancer_legacy_mesh',
       'spatial_index': None, # { 'chunk_size': physical units }
     }
 
   def compute_sharding_specification(
-    self, 
-    num_labels:int,
-    shard_index_bytes:int = 2**13,
-    minishard_index_bytes:int = 2**15,
-    min_shards:int = 1,
-    minishard_index_encoding:str = 'gzip', 
-    data_encoding:str = 'gzip',
-    max_labels_per_shard:Optional[int] = None,
+    self,
+    num_labels: int,
+    shard_index_bytes: int = 2**13,
+    minishard_index_bytes: int = 2**15,
+    min_shards: int = 1,
+    minishard_index_encoding: str = 'gzip',
+    data_encoding: str = 'gzip',
+    max_labels_per_shard: Optional[int] = None,
   ) -> ShardingSpecification:
     """
     Calculate the shard parameters for this volume given
@@ -154,20 +159,20 @@ class PrecomputedMeshMetadata(object):
     )
 
   def to_sharded(
-    self, 
-    num_labels:int,
-    shard_index_bytes:int = 2**13,
-    minishard_index_bytes:int = 2**15,
-    min_shards:int = 1,
-    minishard_index_encoding:str = 'gzip', 
-    data_encoding:str = 'gzip',
-    max_labels_per_shard:Optional[int] = None,
-  ):
+    self,
+    num_labels: int,
+    shard_index_bytes: int = 2**13,
+    minishard_index_bytes: int = 2**15,
+    min_shards: int = 1,
+    minishard_index_encoding: str = 'gzip',
+    data_encoding: str = 'gzip',
+    max_labels_per_shard: Optional[int] = None,
+  ) -> None:
     """Adds a computed sharding property to the info."""
     spec = self.compute_sharding_specification(
-      num_labels=num_labels, 
-      shard_index_bytes=shard_index_bytes, 
-      minishard_index_bytes=minishard_index_bytes, 
+      num_labels=num_labels,
+      shard_index_bytes=shard_index_bytes,
+      minishard_index_bytes=minishard_index_bytes,
       min_shards=min_shards,
       minishard_index_encoding=minishard_index_encoding,
       data_encoding=data_encoding,
@@ -176,18 +181,18 @@ class PrecomputedMeshMetadata(object):
     self.info['sharding'] = spec.to_dict()
     self._refresh_mesh_interface()
 
-  def to_unsharded(self):
+  def to_unsharded(self) -> None:
     self.info.pop("sharding", None)
     self._refresh_mesh_interface()
 
-  def _refresh_mesh_interface(self):
+  def _refresh_mesh_interface(self) -> None:
     from cloudvolume.datasource.precomputed.mesh import PrecomputedMeshSource
     if self.cv:
       mesh_src = PrecomputedMeshSource(self.meta, self.cache, self.config, self.readonly, info=self.info)
       mesh_src.meta.cv = self.cv()
       self.cv().mesh = mesh_src
 
-  def to_multi_resolution(self, vertex_quantization_bits:int):
+  def to_multi_resolution(self, vertex_quantization_bits: int) -> None:
     if vertex_quantization_bits not in [10, 16]:
       raise ValueError(f"vertex_quantization_bits must by 10 or 16. Got: {vertex_quantization_bits}")
 
@@ -195,7 +200,7 @@ class PrecomputedMeshMetadata(object):
 
     self.info['@type'] = "neuroglancer_multilod_draco"
     self.info['vertex_quantization_bits'] = vertex_quantization_bits
-    self.info['transform'] = [ 
+    self.info['transform'] = [
       res[0], 0,      0,      0,
       0,      res[1], 0,      0,
       0,      0,      res[2], 0,
@@ -203,14 +208,14 @@ class PrecomputedMeshMetadata(object):
     self.info['lod_scale_multiplier'] = 1.0
     self._refresh_mesh_interface()
 
-  def to_single_resolution(self):
+  def to_single_resolution(self) -> None:
     self.info['@type'] = "neuroglancer_legacy_mesh"
     self.info.pop("vertex_quantization_bits", None)
     self.info.pop("transform", None)
     self.info.pop("lod_scale_multiplier", None)
     self._refresh_mesh_interface()
 
-  def is_sharded(self):
+  def is_sharded(self) -> bool:
     if 'sharding' not in self.info:
       return False
     elif self.info['sharding'] is None:
@@ -218,8 +223,8 @@ class PrecomputedMeshMetadata(object):
     else:
       return True
 
-  def is_multires(self):
+  def is_multires(self) -> bool:
     return self.info['@type'] == 'neuroglancer_multilod_draco'
 
-  def is_legacy(self):
+  def is_legacy(self) -> bool:
     return not self.is_multires()

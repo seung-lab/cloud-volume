@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import fastremap
 import numpy as np
@@ -9,8 +12,8 @@ from cloudfiles import CloudFiles, reset_connection_pools, compression
 
 from cloudvolume import lib, chunks
 from cloudvolume.exceptions import AlignmentError
-from cloudvolume.lib import ( 
-  mkdir, clamp, xyzrange, Vec, 
+from cloudvolume.lib import (
+  mkdir, clamp, xyzrange, Vec,
   Bbox, min2, max2
 )
 from cloudvolume.scheduler import schedule_jobs
@@ -22,19 +25,19 @@ import cloudvolume.sharedmemory as shm
 from ... import check_grid_aligned, generate_chunks
 from .common import (
   parallel_execution, chunknames, shade
-) 
+)
 from ..common import (
   content_type, cdn_cache_control,
   should_compress
 )
 from .rx import download_chunks_threaded, decode
 
-progress_queue = None # defined in common.initialize_synchronization
-fs_lock = None # defined in common.initialize_synchronization
+progress_queue: Any = None # defined in common.initialize_synchronization
+fs_lock: Any = None # defined in common.initialize_synchronization
 
 def upload_with_overwrite_partial_chunks(
-    meta, cache, lru, image, offset, mip,
-    bounds, **options):
+    meta: Any, cache: Any, lru: Any, image: np.ndarray, offset: Any, mip: int,
+    bounds: Bbox, **options: Any) -> None:
   """
   Handle uploads when overwrite_partial_chunks is enabled.
   Creates a padded image and uses shade to copy the user's image,
@@ -61,21 +64,21 @@ def upload_with_overwrite_partial_chunks(
   )
 
 def upload(
-    meta, cache, lru, lru_encoding,
-    image, offset, mip,
-    compress=None,
-    compress_level=None,
-    cdn_cache=None,
-    parallel=1,
-    progress=False,
-    delete_black_uploads=False,
-    background_color=0,
-    non_aligned_writes=False,
-    overwrite_partial_chunks=False,
-    location=None, location_bbox=None, location_order='F',
-    use_shared_memory=False, use_file=False,
-    green=False, fill_missing=False, secrets=None
-  ):
+    meta: Any, cache: Any, lru: Any, lru_encoding: str,
+    image: np.ndarray, offset: Any, mip: int,
+    compress: Any = None,
+    compress_level: Optional[int] = None,
+    cdn_cache: Any = None,
+    parallel: int = 1,
+    progress: Any = False,
+    delete_black_uploads: bool = False,
+    background_color: Union[int, float] = 0,
+    non_aligned_writes: bool = False,
+    overwrite_partial_chunks: bool = False,
+    location: Optional[str] = None, location_bbox: Optional[Bbox] = None, location_order: str = 'F',
+    use_shared_memory: bool = False, use_file: bool = False,
+    green: bool = False, fill_missing: bool = False, secrets: Any = None
+  ) -> None:
   """Upload img to vol with offset. This is the primary entry point for uploads."""
 
   if not np.issubdtype(image.dtype, np.dtype(meta.dtype).type):
@@ -99,17 +102,17 @@ def upload(
   bounds = Bbox( offset, shape + offset)
 
   is_aligned = check_grid_aligned(
-    meta, image, bounds, mip, 
+    meta, image, bounds, mip,
     throw_error=(non_aligned_writes == False)
   )
 
-  options = {
+  options: Dict[str, Any] = {
     "compress": compress,
     "compress_level": compress_level,
     "cdn_cache": cdn_cache,
-    "parallel": parallel, 
+    "parallel": parallel,
     "progress": progress,
-    "location": location, 
+    "location": location,
     "location_bbox": location_bbox,
     "location_order": location_order,
     "use_shared_memory": use_shared_memory,
@@ -122,7 +125,7 @@ def upload(
   }
 
   expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
-  all_chunks = lambda: set(chunknames(expanded, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip), protocol=meta.path.protocol))
+  all_chunks: Any = lambda: set(chunknames(expanded, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip), protocol=meta.path.protocol))
 
   if parallel > 1:
     all_chunks = all_chunks()
@@ -162,7 +165,7 @@ def upload(
   core_chunks = set(chunknames(retracted, meta.bounds(mip), meta.key(mip), meta.chunk_size(mip), protocol=meta.path.protocol))
   shell_chunks = all_chunks.difference(core_chunks)
 
-  def shade_and_upload(img3d, bbox):
+  def shade_and_upload(img3d: np.ndarray, bbox: Bbox) -> None:
     # decode is returning non-writable chunk
     # so gotta set them to writeable
     if not img3d.flags.writeable:
@@ -191,24 +194,24 @@ def upload(
     )
 
 def upload_aligned(
-    meta, cache, lru,
-    img, offset, mip,
-    compress=None,
-    compress_level=None,
-    cdn_cache=None,
-    progress=False,
-    parallel=1, 
-    location=None, 
-    location_bbox=None, 
-    location_order='F', 
-    use_shared_memory=False,
-    use_file=False,
-    delete_black_uploads=False,
-    background_color=0,
-    green=False,
-    secrets=None,
-    lru_encoding="same",
-  ):
+    meta: Any, cache: Any, lru: Any,
+    img: np.ndarray, offset: Any, mip: int,
+    compress: Any = None,
+    compress_level: Optional[int] = None,
+    cdn_cache: Any = None,
+    progress: Any = False,
+    parallel: int = 1,
+    location: Optional[str] = None,
+    location_bbox: Optional[Bbox] = None,
+    location_order: str = 'F',
+    use_shared_memory: bool = False,
+    use_file: bool = False,
+    delete_black_uploads: bool = False,
+    background_color: Union[int, float] = 0,
+    green: bool = False,
+    secrets: Any = None,
+    lru_encoding: str = "same",
+  ) -> None:
   global fs_lock
 
   chunk_ranges = generate_chunks(meta, img, offset, mip)
@@ -216,7 +219,7 @@ def upload_aligned(
   if parallel == 1:
     threaded_upload_chunks(
       meta, cache, lru,
-      img, mip, chunk_ranges, 
+      img, mip, chunk_ranges,
       progress=progress,
       compress=compress, cdn_cache=cdn_cache,
       delete_black_uploads=delete_black_uploads,
@@ -227,47 +230,47 @@ def upload_aligned(
     return
 
   # use_shared_memory means use a predetermined
-  # shared memory location, not no shared memory 
+  # shared memory location, not no shared memory
   # at all.
   if not use_shared_memory:
     array_like, renderbuffer = shm.ndarray(
-      shape=img.shape, dtype=img.dtype, 
-      location=location, order=location_order, 
+      shape=img.shape, dtype=img.dtype,
+      location=location, order=location_order,
       lock=fs_lock
     )
     renderbuffer[:] = img
 
-  cup = partial(child_upload_process, 
-    meta, cache, 
+  cup = partial(child_upload_process,
+    meta, cache,
     img.shape, offset, mip,
     compress, cdn_cache, progress,
-    location, location_bbox, location_order, 
-    delete_black_uploads, background_color, 
+    location, location_bbox, location_order,
+    delete_black_uploads, background_color,
     green, compress_level=compress_level,
     secrets=secrets
   )
 
   parallel_execution(
-    cup, chunk_ranges, parallel, 
-    progress, desc="Upload", 
+    cup, chunk_ranges, parallel,
+    progress, desc="Upload",
     cleanup_shm=location
   )
 
-  # If manual mode is enabled, it's the 
+  # If manual mode is enabled, it's the
   # responsibilty of the user to clean up
   if not use_shared_memory:
     array_like.close()
     shm.unlink(location)
 
 def child_upload_process(
-    meta, cache, 
-    img_shape, offset, mip,
-    compress, cdn_cache, progress,
-    location, location_bbox, location_order, 
-    delete_black_uploads, background_color,
-    green, chunk_ranges, compress_level=None,
-    secrets=None
-  ):
+    meta: Any, cache: Any,
+    img_shape: Any, offset: Any, mip: int,
+    compress: Any, cdn_cache: Any, progress: Any,
+    location: Optional[str], location_bbox: Optional[Bbox], location_order: str,
+    delete_black_uploads: bool, background_color: Union[int, float],
+    green: bool, chunk_ranges: Any, compress_level: Optional[int] = None,
+    secrets: Any = None
+  ) -> int:
   global fs_lock
   reset_connection_pools()
 
@@ -276,15 +279,15 @@ def child_upload_process(
     shared_shape = list(location_bbox.size3()) + [ meta.num_channels ]
 
   array_like, renderbuffer = shm.ndarray(
-    shape=shared_shape, 
-    dtype=meta.dtype, 
-    location=location, 
-    order=location_order, 
-    lock=fs_lock, 
+    shape=shared_shape,
+    dtype=meta.dtype,
+    location=location,
+    order=location_order,
+    lock=fs_lock,
     readonly=True
   )
 
-  def updatefn():
+  def updatefn() -> None:
     if progress:
       # This is not good programming practice, but
       # I could not find a clean way to do this that
@@ -293,7 +296,7 @@ def child_upload_process(
       # as a global for this module.
       progress_queue.put(1)
 
-  try: 
+  try:
     if location_bbox:
       cutout_bbox = Bbox( offset, offset + img_shape[:3] )
       delta_box = cutout_bbox.clone() - location_bbox.minpt
@@ -301,9 +304,9 @@ def child_upload_process(
 
     return threaded_upload_chunks(
       meta, cache, None,
-      renderbuffer, mip, chunk_ranges, 
+      renderbuffer, mip, chunk_ranges,
       compress=compress, cdn_cache=cdn_cache, progress=updatefn,
-      delete_black_uploads=delete_black_uploads, 
+      delete_black_uploads=delete_black_uploads,
       background_color=background_color,
       green=green, compress_level=compress_level,
       secrets=secrets,
@@ -312,18 +315,18 @@ def child_upload_process(
     array_like.close()
 
 def threaded_upload_chunks(
-    meta, cache, lru,
-    img, mip, chunk_ranges, 
-    compress, cdn_cache, progress,
-    n_threads=DEFAULT_THREADS,
-    delete_black_uploads=False,
-    background_color=0,
-    green=False,
-    compress_level=None,
-    secrets=None,
-    lru_encoding="same",
-  ):
-  
+    meta: Any, cache: Any, lru: Any,
+    img: np.ndarray, mip: int, chunk_ranges: Any,
+    compress: Any, cdn_cache: Any, progress: Any,
+    n_threads: int = DEFAULT_THREADS,
+    delete_black_uploads: bool = False,
+    background_color: Union[int, float] = 0,
+    green: bool = False,
+    compress_level: Optional[int] = None,
+    secrets: Any = None,
+    lru_encoding: str = "same",
+  ) -> int:
+
   if cache.enabled:
     mkdir(cache.path)
 
@@ -339,7 +342,7 @@ def threaded_upload_chunks(
   cache_compress = compression.normalize_encoding(cache_compress)
 
   # performance optimization
-  preencoded = None
+  preencoded: Any = None
   no_serialize = (remote.protocol == "mem" and meta.encoding(mip) == "raw" and not cache.enabled)
   if (
     not no_serialize
@@ -352,7 +355,7 @@ def threaded_upload_chunks(
   ):
     preencoded = fastremap.tobytes(img[:,:,:,0], meta.chunk_size(mip), order="F")
 
-  def do_upload(i, imgchunk, cloudpath):
+  def do_upload(i: int, imgchunk: np.ndarray, cloudpath: str) -> None:
     nonlocal remote_compress
     nonlocal cache_compress
     nonlocal preencoded
@@ -366,7 +369,7 @@ def threaded_upload_chunks(
       encoded = np.asfortranarray(imgchunk)
     else:
       encoded = chunks.encode(
-        imgchunk, encoding, 
+        imgchunk, encoding,
         meta.compressed_segmentation_block_size(mip),
         compression_params=meta.compression_params(mip),
         num_threads=meta.config.codec_threads,
@@ -377,13 +380,13 @@ def threaded_upload_chunks(
         lru[cloudpath] = (encoding, encoded)
       else:
         lru_encoded = chunks.encode(
-          imgchunk, lru_encoding, 
+          imgchunk, lru_encoding,
           meta.compressed_segmentation_block_size(mip),
           compression_params=meta.compression_params(mip),
           num_threads=meta.config.codec_threads,
         )
         lru[cloudpath] = (lru_encoding, lru_encoded)
-    
+
     if cache_compress is None and cache.enabled:
       cache_encoded = encoded
 
@@ -400,9 +403,9 @@ def threaded_upload_chunks(
     del encoded
 
     remote.put(
-        path=cloudpath, 
+        path=cloudpath,
         content=remote_encoded,
-        content_type=content_type(meta.encoding(mip)), 
+        content_type=content_type(meta.encoding(mip)),
         compress=remote_compress,
         compression_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
@@ -414,21 +417,21 @@ def threaded_upload_chunks(
     if cache.enabled:
       local.put(
         path=cloudpath,
-        content=cache_encoded, 
-        content_type=content_type(meta.encoding(mip)), 
+        content=cache_encoded,
+        content_type=content_type(meta.encoding(mip)),
         compress=cache_compress,
         raw=True,
       )
 
-  def do_delete(cloudpath):
+  def do_delete(cloudpath: str) -> None:
     remote.delete(cloudpath)
-    
+
     if cache.enabled:
       local.delete(cloudpath)
 
   bounds = meta.bounds(mip).maxpt
 
-  def process(i, startpt, endpt, spt, ept):
+  def process(i: int, startpt: Vec, endpt: Vec, spt: Vec, ept: Vec) -> None:
     if np.array_equal(spt, ept):
       return
 
@@ -451,7 +454,7 @@ def threaded_upload_chunks(
     else:
       do_upload(i, imgchunk, cloudpath)
 
-  def process_and_update(i, *args, **kwargs):
+  def process_and_update(i: int, *args: Any, **kwargs: Any) -> None:
     process(i, *args, **kwargs)
     # Needed for multiprocess progress bar.
     if callable(progress):
@@ -461,8 +464,8 @@ def threaded_upload_chunks(
     n_threads = 0
 
   schedule_jobs(
-    fns=( partial(process_and_update, i, *vals) for i, vals in enumerate(chunk_ranges) ), 
-    concurrency=n_threads, 
+    fns=( partial(process_and_update, i, *vals) for i, vals in enumerate(chunk_ranges) ),
+    concurrency=n_threads,
     progress=('Uploading' if progress and not callable(progress) else None),
     total=len(chunk_ranges),
     green=green,

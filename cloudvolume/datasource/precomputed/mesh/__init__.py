@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Optional, Union
+
 import os
 
 from .metadata import PrecomputedMeshMetadata
@@ -13,22 +17,25 @@ from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
 class PrecomputedMeshSource(object):
-  def __new__(cls, meta, cache, config, readonly=False, info=None):
+  def __new__(
+    cls, meta: Any, cache: Any, config: Any,
+    readonly: bool = False, info: Optional[dict[str, Any]] = None
+  ) -> Union[ShardedMultiLevelPrecomputedMeshSource, UnshardedMultiLevelPrecomputedMeshSource, UnshardedLegacyPrecomputedMeshSource]:
     mesh_meta = PrecomputedMeshMetadata(meta, cache, config, readonly=readonly, info=info)
     if mesh_meta.info.get('@type', None) == 'neuroglancer_multilod_draco':
       sharding = mesh_meta.info.get('sharding', None)
       if sharding and sharding['@type'] == 'neuroglancer_uint64_sharded_v1':
         # Sharded storage of multi-resolution mesh fragment data
-        return ShardedMultiLevelPrecomputedMeshSource(mesh_meta, cache, config, readonly) 
+        return ShardedMultiLevelPrecomputedMeshSource(mesh_meta, cache, config, readonly)
       else:
         # Unsharded storage of multi-resolution mesh fragment data
         return UnshardedMultiLevelPrecomputedMeshSource(mesh_meta, cache, config, readonly)
-  
+
     # Legacy single-resolution mesh format
     return UnshardedLegacyPrecomputedMeshSource(mesh_meta, cache, config, readonly)
 
   @classmethod
-  def from_cloudpath(cls, cloudpath, cache=False, progress=False):
+  def from_cloudpath(cls, cloudpath: str, cache: Any = False, progress: bool = False) -> Union[ShardedMultiLevelPrecomputedMeshSource, UnshardedMultiLevelPrecomputedMeshSource, UnshardedLegacyPrecomputedMeshSource]:
     config = SharedConfiguration(
       cdn_cache=False,
       compress=True,
@@ -52,5 +59,3 @@ class PrecomputedMeshSource(object):
     )
 
     return PrecomputedMeshSource(meta, cache, config)
-
-

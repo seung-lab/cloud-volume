@@ -1,4 +1,6 @@
-from typing import Optional, Union
+from __future__ import annotations
+
+from typing import Any, Optional, Union
 
 from .annotation import PrecomputedAnnotationSource
 from .image import PrecomputedImageSource
@@ -34,8 +36,8 @@ def create_precomputed(
     secrets:SecretsType=None, spatial_index_db:Optional[str]=None, 
     lru_bytes:int = 0, cache_locking:bool = True, lru_encoding:str = "same",
     codec_threads:ParallelType = 1,
-    **kwargs # absorb graphene arguments
-  ):
+    **kwargs: Any # absorb graphene arguments
+  ) -> CloudVolumePrecomputed:
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
@@ -216,11 +218,11 @@ def create_precomputed_mesh(
     readonly=False,
   )
 
-def register_mesh():
+def register_mesh() -> None:
   register_mesh_plugin('precomputed', create_precomputed_mesh)
 
-def register_annotation():
+def register_annotation() -> None:
   register_annotation_plugin('precomputed', create_precomputed_annotation)
 
-def register():
+def register() -> None:
   register_plugin('precomputed', create_precomputed)

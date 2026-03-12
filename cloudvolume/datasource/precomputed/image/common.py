@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 from functools import partial
 import itertools
@@ -9,21 +11,22 @@ import platform
 import posixpath
 import signal
 import traceback
+from typing import Any, Callable, Generator, Iterator, Optional, Union
 
 import numpy as np
 import concurrent.futures
 from tqdm import tqdm
 
 from ....lib import (
-  xyzrange, min2, max2, Vec, Bbox, 
+  xyzrange, min2, max2, Vec, Bbox,
   sip, totalfn
 )
 from .... import sharedmemory as shm
 
-error_queue = None
-progress_queue = None
+error_queue: Any = None
+progress_queue: Any = None
 
-def check_error_queue():
+def check_error_queue() -> None:
   if error_queue.empty():
     return
 
@@ -35,12 +38,12 @@ def check_error_queue():
   if len(errors):
     raise Exception(errors)
 
-def progress_queue_listener(q, total, desc):
+def progress_queue_listener(q: Any, total: int, desc: str) -> None:
   pbar = tqdm(total=total, desc=desc)
   for ct in iter(q.get, None):
     pbar.update(ct)
 
-def error_capturing_fn(fn, *args, **kwargs):
+def error_capturing_fn(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
   try:
     return fn(*args, **kwargs)
   except Exception as err:
@@ -48,7 +51,7 @@ def error_capturing_fn(fn, *args, **kwargs):
     error_queue.put(err)
     return 0
 
-def initialize_synchronization(progress_queue, fs_lock):
+def initialize_synchronization(progress_queue: Any, fs_lock: Any) -> None:
   from . import rx, tx
   rx.progress_queue = progress_queue
   tx.progress_queue = progress_queue
@@ -56,11 +59,11 @@ def initialize_synchronization(progress_queue, fs_lock):
   tx.fs_lock = fs_lock
 
 def parallel_execution(
-  fn, items, parallel, 
-  progress, desc="Progress",
-  total=None, cleanup_shm=None,
-  block_size=1000, min_block_size=10
-):
+  fn: Callable[..., Any], items: Any, parallel: Union[bool, int],
+  progress: Any, desc: str = "Progress",
+  total: Optional[int] = None, cleanup_shm: Optional[str] = None,
+  block_size: int = 1000, min_block_size: int = 10
+) -> None:
   global error_queue
 
   error_queue = mp.Queue()
@@ -72,7 +75,7 @@ def parallel_execution(
   elif parallel <= 0:
     raise ValueError(f"Parallel must be a positive number or boolean (True: all cpus). Got: {parallel}")
 
-  def cleanup(signum, frame):
+  def cleanup(signum: int, frame: Any) -> None:
     if cleanup_shm:
       shm.unlink(cleanup_shm)
 
@@ -89,7 +92,7 @@ def parallel_execution(
   signal.signal(signal.SIGINT, cleanup)
   signal.signal(signal.SIGTERM, cleanup)
 
-  # Fix for MacOS which can segfault due to 
+  # Fix for MacOS which can segfault due to
   # urllib calling libdispatch which is not fork-safe
   # https://bugs.python.org/issue30385
   no_proxy = os.environ.get("no_proxy", "")
@@ -99,7 +102,7 @@ def parallel_execution(
   try:
     if progress:
       proc = mp.Process(
-        target=progress_queue_listener, 
+        target=progress_queue_listener,
         args=(progress_queue,total,desc)
       )
       proc.start()
@@ -116,7 +119,7 @@ def parallel_execution(
       mp_context=ctx,
     ) as pool:
       pool.map(fn, sip(items, block_size))
-  finally: 
+  finally:
     if platform.system().lower() == "darwin":
       os.environ["no_proxy"] = no_proxy
 
@@ -135,18 +138,21 @@ def parallel_execution(
   error_queue.close()
   error_queue.join_thread()
 
-def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
+def chunknames(
+  bbox: Bbox, volume_bbox: Bbox, key: str,
+  chunk_size: Vec, protocol: Optional[str] = None
+) -> Any:
   path = posixpath if protocol != 'file' else os.path
 
   class ChunkNamesIterator():
-    def __len__(self):
+    def __len__(self) -> int:
       # round up and avoid conversion to float
       n_chunks = (bbox.dx + chunk_size[0] - 1) // chunk_size[0]
       n_chunks *= (bbox.dy + chunk_size[1] - 1) // chunk_size[1]
       n_chunks *= (bbox.dz + chunk_size[2] - 1) // chunk_size[2]
       return n_chunks
-    def __iter__(self):
-      for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):        
+    def __iter__(self) -> Iterator[str]:
+      for x,y,z in xyzrange( bbox.minpt, bbox.maxpt, chunk_size ):
         xf = min(x + chunk_size.x, volume_bbox.maxpt.x)
         yf = min(y + chunk_size.y, volume_bbox.maxpt.y)
         zf = min(z + chunk_size.z, volume_bbox.maxpt.z)
@@ -155,10 +161,12 @@ def chunknames(bbox, volume_bbox, key, chunk_size, protocol=None):
 
   return ChunkNamesIterator()
 
-def gridpoints(bbox, volume_bbox, chunk_size):
+def gridpoints(
+  bbox: Bbox, volume_bbox: Bbox, chunk_size: Any
+) -> Generator[Vec, None, None]:
   """
-  Consider a volume as divided into a grid with the 
-  first chunk labeled 1, the second 2, etc. 
+  Consider a volume as divided into a grid with the
+  first chunk labeled 1, the second 2, etc.
 
   Return the grid x,y,z coordinates of a cutout as a
   sequence.
@@ -174,7 +182,11 @@ def gridpoints(bbox, volume_bbox, chunk_size):
   for x,y,z in xyzrange( grid_cutout.minpt, grid_cutout.maxpt, (1,1,1) ):
     yield Vec(x,y,z)
 
-def shade(dest_img, dest_bbox, src_img, src_bbox, channel=None):
+def shade(
+  dest_img: np.ndarray, dest_bbox: Bbox,
+  src_img: Optional[np.ndarray], src_bbox: Bbox,
+  channel: Any = None
+) -> None:
   """
   Shade dest_img at coordinates dest_bbox using the
   image contained in src_img at coordinates src_bbox.
@@ -204,25 +216,25 @@ def shade(dest_img, dest_bbox, src_img, src_bbox, channel=None):
 
   while src_img.ndim < 4:
     src_img = src_img[..., np.newaxis]
-  
+
   if channel:
-    dest_img[ 
+    dest_img[
       dest_minpt[0]:dest_maxpt[0],
       dest_minpt[1]:dest_maxpt[1],
       dest_minpt[2]:dest_maxpt[2],
       channel
     ] = src_img[
-      istart[0]:iend[0], 
+      istart[0]:iend[0],
       istart[1]:iend[1],
       istart[2]:iend[2]
     ]
   else:
-    dest_img[ 
+    dest_img[
       dest_minpt[0]:dest_maxpt[0],
       dest_minpt[1]:dest_maxpt[1],
       dest_minpt[2]:dest_maxpt[2],
     ] = src_img[
-      istart[0]:iend[0], 
+      istart[0]:iend[0],
       istart[1]:iend[1],
       istart[2]:iend[2]
     ]
