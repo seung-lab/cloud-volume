@@ -313,7 +313,7 @@ def child_upload_process(
 
 def threaded_upload_chunks(
     meta, cache, lru,
-    img, mip, chunk_ranges, 
+    img, mip, chunk_ranges,
     compress, cdn_cache, progress,
     n_threads=DEFAULT_THREADS,
     delete_black_uploads=False,
@@ -323,7 +323,7 @@ def threaded_upload_chunks(
     secrets=None,
     lru_encoding="same",
   ):
-  
+
   if cache.enabled:
     mkdir(cache.path)
 
@@ -366,7 +366,7 @@ def threaded_upload_chunks(
       encoded = np.asfortranarray(imgchunk)
     else:
       encoded = chunks.encode(
-        imgchunk, encoding, 
+        imgchunk, encoding,
         meta.compressed_segmentation_block_size(mip),
         compression_params=meta.compression_params(mip),
         num_threads=meta.config.codec_threads,
@@ -377,32 +377,29 @@ def threaded_upload_chunks(
         lru[cloudpath] = (encoding, encoded)
       else:
         lru_encoded = chunks.encode(
-          imgchunk, lru_encoding, 
+          imgchunk, lru_encoding,
           meta.compressed_segmentation_block_size(mip),
           compression_params=meta.compression_params(mip),
           num_threads=meta.config.codec_threads,
         )
         lru[cloudpath] = (lru_encoding, lru_encoded)
-    
-    if cache_compress is None and cache.enabled:
-      cache_encoded = encoded
 
     if not no_serialize:
       remote_encoded = compression.compress(encoded, remote_compress)
     else:
       remote_encoded = encoded
 
-    cache_encoded = remote_encoded
-
     if cache.enabled and remote_compress != cache_compress:
       cache_encoded = compression.compress(encoded, cache_compress)
+    else:
+      cache_encoded = remote_encoded
 
     del encoded
 
     remote.put(
-        path=cloudpath, 
+        path=cloudpath,
         content=remote_encoded,
-        content_type=content_type(meta.encoding(mip)), 
+        content_type=content_type(meta.encoding(mip)),
         compress=remote_compress,
         compression_level=compress_level,
         cache_control=cdn_cache_control(cdn_cache),
@@ -414,15 +411,15 @@ def threaded_upload_chunks(
     if cache.enabled:
       local.put(
         path=cloudpath,
-        content=cache_encoded, 
-        content_type=content_type(meta.encoding(mip)), 
+        content=cache_encoded,
+        content_type=content_type(meta.encoding(mip)),
         compress=cache_compress,
         raw=True,
       )
 
   def do_delete(cloudpath):
     remote.delete(cloudpath)
-    
+
     if cache.enabled:
       local.delete(cloudpath)
 
@@ -444,7 +441,11 @@ def threaded_upload_chunks(
     cloudpath = meta.join(meta.key(mip), filename)
 
     if delete_black_uploads:
-      if np.any(imgchunk != background_color):
+      if background_color == 0:
+        has_data = np.any(imgchunk)
+      else:
+        has_data = not np.array_equal(imgchunk, background_color)
+      if has_data:
         do_upload(i, imgchunk, cloudpath)
       else:
         do_delete(cloudpath)
@@ -461,8 +462,8 @@ def threaded_upload_chunks(
     n_threads = 0
 
   schedule_jobs(
-    fns=( partial(process_and_update, i, *vals) for i, vals in enumerate(chunk_ranges) ), 
-    concurrency=n_threads, 
+    fns=( partial(process_and_update, i, *vals) for i, vals in enumerate(chunk_ranges) ),
+    concurrency=n_threads,
     progress=('Uploading' if progress and not callable(progress) else None),
     total=len(chunk_ranges),
     green=green,
