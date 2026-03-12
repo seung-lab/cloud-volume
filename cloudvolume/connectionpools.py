@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import queue as Queue
 import threading
 import time
 from functools import partial
+from typing import Any
 
-import boto3 
+import boto3
 from google.cloud.storage import Client
 import tenacity
 
@@ -11,44 +14,44 @@ from .secrets import google_credentials, aws_credentials
 from .exceptions import UnsupportedProtocolError
 
 retry = tenacity.retry(
-  reraise=True, 
-  stop=tenacity.stop_after_attempt(7), 
+  reraise=True,
+  stop=tenacity.stop_after_attempt(7),
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
 class ConnectionPool(object):
   """
   This class is intended to be subclassed. See below.
-  
+
   Creating fresh client or connection objects
   for Google or Amazon eventually starts causing
   breakdowns when too many connections open.
-  
+
   To promote efficient resource use and prevent
   containers from dying, we create a ConnectionPool
   that allows for the reuse of connections.
-  
-  Storage interfaces may acquire and release connections 
-  when they need or finish using them. 
-  
+
+  Storage interfaces may acquire and release connections
+  when they need or finish using them.
+
   If the limit is reached, additional requests for
   acquiring connections will block until they can
   be serviced.
   """
-  def __init__(self):
-    self.pool = Queue.Queue(maxsize=0)
-    self.outstanding = 0
-    self._lock = threading.Lock()
+  def __init__(self) -> None:
+    self.pool: Queue.Queue[Any] = Queue.Queue(maxsize=0)
+    self.outstanding: int = 0
+    self._lock: threading.Lock = threading.Lock()
 
-  def total_connections(self):
+  def total_connections(self) -> int:
     return self.pool.qsize() + self.outstanding
 
-  def _create_connection(self):
+  def _create_connection(self) -> Any:
     raise NotImplementedError
 
-  def get_connection(self):    
+  def get_connection(self) -> Any:
     with self._lock:
-      try:        
+      try:
         conn = self.pool.get(block=False)
         self.pool.task_done()
       except Queue.Empty:
@@ -58,7 +61,7 @@ class ConnectionPool(object):
 
     return conn
 
-  def release_connection(self, conn):
+  def release_connection(self, conn: Any) -> None:
     if conn is None:
       return
 
@@ -66,10 +69,10 @@ class ConnectionPool(object):
     with self._lock:
       self.outstanding -= 1
 
-  def close(self, conn):
-    return 
+  def close(self, conn: Any) -> None:
+    return
 
-  def reset_pool(self):
+  def reset_pool(self) -> None:
     while True:
       if not self.pool.qsize():
         break
@@ -83,18 +86,18 @@ class ConnectionPool(object):
     with self._lock:
       self.outstanding = 0
 
-  def __del__(self):
+  def __del__(self) -> None:
     self.reset_pool()
 
 class S3ConnectionPool(ConnectionPool):
-  def __init__(self, service, bucket):
-    self.service = service
-    self.bucket = bucket
-    self.credentials = aws_credentials(bucket, service)
+  def __init__(self, service: str, bucket: str) -> None:
+    self.service: str = service
+    self.bucket: str = bucket
+    self.credentials: dict[str, str] = aws_credentials(bucket, service)
     super(S3ConnectionPool, self).__init__()
 
   @retry
-  def _create_connection(self):
+  def _create_connection(self) -> Any:
     if self.service in ('aws', 's3'):
       return boto3.client(
         's3',
@@ -111,8 +114,8 @@ class S3ConnectionPool(ConnectionPool):
       )
     else:
       raise UnsupportedProtocolError("{} unknown. Choose from 's3' or 'matrix'.", self.service)
-      
-  def close(self, conn):
+
+  def close(self, conn: Any) -> None:
     try:
       return conn.close()
     except AttributeError:
@@ -120,13 +123,14 @@ class S3ConnectionPool(ConnectionPool):
 
 
 class GCloudBucketPool(ConnectionPool):
-  def __init__(self, bucket):
-    self.bucket = bucket
+  def __init__(self, bucket: str) -> None:
+    self.bucket: str = bucket
+    self.project: str | None
     self.project, self.credentials = google_credentials(bucket)
     super(GCloudBucketPool, self).__init__()
 
   @retry
-  def _create_connection(self):
+  def _create_connection(self) -> Any:
     client = Client(
       credentials=self.credentials,
       project=self.project,
