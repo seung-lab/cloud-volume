@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Optional, Sequence, Tuple, Union
+
 """Utilties for translating to/from dask arrays.
 
 NOTE: Using the thread-based dask scheduler is very inefficient with
@@ -11,16 +15,16 @@ import numpy as np
 from .cloudvolume import CloudVolume
 
 
-def to_cloudvolume(arr,
-                   cloudpath,
-                   resolution=(1, 1, 1),
-                   voxel_offset=(0, 0, 0),
-                   layer_type=None,
-                   encoding='raw',
-                   max_mip=0,
-                   compute=True,
-                   return_stored=False,
-                   **kwargs):
+def to_cloudvolume(arr: Any,
+                   cloudpath: str,
+                   resolution: Sequence[int] = (1, 1, 1),
+                   voxel_offset: Sequence[int] = (0, 0, 0),
+                   layer_type: Optional[str] = None,
+                   encoding: str = 'raw',
+                   max_mip: int = 0,
+                   compute: bool = True,
+                   return_stored: bool = False,
+                   **kwargs: Any) -> Any:
   """Save 3d or 4d dask array to the precomputed CloudVolume storage format.
 
   NOTE: DO NOT USE thread-based dask scheduler. See comment at top of module.
@@ -98,7 +102,7 @@ def to_cloudvolume(arr,
   return arr.store(vol, lock=False, compute=compute, return_stored=return_stored)
 
 
-def _create_cloudvolume(cloudpath, info, **kwargs):
+def _create_cloudvolume(cloudpath: str, info: dict, **kwargs: Any) -> Any:
   """Create cloudvolume and commit metadata."""
   vol = CloudVolume(cloudpath, info=info, progress=False, **kwargs)
   vol.commit_info()
@@ -107,7 +111,7 @@ def _create_cloudvolume(cloudpath, info, **kwargs):
   return vol
 
 
-def from_cloudvolume(cloudpath, chunks=None, name=None, **kwargs):
+def from_cloudvolume(cloudpath: str, chunks: Optional[Any] = None, name: Optional[str] = None, **kwargs: Any) -> Any:
   """Load dask array from a cloudvolume compatible dataset.
 
   NOTE: DO NOT USE thread-based dask scheduler. See comment at top of module.

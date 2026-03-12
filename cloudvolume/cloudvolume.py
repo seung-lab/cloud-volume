@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import sys
 import time
-from typing import Optional, Union, Tuple, Any
+from typing import Optional, Union, Tuple, Any, Callable, Dict
 
 import multiprocessing as mp
 import numpy as np
@@ -22,16 +24,16 @@ try:
 except AttributeError:
   INTERACTIVE = bool(sys.flags.interactive)
 
-REGISTERED_IMAGE_PLUGINS = {}
-def register_plugin(key, creation_function):
+REGISTERED_IMAGE_PLUGINS: Dict[str, Callable] = {}
+def register_plugin(key: str, creation_function: Callable[..., Any]) -> None:
   REGISTERED_IMAGE_PLUGINS[key.lower()] = creation_function
 
-REGISTERED_ANNOTATION_PLUGINS = {}
-def register_annotation_plugin(key, creation_function):
+REGISTERED_ANNOTATION_PLUGINS: Dict[str, Callable] = {}
+def register_annotation_plugin(key: str, creation_function: Callable[..., Any]) -> None:
   REGISTERED_ANNOTATION_PLUGINS[key.lower()] = creation_function
 
-REGISTERED_MESH_PLUGINS = {}
-def register_mesh_plugin(key, creation_function):
+REGISTERED_MESH_PLUGINS: Dict[str, Callable] = {}
+def register_mesh_plugin(key: str, creation_function: Callable[..., Any]) -> None:
   REGISTERED_MESH_PLUGINS[key.lower()] = creation_function
 
 def compute_num_threads(num_threads:ParallelType) -> int:
@@ -60,7 +62,7 @@ class SharedConfiguration(object):
     spatial_index_db:Optional[str], cache_locking:bool,
     codec_threads:ParallelType,
     *args, **kwargs
-  ):
+  ) -> None:
     self.cdn_cache = cdn_cache
     self.cache_locking = bool(cache_locking)
     self.codec_threads = compute_num_threads(codec_threads)
@@ -108,7 +110,7 @@ class CloudVolume:
     lru_encoding:str = "same",
     timestamp:Optional[int] = None,
     codec_threads:int = 1,
-  ):
+  ) -> Any:
     """
     A "serverless" Python client for reading and writing arbitrarily large 
     Neuroglancer Precomputed volumes both locally and on cloud services using.  
@@ -302,7 +304,7 @@ class CloudVolume:
         raise err
 
   @classmethod
-  def create_new_info(cls, *args, **kwargs):
+  def create_new_info(cls, *args: Any, **kwargs: Any) -> dict:
     from .frontends import CloudVolumePrecomputed
     # For backwards compatibility, but this only 
     # makes sense for Precomputed anyway
@@ -319,7 +321,7 @@ class CloudVolume:
     compress:str = "gzip",
     progress:bool = False,
     allow_mmap:bool = True,
-  ):
+  ) -> Any:
     """
     Created a precomputed segmentation dataset from a 
     single crackle file representing a whole dataset.
@@ -372,14 +374,20 @@ class CloudVolume:
     return vol
 
   @classmethod
-  def from_numpy(cls, 
-    arr, 
-    vol_path='file:///tmp/image/' + generate_random_string(),
-    resolution=(4,4,40), voxel_offset=(0,0,0), 
-    chunk_size=(128,128,64), layer_type=None, max_mip=0,
-    encoding='raw', compress=None, progress=False,
-    encoding_level=None, encoding_effort=None,
-  ):
+  def from_numpy(cls,
+    arr: np.ndarray,
+    vol_path: str = 'file:///tmp/image/' + generate_random_string(),
+    resolution: Tuple[int,int,int] = (4,4,40),
+    voxel_offset: Tuple[int,int,int] = (0,0,0),
+    chunk_size: Tuple[int,int,int] = (128,128,64),
+    layer_type: Optional[str] = None,
+    max_mip: int = 0,
+    encoding: str = 'raw',
+    compress: CompressType = None,
+    progress: bool = False,
+    encoding_level: Optional[int] = None,
+    encoding_effort: Optional[int] = None,
+  ) -> Any:
     """
     Create a new dataset from a numpy array.
 
