@@ -395,10 +395,10 @@ def threaded_upload_chunks(
     else:
       remote_encoded = encoded
 
-    cache_encoded = remote_encoded
-
     if cache.enabled and remote_compress != cache_compress:
       cache_encoded = compression.compress(encoded, cache_compress)
+    else:
+      cache_encoded = remote_encoded
 
     del encoded
 
@@ -447,7 +447,11 @@ def threaded_upload_chunks(
     cloudpath = meta.join(meta.key(mip), filename)
 
     if delete_black_uploads:
-      if np.any(imgchunk != background_color):
+      if background_color == 0:
+        has_data = np.any(imgchunk)
+      else:
+        has_data = not np.array_equal(imgchunk, background_color)
+      if has_data:
         do_upload(i, imgchunk, cloudpath)
       else:
         do_delete(cloudpath)
