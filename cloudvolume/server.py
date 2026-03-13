@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Dict, Optional, Tuple, Union
+
 import os
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -17,7 +21,7 @@ DEFAULT_PORT = 8080
 
 RANGE_RE = re.compile(r"^bytes=(\d+)?-(\d+)?$")
 
-def view(cloudpath, hostname="localhost", port=DEFAULT_PORT):
+def view(cloudpath: str, hostname: str = "localhost", port: int = DEFAULT_PORT) -> None:
   """Start a local web app on the given port that lets you explore this cutout."""
   def handler(*args):
     return ViewerServerHandler(cloudpath, *args)
@@ -32,23 +36,23 @@ def view(cloudpath, hostname="localhost", port=DEFAULT_PORT):
   finally:
     myServer.server_close()
 
-def parse_range_header(header):
+def parse_range_header(header: str) -> Tuple[int, int]:
   start, end = re.match(RANGE_RE, header).groups()
   return int(start), int(end)
 
 class ViewerServerHandler(BaseHTTPRequestHandler):
-  def __init__(self, cloudpath, *args):
+  def __init__(self, cloudpath: str, *args: Any) -> None:
     self.cloudpath = cloudpath
     BaseHTTPRequestHandler.__init__(self, *args)
 
-  def do_OPTIONS(self):
+  def do_OPTIONS(self) -> None:
     self.send_response(200, "ok")   
     self.send_header('Access-Control-Allow-Origin', '*')              
     self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS', 'HEAD')
     self.send_header("Access-Control-Allow-Headers", "range")
     self.end_headers()
 
-  def do_HEAD(self):
+  def do_HEAD(self) -> None:
     if self.path.find('..') != -1:
       self.send_error(403, "Relative paths are not allowed.")
       raise ValueError("Relative paths are not allowed.")
@@ -69,7 +73,7 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
     self.send_header('Content-Length', str(size))
     self.end_headers()
 
-  def do_GET(self):  
+  def do_GET(self) -> None:
     if self.path.find('..') != -1:
       self.send_error(403, "Relative paths are not allowed.")
       raise ValueError("Relative paths are not allowed.")
@@ -101,7 +105,7 @@ class ViewerServerHandler(BaseHTTPRequestHandler):
 
     self.serve_data(data, query, size)
 
-  def serve_data(self, data, query, size):
+  def serve_data(self, data: bytes, query: Dict[str, Any], size: int) -> None:
     self.send_header('Content-Type', 'application/octet-stream')
     self.send_header('Access-Control-Allow-Origin', '*')
     

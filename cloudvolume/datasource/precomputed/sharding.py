@@ -1,4 +1,6 @@
-from typing import Optional, Any, Tuple
+from __future__ import annotations
+
+from typing import Optional, Any, Tuple, Union
 
 from collections import namedtuple, defaultdict
 import copy
@@ -37,12 +39,12 @@ ShapeType = Tuple[int, int, int]
 
 class ShardingSpecification(object):
   def __init__(
-    self, type, preshift_bits, 
-    hash, minishard_bits, 
-    shard_bits, 
-    minishard_index_encoding='raw', 
-    data_encoding='raw'
-  ):
+    self, type: str, preshift_bits: Any,
+    hash: str, minishard_bits: Any,
+    shard_bits: Any,
+    minishard_index_encoding: str = 'raw',
+    data_encoding: str = 'raw'
+  ) -> None:
 
     self.type = type 
     self.preshift_bits = uint64(preshift_bits)
@@ -57,54 +59,54 @@ class ShardingSpecification(object):
 
     self.validate()
 
-  def clone(self):
+  def clone(self) -> ShardingSpecification:
     return ShardingSpecification.from_dict(self.to_dict())
 
-  def index_length(self):
+  def index_length(self) -> int:
     return int((2 ** self.minishard_bits) * 16)
 
   @property
-  def hash(self):
+  def hash(self) -> str:
     return self._hash
 
   @hash.setter
-  def hash(self, val):
+  def hash(self, val: str) -> None:
     if val == 'identity':
       self.hashfn = lambda x: uint64(x)
     elif val == 'murmurhash3_x86_128':
-      self.hashfn = lambda x: uint64(mmh3.hash64(uint64(x).tobytes(), x64arch=False)[0]) 
+      self.hashfn = lambda x: uint64(mmh3.hash64(uint64(x).tobytes(), x64arch=False)[0])
     else:
       raise SpecViolation("hash {} must be either 'identity' or 'murmurhash3_x86_128'".format(val))
 
     self._hash = val
 
   @property
-  def preshift_bits(self):
+  def preshift_bits(self) -> np.uint64:
     return self._preshift_bits
-  
+
   @preshift_bits.setter
-  def preshift_bits(self, val):
-    self._preshift_bits = uint64(val) 
+  def preshift_bits(self, val: Any) -> None:
+    self._preshift_bits = uint64(val)
 
   @property
-  def shard_bits(self):
+  def shard_bits(self) -> np.uint64:
     return self._shard_bits
-  
+
   @shard_bits.setter
-  def shard_bits(self, val):
-    self._shard_bits = uint64(val) 
+  def shard_bits(self, val: Any) -> None:
+    self._shard_bits = uint64(val)
 
   @property
-  def minishard_bits(self):
+  def minishard_bits(self) -> np.uint64:
     return self._minishard_bits
-  
+
   @minishard_bits.setter
-  def minishard_bits(self, val):
+  def minishard_bits(self, val: Any) -> None:
     val = uint64(val)
     self.minishard_mask = self.compute_minishard_mask(val)
     self._minishard_bits = uint64(val)
 
-  def compute_minishard_mask(self, val):
+  def compute_minishard_mask(self, val: Any) -> np.uint64:
     if val < 0:
       raise ValueError(str(val) + " must be greater or equal to than zero.")
     elif val == 0:
@@ -116,7 +118,7 @@ class ShardingSpecification(object):
       minishard_mask |= uint64(1)
     return uint64(minishard_mask)
 
-  def compute_shard_mask(self, shard_bits, minishard_bits):
+  def compute_shard_mask(self, shard_bits: Any, minishard_bits: Any) -> np.uint64:
     ones64 = uint64(0xffffffffffffffff)
     movement = uint64(minishard_bits + shard_bits)
     shard_mask = ~((ones64 >> movement) << movement)
@@ -124,21 +126,21 @@ class ShardingSpecification(object):
     return shard_mask & (~minishard_mask)
 
   @classmethod
-  def from_json(cls, vals):
+  def from_json(cls, vals: bytes) -> ShardingSpecification:
     dct = json.loads(vals.decode('utf8'))
     return cls.from_dict(dct)
 
-  def to_json(self):
+  def to_json(self) -> str:
     return jsonify(self.to_dict())
 
   @classmethod
-  def from_dict(cls, vals):
+  def from_dict(cls, vals: dict) -> ShardingSpecification:
     vals = copy.deepcopy(vals)
     vals['type'] = vals['@type']
     del vals['@type']
     return cls(**vals)
 
-  def to_dict(self):
+  def to_dict(self) -> dict:
     return {
       '@type': self.type,
       'preshift_bits': self.preshift_bits,
@@ -149,7 +151,7 @@ class ShardingSpecification(object):
       'data_encoding': self.data_encoding,
     }
 
-  def compute_shard_location(self, key):
+  def compute_shard_location(self, key: Any) -> ShardLocation:
     chunkid = uint64(key) >> uint64(self.preshift_bits)
     chunkid = self.hashfn(chunkid)
     minishard_number = uint64(chunkid & self.minishard_mask)
@@ -159,7 +161,7 @@ class ShardingSpecification(object):
 
     return ShardLocation(shard_number, minishard_number, remainder)
 
-  def synthesize_shards(self, data, data_offset=None, progress=False):
+  def synthesize_shards(self, data: dict, data_offset: Optional[dict] = None, progress: bool = False) -> dict[str, bytes]:
     """
     Given this specification and a comprehensive listing of
     all the items that could be combined into a given shard,
@@ -179,7 +181,7 @@ class ShardingSpecification(object):
     """
     return synthesize_shard_files(self, data, data_offset, progress)
 
-  def synthesize_shard(self, labels, data_offset=None, progress=False, presorted=False):
+  def synthesize_shard(self, labels: dict, data_offset: Optional[dict] = None, progress: bool = False, presorted: bool = False) -> bytes:
     """
     Assemble a shard file from a group of labels that all belong in the same shard.
 
@@ -197,7 +199,7 @@ class ShardingSpecification(object):
     """
     return synthesize_shard_file(self, labels, data_offset, progress, presorted)
 
-  def validate(self):
+  def validate(self) -> None:
     if self.type not in ('neuroglancer_uint64_sharded_v1',):
       raise SpecViolation(
         "@type ({}) must be 'neuroglancer_uint64_sharded_v1'." \
@@ -228,7 +230,7 @@ class ShardingSpecification(object):
     if self.data_encoding not in ('raw', 'gzip'):
       raise SpecViolation("data_encoding only supports values 'raw' or 'gzip'.")
 
-  def image_shard_shape(self, dataset_size, chunk_size):
+  def image_shard_shape(self, dataset_size: Any, chunk_size: Any) -> Vec:
     """For image shards, compute their shape"""
     chunk_size = Vec(*chunk_size, dtype=np.uint64)
     dataset_size = Vec(*dataset_size, dtype=np.uint64)
@@ -244,7 +246,7 @@ class ShardingSpecification(object):
         f"preshift_bits ({preshift_bits}) + minishard_bits ({minishard_bits}) must be < 64. Sum: {shape_bits}"
       )
 
-    def compute_shape_bits():
+    def compute_shape_bits() -> Vec:
       shape = Vec(0,0,0, dtype=np.uint64)
 
       i = 0
@@ -271,19 +273,19 @@ class ShardingSpecification(object):
     shape = Vec(2 ** shape.x, 2 ** shape.y, 2 ** shape.z, dtype=np.uint64)
     return chunk_size * shape
 
-  def __str__(self):
+  def __str__(self) -> str:
     return "ShardingSpecification::" + str(self.to_dict())
 
 class ShardReader:
   def __init__(
-    self, 
+    self,
     cloudpath:Optional[str],
-    cache:"CacheService",
+    cache:Any,
     spec:ShardingSpecification,
     shard_index_cache_size:int = 512,
     minishard_index_cache_size:int = 128,
     green:bool = False,
-  ):
+  ) -> None:
     """
     Reads standard Precomputed shard files. 
 
@@ -308,16 +310,16 @@ class ShardReader:
     self.shard_index_cache = LRU(shard_index_cache_size)
     self.minishard_index_cache = LRU(minishard_index_cache_size)
 
-  def join(self, *paths):
+  def join(self, *paths: str) -> str:
     if self._path.protocol == 'file':
       return os.path.join(*paths)
     else:
       return posixpath.join(*paths)
 
-  def get_filename(self, label):
+  def get_filename(self, label: Any) -> str:
     return self.compute_shard_location(label)[0]
 
-  def compute_shard_location(self, label):
+  def compute_shard_location(self, label: Any) -> tuple[str, np.uint64]:
     """
     Returns (filename, shard_number) for meshes and skeletons. 
     Images require a different scheme.
@@ -326,7 +328,7 @@ class ShardReader:
     filename = str(shard_loc.shard_number) + '.shard'
     return (filename, shard_loc.minishard_number)
 
-  def get_index(self, filename, path=""):
+  def get_index(self, filename: str, path: str = "") -> np.ndarray:
     """
     Retrieves the shard index which is used for 
     locating the appropriate minishard index.
@@ -340,7 +342,7 @@ class ShardReader:
       raise EmptyFileException(filename + " was zero bytes.")
     return index
 
-  def get_indices(self, filenames, path="", progress=None):
+  def get_indices(self, filenames: Any, path: str = "", progress: Optional[bool] = None) -> dict:
     """
     For all given files, retrieves the shard index which 
     is used for locating the appropriate minishard indices.
@@ -383,7 +385,7 @@ class ShardReader:
 
     return fufilled
 
-  def decode_index(self, binary, filename='Shard'):
+  def decode_index(self, binary: Optional[bytes], filename: str = 'Shard') -> np.ndarray:
     if binary is None or len(binary) == 0:
       raise EmptyFileException(filename + " was zero bytes.")
     elif len(binary) != self.spec.index_length():
@@ -396,7 +398,7 @@ class ShardReader:
     index = index.reshape( (index.size // 2, 2), order='C' )
     return index + self.spec.index_length()
 
-  def decode_minishard_index(self, minishard_index, filename=''):
+  def decode_minishard_index(self, minishard_index: bytes, filename: str = '') -> np.ndarray:
     """Returns [[label, offset, size], ... ] where offset and size are in bytes."""
 
     if self.spec.minishard_index_encoding != 'raw':
@@ -414,7 +416,7 @@ class ShardReader:
 
     return minishard_index 
 
-  def get_minishard_index(self, filename, index, minishard_no, path=""):
+  def get_minishard_index(self, filename: str, index: np.ndarray, minishard_no: Any, path: str = "") -> Optional[np.ndarray]:
     """
     Retrieves the minishard index for a given minishard number.
 
@@ -423,7 +425,7 @@ class ShardReader:
     res = self.get_minishard_indices(filename, index, minishard_no, path)
     return res[minishard_no]
 
-  def get_minishard_indices(self, filename, index, minishard_nos, path=""):
+  def get_minishard_indices(self, filename: str, index: np.ndarray, minishard_nos: Any, path: str = "") -> dict:
     """
     Retrieves the minishard indices for a set of minishard numbers.
 
@@ -432,7 +434,7 @@ class ShardReader:
     res = self.get_minishard_indices_for_files(( (filename, index, minishard_nos), ), path)
     return res[basename(filename)]
 
-  def get_minishard_indices_for_files(self, requests, path="", progress=None):
+  def get_minishard_indices_for_files(self, requests: Any, path: str = "", progress: Optional[bool] = None) -> dict:
     """
     Fetches the specified minishard indices for all the specified files
     at once. This is required to get high performance as opposed to fetching
@@ -486,7 +488,7 @@ class ShardReader:
 
     return fufilled_by_filename
 
-  def compute_minishard_index_requests(self, filename, index, minishard_nos, path=""):
+  def compute_minishard_index_requests(self, filename: str, index: Optional[np.ndarray], minishard_nos: Any, path: str = "") -> tuple[dict, list]:
     """
     Helper method for get_minishard_indices_for_files. 
     Computes which requests must be made over the network vs can be fufilled from LRU cache.
@@ -522,7 +524,7 @@ class ShardReader:
 
     return (fufilled_requests, pending_requests)
 
-  def exists(self, labels, path="", return_byte_range=False, progress=None):
+  def exists(self, labels: Any, path: str = "", return_byte_range: bool = False, progress: Optional[bool] = None) -> Any:
     """
     Checks a shard's minishard index for whether a file exists.
 
@@ -586,7 +588,7 @@ class ShardReader:
       return(list(results.values())[0])
     return results
 
-  def disassemble_shard(self, shard):
+  def disassemble_shard(self, shard: bytes) -> dict[int, bytes]:
     """
     Given an entire shard as a bytestring, convert 
     it into a dict of { label: byte content }.
@@ -668,11 +670,11 @@ class ShardReader:
   def get_data(
     self,
     label:int,
-    path:str = "", 
+    path:str = "",
     progress:Optional[bool] = None,
     parallel:int = 1,
     raw:bool = False
-  ):
+  ) -> Any:
     """Fetches data from shards.
 
     label: one or more segment ids
@@ -785,7 +787,7 @@ class ShardReader:
       return results
     return first(results.values())
 
-  def list_labels(self, filename, path="", size=False):
+  def list_labels(self, filename: str, path: str = "", size: bool = False) -> Union[np.ndarray, list[tuple[Any, Any]]]:
     """
     List all the labels in the index of a given shard file.
 
@@ -818,7 +820,7 @@ class ShardReader:
       return sorted(labels, key=lambda x: x[1], reverse=True)
 
 
-def synthesize_shard_files(spec, data, data_offset=None, progress=False):
+def synthesize_shard_files(spec: ShardingSpecification, data: dict, data_offset: Optional[dict] = None, progress: bool = False) -> dict[str, bytes]:
   """
   From a set of data guaranteed to constitute one or more
   complete and comprehensive shards (no partial shards) 
@@ -863,7 +865,7 @@ def synthesize_shard_files(spec, data, data_offset=None, progress=False):
 # NB: This is going to be memory hungry and can be optimized
 
 
-def synthesize_shard_file(spec, label_group, data_offset=None, progress=False, presorted=False):
+def synthesize_shard_file(spec: ShardingSpecification, label_group: dict, data_offset: Optional[dict] = None, progress: bool = False, presorted: bool = False) -> bytes:
   """
   Assemble a shard file from a group of labels that all belong in the same shard.
 
@@ -985,7 +987,7 @@ def compute_shard_params_for_hashed(
   shard_index_bytes:int = 2**13, 
   minishard_index_bytes:int = 2**15,
   min_shards:int = 1
-):
+) -> tuple[int, int, int]:
   """
   Computes the shard parameters for objects that
   have been randomly hashed (e.g. murmurhash) so
@@ -1110,7 +1112,7 @@ def compute_shard_params_for_image(
   else:
     raise ValueError(f"{dtype} must be int, str, np.integer, or np.floating.")
 
-  def prod(x):
+  def prod(x: Any) -> int:
     return reduce(operator.mul, x, 1)
 
   voxels = prod(dataset_size)
@@ -1131,7 +1133,7 @@ def compute_shard_params_for_image(
   # rounding is corrected for via max_bits - pre - mini below.
   num_shards = num_chunks / chunks_per_shard 
   
-  def update_bits():
+  def update_bits() -> tuple[int, int]:
     shard_bits = int(math.ceil(math.log2(num_shards)))
     preshift_bits = int(math.ceil(math.log2(chunks_per_shard)))
     preshift_bits = min(preshift_bits, max_bits - shard_bits)
@@ -1230,7 +1232,7 @@ def image_shard_shape_from_spec(
       f"preshift_bits ({preshift_bits}) + minishard_bits ({minishard_bits}) must be < 64. Sum: {shape_bits}"
     )
 
-  def compute_shape_bits():
+  def compute_shape_bits() -> Vec:
     shape = Vec(0,0,0, dtype=np.uint64)
 
     i = 0

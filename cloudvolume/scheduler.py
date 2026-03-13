@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import sys
+from typing import Any, Callable, Iterable, Optional, Union
 
 from tqdm import tqdm
 
@@ -6,9 +9,11 @@ from .lib import totalfn
 from .threaded_queue import ThreadedQueue, DEFAULT_THREADS
 
 def schedule_threaded_jobs(
-    fns, concurrency=DEFAULT_THREADS, 
-    progress=None, total=None
-  ):
+    fns: Iterable[Callable[[], Any]],
+    concurrency: int = DEFAULT_THREADS,
+    progress: Union[bool, str, tqdm, None] = None,
+    total: Optional[int] = None
+  ) -> list[Any]:
 
   if total is None:
     try:
@@ -20,15 +25,15 @@ def schedule_threaded_jobs(
     pbar = progress
   else:
     pbar = tqdm(
-      total=total, 
+      total=total,
       desc=(progress if isinstance(progress, str) else None),
       disable=(not progress)
     )
 
-  results = []
-  
-  def updatefn(fn):
-    def realupdatefn(iface):
+  results: list[Any] = []
+
+  def updatefn(fn: Callable[[], Any]) -> Callable[..., None]:
+    def realupdatefn(iface: Any) -> None:
       res = fn()
       pbar.update(1)
       results.append(res)
@@ -42,9 +47,11 @@ def schedule_threaded_jobs(
   return results
 
 def schedule_green_jobs(
-    fns, concurrency=DEFAULT_THREADS, 
-    progress=None, total=None
-  ):
+    fns: Iterable[Callable[[], Any]],
+    concurrency: int = DEFAULT_THREADS,
+    progress: Union[bool, str, tqdm, None] = None,
+    total: Optional[int] = None
+  ) -> list[Any]:
   import gevent.pool
 
   if total is None:
@@ -57,24 +64,24 @@ def schedule_green_jobs(
     pbar = progress
   else:
     pbar = tqdm(
-      total=total, 
+      total=total,
       desc=(progress if isinstance(progress, str) else None),
       disable=(not progress)
     )
 
-  results = []
+  results: list[Any] = []
 
-  exceptions = []
+  exceptions: list[Exception] = []
 
-  def add_exception(greenlet):
+  def add_exception(greenlet: Any) -> None:
     nonlocal exceptions
     try:
       greenlet.get()
     except Exception as err:
       exceptions.append(err)
-  
-  def updatefn(fn):
-    def realupdatefn():
+
+  def updatefn(fn: Callable[[], Any]) -> Callable[[], None]:
+    def realupdatefn() -> None:
       res = fn()
       pbar.update(1)
       results.append(res)
@@ -95,32 +102,37 @@ def schedule_green_jobs(
   return results
 
 def schedule_single_threaded_jobs(
-  fns, progress=None, total=None
-):
+  fns: Iterable[Callable[[], Any]],
+  progress: Union[bool, str, tqdm, None] = None,
+  total: Optional[int] = None
+) -> list[Any]:
   if isinstance(progress, tqdm):
     pbar = progress
   else:
     pbar = tqdm(
-      total=totalfn(fns, total), 
-      disable=(not progress), 
+      total=totalfn(fns, total),
+      disable=(not progress),
       desc=(progress if isinstance(progress, str) else None)
     )
 
   with pbar:
-    results = []
+    results: list[Any] = []
     for fn in fns:
       res = fn()
       pbar.update(1)
       results.append(res)
-  return results 
+  return results
 
 def schedule_jobs(
-    fns, concurrency=DEFAULT_THREADS, 
-    progress=None, total=None, green=False
-  ):
+    fns: Iterable[Callable[[], Any]],
+    concurrency: int = DEFAULT_THREADS,
+    progress: Union[bool, str, tqdm, None] = None,
+    total: Optional[int] = None,
+    green: bool = False
+  ) -> list[Any]:
   """
   Given a list of functions, execute them concurrently until
-  all complete. 
+  all complete.
 
   fns: iterable of functions
   concurrency: number of threads (0: no threads)
@@ -136,10 +148,10 @@ def schedule_jobs(
     (isinstance(total, int) and total == 0)
     or (hasattr(fns, "__len__") and len(fns) == 0)
   ):
-    return [] 
+    return []
   elif (
-    concurrency == 0 
-    or (isinstance(total, int) and total <= 1) 
+    concurrency == 0
+    or (isinstance(total, int) and total <= 1)
     or (hasattr(fns, "__len__") and len(fns) <= 1)
   ):
     return schedule_single_threaded_jobs(fns, progress, total)
@@ -155,11 +167,10 @@ def schedule_jobs(
   return schedule_threaded_jobs(fns, concurrency, progress, total)
 
 # c/o https://stackoverflow.com/questions/12826291/raise-two-errors-at-the-same-time
-def raise_multiple(errors):
+def raise_multiple(errors: list[Exception]) -> None:
   if not errors:
     return
   try:
     raise errors.pop()
   finally:
     raise_multiple(errors)
-

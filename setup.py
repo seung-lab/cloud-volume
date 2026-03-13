@@ -108,6 +108,7 @@ setuptools.setup(
     'cloudvolume': [
       'LICENSE',
       'requirements.txt',
+      'py.typed',
     ],
   },
   description="A serverless client for reading and writing Neuroglancer Precomputed volumes both locally and on cloud services.",

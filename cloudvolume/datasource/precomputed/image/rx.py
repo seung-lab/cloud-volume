@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from functools import partial
 import itertools
 import math
 import multiprocessing as mp
 import os
 import threading
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 from tqdm import tqdm
@@ -12,9 +15,9 @@ from cloudfiles import reset_connection_pools, CloudFiles, compression
 import fastremap
 
 from ....exceptions import EmptyVolumeException, EmptyFileException
-from ....lib import (  
-  mkdir, clamp, xyzrange, Vec, 
-  Bbox, min2, max2, 
+from ....lib import (
+  mkdir, clamp, xyzrange, Vec,
+  Bbox, min2, max2,
   jsonify, red, sip, first
 )
 from .... import chunks
@@ -27,23 +30,23 @@ import cloudvolume.sharedmemory as shm
 
 from ..common import should_compress, content_type, compressed_morton_code
 from .common import (
-  parallel_execution, 
+  parallel_execution,
   chunknames, shade, gridpoints,
 )
 
 from .. import sharding
 
-progress_queue = None # defined in common.initialize_synchronization
-fs_lock = None # defined in common.initialize_synchronization
+progress_queue: Any = None # defined in common.initialize_synchronization
+fs_lock: Any = None # defined in common.initialize_synchronization
 
 def download_sharded(
-  requested_bbox, mip,
-  meta, cache, lru, lru_encoding, spec,
-  compress, progress,
-  fill_missing, 
-  order, background_color,
-  label, renumber,
-):
+  requested_bbox: Bbox, mip: int,
+  meta: Any, cache: Any, lru: Any, lru_encoding: str, spec: Any,
+  compress: Any, progress: Any,
+  fill_missing: bool,
+  order: str, background_color: Union[int, float],
+  label: Optional[int], renumber: bool,
+) -> Any:
   full_bbox = requested_bbox.expand_to_chunk_size(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
@@ -71,7 +74,7 @@ def download_sharded(
 
   gpts = list(gridpoints(full_bbox, bounds, chunk_size))
 
-  code_map = {}
+  code_map: Dict[int, Bbox] = {}
   morton_codes = compressed_morton_code(gpts, grid_size)
   for gridpoint, morton_code in zip(gpts, morton_codes):
     cutout_bbox = Bbox(
@@ -82,7 +85,7 @@ def download_sharded(
 
   single_voxel = requested_bbox.volume() == 1
 
-  decode_fn = decode
+  decode_fn: Callable[..., Any] = decode
   if label is not None:
     decode_fn = partial(decode_binary_image, label)
   elif single_voxel:
@@ -95,23 +98,23 @@ def download_sharded(
 
   lru_chunkdata = [ (zcode, lru[zcode]) for zcode in lru_keys ]
   io_chunkdata = reader.get_data(io_keys, meta.key(mip), progress=progress)
-  io_chunkdata = { k: (meta.encoding(mip), v) for k,v in io_chunkdata.items() }  
+  io_chunkdata = { k: (meta.encoding(mip), v) for k,v in io_chunkdata.items() }
 
   for zcode, (data_encoding, chunkdata) in io_chunkdata.items():
     lru[zcode] = (data_encoding, chunkdata)
 
-  remap = { background_color: background_color }
+  remap: Dict[Any, Any] = { background_color: background_color }
   N = 1
 
   for zcode, (data_encoding, chunkdata) in itertools.chain(io_chunkdata.items(), lru_chunkdata):
     cutout_bbox = code_map[zcode]
     img3d = decode_fn(
-      meta, cutout_bbox, 
+      meta, cutout_bbox,
       chunkdata, fill_missing, mip,
       background_color=background_color,
       encoding=data_encoding,
     )
-    
+
     # For the first option, decode_binary_image already
     # performs the comparison, it also extracts the single voxel
     if single_voxel and label is not None:
@@ -142,7 +145,7 @@ def download_sharded(
       shade(renderbuffer, requested_bbox, img3d, cutout_bbox)
 
   result_image = VolumeCutout.from_volume(
-    meta, mip, renderbuffer, 
+    meta, mip, renderbuffer,
     requested_bbox
   )
 
@@ -152,10 +155,10 @@ def download_sharded(
     return result_image
 
 def download_raw_sharded(
-  requested_bbox, mip, 
-  meta, cache, spec,
-  decompress, progress
-):
+  requested_bbox: Bbox, mip: int,
+  meta: Any, cache: Any, spec: Any,
+  decompress: bool, progress: Any
+) -> Dict[int, bytes]:
   """
   Download all the chunks without rendering.
   """
@@ -173,21 +176,21 @@ def download_raw_sharded(
   gpts = list(gridpoints(full_bbox, bounds, chunk_size))
   morton_codes = compressed_morton_code(gpts, grid_size)
   io_chunkdata = reader.get_data(
-    morton_codes, meta.key(mip), 
+    morton_codes, meta.key(mip),
     progress=progress,
     raw=(not decompress),
   )
   return io_chunkdata
 
 def download_raw_unsharded(
-  requested_bbox, mip, 
-  meta, cache, 
-  decompress, 
-  progress, parallel, 
-  secrets, green, fill_missing,
-  compress_type, background_color,
-  cache_only
-):
+  requested_bbox: Bbox, mip: int,
+  meta: Any, cache: Any,
+  decompress: bool,
+  progress: Any, parallel: int,
+  secrets: Any, green: bool, fill_missing: bool,
+  compress_type: Any, background_color: Union[int, float],
+  cache_only: bool
+) -> Dict[str, Any]:
   """
   Download all the chunks without rendering.
 
@@ -199,13 +202,13 @@ def download_raw_unsharded(
   )
   full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
   cloudpaths = chunknames(
-    full_bbox, meta.bounds(mip), 
-    meta.key(mip), meta.chunk_size(mip), 
+    full_bbox, meta.bounds(mip),
+    meta.key(mip), meta.chunk_size(mip),
     protocol=meta.path.protocol
   )
 
-  results = {}
-  def store_result(binary, bbox):
+  results: Dict[str, Any] = {}
+  def store_result(binary: Any, bbox: Bbox) -> None:
     nonlocal results
     if cache_only:
       return
@@ -213,20 +216,20 @@ def download_raw_unsharded(
     results[key] = binary
 
   def noop_decode(
-    meta, input_bbox, 
-    content, fill_missing, 
-    mip, background_color=0,
-    encoding=None,
-  ):
+    meta: Any, input_bbox: Any,
+    content: Any, fill_missing: bool,
+    mip: int, background_color: Union[int, float] = 0,
+    encoding: Optional[str] = None,
+  ) -> Any:
     return content
 
   compress_cache = should_compress(meta.encoding(mip), compress_type, cache, iscache=True)
 
   download_chunks_threaded(
-    meta, cache, 
-    lru=None, lru_encoding="same", mip=mip, cloudpaths=cloudpaths, 
+    meta, cache,
+    lru=None, lru_encoding="same", mip=mip, cloudpaths=cloudpaths,
     fn=store_result, decode_fn=noop_decode, fill_missing=fill_missing,
-    progress=progress, compress_cache=compress_cache, 
+    progress=progress, compress_cache=compress_cache,
     green=green, secrets=secrets, background_color=background_color,
     full_decode=True,
   )
@@ -234,25 +237,25 @@ def download_raw_unsharded(
   return results
 
 def download(
-  requested_bbox, mip, 
-  meta, cache, lru, lru_encoding,
-  fill_missing, progress,
-  parallel, location, 
-  retain, use_shared_memory, 
-  use_file, compress, order='F',
-  green=False, secrets=None,
-  renumber=False, background_color=0,
-  label=None
-):
+  requested_bbox: Bbox, mip: int,
+  meta: Any, cache: Any, lru: Any, lru_encoding: str,
+  fill_missing: bool, progress: Any,
+  parallel: int, location: Optional[str],
+  retain: bool, use_shared_memory: bool,
+  use_file: bool, compress: Any, order: str = 'F',
+  green: bool = False, secrets: Any = None,
+  renumber: bool = False, background_color: Union[int, float] = 0,
+  label: Optional[int] = None
+) -> Any:
   """Cutout a requested bounding box from storage and return it as a numpy array."""
-  
+
   full_bbox = requested_bbox.expand_to_chunk_size(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
   full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
   cloudpaths = chunknames(
-    full_bbox, meta.bounds(mip), 
-    meta.key(mip), meta.chunk_size(mip), 
+    full_bbox, meta.bounds(mip),
+    meta.key(mip), meta.chunk_size(mip),
     protocol=meta.path.protocol
   )
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
@@ -268,9 +271,9 @@ def download(
     raise ValueError("use_shared_memory and use_file are mutually exclusive arguments.")
 
   if label is not None:
-    dtype = bool
+    dtype: Any = bool
     background_color = 0
-    decode_fn = partial(decode_binary_image, label)
+    decode_fn: Callable[..., Any] = partial(decode_binary_image, label)
   else:
     decode_fn = decode
     dtype = np.uint16 if renumber else meta.dtype
@@ -284,7 +287,7 @@ def download(
   if requested_bbox.volume() == 1:
     return download_single_voxel_unsharded(
       meta, cache, lru, lru_encoding,
-      requested_bbox, first(cloudpaths), 
+      requested_bbox, first(cloudpaths),
       mip, fill_missing, compress_cache,
       secrets, renumber, background_color,
       label
@@ -311,15 +314,15 @@ def download(
       renderbuffer = np.full(shape=shape, fill_value=background_color,
                              dtype=dtype, order=order)
 
-    def process(img3d, bbox):
+    def process(img3d: Any, bbox: Bbox) -> None:
       shade(renderbuffer, requested_bbox, img3d, bbox)
 
-    remap = { background_color: background_color }
+    remap: Dict[Any, Any] = { background_color: background_color }
     lock = threading.Lock()
     N = 1
-    def process_renumber(img3d, bbox):
+    def process_renumber(img3d: Any, bbox: Bbox) -> None:
       nonlocal N
-      nonlocal lock 
+      nonlocal lock
       nonlocal remap
       nonlocal renderbuffer
       if img3d is None:
@@ -337,14 +340,14 @@ def download(
         img3d = fastremap.remap(img3d, remap, in_place=True)
         shade(renderbuffer, requested_bbox, img3d, bbox)
 
-    fn = process
+    fn: Callable[..., Any] = process
     if renumber and not (use_file or use_shared_memory):
-      fn = process_renumber  
+      fn = process_renumber
 
     download_chunks_threaded(
-      meta, cache, lru, lru_encoding, mip, cloudpaths, 
+      meta, cache, lru, lru_encoding, mip, cloudpaths,
       fn=fn, decode_fn=decode_fn, fill_missing=fill_missing,
-      progress=progress, compress_cache=compress_cache, 
+      progress=progress, compress_cache=compress_cache,
       green=green, secrets=secrets, background_color=background_color,
       full_decode=True,
     )
@@ -353,16 +356,16 @@ def download(
       requested_bbox, mip, cloudpaths,
       meta, cache, lru, lru_encoding, compress_cache,
       fill_missing, progress,
-      parallel, location, retain, 
+      parallel, location, retain,
       use_shared_memory=(use_file == False),
       order=order,
       green=green,
       secrets=secrets,
       background_color=background_color
     )
-  
+
   out = VolumeCutout.from_volume(
-    meta, mip, renderbuffer, 
+    meta, mip, renderbuffer,
     requested_bbox, handle=handle
   )
   if renumber:
@@ -370,12 +373,12 @@ def download(
   return out
 
 def download_single_voxel_unsharded(
-  meta, cache, lru, lru_encoding,
-  requested_bbox, filename, 
-  mip, fill_missing, compress_cache,
-  secrets, renumber, background_color,
-  segid
-):
+  meta: Any, cache: Any, lru: Any, lru_encoding: str,
+  requested_bbox: Bbox, filename: Optional[str],
+  mip: int, fill_missing: bool, compress_cache: Any,
+  secrets: Any, renumber: bool, background_color: Union[int, float],
+  segid: Optional[int]
+) -> Any:
   """Specialized function for rapidly extracting a single voxel."""
   locations = cache.compute_data_locations([ filename ])
   cachedir = 'file://' + cache.path
@@ -421,16 +424,16 @@ def download_single_voxel_unsharded(
   return label
 
 def multiprocess_download(
-    requested_bbox, mip, cloudpaths,
-    meta, cache, lru, lru_encoding, compress_cache,
-    fill_missing, progress,
-    parallel, location, 
-    retain, use_shared_memory, order,
-    green, secrets=None, background_color=0,
-  ):
-  cpd = partial(child_process_download, 
-    meta, cache, 
-    mip, compress_cache, requested_bbox, 
+    requested_bbox: Bbox, mip: int, cloudpaths: Any,
+    meta: Any, cache: Any, lru: Any, lru_encoding: str, compress_cache: Any,
+    fill_missing: bool, progress: Any,
+    parallel: int, location: Optional[str],
+    retain: bool, use_shared_memory: bool, order: str,
+    green: bool, secrets: Any = None, background_color: Union[int, float] = 0,
+  ) -> Tuple[Any, np.ndarray]:
+  cpd = partial(child_process_download,
+    meta, cache,
+    mip, compress_cache, requested_bbox,
     fill_missing, progress,
     location, use_shared_memory,
     green, secrets, background_color
@@ -441,8 +444,8 @@ def multiprocess_download(
       lru.pop(path, None)
 
   parallel_execution(
-    cpd, cloudpaths, parallel, 
-    progress=progress, 
+    cpd, cloudpaths, parallel,
+    progress=progress,
     desc="Download",
     cleanup_shm=location,
     block_size=750,
@@ -452,7 +455,7 @@ def multiprocess_download(
 
   if use_shared_memory:
     mmap_handle, renderbuffer = shm.ndarray(
-      shape, dtype=meta.dtype, order=order, 
+      shape, dtype=meta.dtype, order=order,
       location=location, lock=fs_lock
     )
   else:
@@ -473,9 +476,9 @@ def multiprocess_download(
   return mmap_handle, renderbuffer
 
 def repopulate_lru_from_shm(
-  meta, mip, lru, lru_encoding,
-  renderbuffer, requested_bbox
-):
+  meta: Any, mip: int, lru: Any, lru_encoding: str,
+  renderbuffer: np.ndarray, requested_bbox: Bbox
+) -> None:
   """
   Used for repopulating the LRU from the shared memory buffer
   after a multiprocess download. This can't be done in process
@@ -490,7 +493,7 @@ def repopulate_lru_from_shm(
   retracted_bbox = Bbox.clamp(retracted_bbox, meta.bounds(mip))
   delta = retracted_bbox.minpt - requested_bbox.minpt
   core_chunks = list(chunknames(
-    retracted_bbox, 
+    retracted_bbox,
     meta.bounds(mip), meta.key(mip), meta.chunk_size(mip),
     protocol=meta.path.protocol,
   ))
@@ -519,32 +522,32 @@ def repopulate_lru_from_shm(
     lru[chunkname] = (encoding, binary)
 
 def child_process_download(
-    meta, cache, 
-    mip, compress_cache, dest_bbox, 
-    fill_missing, progress,
-    location, use_shared_memory, green,
-    secrets, background_color, cloudpaths
-  ):
+    meta: Any, cache: Any,
+    mip: int, compress_cache: Any, dest_bbox: Bbox,
+    fill_missing: bool, progress: Any,
+    location: Optional[str], use_shared_memory: bool, green: bool,
+    secrets: Any, background_color: Union[int, float], cloudpaths: Any
+  ) -> int:
   reset_connection_pools() # otherwise multi-process hangs
 
   shape = list(dest_bbox.size3()) + [ meta.num_channels ]
 
   if use_shared_memory:
     array_like, dest_img = shm.ndarray(
-      shape, dtype=meta.dtype, 
+      shape, dtype=meta.dtype,
       location=location, lock=fs_lock
     )
   else:
     array_like, dest_img = shm.ndarray_fs(
-      shape, dtype=meta.dtype, 
-      location=location, emulate_shm=False, 
+      shape, dtype=meta.dtype,
+      location=location, emulate_shm=False,
       lock=fs_lock
     )
 
   if background_color != 0:
       dest_img[dest_bbox.to_slices()] = background_color
 
-  def process(src_img, src_bbox):
+  def process(src_img: Any, src_bbox: Bbox) -> None:
     shade(dest_img, dest_bbox, src_img, src_bbox)
     if progress:
       # This is not good programming practice, but
@@ -566,15 +569,15 @@ def child_process_download(
   return len(cloudpaths)
 
 def download_chunk(
-  meta, cache, lru, lru_encoding,
-  cloudpath, mip,
-  filename, fill_missing,
-  enable_cache, compress_cache,
-  secrets, background_color,
-  decode_fn, decompress=True, locking=False,
-  full_decode=True,
-):
-  content = None
+  meta: Any, cache: Any, lru: Any, lru_encoding: str,
+  cloudpath: str, mip: int,
+  filename: str, fill_missing: bool,
+  enable_cache: bool, compress_cache: Any,
+  secrets: Any, background_color: Union[int, float],
+  decode_fn: Callable[..., Any], decompress: bool = True, locking: bool = False,
+  full_decode: bool = True,
+) -> Tuple[Any, Bbox]:
+  content: Any = None
   encoding = meta.encoding(mip)
   bbox = Bbox.from_filename(filename) # possible off by one error w/ exclusive bounds
   cf = CloudFiles(cloudpath, secrets=secrets, locking=locking)
@@ -589,14 +592,14 @@ def download_chunk(
     if enable_cache:
       cache_content = next(
         compression.transcode(
-          file, compress_cache, 
+          file, compress_cache,
           in_place=(compress_cache == False)
         )
-      )['content'] 
+      )['content']
       cache.cloudfiles().put(
-        path=filename, 
-        content=(cache_content or b''), 
-        content_type=content_type(encoding), 
+        path=filename,
+        content=(cache_content or b''),
+        content_type=content_type(encoding),
         compress=compress_cache,
         raw=bool(cache_content),
       )
@@ -615,8 +618,8 @@ def download_chunk(
     img3d = content
   else:
     img3d = decode_fn(
-      meta, filename, content, 
-      fill_missing, mip, 
+      meta, filename, content,
+      fill_missing, mip,
       background_color=background_color,
       encoding=encoding,
     )
@@ -630,27 +633,28 @@ def download_chunk(
           block_size = (8,8,8)
 
         content = chunks.encode(
-          img3d, lru_encoding, 
+          img3d, lru_encoding,
           block_size,
           compression_params=meta.compression_params(mip),
           num_threads=meta.config.codec_threads,
         )
-        
+
       lru[filename] = (lru_encoding, content)
 
   return img3d, bbox
 
 def download_chunks_threaded(
-    meta, cache, lru, lru_encoding, mip, cloudpaths, fn, decode_fn,
-    fill_missing, progress, compress_cache,
-    green=False, secrets=None, background_color=0,
-    decompress=True, full_decode=True,
-  ):
+    meta: Any, cache: Any, lru: Any, lru_encoding: str, mip: int,
+    cloudpaths: Any, fn: Callable[..., Any], decode_fn: Callable[..., Any],
+    fill_missing: bool, progress: Any, compress_cache: Any,
+    green: bool = False, secrets: Any = None, background_color: Union[int, float] = 0,
+    decompress: bool = True, full_decode: bool = True,
+  ) -> None:
   """fn is the postprocess callback. decode_fn is a decode fn."""
   locations = cache.compute_data_locations(cloudpaths)
   cachedir = 'file://' + cache.path
 
-  def process(cloudpath, filename, enable_cache, locking):
+  def process(cloudpath: str, filename: str, enable_cache: bool, locking: bool) -> None:
     labels, bbox = download_chunk(
       meta, cache, lru, lru_encoding, cloudpath, mip,
       filename, fill_missing,
@@ -666,20 +670,20 @@ def download_chunks_threaded(
   are_all_lru_hits = False
   if lru is not None and lru.size > 0:
     if not isinstance(locations['remote'], list):
-      locations['remote'] = list(locations['remote'])  
-    locations['local'].sort(key=lambda fname: fname in lru, reverse=True)  
+      locations['remote'] = list(locations['remote'])
+    locations['local'].sort(key=lambda fname: fname in lru, reverse=True)
     locations['remote'].sort(key=lambda fname: fname in lru, reverse=True)
     are_all_lru_hits = all(( fname in lru for fname in locations['remote'] ))
 
-  qualify = lambda fname: os.path.join(meta.key(mip), os.path.basename(fname))
+  qualify: Callable[[str], str] = lambda fname: os.path.join(meta.key(mip), os.path.basename(fname))
 
-  local_downloads = ( 
-    partial(process, cachedir, qualify(filename), False, cache.config.cache_locking) 
-    for filename in locations['local'] 
+  local_downloads = (
+    partial(process, cachedir, qualify(filename), False, cache.config.cache_locking)
+    for filename in locations['local']
   )
-  remote_downloads = ( 
-    partial(process, meta.cloudpath, filename, cache.enabled, False) 
-    for filename in locations['remote'] 
+  remote_downloads = (
+    partial(process, meta.cloudpath, filename, cache.enabled, False)
+    for filename in locations['remote']
   )
 
   if progress and not isinstance(progress, str):
@@ -692,8 +696,8 @@ def download_chunks_threaded(
 
   with tqdm(desc=progress, total=total, disable=(not progress)) as pbar:
     schedule_jobs(
-      fns=local_downloads, 
-      concurrency=0, 
+      fns=local_downloads,
+      concurrency=0,
       progress=pbar,
       total=len(locations['local']),
       green=green,
@@ -701,21 +705,21 @@ def download_chunks_threaded(
 
     schedule_jobs(
       fns=remote_downloads,
-      concurrency=n_threads, 
+      concurrency=n_threads,
       progress=pbar,
       total=len(locations['remote']),
       green=green,
     )
 
 def decode(
-  meta, input_bbox, 
-  content, fill_missing, 
-  mip, background_color=0,
-  allow_none=True,
-  encoding=None,
-):
+  meta: Any, input_bbox: Any,
+  content: Any, fill_missing: bool,
+  mip: int, background_color: Union[int, float] = 0,
+  allow_none: bool = True,
+  encoding: Optional[str] = None,
+) -> Optional[np.ndarray]:
   """
-  Decode content from bytes into a numpy array using the 
+  Decode content from bytes into a numpy array using the
   dataset metadata.
 
   If fill_missing is True, return an array filled with background_color
@@ -724,21 +728,21 @@ def decode(
 
   Returns: ndarray
   """
-  return _decode_helper(  
+  return _decode_helper(
     partial(chunks.decode, num_threads=meta.config.codec_threads),
-    meta, input_bbox, 
-    content, fill_missing, 
+    meta, input_bbox,
+    content, fill_missing,
     mip, background_color,
     allow_none, encoding,
   )
 
 def decode_binary_image(
-  label, meta, input_bbox, 
-  content, fill_missing, 
-  mip, background_color=0, 
-  allow_none=True,
-  encoding=None,
-):
+  label: int, meta: Any, input_bbox: Any,
+  content: Any, fill_missing: bool,
+  mip: int, background_color: Union[int, float] = 0,
+  allow_none: bool = True,
+  encoding: Optional[str] = None,
+) -> Optional[np.ndarray]:
   bbox = Bbox.create(input_bbox)
   shape = list(bbox.size3()) + [ meta.num_channels ]
 
@@ -762,9 +766,9 @@ def decode_binary_image(
   if encoding != "raw":
     has_label = chunks.contains(
       content, label,
-      encoding=encoding, 
-      shape=shape, 
-      dtype=meta.dtype, 
+      encoding=encoding,
+      shape=shape,
+      dtype=meta.dtype,
       block_size=meta.compressed_segmentation_block_size(mip),
     )
 
@@ -776,35 +780,35 @@ def decode_binary_image(
 
   return _decode_helper(
     partial(chunks.decode_binary_image, label, num_threads=meta.config.codec_threads),
-    meta, input_bbox, 
-    content, fill_missing, 
-    mip, 
+    meta, input_bbox,
+    content, fill_missing,
+    mip,
     background_color=background_color,
     allow_none=allow_none,
     encoding=encoding,
   )
 
 def decode_unique(
-  meta, input_bbox, 
-  content, fill_missing, 
-  mip, background_color=0,
-  encoding=None,
-):
+  meta: Any, input_bbox: Any,
+  content: Any, fill_missing: bool,
+  mip: int, background_color: Union[int, float] = 0,
+  encoding: Optional[str] = None,
+) -> Any:
   """Gets the unique labels present in a given chunk."""
-  return _decode_helper(  
-    chunks.labels, 
-    meta, input_bbox, 
-    content, fill_missing, 
+  return _decode_helper(
+    chunks.labels,
+    meta, input_bbox,
+    content, fill_missing,
     mip, background_color,
     encoding=encoding,
   )
 
 def decode_single_voxel(
-  xyz, meta, input_bbox, 
-  content, fill_missing, 
-  mip, background_color=0,
-  encoding=None,
-):
+  xyz: Any, meta: Any, input_bbox: Any,
+  content: Any, fill_missing: bool,
+  mip: int, background_color: Union[int, float] = 0,
+  encoding: Optional[str] = None,
+) -> Optional[np.ndarray]:
   """
   Specialized decode that for some file formats
   will be faster than regular decode when fetching
@@ -813,32 +817,32 @@ def decode_single_voxel(
   of a synapse or organelle location to build a database.
   """
   if (
-    not isinstance(content, np.ndarray) 
-    and content in (None, b'') 
+    not isinstance(content, np.ndarray)
+    and content in (None, b'')
     and fill_missing
   ):
     return np.full(
-      shape=(1,1,1,1), 
+      shape=(1,1,1,1),
       fill_value=background_color,
-      dtype=meta.dtype, 
+      dtype=meta.dtype,
       order="F",
     )
 
   return _decode_helper(
     partial(chunks.read_voxel, xyz),
     meta, input_bbox,
-    content, fill_missing, 
+    content, fill_missing,
     mip, background_color,
     encoding=encoding,
   )
 
-def _decode_helper(  
-  fn, meta, input_bbox, 
-  content, fill_missing, mip, 
-  background_color=0,
-  allow_none=True, 
-  encoding=None,
-):
+def _decode_helper(
+  fn: Callable[..., Any], meta: Any, input_bbox: Any,
+  content: Any, fill_missing: bool, mip: int,
+  background_color: Union[int, float] = 0,
+  allow_none: bool = True,
+  encoding: Optional[str] = None,
+) -> Any:
   bbox = Bbox.create(input_bbox)
   content_len = len(content) if content is not None else 0
 
@@ -875,14 +879,14 @@ def _decode_helper(
     raise
 
 def unique_unsharded(
-  requested_bbox, mip, 
-  meta, cache, lru, lru_encoding,
-  fill_missing, progress,
-  parallel,
-  compress, 
-  green=False, secrets=None,
-  background_color=0
-):
+  requested_bbox: Bbox, mip: int,
+  meta: Any, cache: Any, lru: Any, lru_encoding: str,
+  fill_missing: bool, progress: Any,
+  parallel: int,
+  compress: Any,
+  green: bool = False, secrets: Any = None,
+  background_color: Union[int, float] = 0
+) -> Set[Any]:
   """
   Accumulate all unique labels within the requested
   bounding box.
@@ -891,35 +895,35 @@ def unique_unsharded(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
   full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
-  all_chunks = set(chunknames(
-    full_bbox, meta.bounds(mip), 
-    meta.key(mip), meta.chunk_size(mip), 
+  all_chunks: Any = set(chunknames(
+    full_bbox, meta.bounds(mip),
+    meta.key(mip), meta.chunk_size(mip),
     protocol=meta.path.protocol
   ))
   retracted_bbox = requested_bbox.shrink_to_chunk_size(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
   retracted_bbox = Bbox.clamp(retracted_bbox, meta.bounds(mip))
-  core_chunks = set(chunknames(
-    retracted_bbox, 
+  core_chunks: Any = set(chunknames(
+    retracted_bbox,
     meta.bounds(mip), meta.key(mip), meta.chunk_size(mip),
     protocol=meta.path.protocol,
   ))
-  shell_chunks = all_chunks.difference(core_chunks)
+  shell_chunks: Any = all_chunks.difference(core_chunks)
 
   shape = list(requested_bbox.size3()) + [ meta.num_channels ]
 
   compress_cache = should_compress(meta.encoding(mip), compress, cache, iscache=True)
 
-  all_labels = set()
-  def process_core(labels, bbox):
+  all_labels: Set[Any] = set()
+  def process_core(labels: Any, bbox: Bbox) -> None:
     nonlocal all_labels
     if labels is None:
       all_labels |= set([ background_color ])
     else:
       all_labels |= set(labels)
 
-  def process_shell(labels, bbox):
+  def process_shell(labels: Any, bbox: Bbox) -> None:
     nonlocal all_labels
     nonlocal requested_bbox
     if labels is None:
@@ -940,18 +944,18 @@ def unique_unsharded(
     shell_chunks.sort(key=lambda fname: fname in lru, reverse=True)
 
   download_chunks_threaded(
-    meta, cache, lru, lru_encoding, mip, core_chunks, 
+    meta, cache, lru, lru_encoding, mip, core_chunks,
     fn=process_core, decode_fn=decode_unique, fill_missing=fill_missing,
-    progress=progress, compress_cache=compress_cache, 
+    progress=progress, compress_cache=compress_cache,
     green=green, secrets=secrets, background_color=background_color,
     full_decode=False,
   )
 
   if len(shell_chunks) > 0:
     download_chunks_threaded(
-      meta, cache, lru, lru_encoding, mip, shell_chunks, 
+      meta, cache, lru, lru_encoding, mip, shell_chunks,
       fn=process_shell, decode_fn=decode, fill_missing=fill_missing,
-      progress=progress, compress_cache=compress_cache, 
+      progress=progress, compress_cache=compress_cache,
       green=green, secrets=secrets, background_color=background_color,
       full_decode=False,
     )
@@ -959,12 +963,12 @@ def unique_unsharded(
   return all_labels
 
 def unique_sharded(
-  requested_bbox, mip,
-  meta, cache, 
-  lru, lru_encoding, spec,
-  compress, progress,
-  fill_missing, background_color
-):
+  requested_bbox: Bbox, mip: int,
+  meta: Any, cache: Any,
+  lru: Any, lru_encoding: str, spec: Any,
+  compress: Any, progress: Any,
+  fill_missing: bool, background_color: Union[int, float]
+) -> Set[Any]:
   """
   Accumulate all unique labels within the requested
   bounding box.
@@ -989,7 +993,7 @@ def unique_sharded(
   all_gpts = list(gridpoints(full_bbox, bounds, chunk_size))
   core_gpts = list(gridpoints(core_bbox, bounds, chunk_size))
 
-  code_map = {}
+  code_map: Dict[int, Bbox] = {}
   all_morton_codes = compressed_morton_code(all_gpts, grid_size)
   for gridpoint, morton_code in zip(all_gpts, all_morton_codes):
     cutout_bbox = Bbox(
@@ -1000,12 +1004,12 @@ def unique_sharded(
 
   lru_codes = set([ code for code in all_morton_codes if code in lru ])
   lru_chunkdata = { code: lru[code] for code in lru_codes }
-  
+
   core_morton_codes = set(compressed_morton_code(core_gpts, grid_size))
   io_core_morton_codes = core_morton_codes - lru_codes
   lru_core_morton_codes = core_morton_codes.intersection(lru_codes)
 
-  def iterate_core():
+  def iterate_core() -> Any:
     for mcs in sip(io_core_morton_codes, 10000):
       core_chunkdata = reader.get_data(mcs, meta.key(mip), progress=progress)
       for zcode, chunkdata in core_chunkdata.items():
@@ -1015,11 +1019,11 @@ def unique_sharded(
       yield (code, *lru_chunkdata[code])
       del lru_chunkdata[code]
 
-  all_labels = set()
+  all_labels: Set[Any] = set()
   for zcode, data_encoding, chunkdata in iterate_core():
     cutout_bbox = code_map[zcode]
     labels = decode_unique(
-      meta, cutout_bbox, 
+      meta, cutout_bbox,
       chunkdata, fill_missing, mip,
       background_color=background_color,
       encoding=data_encoding,
@@ -1030,19 +1034,19 @@ def unique_sharded(
   io_shell_morton_codes = shell_morton_codes - lru_codes
   lru_shell_morton_codes = shell_morton_codes.intersection(lru_codes)
 
-  def iterate_shell():
+  def iterate_shell() -> Any:
     shell_chunkdata = reader.get_data(io_shell_morton_codes, meta.key(mip), progress=progress)
     for zcode, chunkdata in shell_chunkdata.items():
       yield (zcode, meta.encoding(mip), chunkdata)
       lru[zcode] = (meta.encoding(mip), chunkdata)
     for code in lru_shell_morton_codes:
       yield (code, *lru_chunkdata[code])
-      del lru_chunkdata[code]    
+      del lru_chunkdata[code]
 
   for zcode, data_encoding, chunkdata in iterate_shell():
     cutout_bbox = code_map[zcode]
     labels = decode(
-      meta, cutout_bbox, 
+      meta, cutout_bbox,
       chunkdata, fill_missing, mip,
       background_color=background_color,
       encoding=data_encoding,
@@ -1056,4 +1060,3 @@ def unique_sharded(
       all_labels |= set(labels)
 
   return all_labels
-

@@ -1,5 +1,5 @@
 """
-The Precomputed format is a neuroscience imaging format 
+The Precomputed format is a neuroscience imaging format
 designed for cloud storage. The specification is located
 here:
 
@@ -7,8 +7,10 @@ https://github.com/google/neuroglancer/tree/master/src/neuroglancer/datasource/p
 
 This datasource contains the code for manipulating images.
 """
+from __future__ import annotations
+
 import copy
-from typing import Dict, Tuple, Sequence, Union, Optional
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 from functools import reduce, partial
 import itertools
 import operator
@@ -35,28 +37,28 @@ from . import tx, rx, xfer
 
 class PrecomputedImageSource(ImageSourceInterface):
   def __init__(
-    self, config, meta, cache,
-    autocrop:bool = False,
-    bounded:bool = True,
-    non_aligned_writes:bool = False,
-    overwrite_partial_chunks:bool = False,
-    fill_missing:bool = False,
-    delete_black_uploads:bool = False,
-    background_color:int = 0,
-    readonly:bool = False,
-    lru_bytes:int = 0,
-    lru_encoding:str = "same",
-  ):
+    self, config: Any, meta: Any, cache: Any,
+    autocrop: bool = False,
+    bounded: bool = True,
+    non_aligned_writes: bool = False,
+    overwrite_partial_chunks: bool = False,
+    fill_missing: bool = False,
+    delete_black_uploads: bool = False,
+    background_color: int = 0,
+    readonly: bool = False,
+    lru_bytes: int = 0,
+    lru_encoding: str = "same",
+  ) -> None:
     self.config = config
-    self.meta = meta 
-    self.cache = cache 
+    self.meta = meta
+    self.cache = cache
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
     self.fill_missing = bool(fill_missing)
     self.non_aligned_writes = bool(non_aligned_writes)
     self.readonly = bool(readonly)
-    
+
     self.delete_black_uploads = bool(delete_black_uploads)
     self.background_color = background_color
     self.overwrite_partial_chunks = bool(overwrite_partial_chunks)
@@ -66,20 +68,20 @@ class PrecomputedImageSource(ImageSourceInterface):
     self.lru = LRU(lru_bytes, size_in_bytes=True)
     # private member bc once set, changing this will cause chaos
     # unless the LRU is cleared or transcoded
-    self._lru_encoding = lru_encoding 
+    self._lru_encoding = lru_encoding
 
-  def generate_shared_memory_location(self):
+  def generate_shared_memory_location(self) -> str:
     return 'precomputed-shm-' + str(uuid.uuid4())
 
-  def unlink_shared_memory(self):
+  def unlink_shared_memory(self) -> Any:
     """Unlink the current shared memory location from the filesystem."""
     return sharedmemory.unlink(self.shared_memory_id)
-    
-  def grid_size(self, mip=None):
+
+  def grid_size(self, mip: Optional[int] = None) -> np.ndarray:
     mip = mip if mip is not None else self.config.mip
     return np.ceil(self.meta.volume_size(mip) / self.meta.chunk_size(mip)).astype(np.int64)
 
-  def check_bounded(self, bbox, mip):
+  def check_bounded(self, bbox: Bbox, mip: int) -> None:
     bbox = bbox.convert_units('vx', self.meta.resolution(mip))
     if self.bounded and not self.meta.bounds(mip).contains_bbox(bbox):
       raise exceptions.OutOfBoundsError("""
@@ -93,40 +95,40 @@ class PrecomputedImageSource(ImageSourceInterface):
 
         Set bounded=False to disable this warning.
       """.format(
-          self.meta.cloudpath, 
-          bbox, self.meta.bounds(mip), 
+          self.meta.cloudpath,
+          bbox, self.meta.bounds(mip),
           mip, self.meta.resolution(mip)
         )
       )
 
-  def has_data(self, mip=None):
+  def has_data(self, mip: Optional[int] = None) -> bool:
     """
-    Returns whether the specified mip appears to have data 
+    Returns whether the specified mip appears to have data
     by testing whether the "folder" exists.
 
     Returns: bool
-  
+
     The mip is the index into the returned list. If
     the entry is True, then the data appears to be there.
     If the entry is False, then the data is not there.
     """
     mip = mip if mip is not None else self.config.mip
     mip = self.meta.to_mip(mip)
-    
+
     cf = CloudFiles(self.meta.cloudpath, secrets=self.config.secrets)
     key = self.meta.key(mip)
     return first(cf.list(prefix=key)) is not None
 
   def download_points(
-    self, points, mip:int
+    self, points: Any, mip: int
   ) -> Dict[Tuple[int,int,int], int]:
     """For accessing a list of individual voxels."""
     total = len(points) if hasattr(points, "__len__") else None
     points = toiter(points)
     bbxs = ( Bbox(pt, Vec(*pt)+1) for pt in points )
 
-    res = {}
-    def getpt(bbx):
+    res: Dict[Tuple[int,int,int], int] = {}
+    def getpt(bbx: Bbox) -> None:
       nonlocal mip
       value = self.download(bbx, mip, progress=False)
       res[tuple(bbx.minpt)] = value[0][0][0][0]
@@ -141,44 +143,44 @@ class PrecomputedImageSource(ImageSourceInterface):
       concurrency = 0
 
     schedule_jobs(
-      fns, 
+      fns,
       concurrency=concurrency,
-      progress=progress, 
-      total=total, 
+      progress=progress,
+      total=total,
       green=self.config.green,
     )
     return res
 
   def download(
     self,
-    bbox:Bbox,
-    mip:int,
-    parallel:int = 1, 
-    location:Optional[str] = None,
-    retain:bool = False,
-    use_shared_memory:bool = False,
-    use_file:bool = False,
-    order:str = 'F',
-    renumber:bool = False, 
-    label:Optional[int] = None,
-    progress:Optional[ProgressType] = None,
-  ):
+    bbox: Bbox,
+    mip: int,
+    parallel: int = 1,
+    location: Optional[str] = None,
+    retain: bool = False,
+    use_shared_memory: bool = False,
+    use_file: bool = False,
+    order: str = 'F',
+    renumber: bool = False,
+    label: Optional[int] = None,
+    progress: Optional[ProgressType] = None,
+  ) -> Any:
     """
     Download a cutout image from the dataset.
 
     bbox: a Bbox object describing what region to download
     mip: which resolution to fetch, 0 is the highest resolution
-    parallel: how many processes to use for downloading 
+    parallel: how many processes to use for downloading
     location: if using shared memory or downloading to a file,
       which file location should be used?
     retain: don't delete the shared memory file after download
       completes
-    use_shared_memory: download to a shared memory location. 
+    use_shared_memory: download to a shared memory location.
       This enables efficient inter-process communication and
       efficient parallel operation. mutually exclusive with
       use_file.
-    use_file: download image directly to a file named by location. 
-      mutually exclusive with use_shared_memory. 
+    use_file: download image directly to a file named by location.
+      mutually exclusive with use_shared_memory.
     order: The underlying shared memory or file buffer can use either
       C or Fortran order for storing a multidimensional array.
     renumber: dynamically rewrite downloaded segmentation into
@@ -214,7 +216,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       scale = self.meta.scale(mip)
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_sharded(
-        bbox, mip, 
+        bbox, mip,
         self.meta, self.cache, self.lru, self._lru_encoding, spec,
         compress=self.config.compress,
         progress=progress,
@@ -226,7 +228,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       )
     else:
       return rx.download(
-        bbox, mip, 
+        bbox, mip,
         meta=self.meta,
         cache=self.cache,
         lru=self.lru,
@@ -249,12 +251,12 @@ class PrecomputedImageSource(ImageSourceInterface):
 
   def download_crackle(
     self,
-    bbox:Bbox,
-    mip:int,
-    parallel:int = 1, 
-    label:Optional[int] = None, 
-    progress:Optional[ProgressType] = None,
-  ) -> bytes:
+    bbox: Bbox,
+    mip: int,
+    parallel: int = 1,
+    label: Optional[int] = None,
+    progress: Optional[ProgressType] = None,
+  ) -> Any:
     import crackle
 
     if progress is None:
@@ -266,7 +268,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     cz = self.meta.chunk_size(mip).z
     nz = int(np.ceil(bbox.size3()[2] / cz))
 
-    stack = []
+    stack: list[Any] = []
 
     for z in tqdm(range(nz), disable=(not progress)):
       subbbx = bbox.clone()
@@ -301,22 +303,22 @@ class PrecomputedImageSource(ImageSourceInterface):
     return crackle.CrackleArray(crackle.zstack(stack))
 
   def download_files(
-    self, bbox:BboxLikeType, mip:int, 
-    decompress:bool = True, 
-    parallel:int = 1, 
-    cache_only:bool = False
-  ):
+    self, bbox: BboxLikeType, mip: int,
+    decompress: bool = True,
+    parallel: int = 1,
+    cache_only: bool = False
+  ) -> Dict[Any, Any]:
     """
     Download the files that comprise a cutout image from the dataset
-    without rendering them into an image. 
+    without rendering them into an image.
 
     bbox: a Bbox object describing what region to download
     mip: which resolution to fetch, 0 is the highest resolution
-    parallel: how many processes to use for downloading 
+    parallel: how many processes to use for downloading
     cache_only: write downloaded files to cache and discard
       the result to save memory
 
-    Returns: 
+    Returns:
       If sharded:
         { morton_code: binary }
       else:
@@ -336,7 +338,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       scale = self.meta.scale(mip)
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.download_raw_sharded(
-        bbox, mip, 
+        bbox, mip,
         self.meta, self.cache, spec,
         decompress=decompress,
         progress=self.config.progress,
@@ -348,7 +350,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         cache=self.cache,
         decompress=decompress,
         progress=self.config.progress,
-        parallel=parallel, 
+        parallel=parallel,
         green=self.config.green,
         secrets=self.config.secrets,
         fill_missing=self.fill_missing,
@@ -357,13 +359,13 @@ class PrecomputedImageSource(ImageSourceInterface):
         cache_only=cache_only,
       )
 
-  def unique(self, bbox:BboxLikeType, mip:int) -> set:
+  def unique(self, bbox: BboxLikeType, mip: int) -> set:
     """Extract unique values in an efficient way."""
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
     bbox = Bbox.create(bbox, context=self.meta.bounds(mip))
-    
+
     if self.autocrop:
       bbox = Bbox.intersection(bbox, self.meta.bounds(mip))
 
@@ -373,9 +375,9 @@ class PrecomputedImageSource(ImageSourceInterface):
       scale = self.meta.scale(mip)
       spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
       return rx.unique_sharded(
-        bbox, mip, 
-        self.meta, self.cache, 
-        lru=self.lru, 
+        bbox, mip,
+        self.meta, self.cache,
+        lru=self.lru,
         lru_encoding=self._lru_encoding,
         spec=spec,
         compress=self.config.compress,
@@ -385,7 +387,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       )
     else:
       return rx.unique_unsharded(
-        bbox, mip, 
+        bbox, mip,
         meta=self.meta,
         cache=self.cache,
         lru=self.lru,
@@ -401,12 +403,12 @@ class PrecomputedImageSource(ImageSourceInterface):
 
   @readonlyguard
   def upload(
-      self, 
-      image, offset, mip, 
-      parallel=1,
-      location=None, location_bbox=None, order='F',
-      use_shared_memory=False, use_file=False      
-    ):
+      self,
+      image: np.ndarray, offset: Any, mip: int,
+      parallel: int = 1,
+      location: Optional[str] = None, location_bbox: Optional[Bbox] = None, order: str = 'F',
+      use_shared_memory: bool = False, use_file: bool = False
+    ) -> Any:
 
     if mip in self.meta.locked_mips():
       raise exceptions.ReadOnlyException(
@@ -432,13 +434,13 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     return tx.upload(
       self.meta, self.cache, self.lru, self._lru_encoding,
-      image, offset, mip, 
+      image, offset, mip,
       compress=self.config.compress,
       compress_level=self.config.compress_level,
       cdn_cache=self.config.cdn_cache,
-      parallel=parallel, 
+      parallel=parallel,
       progress=self.config.progress,
-      location=location, 
+      location=location,
       location_bbox=location_bbox,
       location_order=order,
       use_shared_memory=use_shared_memory,
@@ -452,24 +454,24 @@ class PrecomputedImageSource(ImageSourceInterface):
       fill_missing=self.fill_missing, # applies only to unaligned writes
     )
 
-  def _upload_shard(self, image, bbox, mip):
+  def _upload_shard(self, image: np.ndarray, bbox: Bbox, mip: int) -> None:
     basepath = self.meta.join(self.meta.cloudpath, self.meta.key(mip))
     cf = CloudFiles(basepath, progress=self.config.progress, secrets=self.config.secrets)
 
-    def do_upload():
+    def do_upload() -> None:
       (filename, shard) = self.make_shard(image, bbox, mip)
       cf.put(
-        filename, shard, 
-        compress=self.config.compress, 
+        filename, shard,
+        compress=self.config.compress,
         cache_control=self.config.cdn_cache
       )
 
-    def do_delete():
+    def do_delete() -> None:
       nonlocal mip
       shard_filename = self.shard_filename(bbox, mip)
       cf.delete(shard_filename)
 
-    testfn = lambda image: np.any(image)
+    testfn: Callable[[np.ndarray], Any] = lambda image: np.any(image)
     if self.background_color != 0:
       testfn = lambda image: np.any(image != self.background_color)
 
@@ -481,7 +483,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     else:
       do_upload()
 
-  def exists(self, bbox, mip=None):
+  def exists(self, bbox: Any, mip: Optional[int] = None) -> Dict[str, bool]:
     if mip is None:
       mip = self.config.mip
 
@@ -495,7 +497,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     realized_bbox = Bbox.clamp(realized_bbox, self.meta.bounds(mip))
 
     cloudpaths = chunknames(
-      realized_bbox, self.meta.bounds(mip), 
+      realized_bbox, self.meta.bounds(mip),
       self.meta.key(mip), self.meta.chunk_size(mip),
       protocol=self.meta.path.protocol
     )
@@ -513,7 +515,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     return exists
 
   @readonlyguard
-  def delete(self, bbox, mip=None):
+  def delete(self, bbox: Any, mip: Optional[int] = None) -> None:
     if mip is None:
       mip = self.config.mip
 
@@ -539,7 +541,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         bbox, realized_bbox
       ))
 
-    cloudpaths = lambda: chunknames(
+    cloudpaths: Callable[[], Any] = lambda: chunknames(
       realized_bbox, self.meta.bounds(mip),
       self.meta.key(mip), self.meta.chunk_size(mip),
       protocol=self.meta.path.protocol
@@ -557,19 +559,19 @@ class PrecomputedImageSource(ImageSourceInterface):
         .delete(cloudpaths())
 
   def memory_cutout(
-    self, 
-    bbox:BboxLikeType, 
-    mip:int,
-    encoding:Optional[str] = None, 
-    compress:CompressType = None, 
-    compress_level:Optional[int] = None,
-  ):
+    self,
+    bbox: BboxLikeType,
+    mip: int,
+    encoding: Optional[str] = None,
+    compress: CompressType = None,
+    compress_level: Optional[int] = None,
+  ) -> Any:
     """
     Create a disposable in-memory CloudVolume (mem://) containing
     the requested cutout region in the unsharded precomputed
     format. The source volume may be sharded or unsharded.
 
-    You can specify an alternative encoding and compression 
+    You can specify an alternative encoding and compression
     settings for the new volume.
     """
     if isinstance(bbox, Bbox):
@@ -582,16 +584,16 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     cv = self.transfer_to(
       cloudpath=f"mem://{str(uuid.uuid4())}",
-      bbox=realized_bbox, 
-      mip=mip, 
-      compress=compress, 
+      bbox=realized_bbox,
+      mip=mip,
+      compress=compress,
       compress_level=compress_level,
       encoding=encoding,
       sharded=False,
     )
 
     delfn = cv.__del__
-    def cleanup(self):
+    def cleanup(self: Any) -> None:
       nonlocal delfn
       self.image.delete_all()
       delfn(self)
@@ -600,21 +602,21 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     return cv
 
-  def delete_all(self, mip):
+  def delete_all(self, mip: int) -> None:
     cf = CloudFiles(self.meta.join(self.meta.cloudpath, self.meta.key(mip)))
     cf.delete(cf.list())
 
   def transfer_to(
     self,
-    cloudpath:str, 
-    bbox:BboxLikeType, 
-    mip:MipType, 
-    block_size:Optional[int] = None, 
-    compress:CompressType = True, 
-    compress_level:Optional[int] = None, 
-    encoding:Optional[str] = None,
-    sharded:Optional[bool] = None,
-  ):
+    cloudpath: str,
+    bbox: BboxLikeType,
+    mip: MipType,
+    block_size: Optional[int] = None,
+    compress: CompressType = True,
+    compress_level: Optional[int] = None,
+    encoding: Optional[str] = None,
+    sharded: Optional[bool] = None,
+  ) -> Any:
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
@@ -646,10 +648,10 @@ class PrecomputedImageSource(ImageSourceInterface):
       return xfer.transfer_sharded_to_sharded(
         self, cloudpath,
         bbox=bbox,
-        mip=mip, 
+        mip=mip,
         block_size=block_size,
-        compress=compress, 
-        compress_level=compress_level, 
+        compress=compress,
+        compress_level=compress_level,
         encoding=encoding,
         codec_threads=self.config.codec_threads,
       )
@@ -660,28 +662,28 @@ class PrecomputedImageSource(ImageSourceInterface):
         mip=mip,
         block_size=block_size,
         compress=compress,
-        compress_level=compress_level, 
+        compress_level=compress_level,
         encoding=encoding,
         codec_threads=self.config.codec_threads,
       )
     else:
       return xfer.transfer_unsharded_to_sharded(
         self, cloudpath,
-        bbox=bbox, 
+        bbox=bbox,
         mip=mip,
-        compress=compress, 
-        compress_level=compress_level, 
+        compress=compress,
+        compress_level=compress_level,
         encoding=encoding,
         codec_threads=self.config.codec_threads,
       )
 
-  def shard_reader(self, mip=None):
+  def shard_reader(self, mip: Optional[int] = None) -> Any:
     mip = mip if mip is not None else self.config.mip
     scale = self.meta.scale(mip)
     spec = sharding.ShardingSpecification.from_dict(scale['sharding'])
     return sharding.ShardReader(self.meta.cloudpath, self.cache, spec)
 
-  def shard_spec(self, mip, spec=None):
+  def shard_spec(self, mip: int, spec: Any = None) -> Any:
     if spec is None:
       scale = self.meta.scale(mip)
       if 'sharding' in scale:
@@ -691,9 +693,9 @@ class PrecomputedImageSource(ImageSourceInterface):
     return spec
 
   def morton_codes(
-    self, bbox, mip=None, spec=None,
-    same_shard=True, require_aligned=True
-  ):
+    self, bbox: Any, mip: Optional[int] = None, spec: Any = None,
+    same_shard: bool = True, require_aligned: bool = True
+  ) -> Tuple[list[Vec], list[int]]:
     mip = mip if mip is not None else self.config.mip
     scale = self.meta.scale(mip)
     spec = self.shard_spec(mip, spec)
@@ -743,7 +745,7 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     return gpts, morton_codes
 
-  def shard_filename(self, bbox:BboxLikeType, mip:int) -> str:
+  def shard_filename(self, bbox: BboxLikeType, mip: int) -> str:
     mip = mip if mip is not None else self.config.mip
     if not self.is_sharded(mip):
       raise ValueError("Unable to compute filename for unsharded image.")
@@ -753,14 +755,14 @@ class PrecomputedImageSource(ImageSourceInterface):
     reader = self.shard_reader()
     return reader.get_filename(first(morton_codes))
 
-  def make_shard_chunks(self, img:np.ndarray, bbox:Bbox, mip=None, spec=None) -> Dict[int, bytes]:
+  def make_shard_chunks(self, img: np.ndarray, bbox: Bbox, mip: Optional[int] = None, spec: Any = None) -> Dict[int, bytes]:
     """
     Convert the input image into a dict of:
 
     { morton_code: encoded image }
     """
     mip = mip if mip is not None else self.config.mip
-    
+
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
@@ -768,11 +770,11 @@ class PrecomputedImageSource(ImageSourceInterface):
     gpts, morton_codes = self.morton_codes(bbox, mip=mip, spec=spec)
     chunk_size = self.meta.chunk_size(mip)
 
-    testfn = lambda image: np.any(image)
+    testfn: Callable[[np.ndarray], Any] = lambda image: np.any(image)
     if self.background_color != 0:
       testfn = lambda image: np.any(image != self.background_color)
 
-    labels = {}
+    labels: Dict[int, bytes] = {}
     pt_anchor = gpts[0] * chunk_size
     for pt_abs, morton_code in zip(gpts, morton_codes):
       cutout_bbx = Bbox(pt_abs * chunk_size, (pt_abs + 1) * chunk_size)
@@ -792,16 +794,19 @@ class PrecomputedImageSource(ImageSourceInterface):
 
     return labels
 
-  def make_shard(self, img_or_dict, bbox, mip=None, spec=None, progress=False):
+  def make_shard(
+    self, img_or_dict: Union[np.ndarray, Dict[int, bytes]], bbox: Any,
+    mip: Optional[int] = None, spec: Any = None, progress: bool = False
+  ) -> Tuple[str, bytes]:
     """
-    Convert an image that represents a single complete shard 
+    Convert an image that represents a single complete shard
     into a shard file.
-  
-    img_or_dict: 
+
+    img_or_dict:
       a volumetric numpy array image OR
       a dict of morton codes to encoded bytes
     bbox: the bbox it represents in voxel coordinates
-    mip: if specified, use the sharding specification from 
+    mip: if specified, use the sharding specification from
       this mip level, otherwise use the sharding spec from
       the current implicit mip level in config.
     spec: use the provided specification (overrides mip parameter)
@@ -809,7 +814,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     Returns: (filename, shard_file)
     """
     mip = mip if mip is not None else self.config.mip
-    
+
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
 
@@ -827,14 +832,14 @@ class PrecomputedImageSource(ImageSourceInterface):
 
   def to_sharded(
     self,
-    uncompressed_shard_bytesize:int = int(3.5e9),
-    max_shard_index_bytes:int = 8192, # 2^13
-    max_minishard_index_bytes:int = 40000,
-    max_labels_per_minishard:int = 4000,
-    minishard_index_encoding:str = "gzip",
-    data_encoding:str = "gzip",
-    mip:Optional[int] = None,
-  ):
+    uncompressed_shard_bytesize: int = int(3.5e9),
+    max_shard_index_bytes: int = 8192, # 2^13
+    max_minishard_index_bytes: int = 40000,
+    max_labels_per_minishard: int = 4000,
+    minishard_index_encoding: str = "gzip",
+    data_encoding: str = "gzip",
+    mip: Optional[int] = None,
+  ) -> None:
     mip = mip if mip is not None else self.config.mip
 
     spec = sharding.compute_shard_params_for_image(
@@ -842,7 +847,7 @@ class PrecomputedImageSource(ImageSourceInterface):
       chunk_size=self.meta.chunk_size(mip),
       encoding=self.meta.encoding(mip),
       dtype=self.meta.dtype,
-      uncompressed_shard_bytesize=uncompressed_shard_bytesize, 
+      uncompressed_shard_bytesize=uncompressed_shard_bytesize,
       max_shard_index_bytes=max_shard_index_bytes,
       max_minishard_index_bytes=max_minishard_index_bytes,
       max_labels_per_minishard=max_labels_per_minishard,
@@ -851,11 +856,11 @@ class PrecomputedImageSource(ImageSourceInterface):
     )
     self.meta.scale(mip)["sharding"] = spec.to_dict()
 
-  def to_unsharded(self, mip=None):
+  def to_unsharded(self, mip: Optional[int] = None) -> None:
     mip = mip if mip is not None else self.config.mip
     self.meta.scale(mip).pop("sharding", None)
 
-  def shard_shape(self, mip=None):
+  def shard_shape(self, mip: Optional[int] = None) -> Vec:
     mip = mip if mip is not None else self.config.mip
 
     if not self.is_sharded(mip):
@@ -867,7 +872,6 @@ class PrecomputedImageSource(ImageSourceInterface):
       self.meta.chunk_size(mip),
     )
 
-  def is_sharded(self, mip):
+  def is_sharded(self, mip: int) -> bool:
     scale = self.meta.scale(mip)
     return 'sharding' in scale and scale['sharding'] is not None
-

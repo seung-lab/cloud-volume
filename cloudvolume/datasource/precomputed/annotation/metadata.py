@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Literal, NamedTuple, Optional, Union, Any, cast, Iterable
 
 from collections import OrderedDict
@@ -38,7 +40,7 @@ _PROPERTY_DTYPES: dict[
   "rgba": (("|u1", (4,)), 1),
 }
 
-def _get_dtype_for_properties(properties:Iterable[dict[str, Any]]):
+def _get_dtype_for_properties(properties:Iterable[dict[str, Any]]) -> list[tuple[str, ...]]:
   dtype = []
   offset = 0
   for i, p in enumerate(properties):
@@ -59,7 +61,7 @@ def _get_dtype_for_properties(properties:Iterable[dict[str, Any]]):
     offset += padding
   return dtype
 
-def _crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArray[bool]:
+def _crop_mask(type:AnnotationType, geometry:np.ndarray, bbox:Bbox) -> npt.NDArray[np.bool_]:
   lower_bound = np.array(bbox.minpt)
   upper_bound = np.array(bbox.maxpt)
 
@@ -126,7 +128,7 @@ class LabelAnnotation:
   def tobytes(self) -> bytes:
     raise NotImplementedError()
 
-  def pandas(self):
+  def pandas(self) -> Any:
     import pandas as pd
     data = {}
     data.update(self.properties)
@@ -144,7 +146,7 @@ class LabelAnnotation:
 
     return df
 
-  def crop(self, bbox:Bbox) -> "LabelAnnotation":
+  def crop(self, bbox:Bbox) -> LabelAnnotation:
     mask = _crop_mask(self.type, self.geometry, bbox)
     return LabelAnnotation(
       id=self.id,
@@ -161,7 +163,7 @@ class LabelAnnotation:
 
 class SpecificLabelAnnotation(LabelAnnotation):
   type: AnnotationType = AnnotationType.POINT
-  def __init__(self, id, *args, **kwargs):
+  def __init__(self, id: int, *args: Any, **kwargs: Any) -> None:
     super().__init__(id, self.type, *args, **kwargs)
 
 class PointAnnotation(SpecificLabelAnnotation):
@@ -170,7 +172,7 @@ class PointAnnotation(SpecificLabelAnnotation):
   def points(self) -> npt.NDArray[np.float32]:
     return self.geometry
 
-  def viewer(self):
+  def viewer(self) -> None:
     """View as point cloud."""
     import microviewer
     microviewer.objects([ self.points ])
@@ -190,7 +192,7 @@ class AxisAlignedBoundingBoxAnnotation(SpecificLabelAnnotation):
       for i in range(len(self.geometry))
     ]
 
-  def viewer(self):
+  def viewer(self) -> None:
     """View as point cloud."""
     import microviewer
     microviewer.objects(self.bboxes())
@@ -198,10 +200,10 @@ class AxisAlignedBoundingBoxAnnotation(SpecificLabelAnnotation):
 class EllipsoidAnnotation(SpecificLabelAnnotation):
   type: AnnotationType = AnnotationType.ELLIPSOID
   @property
-  def radii(self):
+  def radii(self) -> np.ndarray:
     return self.geometry[:,:,1]
   @property
-  def centers(self):
+  def centers(self) -> np.ndarray:
     return self.geometry[:,:,0]
 
 class PolyLineAnnotation(SpecificLabelAnnotation):
@@ -215,7 +217,7 @@ ANNOTATION_CLASS = {
   AnnotationType.POLYLINE: PolyLineAnnotation,
 }
 
-def get_annotation_class(type:AnnotationType):
+def get_annotation_class(type:AnnotationType) -> type[LabelAnnotation]:
   return ANNOTATION_CLASS[type]
 
 @dataclass
@@ -230,7 +232,7 @@ class MultiLabelAnnotation:
   def __len__(self) -> int:
     return len(self.geometry)
 
-  def pandas(self):
+  def pandas(self) -> Any:
     import pandas as pd
     data = { "ID": self.ids }
     data.update(self.properties)
@@ -258,7 +260,7 @@ class MultiLabelAnnotation:
     df.set_index("ID", inplace=True)
     return df
 
-  def split_by_id(self) -> dict[int,LabelAnnotation]:
+  def split_by_id(self) -> dict[int, LabelAnnotation]:
     all_labels = np.unique(self.ids)
 
     AnnotationClass = get_annotation_class(self.type)
@@ -281,7 +283,7 @@ class MultiLabelAnnotation:
       )
     return out
 
-  def crop(self, bbox:Bbox) -> "MultiLabelAnnotation":
+  def crop(self, bbox:Bbox) -> MultiLabelAnnotation:
     mask = _crop_mask(self.type, self.geometry, bbox)
     return MultiLabelAnnotation(
       type=self.type,
@@ -295,7 +297,7 @@ class MultiLabelAnnotation:
       dimensions=self.dimensions,
     )
 
-  def viewer(self):
+  def viewer(self) -> None:
     if self.type != AnnotationType.POINT:
       raise ValueError(f"Type {self.type} not supported.")
 
@@ -304,14 +306,14 @@ class MultiLabelAnnotation:
 
 class PrecomputedAnnotationMetadata:
   def __init__(
-    self, 
+    self,
     cloudpath:str,
-    cache:CacheType, 
-    config:Optional["SharedConfiguration"] = None, 
-    info:Optional[dict] = None, 
+    cache:CacheType,
+    config:Optional[Any] = None,
+    info:Optional[dict] = None,
     readonly:bool = False,
     use_https:bool = False,
-  ):
+  ) -> None:
 
     path = strict_extract(cloudpath)
     if use_https:
@@ -333,7 +335,7 @@ class PrecomputedAnnotationMetadata:
     if typ != ANNOTATION_INFO_TYPE:
       raise ValueError(f"info @type must be {ANNOTATION_INFO_TYPE}. Got: {typ}")
 
-  def join(self, *paths):
+  def join(self, *paths: str) -> str:
     if self.path.protocol == 'file':
       return os.path.join(*paths)
     else:
@@ -345,10 +347,10 @@ class PrecomputedAnnotationMetadata:
   def has_spatial_index(self) -> bool:
     return self.info.get("spatial", None) is not None
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict:
     return CloudFiles(self.cloudpath, secrets=self.config.secrets).get_json('info')
 
-  def default_info(self):
+  def default_info(self) -> dict:
     return {
       "@type": ANNOTATION_INFO_TYPE,
       "dimensions": [], # e.g. [[ 32.0, "nm" ], ... ]
@@ -429,7 +431,7 @@ class PrecomputedAnnotationMetadata:
       raise ValueError("No properties found in the info file.")
     return [ p["id"] for p in self.info["properties"] ]
 
-  def annotation_dtype(self, binary:bytes) -> np.dtype:
+  def annotation_dtype(self, binary:bytes) -> list:
     prop_dtypes = _get_dtype_for_properties(self.properties)
 
     # Derived from Neuroglancer Python code

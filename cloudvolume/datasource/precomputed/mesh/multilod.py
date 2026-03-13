@@ -1,4 +1,6 @@
-from typing import Union, Iterable
+from __future__ import annotations
+
+from typing import Any, Union, Iterable, Optional
 
 from collections import defaultdict
 from functools import partial
@@ -6,6 +8,7 @@ import re
 import struct
 
 import numpy as np
+import numpy.typing as npt
 
 from cloudfiles import CloudFiles
 
@@ -20,16 +23,22 @@ from ....types import ProgressType
 
 import fastremap
 
-def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, transform):
-  meshdata = defaultdict(list)
+def extract_lod_meshes(
+  manifest: MultiLevelPrecomputedMeshManifest,
+  lod: int,
+  lod_binary: bytes,
+  vertex_quantization_bits: int,
+  transform: npt.NDArray
+) -> defaultdict[int, list[Mesh]]:
+  meshdata: defaultdict[int, list[Mesh]] = defaultdict(list)
   for frag in range(manifest.fragment_offsets[lod].shape[0]):
     start = int(np.sum(manifest.fragment_offsets[lod][0:frag]))
     end = start + int(manifest.fragment_offsets[lod][frag])
     frag_binary = lod_binary[start:end]
     if len(frag_binary) == 0:
-      # According to @JBMS, empty fragments are used in cases where a child 
-      # fragment exists, but its parent does not have a corresponding fragment, 
-      # a possible byproduct of running marching cubes and mesh simplification 
+      # According to @JBMS, empty fragments are used in cases where a child
+      # fragment exists, but its parent does not have a corresponding fragment,
+      # a possible byproduct of running marching cubes and mesh simplification
       # independently for each level of detail.
       continue
 
@@ -45,18 +54,18 @@ def extract_lod_meshes(manifest, lod, lod_binary, vertex_quantization_bits, tran
   return meshdata
 
 class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSource):
-  def __init__(self, meta, cache, config, readonly=False):
+  def __init__(self, meta: Any, cache: Any, config: Any, readonly: bool = False) -> None:
     super().__init__(meta, cache, config, readonly)
 
-    self.vertex_quantization_bits = self.meta.info['vertex_quantization_bits']
-    self.lod_scale_multiplier = self.meta.info['lod_scale_multiplier']
+    self.vertex_quantization_bits: int = self.meta.info['vertex_quantization_bits']
+    self.lod_scale_multiplier: float = self.meta.info['lod_scale_multiplier']
     self.transform = np.array(self.meta.info['transform'] + [0,0,0,1]).reshape(4,4)
-  
+
   @property
-  def path(self):
+  def path(self) -> str:
     return self.meta.mesh_path
 
-  def get_manifest(self, segid, progress=None):
+  def get_manifest(self, segid: Any, progress: Any = None) -> Any:
     """Retrieve the manifest for one or more segments."""
     segid, multiple_return = toiter(segid, is_iter=True)
     progress = progress if progress is not None else self.config.progress
@@ -74,7 +83,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
       return MultiLevelPrecomputedMeshManifest.from_binary(binary, segment_id=first(segid), shard_offset=0)
 
     regexp = re.compile(r'(\d+)\.index$')
-    manifests = []
+    manifests: list[Optional[MultiLevelPrecomputedMeshManifest]] = []
     for res in results:
       key = res["path"]
       sid = int(re.match(regexp, key).groups()[0])
@@ -86,7 +95,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
 
     return manifests
 
-  def exists(self, segids, progress=None):
+  def exists(self, segids: Any, progress: Any = None) -> dict[str, bool]:
     """
     Checks if the mesh exists
 
@@ -96,7 +105,7 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
     cf = CloudFiles(self.path)
     return cf.exists(( f"{segid}.index" for segid in segids ))
 
-  def get(self, segids, lod=0, concat=True, progress=None):
+  def get(self, segids: Any, lod: int = 0, concat: bool = True, progress: Any = None) -> dict[int, Any]:
     """Fetch meshes at a given level of detail (lod).
 
     Parameters:
@@ -135,24 +144,24 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
 
     full_path = self.meta.join(self.meta.cloudpath, self.path)
 
-    meshdata = defaultdict(list)
+    meshdata: defaultdict[int, list[Mesh]] = defaultdict(list)
     for manifest in manifests:
       # Read the manifest (with a tweak to sharding.py to get the offset)
-      fragment_sizes = [ 
-        np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets 
+      fragment_sizes = [
+        np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets
       ]
-      
+
       lod_binary = CloudFiles(
-        full_path, progress=progress, 
+        full_path, progress=progress,
         green=self.config.green, secrets=self.config.secrets
       ).get({
         'path': str(manifest.segment_id),
         'start': int(np.sum(fragment_sizes[0:lod])),
-        'end': int(np.sum(fragment_sizes[0:lod+1])),  
+        'end': int(np.sum(fragment_sizes[0:lod+1])),
       })
 
       meshes = extract_lod_meshes(
-        manifest, lod, lod_binary, 
+        manifest, lod, lod_binary,
         self.vertex_quantization_bits, self.transform
       )
       meshdata.update(meshes)
@@ -163,16 +172,16 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
 
     return meshdata
 
-  def put(self, *args, **kwargs):
+  def put(self, *args: Any, **kwargs: Any) -> None:
     raise NotImplementedError("put is not implemented for multi-res meshes.")
 
-  def delete(self, segids):
+  def delete(self, segids: Any) -> None:
     """
     Removes fragment and manifest files for each segid specified.
     """
     segids = toiter(segids)
 
-    def filenames(segids):
+    def filenames(segids: Any) -> Any:
       for segid in segids:
         yield self.meta.join(full_path, f"{segid}.index")
         yield self.meta.join(full_path, f"{segid}")
@@ -185,22 +194,22 @@ class UnshardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSou
     ).delete(filenames(segids), total=len(segids) * 2)
 
 class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSource):
-  def __init__(self, meta, cache, config, readonly=False):
+  def __init__(self, meta: Any, cache: Any, config: Any, readonly: bool = False) -> None:
     super(ShardedMultiLevelPrecomputedMeshSource, self).__init__(meta, cache, config, readonly)
 
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
     self.reader = ShardReader(meta.cloudpath, cache, spec)
 
-    self.vertex_quantization_bits = self.meta.info['vertex_quantization_bits']
-    self.lod_scale_multiplier = self.meta.info['lod_scale_multiplier']
+    self.vertex_quantization_bits: int = self.meta.info['vertex_quantization_bits']
+    self.lod_scale_multiplier: float = self.meta.info['lod_scale_multiplier']
     self.transform = np.array(self.meta.info['transform'] + [0,0,0,1]).reshape(4,4)
 
 
   @property
-  def path(self):
+  def path(self) -> str:
     return self.meta.mesh_path
 
-  def exists(self, segids, progress=None):
+  def exists(self, segids: Any, progress: Any = None) -> list[Optional[MultiLevelPrecomputedMeshManifest]]:
     """
     Checks if the mesh exists
 
@@ -208,7 +217,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     """
     return [ self.get_manifest(segid) for segid in segids ]
 
-  def get_manifest(self, segid, progress=None):
+  def get_manifest(self, segid: int, progress: Any = None) -> Optional[MultiLevelPrecomputedMeshManifest]:
     """Retrieve the manifest for a single segment.
 
     Returns:
@@ -226,15 +235,15 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     return MultiLevelPrecomputedMeshManifest.from_binary(
       binary, segment_id=segid, shard_offset=byte_start, path=shard_filepath
     )
-  
+
   def get(
     self,
-    segids:Union[int,Iterable[int]],
-    lod:int = 0,
-    concat:bool = True,
-    progress:ProgressType = None, 
-    allow_missing:bool = False
-  ):
+    segids: Union[int, Iterable[int]],
+    lod: int = 0,
+    concat: bool = True,
+    progress: ProgressType = None,
+    allow_missing: bool = False
+  ) -> dict[int, Any]:
     """Fetch meshes at a given level of detail (lod).
 
     Parameters:
@@ -257,7 +266,7 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
     progress = progress if progress is not None else self.config.progress
     segids = toiter(segids)
 
-    def get_segid(segid):
+    def get_segid(segid: int) -> defaultdict[int, list[Mesh]]:
       nonlocal lod
       # Read the manifest (with a tweak to sharding.py to get the offset)
       manifest = self.get_manifest(segid)
@@ -270,13 +279,13 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
         raise exceptions.MeshDecodeError(red(
           f'LOD value ({lod}) out of range (-1 - {manifest.num_lods - 1}) for segment {segid}.'
         ))
-      
+
       if lod == -1:
         lod = manifest.num_lods - 1
 
       # Read the data for all LODs
-      fragment_sizes = [ 
-        np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets 
+      fragment_sizes = [
+        np.sum(lod_fragment_sizes) for lod_fragment_sizes in manifest.fragment_offsets
       ]
       total_fragment_size = np.sum(fragment_sizes)
 
@@ -290,13 +299,13 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
       lod_binary = next(iter(lod_binary.values()))
 
       return extract_lod_meshes(
-        manifest, lod, lod_binary, 
+        manifest, lod, lod_binary,
         self.vertex_quantization_bits, self.transform
       )
 
     # decode all the fragments
-    meshdata = defaultdict(list)
-    def get_meshes_and_update(segid):
+    meshdata: defaultdict[int, list[Mesh]] = defaultdict(list)
+    def get_meshes_and_update(segid: int) -> None:
       nonlocal meshdata
       try:
         meshes = get_segid(segid)
@@ -318,10 +327,10 @@ class ShardedMultiLevelPrecomputedMeshSource(UnshardedLegacyPrecomputedMeshSourc
 
     return meshdata
 
-  def put(self, *args, **kwargs):
+  def put(self, *args: Any, **kwargs: Any) -> None:
     raise NotImplementedError("put is not implemented for multi-res meshes.")
 
-  def delete(self, *args, **kwargs):
+  def delete(self, *args: Any, **kwargs: Any) -> None:
     raise NotImplementedError("delete is not implemented for individual sharded multi-res meshes.")
 
 class MultiLevelPrecomputedMeshManifest:
@@ -330,15 +339,15 @@ class MultiLevelPrecomputedMeshManifest:
   # https://github.com/google/neuroglancer/blob/master/src/neuroglancer/mesh/multiscale.ts
 
   def __init__(
-    self, segment_id, chunk_shape, grid_origin, 
-    num_lods, lod_scales, vertex_offsets, num_fragments_per_lod, 
-    fragment_positions, fragment_offsets, shard_offset=0, 
-    path=None
-  ):
+    self, segment_id: int, chunk_shape: Any, grid_origin: Any,
+    num_lods: int, lod_scales: Any, vertex_offsets: Any, num_fragments_per_lod: Any,
+    fragment_positions: list[npt.NDArray], fragment_offsets: list[npt.NDArray],
+    shard_offset: int = 0, path: Optional[str] = None
+  ) -> None:
     # core specification
     self.chunk_shape = chunk_shape
     self.grid_origin = grid_origin
-    self.num_lods = int(num_lods)
+    self.num_lods: int = int(num_lods)
     self.lod_scales = lod_scales
     self.vertex_offsets = vertex_offsets
     self.num_fragments_per_lod = num_fragments_per_lod
@@ -346,17 +355,19 @@ class MultiLevelPrecomputedMeshManifest:
     self.fragment_offsets = fragment_offsets
 
     # custom metadata
-    self.segment_id = int(segment_id)
-    self.shard_offset = shard_offset
-    self.path = path
+    self.segment_id: int = int(segment_id)
+    self.shard_offset: int = shard_offset
+    self.path: Optional[str] = path
 
     # normalize attributes
-    self.fragment_positions = [ 
+    self.fragment_positions = [
       np.array(fpos) for fpos in self.fragment_positions
     ]
 
   @classmethod
-  def from_binary(cls, binary, segment_id, shard_offset=0, path=None):
+  def from_binary(
+    cls, binary: bytes, segment_id: int, shard_offset: int = 0, path: Optional[str] = None
+  ) -> MultiLevelPrecomputedMeshManifest:
     # num_loads is the 7th word
     num_lods = int(np.frombuffer(binary[6*4:7*4], dtype=np.uint32)[0])
 
@@ -365,8 +376,8 @@ class MultiLevelPrecomputedMeshManifest:
     offset = header_dt.itemsize
     num_fragments_per_lod = header["num_fragments_per_lod"][0]
 
-    fragment_positions = []
-    fragment_offsets = []
+    fragment_positions: list[npt.NDArray] = []
+    fragment_offsets: list[npt.NDArray] = []
     for lod in range(num_lods):
       # Read fragment positions
       pos_size =  3 * 4 * num_fragments_per_lod[lod]
@@ -389,11 +400,11 @@ class MultiLevelPrecomputedMeshManifest:
       ))
 
     return MultiLevelPrecomputedMeshManifest(
-      segment_id, 
+      segment_id,
       chunk_shape=header['chunk_shape'][0],
       grid_origin=header['grid_origin'][0],
       num_lods=header['num_lods'][0],
-      lod_scales=header['lod_scales'][0], 
+      lod_scales=header['lod_scales'][0],
       vertex_offsets=header['vertex_offsets'][0],
       num_fragments_per_lod=header['num_fragments_per_lod'][0],
       fragment_positions=fragment_positions,
@@ -402,7 +413,7 @@ class MultiLevelPrecomputedMeshManifest:
       path=path
     )
 
-  def to_binary(self):
+  def to_binary(self) -> bytes:
     """Render the manifest in its serialized binary representation."""
     chunk_shape = np.array(self.chunk_shape, dtype=np.float32).reshape((3,))
     grid_origin = np.array(self.grid_origin, dtype=np.float32).reshape((3,))
@@ -414,9 +425,9 @@ class MultiLevelPrecomputedMeshManifest:
     ).reshape((self.num_lods,), order="C")
 
     # frag positions and offsets must be provided in morton order
-    fragment_positions = [ 
-      np.array(fpos, dtype="<I").tobytes(order='F') 
-      for fpos in self.fragment_positions 
+    fragment_positions = [
+      np.array(fpos, dtype="<I").tobytes(order='F')
+      for fpos in self.fragment_positions
     ]
     fragment_offsets = np.array(self.fragment_offsets, dtype=np.uint32)
     lod_scales = np.array(self.lod_scales, dtype=np.float32)
@@ -443,10 +454,10 @@ class MultiLevelPrecomputedMeshManifest:
 
     return b''.join(manifest)
 
-  def header_dtype(self):
+  def header_dtype(self) -> np.dtype:
     return self._header_dtype(self.num_lods)
 
-  def _header_dtype(cls, num_lods):
+  def _header_dtype(cls, num_lods: int) -> np.dtype:
     return np.dtype([
       ('chunk_shape', np.float32, (3,)),
       ('grid_origin', np.float32, (3,)),
@@ -456,7 +467,7 @@ class MultiLevelPrecomputedMeshManifest:
       ('num_fragments_per_lod', np.uint32, (num_lods,))
     ])
 
-  def __len__(self):
+  def __len__(self) -> int:
     fixed_header_size = self.header_dtype().itemsize
     lod_frags = 0
     for lod in range(self.num_lods):
@@ -466,17 +477,17 @@ class MultiLevelPrecomputedMeshManifest:
     return fixed_header_size + variable_header_size
 
 def from_stored_model_space(
-  vertices:np.ndarray, 
-  manifest:MultiLevelPrecomputedMeshManifest, 
-  lod:int, 
-  vertex_quantization_bits:int, 
-  frag:int
-) -> np.ndarray:
+  vertices: npt.NDArray,
+  manifest: MultiLevelPrecomputedMeshManifest,
+  lod: int,
+  vertex_quantization_bits: int,
+  frag: int
+) -> npt.NDArray:
   """
   Neuroglancer Specification:
   https://github.com/google/neuroglancer/blob/8432f531c4d8eb421556ec36926a29d9064c2d3c/src/neuroglancer/datasource/precomputed/meshes.md#multi-resolution-mesh-fragment-data-file-format
 
-  The mesh fragment data files consist of the concatenation of the 
+  The mesh fragment data files consist of the concatenation of the
   encoded mesh data for all octree nodes specified in the manifest file,
   in the same order the nodes are specified in the index file, starting
   with lod 0. Each mesh fragment is a Draco-encoded triangular mesh with
@@ -490,25 +501,25 @@ def from_stored_model_space(
                                x / ((2**vertex_quantization_bits)-1))
   """
   return np.array(
-    manifest.grid_origin + 
+    manifest.grid_origin +
     manifest.vertex_offsets[lod] + (
       manifest.chunk_shape * (2 ** lod) * (
-        manifest.fragment_positions[lod][frag,:] + 
+        manifest.fragment_positions[lod][frag,:] +
         (vertices / (2.0 ** vertex_quantization_bits - 1))
       )
     )
   )
 
-def to_stored_model_space(  
-  vertices:np.ndarray, 
-  manifest:MultiLevelPrecomputedMeshManifest, 
-  lod:int, 
-  vertex_quantization_bits:int, 
-  frag:int
-) -> np.ndarray:
+def to_stored_model_space(
+  vertices: npt.NDArray,
+  manifest: MultiLevelPrecomputedMeshManifest,
+  lod: int,
+  vertex_quantization_bits: int,
+  frag: int
+) -> npt.NDArray:
   """Inverse of from_stored_model_space (see explaination there)."""
   vertices = vertices.astype(np.float32, copy=False)
-  quant_factor = ((2 ** vertex_quantization_bits) - 1) 
+  quant_factor = ((2 ** vertex_quantization_bits) - 1)
 
   stored_model = vertices - manifest.grid_origin - manifest.vertex_offsets[lod]
   stored_model /= manifest.chunk_shape * (2 ** lod)
@@ -516,13 +527,9 @@ def to_stored_model_space(
   stored_model *= quant_factor
   stored_model = np.round(stored_model, out=stored_model)
   stored_model = np.clip(
-    stored_model, 0, quant_factor, 
+    stored_model, 0, quant_factor,
     out=stored_model
   )
 
   dtype = fastremap.fit_dtype(np.uint64, value=quant_factor)
   return stored_model.astype(dtype)
-
-
-
-

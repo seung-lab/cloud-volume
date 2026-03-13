@@ -1,6 +1,6 @@
 from cloudfiles.exceptions import CompressionError, DecompressionError
 from osteoid.exceptions import (
-  SkeletonUnassignedEdgeError, 
+  SkeletonUnassignedEdgeError,
   SkeletonDecodeError,
   SkeletonEncodeError,
   SkeletonTransformError,
@@ -43,7 +43,7 @@ class ReadOnlyException(Exception):
 
 class AlignmentError(ValueError):
   """Signals that an operation requiring chunk alignment was not aligned."""
-  pass 
+  pass
 
 class EmptyVolumeException(Exception):
   """Raised upon finding a missing chunk."""
@@ -55,7 +55,7 @@ class EmptyFileException(Exception):
 
 class EmptyRequestException(ValueError):
   """
-  Requesting uploading or downloading 
+  Requesting uploading or downloading
   a bounding box of less than one cubic voxel
   is impossible.
   """
@@ -77,7 +77,7 @@ class OutOfBoundsError(ValueError):
 
 class SubvoxelVolumeError(ValueError):
   """
-  Raised upon requesting a bounding box with less than one voxel 
+  Raised upon requesting a bounding box with less than one voxel
   of volume.
   """
 

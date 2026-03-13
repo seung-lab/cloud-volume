@@ -1,14 +1,21 @@
+from __future__ import annotations
+
 import copy
 import re
 import struct
 import sys
+from typing import Any, Optional, Sequence, Generator
 
 import numpy as np
 
 from .exceptions import MeshDecodeError
 from .lib import Vec, Bbox
 
-def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size):
+def is_draco_chunk_aligned(
+  verts: np.ndarray,
+  chunk_size: Sequence[int],
+  draco_grid_size: float,
+) -> np.ndarray:
   """
   Return a mask that for each vertex is true iff it is within
   half a draco_grid_size from a chunk border.
@@ -25,7 +32,7 @@ def is_draco_chunk_aligned(verts, chunk_size, draco_grid_size):
     axis=1,
   )
   return np.logical_or(is_on_chunk_behind, is_on_chunk_ahead)
-    
+
 
 class Mesh(object):
   """
@@ -38,9 +45,14 @@ class Mesh(object):
     ndarray[float32, ndim=2] self.normals:  [ [nx,ny,nz], ... ]
   """
   def __init__(
-    self, vertices, faces, normals=None, 
-    segid=None, encoding_type=None, encoding_options=None
-  ):
+    self,
+    vertices: np.ndarray | Sequence[Sequence[float]],
+    faces: np.ndarray | Sequence[Sequence[int]],
+    normals: np.ndarray | Sequence[Sequence[float]] | None = None,
+    segid: int | None = None,
+    encoding_type: str | None = None,
+    encoding_options: Any = None,
+  ) -> None:
     self.vertices = np.array(vertices, dtype=np.float32)
     self.faces = np.array(faces, dtype=np.uint32)
 
@@ -51,13 +63,15 @@ class Mesh(object):
 
     self.segid = segid
     self.encoding_type = encoding_type
-    self.encoding_options = encoding_options 
+    self.encoding_options = encoding_options
 
-  def __len__(self):
+  def __len__(self) -> int:
     return self.vertices.shape[0]
 
-  def __eq__(self, other):
+  def __eq__(self, other: object) -> bool:
     """Tests strict equality between two meshes."""
+    if not isinstance(other, Mesh):
+      return NotImplemented
 
     no_self_normals = self.normals is None or self.normals.size == 0
     no_other_normals = other.normals is None or other.normals.size == 0
@@ -67,7 +81,7 @@ class Mesh(object):
 
     if self.vertices.shape[0] != other.vertices.shape[0]:
       return False
-       
+
     equality = np.all(self.vertices == other.vertices) \
       and np.all(self.faces == other.faces)
 
@@ -76,8 +90,8 @@ class Mesh(object):
 
     return (equality and np.all(self.normals == other.normals))
 
-  def __sizeof__(self):
-    attr_bytes = sum(( 
+  def __sizeof__(self) -> int:
+    attr_bytes = sum((
       sys.getsizeof(x)
       for x in [
         self.segid, self.encoding_type, self.encoding_options
@@ -90,26 +104,26 @@ class Mesh(object):
     return attr_bytes + npy_bytes
 
 
-  def __repr__(self):
+  def __repr__(self) -> str:
     return "Mesh(vertices<{}>, faces<{}>, normals<{}>, segid={}, encoding_type=<{}>)".format(
       self.vertices.shape[0], self.faces.shape[0], self.normals.shape[0],
       self.segid, self.encoding_type
     )
 
-  def empty(self):
+  def empty(self) -> bool:
     return self.vertices.size == 0 or self.faces.size == 0
 
-  def clone(self):
+  def clone(self) -> Mesh:
     return Mesh(
       np.copy(self.vertices), np.copy(self.faces), np.copy(self.normals),
-      self.segid, 
+      self.segid,
       encoding_type=copy.deepcopy(self.encoding_type),
       encoding_options=copy.deepcopy(self.encoding_options),
     )
 
-  def edges(self):
+  def edges(self) -> Generator[tuple[int, int], None, None]:
     """
-    Generate an edge list from the faces. 
+    Generate an edge list from the faces.
     edges are not guaranteed to be unique.
     """
     srt = lambda x,y: (x,y) if x < y else (y,x)
@@ -118,23 +132,23 @@ class Mesh(object):
       yield srt(face[1], face[2])
       yield srt(face[0], face[2])
 
-  def triangles(self):
+  def triangles(self) -> np.ndarray:
     """
     Faces are numbered using the index of vertices,
-    but sometimes it is convenient to have a list 
+    but sometimes it is convenient to have a list
     of triangles in their proper coordinate space.
     """
     return self.vertices[self.faces]
 
   @classmethod
-  def concatenate(cls, *meshes, segid=None):
+  def concatenate(cls, *meshes: Mesh, segid: int | None = None) -> Mesh:
     vertex_ct = np.zeros(len(meshes) + 1, np.uint32)
     vertex_ct[1:] = np.cumsum([ len(mesh) for mesh in meshes ])
 
     vertices = np.concatenate([ mesh.vertices for mesh in meshes ])
-    
-    faces = np.concatenate([ 
-      mesh.faces + vertex_ct[i] for i, mesh in enumerate(meshes) 
+
+    faces = np.concatenate([
+      mesh.faces + vertex_ct[i] for i, mesh in enumerate(meshes)
     ])
 
     normals = np.concatenate([ mesh.normals for mesh in meshes ])
@@ -145,7 +159,7 @@ class Mesh(object):
 
     return Mesh(vertices, faces, normals, encoding_type=encoding_type, segid=segid)
 
-  def consolidate(self):
+  def consolidate(self) -> Mesh:
     """Remove duplicate vertices and faces. Returns a new mesh object."""
     if self.empty():
       return Mesh([], [], normals=None)
@@ -165,19 +179,19 @@ class Mesh(object):
     # normal_vector_map = np.vectorize(lambda idx: normals[idx])
     # eff_normals = normal_vector_map(uniq_idx)
 
-    return Mesh(eff_verts, eff_faces, None, 
+    return Mesh(eff_verts, eff_faces, None,
       segid=self.segid,
       encoding_type=copy.deepcopy(self.encoding_type),
       encoding_options=copy.deepcopy(self.encoding_options),
     )
 
   @classmethod
-  def from_precomputed(self, binary, segid=None):
+  def from_precomputed(self, binary: bytes, segid: int | None = None) -> Mesh:
     """
     Mesh from_precomputed(self, binary)
 
     Decode a Precomputed format mesh from a byte string.
-    
+
     Format:
       uint32        Nv * float32 * 3   uint32 * 3 until end
       Nv            (x,y,z)            (v1,v2,v2)
@@ -187,11 +201,11 @@ class Mesh(object):
     try:
       # count=-1 means all data in buffer
       vertices = np.frombuffer(binary, dtype=np.float32, count=3*num_vertices, offset=4)
-      faces = np.frombuffer(binary, dtype=np.uint32, count=-1, offset=(4 + 12 * num_vertices)) 
+      faces = np.frombuffer(binary, dtype=np.uint32, count=-1, offset=(4 + 12 * num_vertices))
     except ValueError:
       raise MeshDecodeError("""
         The input buffer is too small for the Precomputed format.
-        Minimum Bytes: {} 
+        Minimum Bytes: {}
         Actual Bytes: {}
       """.format(4 + 4 * num_vertices, len(binary)))
 
@@ -199,13 +213,13 @@ class Mesh(object):
     faces = faces.reshape(faces.size // 3, 3)
 
     return Mesh(
-      vertices, faces, 
-      segid=segid, 
-      normals=None, 
+      vertices, faces,
+      segid=segid,
+      normals=None,
       encoding_type='precomputed'
     )
 
-  def to_precomputed(self):
+  def to_precomputed(self) -> bytes:
     """
     bytes to_precomputed(self)
 
@@ -220,7 +234,7 @@ class Mesh(object):
     return b''.join([ array.tobytes('C') for array in vertex_index_format ])
 
   @classmethod
-  def from_obj(self, text, segid=None):
+  def from_obj(self, text: str | bytes, segid: int | None = None) -> Mesh:
     """Given a string representing a Wavefront OBJ file, decode to a Mesh."""
 
     vertices = []
@@ -252,7 +266,7 @@ class Mesh(object):
       elif line[0] == 'v':
         if line[1] == 't': # vertex textures not supported
           # e.g. vt 0.351192 0.337058
-          continue 
+          continue
         elif line[1] == 'n': # vertex normals
           # e.g. vn 0.992266 -0.033290 -0.119585
           (n1, n2, n3) = re.match(vn_re, line).groups()
@@ -267,14 +281,14 @@ class Mesh(object):
     normals = np.array(normals, dtype=np.float32)
 
     return Mesh(
-      vertices, 
-      faces - 1, 
-      normals, 
-      segid=segid, 
+      vertices,
+      faces - 1,
+      normals,
+      segid=segid,
       encoding_type='precomputed'
     )
 
-  def to_obj(self):
+  def to_obj(self) -> bytes:
     """Return a string representing a .obj file."""
     objdata = []
     objdata += [ 'v {:.5f} {:.5f} {:.5f}'.format(*vertex) for vertex in self.vertices ]
@@ -282,9 +296,9 @@ class Mesh(object):
     objdata = '\n'.join(objdata) + '\n'
     return objdata.encode('utf8')
 
-  def to_ply(self):
+  def to_ply(self) -> bytearray:
     """
-    Return a bytearray in .ply format, 
+    Return a bytearray in .ply format,
     a more compact format than .obj that's still widely readable.
     """
     vertexct = self.vertices.shape[0]
@@ -302,10 +316,10 @@ property list int int vertex_indices
 end_header
 """.format(vertexct, trianglect).encode('utf8'))
 
-    # Vertex data (x y z): "fff" 
+    # Vertex data (x y z): "fff"
     plydata.extend(self.vertices.tobytes('C'))
 
-    # Faces (3 f1 f2 f3): "3iii" 
+    # Faces (3 f1 f2 f3): "3iii"
     plydata.extend(
       np.insert(self.faces, 0, 3, axis=1).tobytes('C')
     )
@@ -313,7 +327,7 @@ end_header
     return plydata
 
   @classmethod
-  def from_draco(cls, binary, segid=None):
+  def from_draco(cls, binary: bytes, segid: int | None = None) -> Mesh:
     import DracoPy
 
     try:
@@ -322,10 +336,10 @@ end_header
       raise MeshDecodeError("Not a valid draco mesh.")
 
     return Mesh(
-      mesh.points, mesh.faces, 
+      mesh.points, mesh.faces,
       segid=segid,
       normals=None,
-      encoding_type='draco', 
+      encoding_type='draco',
       encoding_options=mesh.encoding_options
     )
 
@@ -345,13 +359,13 @@ end_header
     )
 
   @classmethod
-  def from_trimesh(kls, tmesh:"trimesh.Trimesh") -> "Mesh":
+  def from_trimesh(kls, tmesh: "trimesh.Trimesh") -> Mesh:
     return kls(vertices=tmesh.vertices, faces=tmesh.faces, normals=tmesh.vertex_normals)
 
-  def save(self, filename:str):
+  def save(self, filename: str) -> None:
     """
-    Open supported file formats. 
-    By default assumes the file is a Wavefront OBJ 
+    Open supported file formats.
+    By default assumes the file is a Wavefront OBJ
     unless the file extension says otherwise.
 
     Supported: obj, ply
@@ -362,10 +376,10 @@ end_header
       else:
         f.write(self.to_obj())
 
-  def load(self, filename:str) -> "Mesh":
+  def load(self, filename: str) -> Mesh:
     """
-    Save supported file formats. 
-    By default assumes the file is a Wavefront OBJ 
+    Save supported file formats.
+    By default assumes the file is a Wavefront OBJ
     unless the file extension says otherwise.
 
     Supported: obj, ply
@@ -376,36 +390,42 @@ end_header
       else:
         return Mesh.from_obj(f.read())
 
-  def deduplicate_vertices(self, is_chunk_aligned):
+  def deduplicate_vertices(self, is_chunk_aligned: np.ndarray) -> Mesh:
     faces = self.faces
     verts = self.vertices
     # find all vertices that have exactly 2 duplicates
     unique_vertices, unique_inverse, counts = np.unique(
       verts, return_inverse=True, return_counts=True, axis=0
     )
-    
+
     only_double = np.where(counts == 2)[0]
     is_doubled = np.isin(unique_inverse, only_double)
     # this stores whether each vertex should be merged or not
     do_merge = np.array(is_doubled & is_chunk_aligned)
 
     # setup an artificial 4th coordinate for vertex positions
-    # which will be unique in general, 
+    # which will be unique in general,
     # but then repeated for those that are merged
     new_vertices = np.hstack((verts, np.arange(verts.shape[0])[:, np.newaxis]))
     new_vertices[do_merge, 3] = -1
-  
+
     faces = faces.flatten()
 
     # use unique to make the artificial vertex list unique and reindex faces
     vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
     newfaces = newfaces.astype(np.uint32).reshape( (len(newfaces) // 3, 3) )
 
-    return Mesh(vertices[:,0:3], newfaces, None, segid=self.segid, 
+    return Mesh(vertices[:,0:3], newfaces, None, segid=self.segid,
       encoding_type=self.encoding_type, encoding_options=self.encoding_options
     )
 
-  def deduplicate_chunk_boundaries(self, chunk_size, is_draco=False, draco_grid_size=None, offset=(0,0,0)):
+  def deduplicate_chunk_boundaries(
+    self,
+    chunk_size: Sequence[int],
+    is_draco: bool = False,
+    draco_grid_size: float | None = None,
+    offset: Sequence[int] = (0, 0, 0),
+  ) -> Mesh:
     offset = Vec(*offset)
     verts = self.vertices - offset
     # find all vertices that are exactly on chunk_size boundaries
@@ -418,7 +438,7 @@ end_header
 
     return self.deduplicate_vertices(is_chunk_aligned)
 
-  def crop(self, bbox:Bbox):
+  def crop(self, bbox: Bbox) -> Mesh:
     """
     Create a cropped version of the mesh.
     """
@@ -461,15 +481,15 @@ end_header
       cropped_normals = self.normals[cropped_faces_idx]
 
     return Mesh(
-      cropped_verts, 
-      cropped_faces, 
-      cropped_normals, 
+      cropped_verts,
+      cropped_faces,
+      cropped_normals,
       segid=self.segid,
       encoding_type=copy.deepcopy(self.encoding_type),
       encoding_options=copy.deepcopy(self.encoding_options),
     )
 
-  def viewer(self):
+  def viewer(self) -> None:
     # thanks to ChatGPT for making it easy to figure out
     # how to display VTK meshes.
     try:
@@ -505,23 +525,22 @@ end_header
     render_window.Render()
     render_window_interactor.Start()
 
-  def _create_vtk_mesh(self, vertices, faces):
+  def _create_vtk_mesh(self, vertices: np.ndarray, faces: np.ndarray) -> Any:
     import vtk
     from vtk.util.numpy_support import numpy_to_vtk, numpy_to_vtkIdTypeArray
 
     vtk_points = vtk.vtkPoints()
     vtk_points.SetData(numpy_to_vtk(vertices))
-    
+
     polydata = vtk.vtkPolyData()
     polydata.SetPoints(vtk_points)
-    
+
     vtk_faces = vtk.vtkCellArray()
     vtk_faces.SetCells(
-      faces.shape[0], 
+      faces.shape[0],
       numpy_to_vtkIdTypeArray(np.hstack([np.full((faces.shape[0], 1), 3), faces]).flatten())
     )
 
     polydata.SetPolys(vtk_faces)
-    
-    return polydata
 
+    return polydata

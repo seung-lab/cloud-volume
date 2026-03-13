@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Sequence, Dict, Union, Tuple, Callable
+from __future__ import annotations
+
+from typing import Any, Optional, Sequence, Dict, Union, Tuple, Callable, Generator, Iterator
 
 import zlib
 import io
@@ -61,7 +63,7 @@ try:
 except ImportError:
   NEEDS_INSTALL['compressed_segmentation'] = 'compressed-segmentation'
 
-def check_installed(encoding):
+def check_installed(encoding: str) -> None:
   if encoding in NEEDS_INSTALL:
     raise ImportError(f"Optional codec {encoding} is not installed. Run: pip install {NEEDS_INSTALL[encoding]}")
 
@@ -81,7 +83,7 @@ SUPPORTED_ENCODINGS = (
 )
 
 def encode(
-  img_chunk:np.ndarray, 
+  img_chunk:np.ndarray,
   encoding:str,
   block_size:Optional[Sequence[int]] = None,
   compression_params:dict = {},
@@ -112,8 +114,8 @@ def encode(
     return encode_jpeg(img_chunk, nvl(level, 85))
   elif encoding == "jxl":
     return encode_jpegxl(
-      img_chunk, 
-      level=nvl(level, 85), 
+      img_chunk,
+      level=nvl(level, 85),
       effort=compression_params.get("jxl_effort", 5),
       decodingspeed=compression_params.get("jxl_decodingspeed", 0),
       num_threads=num_threads,
@@ -130,11 +132,11 @@ def encode(
     raise NotImplementedError(encoding)
 
 def decode(
-  filedata:bytes, 
-  encoding:str, 
-  shape:Optional[Sequence[int]] = None, 
-  dtype:Any = None, 
-  block_size:Optional[Sequence[int]] = None, 
+  filedata:bytes,
+  encoding:str,
+  shape:Optional[Sequence[int]] = None,
+  dtype:Any = None,
+  block_size:Optional[Sequence[int]] = None,
   background_color:int = 0,
   num_threads:int = 0,
 ) -> np.ndarray:
@@ -181,30 +183,30 @@ def decode(
 def decode_binary_image(
   label:int,
   filedata:bytes,
-  encoding:str, 
-  shape:Optional[Sequence[int]] = None, 
-  dtype:Any = None, 
-  block_size:Optional[Sequence[int]] = None, 
+  encoding:str,
+  shape:Optional[Sequence[int]] = None,
+  dtype:Any = None,
+  block_size:Optional[Sequence[int]] = None,
   background_color:int = 0,
   num_threads:int = 0,
-):
+) -> np.ndarray:
   check_installed(encoding)
 
   if encoding == "crackle":
     return crackle.decompress(filedata, label=label).reshape(shape)
 
   labels = decode(
-    filedata, 
-    encoding=encoding, 
-    shape=shape, 
-    dtype=dtype, 
-    block_size=block_size, 
-    background_color=background_color, 
+    filedata,
+    encoding=encoding,
+    shape=shape,
+    dtype=dtype,
+    block_size=block_size,
+    background_color=background_color,
     num_threads=num_threads
   )
   return labels == label
 
-def as2d(arr):
+def as2d(arr: np.ndarray) -> tuple[np.ndarray, int]:
   # simulate multi-channel array for single channel arrays
   while arr.ndim < 4:
     arr = arr[..., np.newaxis] # add channels to end of x,y,z
@@ -217,7 +219,13 @@ def as2d(arr):
   )
   return reshaped, num_channel
 
-def encode_jpegxl(arr, level, effort, decodingspeed, num_threads):
+def encode_jpegxl(
+  arr: np.ndarray,
+  level: int,
+  effort: int,
+  decodingspeed: int,
+  num_threads: int,
+) -> bytes:
   if not np.issubdtype(arr.dtype, np.uint8):
     raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
 
@@ -247,14 +255,18 @@ def encode_jpegxl(arr, level, effort, decodingspeed, num_threads):
     )
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
-def decode_jpegxl(binary:bytes, shape:tuple[int,int,int], num_threads:int = 0):
+def decode_jpegxl(
+  binary: bytes,
+  shape: tuple[int, int, int],
+  num_threads: int = 0,
+) -> np.ndarray:
   data = imagecodecs.jpegxl_decode(binary, numthreads=num_threads)
   if shape[3] == 3:
     data = np.transpose(data, axes=[1, 2, 0])
 
   return data.ravel().reshape(shape, order='F')
 
-def encode_jpeg(arr, quality=85):
+def encode_jpeg(arr: np.ndarray, quality: int = 85) -> bytes:
   if not np.issubdtype(arr.dtype, np.uint8):
     raise ValueError("Only accepts uint8 arrays. Got: " + str(arr.dtype))
 
@@ -263,7 +275,7 @@ def encode_jpeg(arr, quality=85):
 
   if num_channel == 1:
     return simplejpeg.encode_jpeg(
-      arr, 
+      arr,
       colorspace="GRAY",
       colorsubsampling="GRAY",
       quality=quality,
@@ -276,18 +288,18 @@ def encode_jpeg(arr, quality=85):
     )
   raise ValueError("Number of image channels should be 1 or 3. Got: {}".format(arr.shape[3]))
 
-def encode_png(arr, compress_level=9):
+def encode_png(arr: np.ndarray, compress_level: int = 9) -> bytes:
   if arr.dtype not in (np.uint8, np.uint16):
     raise ValueError("Only accepts uint8 and uint16 arrays. Got: " + str(arr.dtype))
 
   arr, num_channel = as2d(arr)
   return pyspng.encode(arr, compress_level=compress_level)
 
-def encode_npz(subvol):
+def encode_npz(subvol: np.ndarray) -> bytes:
   """
   This file format is unrelated to np.savez
   We are just saving as .npy and the compressing
-  using zlib. 
+  using zlib.
   The .npy format contains metadata indicating
   shape and dtype, instead of np.tobytes which doesn't
   contain any metadata.
@@ -300,7 +312,7 @@ def encode_npz(subvol):
   return cdz
 
 def encode_compressed_segmentation(
-  subvol:np.ndarray, 
+  subvol:np.ndarray,
   block_size:Sequence[int],
 ) -> bytes:
   if np.dtype(subvol.dtype) not in (np.uint32, np.uint64):
@@ -308,7 +320,7 @@ def encode_compressed_segmentation(
 
   subvol = np.squeeze(subvol, axis=3)
   if subvol.flags.c_contiguous:
-    order = 'C' 
+    order = 'C'
   elif subvol.flags.f_contiguous:
     order = 'F'
   else:
@@ -320,49 +332,68 @@ def encode_compressed_segmentation(
 
   return cseg.compress(subvol, block_size=block_size, order=order)
 
-def encode_raw(subvol):
+def encode_raw(subvol: np.ndarray) -> bytes:
   subvol = np.asfortranarray(subvol)
   return subvol.tobytes('F')
 
-def encode_kempressed(subvol):
+def encode_kempressed(subvol: np.ndarray) -> bytes:
   data = 2.0 + np.swapaxes(subvol, 2,3)
   return fpzip.compress(data, order='F')
 
-def decode_kempressed(bytestring):
+def decode_kempressed(bytestring: bytes) -> np.ndarray:
   """subvol not bytestring since numpy conversion is done inside fpzip extension."""
   subvol = fpzip.decompress(bytestring, order='F')
   return np.swapaxes(subvol, 3,2) - 2.0
 
-def decode_npz(string):
+def decode_npz(string: bytes) -> np.ndarray:
   fileobj = io.BytesIO(zlib.decompress(string))
   return np.load(fileobj)
 
-def decode_jpeg(bytestring, shape, dtype):
+def decode_jpeg(
+  bytestring: bytes,
+  shape: Sequence[int],
+  dtype: Any,
+) -> np.ndarray:
   colorspace = "RGB" if len(shape) > 3 and shape[3] > 1 else "GRAY"
   data = simplejpeg.decode_jpeg(
-    bytestring, 
+    bytestring,
     colorspace=colorspace,
   ).ravel()
   return data.reshape(shape, order='F')
 
-def decode_png(bytestring: bytes, shape, dtype):
+def decode_png(
+  bytestring: bytes,
+  shape: Sequence[int],
+  dtype: Any,
+) -> np.ndarray:
   img = pyspng.load(bytestring).reshape(-1)
   img = img.astype(dtype, copy=False)
   return img.reshape(shape, order='F')
 
-def decode_raw(bytestring, shape, dtype):
+def decode_raw(
+  bytestring: bytes,
+  shape: Sequence[int],
+  dtype: Any,
+) -> np.ndarray:
   return np.frombuffer(bytestring, dtype=dtype).reshape(shape, order='F')
 
-def decode_compressed_segmentation(bytestring, shape, dtype, block_size):
+def decode_compressed_segmentation(
+  bytestring: bytes,
+  shape: Sequence[int],
+  dtype: Any,
+  block_size: Sequence[int],
+) -> np.ndarray:
   if block_size is None:
     raise ValueError("block_size parameter must not be None.")
 
   return cseg.decompress(bytes(bytestring), shape, dtype, block_size, order='F')
 
 def labels(
-  filedata:bytes, encoding:str, 
-  shape=None, dtype=None, 
-  block_size=None, background_color:int = 0
+  filedata:bytes, encoding:str,
+  shape:Optional[Sequence[int]] = None,
+  dtype:Any = None,
+  block_size:Optional[Sequence[int]] = None,
+  background_color:int = 0,
 ) -> np.ndarray:
   """
   Extract unique labels from a chunk using
@@ -382,7 +413,7 @@ def labels(
     return fastremap.unique(img)
   elif encoding == "compressed_segmentation":
     return cseg.labels(
-      filedata, shape=shape[:3], 
+      filedata, shape=shape[:3],
       dtype=dtype, block_size=block_size
     )
   elif encoding == "compresso":
@@ -393,11 +424,12 @@ def labels(
     raise NotImplementedError(f"Encoding {encoding} is not supported. Try: raw, compressed_segmentation, or compresso.")
 
 def remap(
-  filedata:bytes, encoding:str, 
+  filedata:bytes, encoding:str,
   mapping:Dict[int,int],
-  preserve_missing_labels=False,
-  shape=None, dtype=None,
-  block_size=None
+  preserve_missing_labels:bool = False,
+  shape:Optional[Sequence[int]] = None,
+  dtype:Any = None,
+  block_size:Optional[Sequence[int]] = None,
 ) -> bytes:
   check_installed(encoding)
 
@@ -405,7 +437,7 @@ def remap(
     return filedata
   elif encoding == "compressed_segmentation":
     return cseg.remap(
-      filedata, shape, dtype, mapping, 
+      filedata, shape, dtype, mapping,
       preserve_missing_labels=preserve_missing_labels, block_size=block_size
     )
   elif encoding == "compresso":
@@ -414,18 +446,18 @@ def remap(
     return crackle.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels)
   elif isinstance(filedata, np.ndarray):
     img = fastremap.remap(filedata, mapping, preserve_missing_labels=preserve_missing_labels, in_place=False)
-    return encode(img, encoding, block_size)    
+    return encode(img, encoding, block_size)
   else:
     img = decode(filedata, encoding, shape, dtype, block_size)
     fastremap.remap(img, mapping, preserve_missing_labels=preserve_missing_labels, in_place=True)
     return encode(img, encoding, block_size)
 
 def read_voxel(
-  xyz:Sequence[int], 
-  filedata:bytes, 
-  encoding:str, 
-  shape:Optional[Sequence[int]] = None, 
-  dtype:Any = None, 
+  xyz:Sequence[int],
+  filedata:bytes,
+  encoding:str,
+  shape:Optional[Sequence[int]] = None,
+  dtype:Any = None,
   block_size:Optional[Sequence[int]] = None,
   background_color:int = 0
 ) -> np.ndarray:
@@ -459,9 +491,9 @@ def read_voxel(
 def contains(
   filedata:bytes,
   label:int,
-  encoding:str, 
-  shape:Optional[Sequence[int]] = None, 
-  dtype:Any = None, 
+  encoding:str,
+  shape:Optional[Sequence[int]] = None,
+  dtype:Any = None,
   block_size:Optional[Sequence[int]] = DEFAULT_CSEG_BLOCK_SIZE,
 ) -> bool:
   check_installed(encoding)
@@ -487,8 +519,8 @@ def transcode(
   image_chunks:Union[
     Dict[Union[str,int], bytes], # { label: binary }
     Sequence[Tuple[Union[str,int], bytes]] # ( (label, binary) for label, binary in ... )
-  ], 
-  src_encoding:str, 
+  ],
+  src_encoding:str,
   dest_encoding:str,
   chunk_size_fn:Callable[[Union[str,int]], ShapeType],
   dtype:Union[str,np.dtype],
@@ -501,7 +533,7 @@ def transcode(
   force:bool = False,
   total:Optional[int] = None,
   num_threads:int = 1,
-):
+) -> Iterator[tuple[Union[str, int], bytes]]:
   """
   Convert one image encoding into another in the most efficient way
   available.
@@ -521,7 +553,7 @@ def transcode(
   in_place: it's okay to modify the data in the original dict
   src_block_size/dest: parameters for compressed_segentation type. can be ignored
     for other types.
-  compression_params: additional params, especially "level" to configure, e.g. 
+  compression_params: additional params, especially "level" to configure, e.g.
     png, jpeg, jxl, zfpc, etc compression levels.
   force: perform compression even if the destination type matches
     (useful for debugging or altering compression level)
@@ -559,7 +591,7 @@ def transcode(
   else:
     for label, binary in itr:
       image = decode(
-        binary, 
+        binary,
         encoding=src_encoding,
         shape=chunk_size_fn(label),
         dtype=dtype,
@@ -570,11 +602,10 @@ def transcode(
       while image.ndim < 4:
         image = image[..., np.newaxis]
       new_binary = encode(
-        image, 
+        image,
         encoding=dest_encoding,
         block_size=dest_block_size,
         compression_params=compression_params,
         num_threads=num_threads,
       )
       yield (label, new_binary)
-

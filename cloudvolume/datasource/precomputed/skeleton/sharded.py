@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Any, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -11,7 +13,7 @@ from ....exceptions import EmptyFileException
 from cloudfiles import CloudFiles
 
 class ShardedPrecomputedSkeletonSource(object):
-  def __init__(self, meta, cache, config, readonly=False):
+  def __init__(self, meta: Any, cache: Any, config: Any, readonly: bool = False) -> None:
     self.meta = meta
     self.cache = cache
     self.config = config
@@ -20,34 +22,34 @@ class ShardedPrecomputedSkeletonSource(object):
     spec = ShardingSpecification.from_dict(self.meta.info['sharding'])
     self.reader = ShardReader(meta.cloudpath, cache, spec)
 
-    self.spatial_index = None
+    self.spatial_index: Optional[CachedSpatialIndex] = None
     if self.meta.spatial_index:
       mip = self.meta.mip or 0
       self.spatial_index = CachedSpatialIndex(
         self.cache, self.config,
-        cloudpath=self.meta.layerpath, 
+        cloudpath=self.meta.layerpath,
         bounds=self.meta.meta.bounds(mip),
         resolution=self.meta.info['spatial_index'].get('resolution', self.meta.meta.resolution(mip)),
         chunk_size=self.meta.info['spatial_index']['chunk_size'],
       )
 
   @property
-  def path(self):
+  def path(self) -> str:
     return self.meta.skeleton_path
 
-  def get(self, segids):
+  def get(self, segids: Any) -> Union[list[Skeleton], Skeleton]:
     list_return = True
     if isinstance(segids, (int,float,np.integer)):
       list_return = False
       segids = [ int(segids) ]
 
-    # compress = self.config.compress 
+    # compress = self.config.compress
     # if compress is None:
     #   compress = True
 
-    results = []
+    results: list[Skeleton] = []
     binaries = self.reader.get_data(
-      segids, self.meta.skeleton_path, 
+      segids, self.meta.skeleton_path,
       progress=self.config.progress
     )
 
@@ -59,7 +61,7 @@ class ShardedPrecomputedSkeletonSource(object):
         raise EmptyFileException("segid {} is missing.".format(segid))
 
       skeleton = Skeleton.from_precomputed(
-        binary, segid=segid, 
+        binary, segid=segid,
         vertex_attributes=self.meta.info['vertex_attributes']
       )
       skeleton.transform = self.meta.transform
@@ -70,10 +72,10 @@ class ShardedPrecomputedSkeletonSource(object):
     else:
       return results[0]
 
-  def raw_upload(self, *args, **kwargs):
+  def raw_upload(self, *args: Any, **kwargs: Any) -> None:
     raise NotImplementedError()
 
-  def upload(self, skeletons):
+  def upload(self, skeletons: Union[Skeleton, list[Skeleton]]) -> None:
     if type(skeletons) == Skeleton:
       skeletons = [ skeletons ]
 
@@ -87,11 +89,11 @@ class ShardedPrecomputedSkeletonSource(object):
       )
 
     cf = CloudFiles(self.meta.layerpath, progress=self.config.progress)
-    cf.puts( 
+    cf.puts(
       ( (fname, data) for fname, data in shard_files.items() ),
       compress=False,
       content_type='application/octet-stream',
-      cache_control='no-cache',      
+      cache_control='no-cache',
     )
 
   def list(self) -> npt.NDArray[np.integer]:
@@ -125,14 +127,14 @@ class ShardedPrecomputedSkeletonSource(object):
 
   def to_sharded(
     self,
-    num_labels:int,
-    shard_index_bytes:int = 2**13,
-    minishard_index_bytes:int = 2**15,
-    min_shards:int = 1,
-    minishard_index_encoding:str = 'gzip', 
-    data_encoding:str = 'gzip',
-    max_labels_per_shard:Optional[int] = None,
-  ):
+    num_labels: int,
+    shard_index_bytes: int = 2**13,
+    minishard_index_bytes: int = 2**15,
+    min_shards: int = 1,
+    minishard_index_encoding: str = 'gzip',
+    data_encoding: str = 'gzip',
+    max_labels_per_shard: Optional[int] = None,
+  ) -> None:
     return self.meta.to_sharded(
       num_labels=num_labels,
       shard_index_bytes=shard_index_bytes,
@@ -143,14 +145,14 @@ class ShardedPrecomputedSkeletonSource(object):
       max_labels_per_shard=max_labels_per_shard,
     )
 
-  def to_unsharded(self):
+  def to_unsharded(self) -> None:
     return self.meta.to_unsharded()
 
   # harmonize interface with mesh sources
-  def put(self, *args, **kwargs):
+  def put(self, *args: Any, **kwargs: Any) -> Any:
     return self.upload(*args, **kwargs)
 
-  def get_bbox(self, bbox):
+  def get_bbox(self, bbox: Any) -> Union[list[Skeleton], Skeleton]:
     if self.spatial_index is None:
       raise IndexError("A spatial index has not been created.")
 

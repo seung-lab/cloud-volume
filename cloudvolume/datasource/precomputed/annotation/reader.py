@@ -5,8 +5,9 @@ a mixture of these two repositories:
 https://github.com/fcollman/precomputed_python
 https://github.com/google/neuroglancer/
 """
+from __future__ import annotations
 
-from typing import Optional, Union, Iterable
+from typing import Any, Optional, Union, Iterable
 
 import os
 import posixpath
@@ -49,7 +50,7 @@ class PrecomputedAnnotationReader:
     secrets:SecretsType = None,
     info:Optional[dict] = None,
     use_https:bool = False,
-  ):
+  ) -> None:
     self.meta = meta
     self.cache = cache
     self.config = config
@@ -104,7 +105,7 @@ class PrecomputedAnnotationReader:
 
     return all_ids
 
-  def _decode_single_annotation(self, binary:bytes):
+  def _decode_single_annotation(self, binary:bytes) -> tuple[np.ndarray, dict[str, np.ndarray], dict[str, np.ndarray]]:
     ndim = self.meta.ndim
     offset = 0
 

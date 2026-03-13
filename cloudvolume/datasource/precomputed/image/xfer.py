@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import copy
-from typing import Dict, Tuple, Sequence, Union, Optional
+from typing import Any, Dict, Optional, Tuple, Sequence, Union
 
 import numpy as np
 from tqdm import tqdm
@@ -17,13 +19,13 @@ from ..common import compressed_morton_code, morton_code_to_bbox
 from .common import chunknames, gridpoints
 from . import tx
 
-def create_destination(source, cloudpath, mip, encoding):
+def create_destination(source: Any, cloudpath: str, mip: int, encoding: Optional[str]) -> Any:
   from cloudvolume import CloudVolume
 
   commit = False
   try:
     destvol = CloudVolume(cloudpath, mip=mip)
-  except exceptions.InfoUnavailableError: 
+  except exceptions.InfoUnavailableError:
     info = copy.deepcopy(source.meta.info)
     destvol = CloudVolume(cloudpath, mip=mip, info=info, provenance=source.meta.provenance.serialize())
     commit = True
@@ -46,15 +48,15 @@ def create_destination(source, cloudpath, mip, encoding):
   return destvol
 
 def transfer_by_rerendering(
-  source,
-  cloudpath:str,
-  bbox:BboxLikeType,
-  mip:int,
-  compress:CompressType = None,
-  compress_level:Optional[int] = None,
-  encoding:Optional[str] = None,
-  codec_threads:int = 1,
-):
+  source: Any,
+  cloudpath: str,
+  bbox: BboxLikeType,
+  mip: int,
+  compress: CompressType = None,
+  compress_level: Optional[int] = None,
+  encoding: Optional[str] = None,
+  codec_threads: int = 1,
+) -> Any:
   from cloudvolume import CloudVolume
 
   dest_cv = create_destination(source, cloudpath, mip, encoding)
@@ -91,15 +93,15 @@ def transfer_by_rerendering(
   return dest_cv
 
 def transfer_unsharded_to_sharded(
-  source,
-  cloudpath:str,
-  bbox:BboxLikeType, 
-  mip:int,
-  compress:CompressType = None, 
-  compress_level:Optional[int] = None,
-  encoding:Optional[str] = None,
-  codec_threads:int = 1,
-):
+  source: Any,
+  cloudpath: str,
+  bbox: BboxLikeType,
+  mip: int,
+  compress: CompressType = None,
+  compress_level: Optional[int] = None,
+  encoding: Optional[str] = None,
+  codec_threads: int = 1,
+) -> Any:
   from cloudvolume import CloudVolume
 
   cv = create_destination(source, cloudpath, mip, encoding)
@@ -119,9 +121,9 @@ def transfer_unsharded_to_sharded(
 
   spec = sharding.ShardingSpecification.from_dict(cv.scale["sharding"])
   gpts, morton_codes = cv.image.morton_codes(
-    bbox, 
-    mip=mip, 
-    same_shard=False, 
+    bbox,
+    mip=mip,
+    same_shard=False,
     require_aligned=True,
   )
   for code in morton_codes:
@@ -132,7 +134,7 @@ def transfer_unsharded_to_sharded(
 
   itr = chunks.transcode(
     files,
-    progress=False, 
+    progress=False,
     src_encoding=src_encoding,
     dest_encoding=dest_encoding,
     chunk_size_fn=lambda _: cv.chunk_size,
@@ -146,29 +148,29 @@ def transfer_unsharded_to_sharded(
     files[code] = binary
 
   shard_binaries = spec.synthesize_shards(files)
-  
+
   basepath = cv.image.meta.join(cv.image.meta.cloudpath, cv.image.meta.key(mip))
 
   cf = CloudFiles(basepath, progress=cv.config.progress, secrets=cv.config.secrets)
   cf.puts(
-    shard_binaries.items(), 
-    compress=cv.config.compress, 
+    shard_binaries.items(),
+    compress=cv.config.compress,
     cache_control=cv.config.cdn_cache
   )
   return cv
 
 def transfer_any_to_unsharded(
-  source,
-  cloudpath:str,
-  bbox:BboxLikeType, 
-  mip:int,
-  compress:CompressType = None, 
-  compress_level:Optional[int] = None,
-  encoding:Optional[str] = None,
-  codec_threads:int = 1,
-):
+  source: Any,
+  cloudpath: str,
+  bbox: BboxLikeType,
+  mip: int,
+  compress: CompressType = None,
+  compress_level: Optional[int] = None,
+  encoding: Optional[str] = None,
+  codec_threads: int = 1,
+) -> Any:
   """
-  You can specify an alternative encoding and compression 
+  You can specify an alternative encoding and compression
   settings for the new volume.
   """
   from cloudvolume import CloudVolume
@@ -192,7 +194,7 @@ def transfer_any_to_unsharded(
 
   filenames = list(files.keys())
 
-  def get_bbx(fname):
+  def get_bbx(fname: Any) -> Bbox:
     if type(fname) == int:
       bbx = morton_code_to_bbox(fname, bounds, chunk_size)
     else:
@@ -201,7 +203,7 @@ def transfer_any_to_unsharded(
 
   itr = chunks.transcode(
     files,
-    progress=False, 
+    progress=False,
     src_encoding=src_encoding,
     dest_encoding=dest_encoding,
     chunk_size_fn=lambda fname: get_bbx(fname).size(),
@@ -231,16 +233,16 @@ def transfer_any_to_unsharded(
   return cv
 
 def transfer_sharded_to_sharded(
-  source,
-  cloudpath:str, 
-  bbox:BboxLikeType, 
-  mip:MipType,
-  block_size:int = 2, 
-  compress:CompressType = True, 
-  compress_level:Optional[int] = None, 
-  encoding:Optional[str] = None,
-  codec_threads:int = 1,
-):
+  source: Any,
+  cloudpath: str,
+  bbox: BboxLikeType,
+  mip: MipType,
+  block_size: int = 2,
+  compress: CompressType = True,
+  compress_level: Optional[int] = None,
+  encoding: Optional[str] = None,
+  codec_threads: int = 1,
+) -> Any:
   from cloudvolume import CloudVolume
   if mip is None:
     mip = source.config.mip
@@ -262,13 +264,13 @@ def transfer_sharded_to_sharded(
 
   reader = sharding.ShardReader(source.meta.cloudpath, source.cache, spec)
   bounds = source.meta.bounds(mip)
-  
+
   gpts, morton_codes = source.morton_codes(
-    bbox, mip=mip, spec=spec, 
+    bbox, mip=mip, spec=spec,
     same_shard=False, require_aligned=False,
   )
-  shard_filenames = list(set([ 
-    reader.get_filename(code) for code in morton_codes 
+  shard_filenames = list(set([
+    reader.get_filename(code) for code in morton_codes
   ]))
 
   destvol = create_destination(source, cloudpath, mip, encoding)
@@ -286,7 +288,7 @@ def transfer_sharded_to_sharded(
 
   if src_encoding == dest_encoding:
     cfsrc.transfer_to(
-      cfdest, 
+      cfdest,
       paths=shard_filenames,
       block_size=block_size,
     )
@@ -298,7 +300,7 @@ def transfer_sharded_to_sharded(
 
       itr = chunks.transcode(
         img_chunks,
-        progress=False, 
+        progress=False,
         src_encoding=src_encoding,
         dest_encoding=dest_encoding,
         chunk_size_fn=lambda _: chunk_size,
@@ -318,16 +320,16 @@ def transfer_sharded_to_sharded(
   return destvol
 
 def transfer_unsharded_to_unsharded(
-  source, 
-  cloudpath:str, 
-  bbox:BboxLikeType, 
-  mip:MipType, 
-  block_size:Optional[int] = None, 
-  compress:CompressType = True, 
-  compress_level:Optional[int] = None, 
-  encoding:Optional[str] = None,
-  codec_threads:int = 1,
-):
+  source: Any,
+  cloudpath: str,
+  bbox: BboxLikeType,
+  mip: MipType,
+  block_size: Optional[int] = None,
+  compress: CompressType = True,
+  compress_level: Optional[int] = None,
+  encoding: Optional[str] = None,
+  codec_threads: int = 1,
+) -> Any:
   """
   Transfer files from one storage location to another, bypassing
   volume painting. This enables using a single CloudVolume instance
@@ -369,7 +371,7 @@ def transfer_unsharded_to_unsharded(
   if source.meta.layer_type == 'image':
     # kind of an average guess for some EM datasets, have seen up to 1.9x and as low as 1.1
     # affinites are also images, but have very different compression ratios. e.g. 3x for kempressed
-    chunk_MB /= 1.3 
+    chunk_MB /= 1.3
   else: # segmentation
     chunk_MB /= 100.0 # compression ratios between 80 and 800....
   chunk_MB /= 1024.0 * 1024.0
@@ -391,14 +393,14 @@ def transfer_unsharded_to_unsharded(
   dest_encoding = destvol.meta.encoding(mip)
 
   cloudpaths = chunknames(
-    bbox, source.meta.bounds(mip), 
+    bbox, source.meta.bounds(mip),
     source.meta.key(mip), source.meta.chunk_size(mip),
     protocol=source.meta.path.protocol
   )
 
   pbar = tqdm(
-    desc='Transferring Blocks of {} Chunks'.format(step), 
-    unit='blocks', 
+    desc='Transferring Blocks of {} Chunks'.format(step),
+    unit='blocks',
     disable=(not source.config.progress),
     total=num_blocks,
   )
@@ -406,7 +408,7 @@ def transfer_unsharded_to_unsharded(
   cfsrc = CloudFiles(source.meta.cloudpath, secrets=source.config.secrets)
   cfdest = CloudFiles(cloudpath)
 
-  def check(files):
+  def check(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if source.fill_missing:
       for file in files:
         if file['content'] is None:
@@ -426,7 +428,7 @@ def transfer_unsharded_to_unsharded(
     for srcpaths in sip(cloudpaths, step):
       if src_encoding == dest_encoding:
           cfdest.transfer_from(
-            cfsrc, srcpaths, 
+            cfsrc, srcpaths,
             reencode=compress,
             content_type=content_type,
             allow_missing=source.fill_missing,
@@ -447,11 +449,11 @@ def transfer_unsharded_to_unsharded(
           num_threads=codec_threads,
         )
         cfdest.puts(
-          itr, 
+          itr,
           content_type=content_type,
           compress=compress,
           compression_level=compress_level,
         )
       pbar.update()
-  
+
   return destvol

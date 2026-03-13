@@ -1,4 +1,6 @@
-from __future__ import print_function
+from __future__ import annotations
+
+from typing import Any, Optional
 
 from intern.remote.boss import BossRemote
 from intern.resource.boss.resource import (
@@ -7,9 +9,9 @@ from intern.resource.boss.resource import (
 
 from .. import autocropfn, readonlyguard, ImageSourceInterface
 
-from ... import exceptions 
-from ...lib import ( 
-  colorize, red, mkdir, Vec, Bbox,  
+from ... import exceptions
+from ...lib import (
+  colorize, red, mkdir, Vec, Bbox,
   jsonify, generate_random_string
 )
 from ...secrets import boss_credentials
@@ -18,22 +20,22 @@ from ..precomputed.image.common import shade
 
 class BossImageSource(ImageSourceInterface):
   def __init__(
-    self, config, meta, cache,
-    autocrop=False, bounded=True,
-    non_aligned_writes=False,
-    delete_black_uploads=False,
-    readonly=False,
-  ):
+    self, config: Any, meta: Any, cache: Any,
+    autocrop: bool = False, bounded: bool = True,
+    non_aligned_writes: bool = False,
+    delete_black_uploads: bool = False,
+    readonly: bool = False,
+  ) -> None:
     self.config = config
-    self.meta = meta 
-    self.cache = cache 
+    self.meta = meta
+    self.cache = cache
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
     self.non_aligned_writes = bool(non_aligned_writes)
     self.readonly = bool(readonly)
 
-  def download(self, bbox, mip, parallel=1, renumber=False):
+  def download(self, bbox: Any, mip: int, parallel: int = 1, renumber: bool = False) -> VolumeCutout:
     if parallel != 1:
       raise ValueError("Only parallel=1 is supported for boss.")
     elif renumber != False:
@@ -43,7 +45,7 @@ class BossImageSource(ImageSourceInterface):
 
     if self.autocrop:
       image, bounds = autocropfn(self.meta, image, bounds, mip)
-    
+
     if bounds.subvoxel():
       raise exceptions.EmptyRequestException('Requested less than one pixel of volume. {}'.format(bounds))
 
@@ -54,10 +56,10 @@ class BossImageSource(ImageSourceInterface):
     layer_type = 'image' if self.meta.layer_type == 'unknown' else self.meta.layer_type
 
     chan = ChannelResource(
-      collection_name=self.meta.path.bucket, 
-      experiment_name=self.meta.path.dataset, 
+      collection_name=self.meta.path.bucket,
+      experiment_name=self.meta.path.dataset,
       name=self.meta.path.layer, # Channel
-      type=layer_type, 
+      type=layer_type,
       datatype=self.meta.data_type,
     )
 
@@ -74,7 +76,7 @@ class BossImageSource(ImageSourceInterface):
       return VolumeCutout.from_volume(self.meta, mip, cutout, bounds)
 
     # This section below covers the case where the requested volume is bigger
-    # than the dataset volume and the bounds guards have been switched 
+    # than the dataset volume and the bounds guards have been switched
     # off. This is useful for Marching Cubes where a 1px excess boundary
     # is needed.
     shape = list(bbox.size3()) + [ cutout.shape[3] ]
@@ -83,7 +85,7 @@ class BossImageSource(ImageSourceInterface):
     return VolumeCutout.from_volume(self.meta, mip, renderbuffer, bbox)
 
   @readonlyguard
-  def upload(self, image, offset, mip):
+  def upload(self, image: Any, offset: Any, mip: int) -> None:
     shape = Vec(*image.shape[:3])
     offset = Vec(*offset)
 
@@ -97,7 +99,7 @@ class BossImageSource(ImageSourceInterface):
       offset = bounds.minpt
 
     check_grid_aligned(
-      self.meta, image, bounds, mip, 
+      self.meta, image, bounds, mip,
       throw_error=(self.non_aligned_writes == False)
     )
 
@@ -108,10 +110,10 @@ class BossImageSource(ImageSourceInterface):
     layer_type = 'image' if self.layer_type == 'unknown' else self.meta.layer_type
 
     chan = ChannelResource(
-      collection_name=self.meta.path.bucket, 
-      experiment_name=self.meta.path.dataset, 
+      collection_name=self.meta.path.bucket,
+      experiment_name=self.meta.path.dataset,
       name=self.meta.path.layer, # Channel
-      type=layer_type, 
+      type=layer_type,
       datatype=self.meta.data_type,
     )
 
@@ -124,12 +126,12 @@ class BossImageSource(ImageSourceInterface):
 
     rmt.create_cutout(chan, mip, x_rng, y_rng, z_rng, image)
 
-  def exists(self, bbox, mip=None):
+  def exists(self, bbox: Any, mip: Optional[int] = None) -> Any:
     raise NotImplementedError()
 
   @readonlyguard
-  def delete(self, bbox, mip=None):
+  def delete(self, bbox: Any, mip: Optional[int] = None) -> None:
     raise NotImplementedError()
 
-  def transfer_to(self, cloudpath, bbox, mip, block_size=None, compress=True):
+  def transfer_to(self, cloudpath: str, bbox: Any, mip: int, block_size: Optional[int] = None, compress: bool = True) -> Any:
     raise NotImplementedError()

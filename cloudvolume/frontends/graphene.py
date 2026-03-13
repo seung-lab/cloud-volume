@@ -1,4 +1,6 @@
-from typing import Optional, List, Any, Sequence
+from __future__ import annotations
+
+from typing import Any, DefaultDict, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from collections import defaultdict
 from datetime import datetime
@@ -31,10 +33,10 @@ from ..types import CompressType, MipType
 from .precomputed import CloudVolumePrecomputed
 from tqdm import tqdm
 
-def warn(text):
+def warn(text: str) -> None:
   print(colorize('yellow', text))
 
-def to_unix_time(timestamp):
+def to_unix_time(timestamp: Union[int, float, str, datetime, np.integer, np.floating, None]) -> Optional[int]:
   """
   Accepts integer UNIX timestamps, ISO 8601 datetime strings,
   and Python datetime objects and returns them as the equivalent
@@ -62,39 +64,39 @@ retry = tenacity.retry(
 class CloudVolumeGraphene(CloudVolumePrecomputed):
 
   @property
-  def timestamp(self):
+  def timestamp(self) -> Optional[int]:
     return self.meta.timestamp
-  
+
   @timestamp.setter
-  def timestamp(self, val):
+  def timestamp(self, val: int) -> None:
     self.meta.timestamp = int(val)
 
   @property
-  def agglomerate(self):
+  def agglomerate(self) -> bool:
     return self.meta.agglomerate
-  
+
   @agglomerate.setter
-  def agglomerate(self, val):
+  def agglomerate(self, val: bool) -> None:
     self.meta.agglomerate = bool(val)
 
   @property
-  def manifest_endpoint(self):
+  def manifest_endpoint(self) -> str:
     return self.meta.manifest_endpoint
 
   @property
-  def graph_chunk_size(self):
-    return self.meta.graph_chunk_size 
+  def graph_chunk_size(self) -> Any:
+    return self.meta.graph_chunk_size
 
   @property
-  def mesh_chunk_size(self):
+  def mesh_chunk_size(self) -> Any:
     # TODO: add this as new parameter to the info as it can be different from the chunkedgraph chunksize
     return self.meta.mesh_chunk_size
 
   def scattered_points(
-    self, pts, 
-    mip=None, coord_resolution=None,
-    agglomerate=None, timestamp=None, stop_layer=None,
-  ):
+    self, pts: Any,
+    mip: Optional[int] = None, coord_resolution: Optional[Sequence[int]] = None,
+    agglomerate: Optional[bool] = None, timestamp: Optional[int] = None, stop_layer: Optional[int] = None,
+  ) -> Dict[tuple, Any]:
     """
     Download one or more single voxel values that may be scattered
     across the dataset. You can accelerate this query with an LRU
@@ -170,11 +172,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return { pt: mapping[label] for pt, label in results.items() }
 
   def download_point(
-    self, pt, size=256, 
-    mip=None, parallel=None, 
-    coord_resolution=None,
-    **kwargs
-  ):
+    self, pt: Any, size: Any = 256,
+    mip: Optional[int] = None, parallel: Optional[int] = None,
+    coord_resolution: Optional[Sequence[int]] = None,
+    **kwargs: Any
+  ) -> Any:
     """
     Download to the right of point given in mip 0 coords.
     Useful for quickly visualizing a neuroglancer coordinate
@@ -342,13 +344,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return final_labels
 
   def download_files(
-    self, bbox, mip=None, 
-    parallel=None, segids=None,
-    agglomerate=None, timestamp=None,
-    stop_layer=None,
-    coord_resolution=None,
-    cache_only=False,
-  ):
+    self, bbox: Any, mip: Optional[int] = None,
+    parallel: Optional[int] = None, segids: Optional[Sequence[int]] = None,
+    agglomerate: Optional[bool] = None, timestamp: Optional[int] = None,
+    stop_layer: Optional[int] = None,
+    coord_resolution: Optional[Sequence[int]] = None,
+    cache_only: bool = False,
+  ) -> Dict[str, bytes]:
     agglomerate = agglomerate if agglomerate is not None else self.agglomerate
     timestamp = timestamp if timestamp is not None else self.timestamp
 
@@ -432,8 +434,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     compress_level:Optional[int] = None,
     agglomerate:bool = False,
     timestamp:Optional[int] = None,
-    **kwargs, # absorb graphene arguments
-  ):
+    **kwargs: Any, # absorb graphene arguments
+  ) -> Any:
     """
     Create a disposable in-memory CloudVolume (mem://) containing
     the requested cutout region in the unsharded precomputed
@@ -500,7 +502,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     renumber:bool = False, 
     coord_resolution:Optional[Sequence[int]] = None,
     label:Optional[int] = None,
-  ):
+  ) -> Any:
     """
     Downloads base segmentation and optionally agglomerates
     labels based on information in the graph server.
@@ -646,15 +648,15 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     return img
   
   def agglomerate_cutout(
-    self, 
-    img, 
-    timestamp:Optional[int] = None, 
-    stop_layer:Optional[int] = None, 
+    self,
+    img: np.ndarray,
+    timestamp:Optional[int] = None,
+    stop_layer:Optional[int] = None,
     in_place:bool = True,
     label:Optional[int] = None,
     bbox:Optional[Bbox] = None,
     mip:Optional[int] = None, # mip 0 bbox
-  ):
+  ) -> np.ndarray:
     """
     Remap a graphene volume to the indicidated layer ids (default root ids). 
     This creates a flat segmentation.
@@ -681,13 +683,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       mapping = { segid: root for segid, root in zip(labels, roots) }
       return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
 
-  def coordinate_indexing(self, slices):
+  def coordinate_indexing(self, slices: Any) -> np.ndarray:
     res = super().coordinate_indexing(slices)
     if not self.agglomerate:
       return res
     return self.agglomerate_cutout(res)
 
-  def __getitem__(self, slices):
+  def __getitem__(self, slices: Any) -> Any:
     if isinstance(slices, Bbox):
       slices = slices.convert_units(
         "vx", self.meta.resolution(self.mip)
@@ -706,7 +708,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       agglomerate=self.agglomerate,
     )
 
-  def get_chunk_layer(self, node_or_chunk_id):
+  def get_chunk_layer(self, node_or_chunk_id: int) -> int:
     """
     Extract Layer from Node ID or Chunk ID
     
@@ -714,11 +716,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     """
     return int(self.meta.decode_layer_id(node_or_chunk_id))
 
-  def get_root(self, segid, *args, **kwargs):
+  def get_root(self, segid: int, *args: Any, **kwargs: Any) -> Any:
     """Deprecated. Get a single root id for a single segid."""
     return self.get_roots(segid, *args, **kwargs)[0]
 
-  def get_roots(self, segids, timestamp=None, binary=True, stop_layer=None):
+  def get_roots(self, segids: Any, timestamp: Any = None, binary: bool = True, stop_layer: Optional[int] = None) -> np.ndarray:
     """
     Get the root ids for these labels.
 
@@ -783,7 +785,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return fastremap.remap(input_segids, base_remap)
 
-  def get_chunk_mappings(self, chunk_id, timestamp=None):
+  def get_chunk_mappings(self, chunk_id: int, timestamp: Any = None) -> DefaultDict[int, List[int]]:
     """
     Get the mapping of segments in a chunk at a given chunk graph layer 
     to their L1 watershed components.
@@ -837,7 +839,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return chunk_mappings
 
-  def _get_roots_v1(self, segids, timestamp, binary=False, stop_layer=None):
+  def _get_roots_v1(self, segids: np.ndarray, timestamp: Optional[int], binary: bool = False, stop_layer: Optional[int] = None) -> Any:
     if len(segids) == 0:
       return []
 
@@ -896,7 +898,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return result
 
-  def _get_roots_legacy(self, segids, timestamp):
+  def _get_roots_legacy(self, segids: np.ndarray, timestamp: Optional[int]) -> List[int]:
     if len(segids) == 0:
       return []
 
@@ -915,7 +917,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       roots.append(root)
     return roots
 
-  def get_leaves(self, root_id, bbox, mip, stop_layer=None):
+  def get_leaves(self, root_id: int, bbox: Any, mip: int, stop_layer: Optional[int] = None) -> np.ndarray:
     """
     Get the lower level ids for this root_id.
 
@@ -938,7 +940,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return self.get_leaves_legacy(root_id, bbox, mip)
 
-  def get_leaves_v1(self, root_id, bbox, mip, stop_layer=None):
+  def get_leaves_v1(self, root_id: int, bbox: Any, mip: int, stop_layer: Optional[int] = None) -> np.ndarray:
     root_id = int(root_id)    
 
     api = GrapheneApiVersion("v1")
@@ -962,7 +964,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
     return np.array(content["leaf_ids"], dtype=np.uint64)
 
-  def get_leaves_legacy(self, root_id, bbox, mip):
+  def get_leaves_legacy(self, root_id: int, bbox: Any, mip: int) -> np.ndarray:
     root_id = int(root_id)
 
     api = GrapheneApiVersion("1.0")

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Optional
+
 from cloudfiles import CloudFiles
 
 from cloudvolume.datasource.precomputed.metadata import PrecomputedMetadata
@@ -6,19 +10,19 @@ from cloudvolume.lib import jsonify, Vec, Bbox
 from ...provenance import DataLayerProvenance
 
 class N5Metadata(PrecomputedMetadata):
-  def __init__(self, cloudpath, config, cache, info=None):
-    
+  def __init__(self, cloudpath: str, config: Any, cache: Any, info: Optional[dict] = None) -> None:
+
     # some default values, to be overwritten
     tmp_info = PrecomputedMetadata.create_info(
-      num_channels=1, layer_type='image', data_type='uint8', 
-      encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0], 
+      num_channels=1, layer_type='image', data_type='uint8',
+      encoding='raw', resolution=[1,1,1], voxel_offset=[0,0,0],
       volume_size=[1,1,1]
     )
 
     super().__init__(
       cloudpath, config, cache, info=tmp_info, provenance=None
     )
-    self.attributes = {
+    self.attributes: dict[str, Any] = {
       "root": {},
       "scales": {},
     }
@@ -30,7 +34,7 @@ class N5Metadata(PrecomputedMetadata):
 
     self.provenance = DataLayerProvenance()
 
-  def info_to_attributes(self):
+  def info_to_attributes(self) -> dict[str, Any]:
     return {
       'root': {
         'pixelResolution': {
@@ -44,7 +48,7 @@ class N5Metadata(PrecomputedMetadata):
       'scales': [
         {
           'dataType': self.data_type,
-          'compression': { 
+          'compression': {
             'type': self.config.compress,
             'level': self.config.compress_level,
           },
@@ -55,7 +59,7 @@ class N5Metadata(PrecomputedMetadata):
       ],
     }
 
-  def commit_info(self):
+  def commit_info(self) -> None:
     """We only are supporing read-only."""
     self.attributes = self.info_to_attributes()
 
@@ -64,10 +68,10 @@ class N5Metadata(PrecomputedMetadata):
 
     cf.put_jsons([
       (cf.join(f"s{i}", "attributes.json"), scale)
-      for i, scale in enumerate(self.attributes["root"]["scales"]) 
+      for i, scale in enumerate(self.attributes["root"]["scales"])
     ])
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict:
     cf = CloudFiles(self.cloudpath, secrets=self.config.secrets)
     self.attributes["root"] = cf.get_json("attributes.json")
 
@@ -81,17 +85,17 @@ class N5Metadata(PrecomputedMetadata):
     except KeyError:
       num_scales = len(self.attributes["root"]["downsamplingFactors"])
 
-    scale_dirs = [ 
-      cf.join(f"s{i}", "attributes.json") 
-      for i in range(num_scales) 
+    scale_dirs = [
+      cf.join(f"s{i}", "attributes.json")
+      for i in range(num_scales)
     ]
     scale_attrs = cf.get_json(scale_dirs)
     self.attributes["scales"] = scale_attrs
-    
-    # glossing over that each scale can have 
-    # a different data type, but usually it 
+
+    # glossing over that each scale can have
+    # a different data type, but usually it
     # should all be the same
-    data_type = scale_attrs[0]["dataType"] 
+    data_type = scale_attrs[0]["dataType"]
 
     encoding = scale_attrs[0]["compression"]["type"]
     if encoding in ["gzip", "br", "lzma", "xz", "bz2"]:
@@ -107,7 +111,7 @@ class N5Metadata(PrecomputedMetadata):
       volume_size=scale_attrs[0]["dimensions"][:3],
       chunk_size=scale_attrs[0]["blockSize"],
     )
-    
+
     for i, scale in enumerate(scale_attrs[1:]):
       try:
         ds_factor = scale["downsamplingFactors"]
@@ -123,10 +127,10 @@ class N5Metadata(PrecomputedMetadata):
 
     return info
 
-  def commit_provenance(self):
+  def commit_provenance(self) -> None:
     """N5 doesn't support provenance files."""
     pass
 
-  def fetch_provenance(self):
+  def fetch_provenance(self) -> None:
     """N5 doesn't support provenance files."""
     pass

@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 from collections import defaultdict
 import json
 import os.path
 import posixpath
 import re
+from typing import Any, Iterator
 
 import boto3
 import botocore
@@ -20,16 +23,16 @@ COMPRESSION_EXTENSIONS = ('.gz', '.br')
 
 # This is just to support pooling by bucket
 class keydefaultdict(defaultdict):
-  def __missing__(self, key):
+  def __missing__(self, key: Any) -> Any:
     if self.default_factory is None:
       raise KeyError( key )
     else:
       ret = self[key] = self.default_factory(key)
       return ret
 
-S3_POOL = None
-GC_POOL = None
-def reset_connection_pools():
+S3_POOL: keydefaultdict | None = None
+GC_POOL: keydefaultdict | None = None
+def reset_connection_pools() -> None:
   import gc
   global S3_POOL
   global GC_POOL
@@ -40,34 +43,34 @@ def reset_connection_pools():
 reset_connection_pools()
 
 retry = tenacity.retry(
-  reraise=True, 
-  stop=tenacity.stop_after_attempt(7), 
+  reraise=True,
+  stop=tenacity.stop_after_attempt(7),
   wait=tenacity.wait_random_exponential(0.5, 60.0),
 )
 
 class StorageInterface(object):
-  def release_connection(self):
+  def release_connection(self) -> None:
     pass
-  def __enter__(self):
+  def __enter__(self) -> StorageInterface:
     return self
-  def __exit__(self, exception_type, exception_value, traceback):
+  def __exit__(self, exception_type: Any, exception_value: Any, traceback: Any) -> None:
     self.release_connection()
 
 class FileInterface(StorageInterface):
-  def __init__(self, path):
+  def __init__(self, path: Any) -> None:
     super(StorageInterface, self).__init__()
     self._path = path
 
-  def get_path_to_file(self, file_path):
+  def get_path_to_file(self, file_path: str) -> str:
     return os.path.join(
       self._path.basepath, self._path.layer, file_path
     )
 
   def put_file(
-    self, file_path, content, 
-    content_type, compress, 
-    cache_control=None
-  ):
+    self, file_path: str, content: bytes | str,
+    content_type: str | None, compress: str | bool | None,
+    cache_control: str | None = None
+  ) -> None:
     path = self.get_path_to_file(file_path)
     mkdir(os.path.dirname(path))
 
@@ -91,7 +94,7 @@ class FileInterface(StorageInterface):
       with open(path, 'wb') as f:
         f.write(content)
 
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path: str, start: int | None = None, end: int | None = None) -> tuple[bytes | None, str | None]:
     path = self.get_path_to_file(file_path)
 
     if os.path.exists(path + '.gz'):
@@ -117,14 +120,14 @@ class FileInterface(StorageInterface):
     except IOError:
       return None, encoding
 
-  def exists(self, file_path):
+  def exists(self, file_path: str) -> bool:
     path = self.get_path_to_file(file_path)
     return os.path.exists(path) or any(( os.path.exists(path + ext) for ext in COMPRESSION_EXTENSIONS ))
 
-  def files_exist(self, file_paths):
+  def files_exist(self, file_paths: list[str]) -> dict[str, bool]:
     return { path: self.exists(path) for path in file_paths }
 
-  def delete_file(self, file_path):
+  def delete_file(self, file_path: str) -> None:
     path = self.get_path_to_file(file_path)
     if os.path.exists(path):
       os.remove(path)
@@ -133,23 +136,23 @@ class FileInterface(StorageInterface):
     elif os.path.exists(path + ".br"):
       os.remove(path + ".br")
 
-  def delete_files(self, file_paths):
+  def delete_files(self, file_paths: list[str]) -> None:
     for path in file_paths:
       self.delete_file(path)
 
-  def list_files(self, prefix, flat):
+  def list_files(self, prefix: str, flat: bool) -> Iterator[str]:
     """
-    List the files in the layer with the given prefix. 
+    List the files in the layer with the given prefix.
 
     flat means only generate one level of a directory,
-    while non-flat means generate all file paths with that 
+    while non-flat means generate all file paths with that
     prefix.
     """
 
-    layer_path = self.get_path_to_file("")        
+    layer_path = self.get_path_to_file("")
     path = os.path.join(layer_path, prefix) + '*'
 
-    filenames = []
+    filenames: list[str] = []
 
     remove = layer_path
     if len(remove) and remove[-1] != '/':
@@ -167,11 +170,11 @@ class FileInterface(StorageInterface):
         files = [ os.path.join(root, f) for f in files ]
         files = [ f.replace(remove, '') for f in files ]
         files = [ f for f in files if f[:len(prefix)] == prefix ]
-        
+
         for filename in files:
           filenames.append(filename)
-    
-    def stripext(fname):
+
+    def stripext(fname: str) -> str:
       (base, ext) = os.path.splitext(fname)
       if ext in COMPRESSION_EXTENSIONS:
         return base
@@ -182,17 +185,17 @@ class FileInterface(StorageInterface):
     return _radix_sort(filenames).__iter__()
 
 class GoogleCloudStorageInterface(StorageInterface):
-  def __init__(self, path):
+  def __init__(self, path: Any) -> None:
     super(StorageInterface, self).__init__()
     global GC_POOL
     self._path = path
-    self._bucket = GC_POOL[path.bucket].get_connection()
+    self._bucket: Any = GC_POOL[path.bucket].get_connection()
 
-  def get_path_to_file(self, file_path):
+  def get_path_to_file(self, file_path: str) -> str:
     return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
 
   @retry
-  def put_file(self, file_path, content, content_type, compress, cache_control=None):
+  def put_file(self, file_path: str, content: bytes | str, content_type: str | None, compress: str | bool | None, cache_control: str | None = None) -> None:
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
@@ -206,14 +209,14 @@ class GoogleCloudStorageInterface(StorageInterface):
     blob.upload_from_string(content, content_type)
 
   @retry
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path: str, start: int | None = None, end: int | None = None) -> tuple[bytes | None, str | None]:
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob( key )
 
     if start is not None:
       start = int(start)
     if end is not None:
-      end = int(end - 1)      
+      end = int(end - 1)
 
     try:
       # blob handles the decompression so the encoding is None
@@ -222,13 +225,13 @@ class GoogleCloudStorageInterface(StorageInterface):
       return None, None
 
   @retry
-  def exists(self, file_path):
+  def exists(self, file_path: str) -> bool:
     key = self.get_path_to_file(file_path)
     blob = self._bucket.blob(key)
     return blob.exists()
 
-  def files_exist(self, file_paths):
-    result = {path: None for path in file_paths}
+  def files_exist(self, file_paths: list[str]) -> dict[str, bool]:
+    result: dict[str, Any] = {path: None for path in file_paths}
     MAX_BATCH_SIZE = Batch._MAX_BATCH_SIZE
 
     for i in range(0, len(file_paths), MAX_BATCH_SIZE):
@@ -249,15 +252,15 @@ class GoogleCloudStorageInterface(StorageInterface):
     return result
 
   @retry
-  def delete_file(self, file_path):
+  def delete_file(self, file_path: str) -> None:
     key = self.get_path_to_file(file_path)
-    
+
     try:
       self._bucket.delete_blob( key )
     except google.cloud.exceptions.NotFound:
       pass
 
-  def delete_files(self, file_paths):
+  def delete_files(self, file_paths: list[str]) -> None:
     MAX_BATCH_SIZE = Batch._MAX_BATCH_SIZE
 
     for i in range(0, len(file_paths), MAX_BATCH_SIZE):
@@ -270,15 +273,15 @@ class GoogleCloudStorageInterface(StorageInterface):
         pass
 
   @retry
-  def list_files(self, prefix, flat=False):
+  def list_files(self, prefix: str, flat: bool = False) -> Iterator[str]:
     """
-    List the files in the layer with the given prefix. 
+    List the files in the layer with the given prefix.
 
     flat means only generate one level of a directory,
-    while non-flat means generate all file paths with that 
+    while non-flat means generate all file paths with that
     prefix.
     """
-    layer_path = self.get_path_to_file("")        
+    layer_path = self.get_path_to_file("")
     path = posixpath.join(layer_path, prefix)
     for blob in self._bucket.list_blobs(prefix=path):
       filename = blob.name.replace(layer_path, '')
@@ -289,34 +292,34 @@ class GoogleCloudStorageInterface(StorageInterface):
       elif flat and '/' not in blob.name.replace(path, ''):
         yield filename
 
-  def release_connection(self):
+  def release_connection(self) -> None:
     global GC_POOL
     GC_POOL[self._path.bucket].release_connection(self._bucket)
 
 class HttpInterface(StorageInterface):
-  def __init__(self, path):
+  def __init__(self, path: Any) -> None:
     super(StorageInterface, self).__init__()
     self._path = path
 
-  def get_path_to_file(self, file_path):
+  def get_path_to_file(self, file_path: str) -> str:
     path = posixpath.join(
       self._path.basepath, self._path.layer, file_path
     )
     return self._path.protocol + '://' + path
 
   # @retry
-  def delete_file(self, file_path):
+  def delete_file(self, file_path: str) -> None:
     raise NotImplementedError()
 
-  def delete_files(self, file_paths):
+  def delete_files(self, file_paths: list[str]) -> None:
     raise NotImplementedError()
 
   # @retry
-  def put_file(self, file_path, content, content_type, compress, cache_control=None):
+  def put_file(self, file_path: str, content: bytes | str, content_type: str | None, compress: str | bool | None, cache_control: str | None = None) -> None:
     raise NotImplementedError()
 
   @retry
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path: str, start: int | None = None, end: int | None = None) -> tuple[bytes | None, str | None]:
     key = self.get_path_to_file(file_path)
 
     if start is not None or end is not None:
@@ -339,33 +342,33 @@ class HttpInterface(StorageInterface):
       return resp.content, resp.headers['Content-Encoding']
 
   @retry
-  def exists(self, file_path):
+  def exists(self, file_path: str) -> bool:
     key = self.get_path_to_file(file_path)
     resp = requests.get(key, stream=True)
     resp.close()
     return resp.ok
 
-  def files_exist(self, file_paths):
+  def files_exist(self, file_paths: list[str]) -> dict[str, bool]:
     return {path: self.exists(path) for path in file_paths}
 
-  def list_files(self, prefix, flat=False):
+  def list_files(self, prefix: str, flat: bool = False) -> Iterator[str]:
     raise NotImplementedError()
 
 class S3Interface(StorageInterface):
-  def __init__(self, path):
+  def __init__(self, path: Any) -> None:
     super(StorageInterface, self).__init__()
     global S3_POOL
     self._path = path
-    self._conn = S3_POOL[path.protocol][path.bucket].get_connection()
+    self._conn: Any = S3_POOL[path.protocol][path.bucket].get_connection()
 
-  def get_path_to_file(self, file_path):
+  def get_path_to_file(self, file_path: str) -> str:
     return posixpath.join(self._path.no_bucket_basepath, self._path.layer, file_path)
 
   @retry
-  def put_file(self, file_path, content, content_type, compress, cache_control=None, ACL="bucket-owner-full-control"):
+  def put_file(self, file_path: str, content: bytes | str, content_type: str | None, compress: str | bool | None, cache_control: str | None = None, ACL: str = "bucket-owner-full-control") -> None:
     key = self.get_path_to_file(file_path)
 
-    attrs = {
+    attrs: dict[str, Any] = {
       'Bucket': self._path.bucket,
       'Body': content,
       'Key': key,
@@ -384,14 +387,14 @@ class S3Interface(StorageInterface):
     self._conn.put_object(**attrs)
 
   @retry
-  def get_file(self, file_path, start=None, end=None):
+  def get_file(self, file_path: str, start: int | None = None, end: int | None = None) -> tuple[bytes | None, str | None]:
     """
     There are many types of execptions which can get raised
     from this method. We want to make sure we only return
     None when the file doesn't exist.
     """
 
-    kwargs = {}
+    kwargs: dict[str, str] = {}
     if start is not None or end is not None:
       start = int(start) if start is not None else ''
       end = int(end - 1) if end is not None else ''
@@ -409,13 +412,13 @@ class S3Interface(StorageInterface):
         encoding = resp['ContentEncoding']
 
       return resp['Body'].read(), encoding
-    except botocore.exceptions.ClientError as err: 
+    except botocore.exceptions.ClientError as err:
       if err.response['Error']['Code'] == 'NoSuchKey':
         return None, None
       else:
         raise
 
-  def exists(self, file_path):
+  def exists(self, file_path: str) -> bool:
     exists = True
     try:
       self._conn.head_object(
@@ -427,21 +430,21 @@ class S3Interface(StorageInterface):
         exists = False
       else:
         raise
-    
+
     return exists
 
-  def files_exist(self, file_paths):
+  def files_exist(self, file_paths: list[str]) -> dict[str, bool]:
     return {path: self.exists(path) for path in file_paths}
 
   @retry
-  def delete_file(self, file_path):
+  def delete_file(self, file_path: str) -> None:
 
     # Not necessary to handle 404s here.
     # From the boto3 documentation:
 
     # delete_object(**kwargs)
-    # Removes the null version (if there is one) of an object and inserts a delete marker, 
-    # which becomes the latest version of the object. If there isn't a null version, 
+    # Removes the null version (if there is one) of an object and inserts a delete marker,
+    # which becomes the latest version of the object. If there isn't a null version,
     # Amazon S3 does not remove any objects.
 
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.delete_object
@@ -451,25 +454,25 @@ class S3Interface(StorageInterface):
       Key=self.get_path_to_file(file_path),
     )
 
-  def delete_files(self, file_paths):
+  def delete_files(self, file_paths: list[str]) -> None:
     for path in file_paths:
       self.delete_file(path)
 
-  def list_files(self, prefix, flat=False):
+  def list_files(self, prefix: str, flat: bool = False) -> Iterator[str]:
     """
-    List the files in the layer with the given prefix. 
+    List the files in the layer with the given prefix.
 
     flat means only generate one level of a directory,
-    while non-flat means generate all file paths with that 
+    while non-flat means generate all file paths with that
     prefix.
     """
 
-    layer_path = self.get_path_to_file("")        
+    layer_path = self.get_path_to_file("")
     path = posixpath.join(layer_path, prefix)
 
     @retry
-    def s3lst(continuation_token=None):
-      kwargs = {
+    def s3lst(continuation_token: str | None = None) -> dict[str, Any]:
+      kwargs: dict[str, Any] = {
         'Bucket': self._path.bucket,
         'Prefix': path,
       }
@@ -481,7 +484,7 @@ class S3Interface(StorageInterface):
 
     resp = s3lst()
 
-    def iterate(resp):
+    def iterate(resp: dict[str, Any]) -> Iterator[str]:
       if 'Contents' not in resp.keys():
         resp['Contents'] = []
 
@@ -503,19 +506,19 @@ class S3Interface(StorageInterface):
       for filename in iterate(resp):
         yield filename
 
-  def release_connection(self):
+  def release_connection(self) -> None:
     global S3_POOL
     S3_POOL[self._path.protocol][self._path.bucket].release_connection(self._conn)
 
 
-def _radix_sort(L, i=0):
+def _radix_sort(L: list[str], i: int = 0) -> list[str]:
   """
   Most significant char radix sort
   """
-  if len(L) <= 1: 
+  if len(L) <= 1:
     return L
-  done_bucket = []
-  buckets = [ [] for x in range(255) ]
+  done_bucket: list[str] = []
+  buckets: list[list[str]] = [ [] for x in range(255) ]
   for s in L:
     if i >= len(s):
       done_bucket.append(s)

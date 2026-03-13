@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Any, Optional
 
 import copy
 import re
@@ -8,16 +10,20 @@ from ....lib import jsonify
 from ..sharding import ShardingSpecification, compute_shard_params_for_hashed
 
 import numpy as np
+import numpy.typing as npt
 
 SKEL_MIP_REGEXP = re.compile(r'skeletons_mip_(\d+)')
 
 class PrecomputedSkeletonMetadata(object):
-  def __init__(self, meta, cache=None, config=None, info=None, readonly=False):
+  def __init__(
+    self, meta: Any, cache: Any = None, config: Any = None,
+    info: Optional[dict[str, Any]] = None, readonly: bool = False
+  ) -> None:
     self.meta = meta
     self.cache = cache
     self.config = config
     self.readonly = readonly
-    self._cv = None
+    self._cv: Any = None
 
     if info:
       self.info = info
@@ -27,80 +33,80 @@ class PrecomputedSkeletonMetadata(object):
       self.info = self.default_info()
 
   @property
-  def cv(self):
+  def cv(self) -> Any:
     return self._cv
 
   @cv.setter
-  def cv(self, vol):
+  def cv(self, vol: Any) -> None:
     self._cv = weakref.ref(vol)
 
   @cv.deleter
-  def cv(self):
+  def cv(self) -> None:
     del self._cv
 
   @property
-  def spatial_index(self):
+  def spatial_index(self) -> Optional[dict[str, Any]]:
     if 'spatial_index' in self.info:
       return self.info['spatial_index']
-    return None  
+    return None
 
   @property
-  def skeleton_path(self):
+  def skeleton_path(self) -> str:
     if 'skeletons' in self.meta.info:
       return self.meta.info['skeletons']
     return 'skeletons'
 
   @property
-  def mip(self):
+  def mip(self) -> Optional[int]:
     if 'mip' in self.info:
       return int(self.info['mip'])
-    
+
     # Igneous has long used skeletons_mip_N to store
-    # some information about the skeletonizing job. Let's 
+    # some information about the skeletonizing job. Let's
     # exploit that for now.
     matches = re.search(SKEL_MIP_REGEXP, self.skeleton_path)
     if matches is None:
-      return None 
+      return None
 
     mip, = matches.groups()
     return int(mip)
 
-  def join(self, *paths):
+  def join(self, *paths: str) -> str:
     return self.meta.join(*paths)
 
   @property
-  def transform(self):
+  def transform(self) -> npt.NDArray[np.float32]:
     return np.array(self.info['transform'], dtype=np.float32).reshape( (3,4) )
 
   @transform.setter
-  def transform(self, val):
+  def transform(self, val: Any) -> None:
     self.info['transform'] = val
 
   @property
-  def basepath(self):
+  def basepath(self) -> str:
     return self.meta.basepath
 
   @property
-  def cloudpath(self):
+  def cloudpath(self) -> str:
     return self.meta.cloudpath
 
   @property
-  def layerpath(self):
+  def layerpath(self) -> str:
     return self.meta.join(self.meta.cloudpath, self.skeleton_path)
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict[str, Any]:
     info = self.cache.download_json(self.meta.join(self.skeleton_path, 'info'))
     if not info:
       return self.default_info()
     return info
 
-  def refresh_info(self):
+  def refresh_info(self) -> dict[str, Any]:
     self.info = self.fetch_info()
     return self.info
 
-  def commit_info(self):
+  def commit_info(self) -> None:
     if self.info is None:
-      return 
+      return
 
     info = copy.deepcopy(self.info)
     if info.get("sharding", None) is None:
@@ -108,16 +114,16 @@ class PrecomputedSkeletonMetadata(object):
 
     self.cache.upload_single(
       self.meta.join(self.skeleton_path, 'info'),
-      jsonify(info), 
+      jsonify(info),
       content_type='application/json',
       compress=False,
       cache_control='no-cache',
     )
 
-  def default_info(self):
+  def default_info(self) -> dict[str, Any]:
     return {
       '@type': 'neuroglancer_skeletons',
-      'transform': [  
+      'transform': [
         1, 0, 0, 0, # identity
         0, 1, 0, 0,
         0, 0, 1, 0
@@ -127,7 +133,7 @@ class PrecomputedSkeletonMetadata(object):
           "id": "radius",
           "data_type": "float32",
           "num_components": 1,
-        }, 
+        },
         {
           "id": "vertex_types",
           "data_type": "uint8",
@@ -139,14 +145,14 @@ class PrecomputedSkeletonMetadata(object):
     }
 
   def compute_sharding_specification(
-    self, 
-    num_labels:int,
-    shard_index_bytes:int = 2**13,
-    minishard_index_bytes:int = 2**15,
-    min_shards:int = 1,
-    minishard_index_encoding:str = 'gzip', 
-    data_encoding:str = 'gzip',
-    max_labels_per_shard:Optional[int] = None,
+    self,
+    num_labels: int,
+    shard_index_bytes: int = 2**13,
+    minishard_index_bytes: int = 2**15,
+    min_shards: int = 1,
+    minishard_index_encoding: str = 'gzip',
+    data_encoding: str = 'gzip',
+    max_labels_per_shard: Optional[int] = None,
   ) -> ShardingSpecification:
     """
     Calculate the shard parameters for this volume given
@@ -175,20 +181,20 @@ class PrecomputedSkeletonMetadata(object):
     )
 
   def to_sharded(
-    self, 
-    num_labels:int,
-    shard_index_bytes:int = 2**13,
-    minishard_index_bytes:int = 2**15,
-    min_shards:int = 1,
-    minishard_index_encoding:str = 'gzip', 
-    data_encoding:str = 'gzip',
-    max_labels_per_shard:Optional[int] = None,
-  ):
+    self,
+    num_labels: int,
+    shard_index_bytes: int = 2**13,
+    minishard_index_bytes: int = 2**15,
+    min_shards: int = 1,
+    minishard_index_encoding: str = 'gzip',
+    data_encoding: str = 'gzip',
+    max_labels_per_shard: Optional[int] = None,
+  ) -> None:
     """Adds a computed sharding property to the info."""
     spec = self.compute_sharding_specification(
-      num_labels=num_labels, 
-      shard_index_bytes=shard_index_bytes, 
-      minishard_index_bytes=minishard_index_bytes, 
+      num_labels=num_labels,
+      shard_index_bytes=shard_index_bytes,
+      minishard_index_bytes=minishard_index_bytes,
       min_shards=min_shards,
       minishard_index_encoding=minishard_index_encoding,
       data_encoding=data_encoding,
@@ -198,18 +204,18 @@ class PrecomputedSkeletonMetadata(object):
 
     self._refresh_skeleton_interface()
 
-  def to_unsharded(self):
+  def to_unsharded(self) -> None:
     self.info.pop("sharding", None)
     self._refresh_skeleton_interface()
 
-  def _refresh_skeleton_interface(self):
+  def _refresh_skeleton_interface(self) -> None:
     from cloudvolume.datasource.precomputed.skeleton import PrecomputedSkeletonSource
     if self.cv:
       skeleton_src = PrecomputedSkeletonSource(self.meta, self.cache, self.config, self.readonly, info=self.info)
       skeleton_src.meta.cv = self.cv()
       self.cv().skeleton = skeleton_src
 
-  def is_sharded(self):
+  def is_sharded(self) -> bool:
     if 'sharding' not in self.info:
       return False
     elif self.info['sharding'] is None:

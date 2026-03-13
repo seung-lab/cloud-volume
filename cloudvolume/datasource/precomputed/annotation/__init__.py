@@ -1,4 +1,6 @@
-from typing import Optional, Union, Iterable
+from __future__ import annotations
+
+from typing import Any, Optional, Union, Iterable
 from dataclasses import dataclass
 
 import os
@@ -40,7 +42,7 @@ class PrecomputedAnnotationSource:
     secrets:SecretsType = None,
     use_https:bool = False,
     mip:int = -1,
-  ):
+  ) -> None:
     from .. import get_cache_path
 
     path = strict_extract(cloudpath)
@@ -101,7 +103,7 @@ class PrecomputedAnnotationSource:
     """Get all annotations using the most efficient method available."""
     return self.reader.get_all(mip=mip)
 
-  def summary(self) -> dict:
+  def summary(self) -> dict[str, Any]:
     return {
       "type": self.reader.meta.annotation_type,
       "bounds": self.reader.meta.bounds,
@@ -113,7 +115,7 @@ class PrecomputedAnnotationSource:
       "properties": self.reader.meta.properties_summary,
     }
 
-  def __getitem__(self, slcs):
+  def __getitem__(self, slcs: BboxLikeType) -> MultiLabelAnnotation:
     return self.get_by_bbox(slcs, mip=self.config.mip)
 
 

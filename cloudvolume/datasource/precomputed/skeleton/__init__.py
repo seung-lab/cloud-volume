@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Any, Optional, Union
 
 import os
 
@@ -12,24 +14,27 @@ from ....paths import strict_extract
 from ....cloudvolume import SharedConfiguration
 
 class PrecomputedSkeletonSource(object):
-  def __new__(cls, meta, cache, config, readonly=False, info=None):
+  def __new__(
+    cls, meta: Any, cache: Any, config: Any,
+    readonly: bool = False, info: Optional[dict[str, Any]] = None
+  ) -> Union[ShardedPrecomputedSkeletonSource, UnshardedPrecomputedSkeletonSource]:
     skel_meta = PrecomputedSkeletonMetadata(meta, cache, config, readonly=readonly, info=info)
 
     if skel_meta.is_sharded():
-      return ShardedPrecomputedSkeletonSource(skel_meta, cache, config, readonly) 
+      return ShardedPrecomputedSkeletonSource(skel_meta, cache, config, readonly)
 
     return UnshardedPrecomputedSkeletonSource(skel_meta, cache, config, readonly)
 
   @classmethod
   def from_cloudpath(
-    cls, 
-    cloudpath:str, 
-    cache=False, 
-    progress=False,
-    secrets=None,
-    spatial_index_db:Optional[str]=None, 
-    cache_locking:bool = True,
-  ):
+    cls,
+    cloudpath: str,
+    cache: Any = False,
+    progress: bool = False,
+    secrets: Optional[Any] = None,
+    spatial_index_db: Optional[str] = None,
+    cache_locking: bool = True,
+  ) -> Union[ShardedPrecomputedSkeletonSource, UnshardedPrecomputedSkeletonSource]:
     config = SharedConfiguration(
       cdn_cache=False,
       compress=True,
@@ -42,7 +47,7 @@ class PrecomputedSkeletonSource(object):
       spatial_index_db=spatial_index_db,
       cache_locking=cache_locking,
     )
-    
+
     cache = CacheService(
       cloudpath=(cache if type(cache) == str else cloudpath),
       enabled=bool(cache),
@@ -52,7 +57,7 @@ class PrecomputedSkeletonSource(object):
 
     cloudpath, skel_dir = os.path.split(cloudpath)
     meta = PrecomputedMetadata(
-      cloudpath, config, cache, 
+      cloudpath, config, cache,
       info={ 'skeletons': skel_dir }
     )
 

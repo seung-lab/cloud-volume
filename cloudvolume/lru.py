@@ -1,22 +1,24 @@
-from typing import Union
+from __future__ import annotations
+
+from typing import Any, Dict, Generator, Iterator, KeysView, List, Optional, Tuple, Union
 import sys
 import threading
 
-def getsizeof(val:Union[int,str,bytes,list,tuple]) -> int:
+def getsizeof(val: Union[int, str, bytes, list, tuple]) -> int:
   """does sizeof at arbitrary depth for tuples and lists"""
-  nbytes = 0
+  nbytes: int = 0
   if isinstance(val, (tuple, list)):
     for elem in val:
       nbytes += getsizeof(elem)
   return nbytes + sys.getsizeof(val)
 
 class DoublyLinkedListIterator:
-  def __init__(self, node, reverse=False):
-    self.node = ListNode(None, node, node)
-    self.reverse = reverse
-  def next(self):
+  def __init__(self, node: Optional[ListNode], reverse: bool = False) -> None:
+    self.node: ListNode = ListNode(None, node, node)
+    self.reverse: bool = reverse
+  def next(self) -> ListNode:
     return self.__next__()
-  def __next__(self):
+  def __next__(self) -> ListNode:
     if self.reverse:
       if self.node.prev is not None:
         self.node = self.node.prev
@@ -26,39 +28,39 @@ class DoublyLinkedListIterator:
         self.node = self.node.next
         return self.node
     raise StopIteration()
-  def __reversed__(self):
+  def __reversed__(self) -> DoublyLinkedListIterator:
     return DoublyLinkedListIterator(self.node, not self.reverse)
 
 class ListNode:
-  def __init__(self, val, next, prev):
-    self.val = val
-    self.next = next
-    self.prev = prev 
+  def __init__(self, val: Any, next: Optional[ListNode], prev: Optional[ListNode]) -> None:
+    self.val: Any = val
+    self.next: Optional[ListNode] = next
+    self.prev: Optional[ListNode] = prev
 
-  def __iter__(self):
+  def __iter__(self) -> DoublyLinkedListIterator:
     return DoublyLinkedListIterator(self)
 
-  def __reversed__(self):
+  def __reversed__(self) -> DoublyLinkedListIterator:
     return DoublyLinkedListIterator(self, reverse=True)
 
-  def __str__(self):
+  def __str__(self) -> str:
     return "ListNode({},{},{})".format(
-      self.val, 
+      self.val,
       self.next.val if self.next is not None else None,
       self.prev.val if self.prev is not None else None
     )
 
-  def clone(self):
+  def clone(self) -> ListNode:
     return ListNode(self.val, self.next, self.prev)
 
 class DoublyLinkedList:
-  def __init__(self):
-    self.head = None
-    self.tail = None
-    self.size = 0
+  def __init__(self) -> None:
+    self.head: Optional[ListNode] = None
+    self.tail: Optional[ListNode] = None
+    self.size: int = 0
 
   @classmethod
-  def create(cls, lst):
+  def create(cls, lst: Any) -> DoublyLinkedList:
     lst = iter(lst)
 
     dll = DoublyLinkedList()
@@ -67,49 +69,49 @@ class DoublyLinkedList:
 
     return dll
 
-  def __len__(self):
+  def __len__(self) -> int:
     return self.size
 
-  def __iter__(self):
+  def __iter__(self) -> DoublyLinkedListIterator:
     return DoublyLinkedListIterator(self.head)
 
-  def __reversed__(self):
+  def __reversed__(self) -> DoublyLinkedListIterator:
     return DoublyLinkedListIterator(self.tail, reverse=True)
 
-  def tolist(self):
+  def tolist(self) -> List[Any]:
     return [ x.val for x in self ]
 
-  def is_empty(self):
+  def is_empty(self) -> bool:
     return self.head is None and self.tail is None
 
-  def peek_head(self):
+  def peek_head(self) -> Any:
     if self.head is None:
       return None
     return self.head.val
 
-  def peek_tail(self):
+  def peek_tail(self) -> Any:
     if self.tail is None:
       return None
     return self.tail.val
 
-  def promote_to_head(self, node):
+  def promote_to_head(self, node: ListNode) -> None:
     self.delete(node)
 
     if self.head is None:
       self.head = node
-      node.next = None 
+      node.next = None
       node.prev = None
       self.tail = node
     else:
       head = self.head
       head.prev = node
       self.head = node
-      node.prev = None 
+      node.prev = None
       node.next = head
 
     self.size += 1
 
-  def delete(self, node):
+  def delete(self, node: ListNode) -> ListNode:
     nxt, prev = node.next, node.prev
 
     if self.head == node:
@@ -127,7 +129,7 @@ class DoublyLinkedList:
 
     return node
 
-  def delete_tail(self):
+  def delete_tail(self) -> Any:
     if self.tail is None:
       return None
     elif self.tail == self.head:
@@ -145,7 +147,7 @@ class DoublyLinkedList:
 
     return node.val
 
-  def prepend(self, val):
+  def prepend(self, val: Any) -> DoublyLinkedList:
     if self.head is None and self.tail is None:
       self.head = ListNode(val, None, None)
       self.tail = self.head
@@ -161,7 +163,7 @@ class DoublyLinkedList:
 
     return self
 
-  def append(self, val):
+  def append(self, val: Any) -> DoublyLinkedList:
     if self.head is None and self.tail is None:
       self.head = ListNode(val, None, None)
       self.tail = self.head
@@ -176,7 +178,7 @@ class DoublyLinkedList:
 
     return self
 
-  def __str__(self):
+  def __str__(self) -> str:
     return str([ n.val for n in self ])
 
 class LRU:
@@ -184,7 +186,7 @@ class LRU:
   A Least Recently Used dict implementation based on
   a dict + a doubly linked list.
   """
-  def __init__(self, size:int = 100, size_in_bytes:bool = False):
+  def __init__(self, size: int = 100, size_in_bytes: bool = False) -> None:
     """
     size specifies the upper inclusive limit to the size of the
     LRU.
@@ -201,37 +203,37 @@ class LRU:
     It was designed for with byte strings in mind that represent file
     content.
     """
-    self.size = int(size)
-    self.size_in_bytes = size_in_bytes
-    self.nbytes = 0
-    self.queue = DoublyLinkedList()
-    self.hash = {}
-    self.lock = threading.Lock()
+    self.size: int = int(size)
+    self.size_in_bytes: bool = size_in_bytes
+    self.nbytes: int = 0
+    self.queue: DoublyLinkedList = DoublyLinkedList()
+    self.hash: Dict[Any, ListNode] = {}
+    self.lock: threading.Lock = threading.Lock()
 
-  def __len__(self):
+  def __len__(self) -> int:
     return self.queue.size
 
-  def keys(self):
+  def keys(self) -> KeysView[Any]:
     return self.hash.keys()
 
-  def values(self):
+  def values(self) -> Generator[Any, None, None]:
     return ( node.val for val in self.queue )
 
-  def items(self):
+  def items(self) -> Generator[Tuple[Any, Any], None, None]:
     return ( (key, node.val) for key, node in self.hash.items() )
 
-  def is_oversized(self):
+  def is_oversized(self) -> bool:
     if self.size_in_bytes:
       return self.nbytes > self.size
     return len(self.queue) > self.size
 
-  def clear(self):
+  def clear(self) -> None:
     with self.lock:
       self.queue = DoublyLinkedList()
       self.hash = {}
       self.nbytes = 0
 
-  def resize(self, new_size):
+  def resize(self, new_size: int) -> None:
     if new_size < 0:
       raise ValueError("The LRU limit must be a positive number. Got: " + str(new_size))
 
@@ -251,7 +253,7 @@ class LRU:
         del self.hash[key]
         self.nbytes -= getsizeof(val)
 
-  def delete(self, key):
+  def delete(self, key: Any) -> Any:
     with self.lock:
       if key not in self.hash:
         raise KeyError(key)
@@ -262,15 +264,15 @@ class LRU:
       self.nbytes -= getsizeof(node.val)
       return node.val
 
-  def pop(self, key, *args):
+  def pop(self, key: Any, *args: Any) -> Any:
     try:
       return self.delete(key)
     except KeyError:
       if len(args):
         return args[0]
       raise
-  
-  def get(self, key, default=None):
+
+  def get(self, key: Any, default: Any = None) -> Any:
     with self.lock:
       if key not in self.hash:
         if default is None:
@@ -282,7 +284,7 @@ class LRU:
 
       return node.val[1]
 
-  def set(self, key, val):
+  def set(self, key: Any, val: Any) -> None:
     with self.lock:
       if self.size == 0:
         return
@@ -305,22 +307,22 @@ class LRU:
         del self.hash[tkey]
         self.nbytes -= getsizeof(tval)
 
-  def __contains__(self, key):
+  def __contains__(self, key: Any) -> bool:
     return key in self.hash
 
-  def __getitem__(self, key):
+  def __getitem__(self, key: Any) -> Any:
     return self.get(key)
 
-  def __setitem__(self, key, val):
+  def __setitem__(self, key: Any, val: Any) -> None:
     return self.set(key, val)
 
-  def __delitem__(self, key):
+  def __delitem__(self, key: Any) -> Any:
     return self.delete(key)
 
-  def __str__(self):
+  def __str__(self) -> str:
     return str(self.queue)
 
-  def __getstate__(self):
+  def __getstate__(self) -> Dict[str, Any]:
     # Copy the object's state from self.__dict__ which contains
     # all our instance attributes. Always use the dict.copy()
     # method to avoid modifying the original state.
@@ -329,13 +331,13 @@ class LRU:
     del state['lock']
     return state
 
-  def __enter__(self):
+  def __enter__(self) -> None:
     self.lock.acquire()
 
-  def __exit__(self, type, value, tb):
+  def __exit__(self, type: Any, value: Any, tb: Any) -> None:
     self.lock.release()
 
-  def __setstate__(self, state):
+  def __setstate__(self, state: Dict[str, Any]) -> None:
     # Restore instance attributes (i.e., filename and lineno).
     self.__dict__.update(state)
     self.lock = threading.Lock()

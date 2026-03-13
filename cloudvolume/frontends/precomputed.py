@@ -1,4 +1,6 @@
-from typing import Optional, Sequence
+from __future__ import annotations
+
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 import itertools
 import gevent.socket
@@ -30,15 +32,15 @@ from ..volumecutout import VolumeCutout
 from .. import sharedmemory
 from ..types import CompressType
 
-def warn(text):
+def warn(text: str) -> None:
   print(colorize('yellow', text))
 
 class CloudVolumePrecomputed(object):
-  def __init__(self, 
-    meta, cache, config,
-    image=None, mesh=None, skeleton=None,
-    mip=0
-  ):
+  def __init__(self,
+    meta: Any, cache: Any, config: Any,
+    image: Any = None, mesh: Any = None, skeleton: Any = None,
+    mip: int = 0
+  ) -> None:
     self.config = config 
     self.cache = cache 
     self.meta = meta
@@ -58,44 +60,44 @@ class CloudVolumePrecomputed(object):
     if is_placeholder:
       print(yellow("Warning: The currently selected mip level is marked as a placeholder and likely has no associated image data."))
 
-  @property 
-  def autocrop(self):
+  @property
+  def autocrop(self) -> bool:
     return self.image.autocrop
 
   @autocrop.setter
-  def autocrop(self, val):
+  def autocrop(self, val: bool) -> None:
     self.image.autocrop = val
 
   @property
-  def background_color(self):
-    return self.image.background_color 
+  def background_color(self) -> int:
+    return self.image.background_color
 
   @background_color.setter
-  def background_color(self, val):
-    self.image.background_color = val  
+  def background_color(self, val: int) -> None:
+    self.image.background_color = val
 
-  @property 
-  def bounded(self):
+  @property
+  def bounded(self) -> bool:
     return self.image.bounded
 
-  @bounded.setter 
-  def bounded(self, val):
+  @bounded.setter
+  def bounded(self, val: bool) -> None:
     self.image.bounded = val
 
   @property
-  def fill_missing(self):
+  def fill_missing(self) -> bool:
     return self.image.fill_missing
-  
+
   @fill_missing.setter
-  def fill_missing(self, val):
+  def fill_missing(self, val: bool) -> None:
     self.image.fill_missing = val
-  
+
   @property
-  def green_threads(self):
+  def green_threads(self) -> bool:
     return self.config.green
-  
-  @green_threads.setter 
-  def green_threads(self, val):
+
+  @green_threads.setter
+  def green_threads(self, val: bool) -> None:
     if val and socket.socket is not gevent.socket.socket:
       warn("""
       WARNING: green_threads is set but this process is
@@ -118,19 +120,19 @@ class CloudVolumePrecomputed(object):
     self.config.green = bool(val)
 
   @property
-  def non_aligned_writes(self):
+  def non_aligned_writes(self) -> bool:
     return self.image.non_aligned_writes
 
   @non_aligned_writes.setter
-  def non_aligned_writes(self, val):
+  def non_aligned_writes(self, val: bool) -> None:
     self.image.non_aligned_writes = val
 
   @property
-  def delete_black_uploads(self):
+  def delete_black_uploads(self) -> bool:
     return self.image.delete_black_uploads
 
   @delete_black_uploads.setter
-  def delete_black_uploads(self, val):
+  def delete_black_uploads(self, val: bool) -> None:
     self.image.delete_black_uploads = val
 
   @property
@@ -138,15 +140,15 @@ class CloudVolumePrecomputed(object):
     return self.image.overwrite_partial_chunks
 
   @overwrite_partial_chunks.setter
-  def overwrite_partial_chunks(self, val: bool):
+  def overwrite_partial_chunks(self, val: bool) -> None:
     self.image.overwrite_partial_chunks = bool(val)
 
   @property
-  def parallel(self):
+  def parallel(self) -> int:
     return self.config.parallel
 
   @parallel.setter
-  def parallel(self, num_processes):
+  def parallel(self, num_processes: int) -> None:
     if type(num_processes) == bool:
       num_processes = mp.cpu_count() if num_processes == True else 1
     elif num_processes <= 0:
@@ -157,46 +159,46 @@ class CloudVolumePrecomputed(object):
     self.config.parallel = num_processes
 
   @property
-  def cdn_cache(self):
+  def cdn_cache(self) -> Union[bool, str]:
     return self.config.cdn_cache
 
-  @cdn_cache.setter 
-  def cdn_cache(self, val):
+  @cdn_cache.setter
+  def cdn_cache(self, val: Union[bool, str]) -> None:
     self.config.cdn_cache = val
 
-  @property 
-  def compress(self):
+  @property
+  def compress(self) -> CompressType:
     return self.config.compress
 
-  @compress.setter 
-  def compress(self, val):
-    self.config.compress = val 
+  @compress.setter
+  def compress(self, val: CompressType) -> None:
+    self.config.compress = val
 
-  @property 
-  def progress(self):
-    return self.config.progress 
+  @property
+  def progress(self) -> bool:
+    return self.config.progress
 
-  @progress.setter 
-  def progress(self, val):
+  @progress.setter
+  def progress(self, val: bool) -> None:
     self.config.progress = bool(val)
 
-  @property 
-  def info(self):
+  @property
+  def info(self) -> dict:
     return self.meta.info
 
   @info.setter
-  def info(self, val):
+  def info(self, val: dict) -> None:
     self.meta.info = val
-  
+
   @property
-  def provenance(self):
+  def provenance(self) -> Any:
     return self.meta.provenance
 
   @provenance.setter
-  def provenance(self, val):
+  def provenance(self, val: Any) -> None:
     self.meta.provenance = val
 
-  def __getstate__(self):
+  def __getstate__(self) -> Dict[str, Any]:
     # can't pickle a weakref
     if hasattr(self.mesh.meta, "_cv"):
       del self.mesh.meta._cv
@@ -205,7 +207,7 @@ class CloudVolumePrecomputed(object):
 
     return self.__dict__
 
-  def __setstate__(self, d):
+  def __setstate__(self, d: Dict[str, Any]) -> None:
     """Called when unpickling which is integral to multiprocessing."""
     self.__dict__ = d 
     
@@ -219,14 +221,14 @@ class CloudVolumePrecomputed(object):
       self.pid = pid
   
   @classmethod
-  def create_new_info(cls, 
-    num_channels, layer_type, data_type, encoding, 
-    resolution, voxel_offset, volume_size, 
-    mesh=None, skeletons=None, chunk_size=(64,64,64),
-    compressed_segmentation_block_size=(8,8,8),
-    max_mip=0, factor=Vec(2,2,1), redirect=None, 
-    *args, **kwargs
-  ):
+  def create_new_info(cls,
+    num_channels: int, layer_type: str, data_type: str, encoding: str,
+    resolution: Any, voxel_offset: Any, volume_size: Any,
+    mesh: Optional[str] = None, skeletons: Optional[str] = None, chunk_size: Any = (64,64,64),
+    compressed_segmentation_block_size: Any = (8,8,8),
+    max_mip: int = 0, factor: Any = Vec(2,2,1), redirect: Optional[str] = None,
+    *args: Any, **kwargs: Any
+  ) -> dict:
     """
     Create a new neuroglancer Precomputed info file.
 
@@ -261,220 +263,220 @@ class CloudVolumePrecomputed(object):
       *args, **kwargs
     )
 
-  def refresh_info(self):
+  def refresh_info(self) -> dict:
     """Restore the current info from cache or storage."""
     return self.meta.refresh_info()
 
-  def commit_info(self):
+  def commit_info(self) -> None:
     return self.meta.commit_info()
 
-  def refresh_provenance(self):
+  def refresh_provenance(self) -> Any:
     return self.meta.refresh_provenance()
 
-  def commit_provenance(self):
+  def commit_provenance(self) -> None:
     return self.meta.commit_provenance()
 
   @property
-  def dataset_name(self):
+  def dataset_name(self) -> str:
     return self.meta.dataset
-  
+
   @property
-  def layer(self):
+  def layer(self) -> str:
     return self.meta.layer
 
   @property
-  def mip(self):
+  def mip(self) -> int:
     return self.config.mip
 
   @mip.setter
-  def mip(self, mip):
+  def mip(self, mip: int) -> None:
     self.config.mip = self.meta.to_mip(mip)
 
   @property
-  def scales(self):
+  def scales(self) -> list:
     return self.meta.scales
 
   @scales.setter
-  def scales(self, val):
+  def scales(self, val: list) -> None:
     self.meta.scales = val
 
   @property
-  def scale(self):
+  def scale(self) -> dict:
     return self.meta.scale(self.mip)
 
   @scale.setter
-  def scale(self, val):
+  def scale(self, val: dict) -> None:
     self.info['scales'][self.mip] = val
 
-  def mip_scale(self, mip):
+  def mip_scale(self, mip: int) -> dict:
     return self.meta.scale(mip)
 
   @property
-  def basepath(self):
+  def basepath(self) -> str:
     return self.meta.basepath
 
-  @property 
-  def layerpath(self):
+  @property
+  def layerpath(self) -> str:
     return self.meta.layerpath
 
   @property
-  def base_cloudpath(self):
+  def base_cloudpath(self) -> str:
     return self.meta.base_cloudpath
 
-  @property 
-  def cloudpath(self):
+  @property
+  def cloudpath(self) -> str:
     return self.layer_cloudpath
 
   @property
-  def layer_cloudpath(self):
+  def layer_cloudpath(self) -> str:
     return self.meta.cloudpath
 
   @property
-  def info_cloudpath(self):
+  def info_cloudpath(self) -> str:
     return self.meta.infopath
 
   @property
-  def cache_path(self):
+  def cache_path(self) -> str:
     return self.cache.path
 
   @property
-  def ndim(self):
+  def ndim(self) -> int:
     return len(self.shape)
 
-  def mip_ndim(self, mip):
+  def mip_ndim(self, mip: int) -> int:
     return len(self.meta.shape(mip))
 
   @property
-  def shape(self):
-    """Returns Vec(x,y,z,channels) shape of the volume similar to numpy.""" 
+  def shape(self) -> tuple:
+    """Returns Vec(x,y,z,channels) shape of the volume similar to numpy."""
     return tuple(self.meta.shape(self.mip))
 
-  def mip_shape(self, mip):
+  def mip_shape(self, mip: int) -> tuple:
     return tuple(self.meta.shape(mip))
 
   @property
-  def volume_size(self):
-    """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels).""" 
+  def volume_size(self) -> Vec:
+    """Returns Vec(x,y,z) shape of the volume (i.e. shape - channels)."""
     return self.meta.volume_size(self.mip)
 
-  def mip_volume_size(self, mip):
+  def mip_volume_size(self, mip: int) -> Vec:
     return self.meta.volume_size(mip)
 
   @property
-  def available_mips(self):
+  def available_mips(self) -> List[int]:
     """Returns a list of mip levels that are defined."""
     return self.meta.available_mips
 
   @property
-  def available_resolutions(self):
+  def available_resolutions(self) -> Generator:
     """Returns a list of defined resolutions."""
     return (s["resolution"] for s in self.scales)
 
   @property
-  def layer_type(self):
+  def layer_type(self) -> str:
     """e.g. 'image' or 'segmentation'"""
     return self.meta.layer_type
 
   @property
-  def dtype(self):
+  def dtype(self) -> np.dtype:
     """e.g. 'uint8'"""
     return self.meta.dtype
 
   @property
-  def data_type(self):
+  def data_type(self) -> str:
     return self.meta.data_type
 
   @property
-  def encoding(self):
+  def encoding(self) -> str:
     """e.g. 'raw' or 'jpeg'"""
     return self.meta.encoding(self.mip)
 
-  def mip_encoding(self, mip):
+  def mip_encoding(self, mip: int) -> str:
     return self.meta.encoding(mip)
 
   @property
-  def compressed_segmentation_block_size(self):
+  def compressed_segmentation_block_size(self) -> Optional[list]:
     return self.mip_compressed_segmentation_block_size(self.mip)
 
-  def mip_compressed_segmentation_block_size(self, mip):
+  def mip_compressed_segmentation_block_size(self, mip: int) -> Optional[list]:
     if 'compressed_segmentation_block_size' in self.info['scales'][mip]:
       return self.info['scales'][mip]['compressed_segmentation_block_size']
     return None
 
   @property
-  def num_channels(self):
+  def num_channels(self) -> int:
     return self.meta.num_channels
 
   @property
-  def voxel_offset(self):
+  def voxel_offset(self) -> Vec:
     """Vec(x,y,z) start of the dataset in voxels"""
     return self.meta.voxel_offset(self.mip)
 
-  def mip_voxel_offset(self, mip):
+  def mip_voxel_offset(self, mip: int) -> Vec:
     return self.meta.voxel_offset(mip)
 
-  @property 
-  def resolution(self):
+  @property
+  def resolution(self) -> Vec:
     """Vec(x,y,z) dimensions of each voxel in nanometers"""
     return self.meta.resolution(self.mip)
 
-  def mip_resolution(self, mip):
+  def mip_resolution(self, mip: int) -> Vec:
     return self.meta.resolution(mip)
 
   @property
-  def downsample_ratio(self):
+  def downsample_ratio(self) -> Vec:
     """Describes how downsampled the current mip level is as an (x,y,z) factor triple."""
     return self.meta.downsample_ratio(self.mip)
 
   @property
-  def chunk_size(self):
+  def chunk_size(self) -> Vec:
     """Underlying chunk size dimensions in voxels. Synonym for underlying."""
     return self.meta.chunk_size(self.mip)
 
-  def mip_chunk_size(self, mip):
+  def mip_chunk_size(self, mip: int) -> Vec:
     return self.meta.chunk_size(mip)
 
   @property
-  def underlying(self):
+  def underlying(self) -> Vec:
     """Underlying chunk size dimensions in voxels. Synonym for chunk_size."""
     return self.meta.chunk_size(self.mip)
 
-  def mip_underlying(self, mip):
+  def mip_underlying(self, mip: int) -> Vec:
     return self.meta.chunk_size(mip)
 
   @property
-  def key(self):
+  def key(self) -> str:
     """The subdirectory within the data layer containing the chunks for this mip level"""
     return self.meta.key(self.mip)
 
-  def mip_key(self, mip):
+  def mip_key(self, mip: int) -> str:
     return self.meta.key(mip)
 
   @property
-  def bounds(self):
+  def bounds(self) -> Bbox:
     """Returns a bounding box for the dataset with dimensions in voxels"""
     return self.meta.bounds(self.mip)
 
-  def mip_bounds(self, mip):
+  def mip_bounds(self, mip: int) -> Bbox:
     offset = self.meta.voxel_offset(mip)
     shape = self.meta.volume_size(mip)
     return Bbox( offset, offset + shape )
 
-  def point_to_mip(self, pt, mip, to_mip):
+  def point_to_mip(self, pt: Any, mip: int, to_mip: int) -> Any:
     return self.meta.point_to_mip(pt, mip, to_mip)
 
-  def bbox_to_mip(self, bbox, mip, to_mip):
+  def bbox_to_mip(self, bbox: Any, mip: int, to_mip: int) -> Bbox:
     """Convert bbox or slices from one mip level to another."""
     return self.meta.bbox_to_mip(bbox, mip, to_mip)
 
-  def slices_to_global_coords(self, slices):
+  def slices_to_global_coords(self, slices: Any) -> Tuple[slice, ...]:
     """
     Used to convert from a higher mip level into mip 0 resolution.
     """
     bbox = self.meta.bbox_to_mip(slices, self.mip, 0)
     return bbox.to_slices()
 
-  def slices_from_global_coords(self, slices):
+  def slices_from_global_coords(self, slices: Any) -> Tuple[slice, ...]:
     """
     Used for converting from mip 0 coordinates to upper mip level
     coordinates. This is mainly useful for debugging since the neuroglancer
@@ -483,12 +485,12 @@ class CloudVolumePrecomputed(object):
     bbox = self.meta.bbox_to_mip(slices, 0, self.mip)
     return bbox.to_slices()
 
-  def reset_scales(self):
+  def reset_scales(self) -> None:
     """Used for manually resetting downsamples if something messed up."""
     self.meta.reset_scales()
     return self.commit_info()
 
-  def add_scale(self, factor, encoding=None, chunk_size=None, info=None):
+  def add_scale(self, factor: Any, encoding: Optional[str] = None, chunk_size: Optional[Any] = None, info: Optional[dict] = None) -> dict:
     """
     Generate a new downsample scale to for the info file and return an updated dictionary.
     You'll still need to call self.commit_info() to make it permenant.
@@ -504,7 +506,7 @@ class CloudVolumePrecomputed(object):
     """
     return self.meta.add_scale(factor, encoding, chunk_size, info)
 
-  def exists(self, bbox_or_slices):
+  def exists(self, bbox_or_slices: Any) -> Dict[str, bool]:
     """
     Produce a summary of whether all the requested chunks exist.
 
@@ -514,7 +516,7 @@ class CloudVolumePrecomputed(object):
     """
     return self.image.exists(bbox_or_slices)
 
-  def delete(self, bbox_or_slices):
+  def delete(self, bbox_or_slices: Any) -> None:
     """
     Delete the files within the bounding box.
 
@@ -524,10 +526,10 @@ class CloudVolumePrecomputed(object):
     return self.image.delete(bbox_or_slices)
 
   def transfer_to(
-    self, cloudpath, bbox, 
-    block_size=None, compress=True, encoding=None,
-    sharded=None,
-  ):
+    self, cloudpath: str, bbox: Any,
+    block_size: Optional[int] = None, compress: bool = True, encoding: Optional[str] = None,
+    sharded: Optional[bool] = None,
+  ) -> Any:
     """
     Transfer files from one storage location to another, bypassing
     volume painting. This enables using a single CloudVolume instance
@@ -551,7 +553,7 @@ class CloudVolumePrecomputed(object):
       encoding=encoding, sharded=sharded,
     )
 
-  def coordinate_indexing(self, slices):
+  def coordinate_indexing(self, slices: Any) -> np.ndarray:
     """
     Limited version of fancy indexing for accepting x,y,z points.
 
@@ -564,7 +566,7 @@ class CloudVolumePrecomputed(object):
     res = self.scattered_points(pts)
     return np.array([ res[tuple(pt)] for pt in pts ], dtype=self.dtype)
 
-  def __getitem__(self, slices):
+  def __getitem__(self, slices: Any) -> np.ndarray:
     if isinstance(slices, Bbox):
       slices = slices.convert_units(
         "vx", self.meta.resolution(self.mip)
@@ -869,9 +871,9 @@ class CloudVolumePrecomputed(object):
       return img
 
   def scattered_points(
-    self, pts, 
-    mip=None, coord_resolution=None
-  ):
+    self, pts: Any,
+    mip: Optional[int] = None, coord_resolution: Optional[Sequence[int]] = None
+  ) -> Dict[tuple, Any]:
     """
     Download one or more single voxel values that may be scattered
     across the dataset. You can accelerate this query with an LRU
@@ -905,11 +907,11 @@ class CloudVolumePrecomputed(object):
     return self.image.download_points(pts, mip)
 
   def download_point(
-    self, pt, size=256, 
-    mip=None, parallel=None, 
-    coord_resolution=None,
-    **kwargs
-  ):
+    self, pt: Any, size: Any = 256,
+    mip: Optional[int] = None, parallel: Optional[int] = None,
+    coord_resolution: Optional[Sequence[int]] = None,
+    **kwargs: Any
+  ) -> Any:
     """
     Download to the right of point given in mip 0 coords.
     Useful for quickly visualizing a neuroglancer coordinate
@@ -956,11 +958,11 @@ class CloudVolumePrecomputed(object):
 
     return self.image.download(bbox, mip, parallel=parallel, **kwargs)
 
-  def unlink_shared_memory(self):
+  def unlink_shared_memory(self) -> None:
     """Unlink the current shared memory location from the filesystem."""
     return self.image.unlink_shared_memory()
 
-  def download_to_shared_memory(self, slices, location=None, mip=None):
+  def download_to_shared_memory(self, slices: Any, location: Optional[str] = None, mip: Optional[int] = None) -> np.ndarray:
     """
     Download images to a shared memory array. 
 
@@ -1009,7 +1011,7 @@ class CloudVolumePrecomputed(object):
     )
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
-  def download_to_file(self, path, bbox, mip=None):
+  def download_to_file(self, path: str, bbox: Any, mip: Optional[int] = None) -> np.ndarray:
     """
     Download images directly to a file.
 
@@ -1040,7 +1042,7 @@ class CloudVolumePrecomputed(object):
     )
     return img[::steps.x, ::steps.y, ::steps.z, channel_slice]
 
-  def __setitem__(self, slices, img):
+  def __setitem__(self, slices: Any, img: Any) -> None:
     if isinstance(slice, Bbox):
       slices = slices.convert_units(
         "vx", self.meta.resolution(self.mip)
@@ -1075,7 +1077,7 @@ class CloudVolumePrecomputed(object):
 
     self.image.upload(img, bbox.minpt, self.mip, parallel=self.parallel)
 
-  def upload_from_shared_memory(self, location, bbox, order='F', cutout_bbox=None):
+  def upload_from_shared_memory(self, location: str, bbox: Any, order: str = 'F', cutout_bbox: Optional[Any] = None) -> None:
     """
     Upload from a shared memory array. 
 
@@ -1150,7 +1152,7 @@ class CloudVolumePrecomputed(object):
     )
     mmap_handle.close()
 
-  def upload_from_file(self, location, bbox, order='F', cutout_bbox=None):
+  def upload_from_file(self, location: str, bbox: Any, order: str = 'F', cutout_bbox: Optional[Any] = None) -> None:
     """
     Upload from an mmapped file.
 
@@ -1211,12 +1213,12 @@ class CloudVolumePrecomputed(object):
     )
     mmap_handle.close()
 
-  def viewer(self, port=1337):
+  def viewer(self, port: int = 1337) -> None:
     import cloudvolume.server
 
     cloudvolume.server.view(self.cloudpath, port=port)
 
-  def to_dask(self, chunks=None, name=None):
+  def to_dask(self, chunks: Optional[Any] = None, name: Optional[str] = None) -> Any:
     """Return a dask array for this volume.
 
     Parameters
@@ -1242,5 +1244,5 @@ class CloudVolumePrecomputed(object):
       name = 'to-dask-' + tokenize(self, chunks)
     return da.from_array(self, chunks, name=name)
 
-  def __del__(self):
+  def __del__(self) -> None:
     pass

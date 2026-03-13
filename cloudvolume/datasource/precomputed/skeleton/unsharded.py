@@ -1,4 +1,6 @@
-from typing import Optional, Iterator
+from __future__ import annotations
+
+from typing import Any, Optional, Union
 
 import datetime
 import os
@@ -11,7 +13,7 @@ from cloudfiles import CloudFiles
 
 from cloudvolume import lib
 from cloudvolume.exceptions import (
-  SkeletonDecodeError, SkeletonEncodeError, 
+  SkeletonDecodeError, SkeletonEncodeError,
   SkeletonUnassignedEdgeError
 )
 from cloudvolume.lib import red, Bbox
@@ -23,33 +25,33 @@ from ... import readonlyguard
 from ....skeleton import Skeleton
 
 class UnshardedPrecomputedSkeletonSource(object):
-  def __init__(self, meta, cache, config, readonly=False):
+  def __init__(self, meta: Any, cache: Any, config: Any, readonly: bool = False) -> None:
     self.meta = meta
     self.cache = cache
     self.config = config
 
     self.readonly = bool(readonly)
 
-    self.spatial_index = None
+    self.spatial_index: Optional[CachedSpatialIndex] = None
     if self.meta.spatial_index:
       mip = self.meta.mip or 0
       self.spatial_index = CachedSpatialIndex(
         self.cache, self.config,
-        cloudpath=self.meta.layerpath, 
+        cloudpath=self.meta.layerpath,
         bounds=self.meta.meta.bounds(mip),
         resolution=self.meta.info['spatial_index'].get('resolution', self.meta.meta.resolution(mip)),
         chunk_size=self.meta.info['spatial_index']['chunk_size'],
       )
 
   @property
-  def path(self):
-    return self.meta.skeleton_path 
+  def path(self) -> str:
+    return self.meta.skeleton_path
 
-  def get(self, segids, allow_missing=False):
+  def get(self, segids: Any, allow_missing: bool = False) -> Union[list[Skeleton], Optional[Skeleton]]:
     """
     Retrieve one or more skeletons from the data layer.
 
-    Example: 
+    Example:
       skel = vol.skeleton.get(5)
       skels = vol.skeleton.get([1, 2, 3])
 
@@ -61,7 +63,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       allow_missing: skip over non-existent files otherwise
         raise cloudvolume.exceptions.SkeletonDecodeError
 
-    Returns: 
+    Returns:
       if segids is a list, returns list of Skeletons
       else returns a single Skeleton
     """
@@ -70,7 +72,7 @@ class UnshardedPrecomputedSkeletonSource(object):
       list_return = False
       segids = [ int(segids) ]
 
-    compress = self.config.compress 
+    compress = self.config.compress
     if compress is None:
       compress = True
 
@@ -86,7 +88,7 @@ class UnshardedPrecomputedSkeletonSource(object):
 
     vertex_attributes = self.meta.info.get("vertex_attributes", [])
 
-    skeletons = []
+    skeletons: list[Skeleton] = []
     for filename, content in results.items():
       segid = int(os.path.basename(filename))
       try:
@@ -107,17 +109,20 @@ class UnshardedPrecomputedSkeletonSource(object):
     return None
 
   @readonlyguard
-  def upload_raw(self, segid, vertices, edges, radii=None, vertex_types=None):
+  def upload_raw(
+    self, segid: int, vertices: Any, edges: Any,
+    radii: Any = None, vertex_types: Any = None
+  ) -> Any:
     skel = Skeleton(
-      vertices, edges, radii, 
+      vertices, edges, radii,
       vertex_types, segid=segid
     )
     return self.upload(skel)
 
   @readonlyguard
-  def upload(self, skeletons):
+  def upload(self, skeletons: Union[Skeleton, list[Skeleton]]) -> None:
 
-    compress = self.config.compress 
+    compress = self.config.compress
     if compress is None:
       compress = True
 
@@ -126,13 +131,13 @@ class UnshardedPrecomputedSkeletonSource(object):
 
     files = [ (self.meta.join(self.meta.skeleton_path, str(skel.id)), skel.to_precomputed()) for skel in skeletons ]
     self.cache.upload(
-      files=files, 
-      compress=compress, 
+      files=files,
+      compress=compress,
       cache_control=cdn_cache_control(self.config.cdn_cache)
     )
 
   # harmonize interface with mesh sources
-  def put(self, *args, **kwargs):
+  def put(self, *args: Any, **kwargs: Any) -> Any:
     return self.upload(*args, **kwargs)
 
   def list(self) -> npt.NDArray[np.integer]:
@@ -140,10 +145,10 @@ class UnshardedPrecomputedSkeletonSource(object):
     bbox = self.meta.meta.bounds(self.meta.mip)
     res = self.meta.meta.resolution(self.meta.mip)
     bbox *= res
-    
+
     if self.spatial_index is None:
       lst = (
-        int(os.path.basename(path)) for path in CloudFiles(self.meta.skeleton_path).list() if ':' not in path 
+        int(os.path.basename(path)) for path in CloudFiles(self.meta.skeleton_path).list() if ':' not in path
       )
     else:
       lst = self.spatial_index.query(bbox)
@@ -152,7 +157,7 @@ class UnshardedPrecomputedSkeletonSource(object):
     lst.sort()
     return lst
 
-  def get_bbox(self, bbox):
+  def get_bbox(self, bbox: Any) -> list[Skeleton]:
     if self.spatial_index is None:
       raise IndexError("A spatial index has not been created.")
 
@@ -161,14 +166,14 @@ class UnshardedPrecomputedSkeletonSource(object):
 
   def to_sharded(
     self,
-    num_labels:int,
-    shard_index_bytes:int = 2**13,
-    minishard_index_bytes:int = 2**15,
-    min_shards:int = 1,
-    minishard_index_encoding:str = 'gzip', 
-    data_encoding:str = 'gzip',
-    max_labels_per_shard:Optional[int] = None,
-  ):
+    num_labels: int,
+    shard_index_bytes: int = 2**13,
+    minishard_index_bytes: int = 2**15,
+    min_shards: int = 1,
+    minishard_index_encoding: str = 'gzip',
+    data_encoding: str = 'gzip',
+    max_labels_per_shard: Optional[int] = None,
+  ) -> None:
     return self.meta.to_sharded(
       num_labels=num_labels,
       shard_index_bytes=shard_index_bytes,
@@ -179,6 +184,5 @@ class UnshardedPrecomputedSkeletonSource(object):
       max_labels_per_shard=max_labels_per_shard,
     )
 
-  def to_unsharded(self):
+  def to_unsharded(self) -> None:
     return self.meta.to_unsharded()
-

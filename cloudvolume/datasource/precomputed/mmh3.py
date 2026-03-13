@@ -16,27 +16,30 @@ This module is written to have the same format as mmh3 python package found here
 
 https://pypi.python.org/pypi/mmh3/2.3.1
 '''
+from __future__ import annotations
+
+from typing import Any, Union
 
 import sys as _sys
 if (_sys.version_info > (3, 0)):
-    def xrange( a, b, c ):
+    def xrange( a: int, b: int, c: int ) -> range:
         return range( a, b, c )
-    def xencode(x):
+    def xencode(x: Any) -> Union[bytes, bytearray]:
         if isinstance(x, bytes) or isinstance(x, bytearray):
             return x
         else:
             return x.encode()
 else:
-    def xencode(x):
+    def xencode(x: Any) -> Any:
         return x
 del _sys
 
-def hash( key, seed = 0x0 ):
+def hash( key: Any, seed: int = 0x0 ) -> int:
     ''' Implements 32bit murmur3 hash. '''
 
     key = bytearray( xencode(key) )
 
-    def fmix( h ):
+    def fmix( h: int ) -> int:
         h ^= h >> 16
         h  = ( h * 0x85ebca6b ) & 0xFFFFFFFF
         h ^= h >> 13
@@ -94,12 +97,12 @@ def hash( key, seed = 0x0 ):
         return -( (unsigned_val ^ 0xFFFFFFFF) + 1 )
 
 
-def hash128( key, seed = 0x0, x64arch = True ):
+def hash128( key: Any, seed: int = 0x0, x64arch: bool = True ) -> int:
     ''' Implements 128bit murmur3 hash. '''
-    def hash128_x64( key, seed ):
+    def hash128_x64( key: bytearray, seed: int ) -> int:
         ''' Implements 128bit murmur3 hash for x64. '''
 
-        def fmix( k ):
+        def fmix( k: int ) -> int:
             k ^= k >> 33
             k  = ( k * 0xff51afd7ed558ccd ) & 0xFFFFFFFFFFFFFFFF
             k ^= k >> 33
@@ -220,10 +223,10 @@ def hash128( key, seed = 0x0, x64arch = True ):
 
         return ( h2 << 64 | h1 )
 
-    def hash128_x86( key, seed ):
+    def hash128_x86( key: bytearray, seed: int ) -> int:
         ''' Implements 128bit murmur3 hash for x86. '''
 
-        def fmix( h ):
+        def fmix( h: int ) -> int:
             h ^= h >> 16
             h  = ( h * 0x85ebca6b ) & 0xFFFFFFFF
             h ^= h >> 13
@@ -402,7 +405,7 @@ def hash128( key, seed = 0x0, x64arch = True ):
     else:
         return hash128_x86( key, seed )
 
-def hash64( key, seed = 0x0, x64arch = True ):
+def hash64( key: Any, seed: int = 0x0, x64arch: bool = True ) -> tuple[int, int]:
     ''' Implements 64bit murmur3 hash. Returns a tuple. '''
 
     hash_128 = hash128( key, seed, x64arch )
@@ -422,7 +425,7 @@ def hash64( key, seed = 0x0, x64arch = True ):
     return ( int( signed_val1 ), int( signed_val2 ) )
 
 
-def hash_bytes( key, seed = 0x0, x64arch = True ):
+def hash_bytes( key: Any, seed: int = 0x0, x64arch: bool = True ) -> str:
     ''' Implements 128bit murmur3 hash. Returns a byte string. '''
 
     hash_128 = hash128( key, seed, x64arch )

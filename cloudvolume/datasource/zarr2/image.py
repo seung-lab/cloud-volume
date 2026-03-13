@@ -1,4 +1,6 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import Any, Optional, Iterator
 
 import copy
 import re
@@ -9,16 +11,16 @@ from cloudfiles import CloudFiles
 import cloudfiles.compression
 
 from .. import (
-  autocropfn, readonlyguard, 
+  autocropfn, readonlyguard,
   ImageSourceInterface, check_grid_aligned,
   generate_chunks
 )
 
 from ...types import CompressType, MipType
 from ... import compression
-from ... import exceptions 
-from ...lib import ( 
-  colorize, red, mkdir, Vec, Bbox, BboxLikeType, 
+from ... import exceptions
+from ...lib import (
+  colorize, red, mkdir, Vec, Bbox, BboxLikeType,
   jsonify, generate_random_string,
   xyzrange
 )
@@ -29,16 +31,16 @@ from ..precomputed.image import xfer
 
 class Zarr2ImageSource(ImageSourceInterface):
   def __init__(
-    self, config, meta, cache,
-    autocrop=False, bounded=True,
-    non_aligned_writes=False,
-    delete_black_uploads=False,
-    fill_missing=False,
-    readonly=False,
-  ):
+    self, config: Any, meta: Any, cache: Any,
+    autocrop: bool = False, bounded: bool = True,
+    non_aligned_writes: bool = False,
+    delete_black_uploads: bool = False,
+    fill_missing: bool = False,
+    readonly: bool = False,
+  ) -> None:
     self.config = config
-    self.meta = meta 
-    self.cache = cache 
+    self.meta = meta
+    self.cache = cache
 
     self.autocrop = bool(autocrop)
     self.bounded = bool(bounded)
@@ -46,7 +48,7 @@ class Zarr2ImageSource(ImageSourceInterface):
     self.non_aligned_writes = bool(non_aligned_writes)
     self.readonly = bool(readonly)
 
-  def decode_chunk(self, binary, mip, filename, default_shape):
+  def decode_chunk(self, binary: Optional[bytes], mip: int, filename: str, default_shape: list[int]) -> Optional[np.ndarray]:
     if binary is None:
       if self.fill_missing:
         return None
@@ -69,18 +71,18 @@ class Zarr2ImageSource(ImageSourceInterface):
       raw_array = cloudfiles.compression.decompress(binary, encoding, filename)
     else:
       raise exceptions.DecodingError(f"Unsupported decoding method: {encoding}")
-    
+
     arr = np.frombuffer(raw_array, dtype=self.meta.dtype)
     return arr.reshape(default_shape, order=self.meta.order(mip))
 
   def download(
-    self, 
-    bbox:BboxLikeType, 
-    mip:MipType, 
-    parallel:int = 1, 
-    renumber:bool = False, 
-    label:Optional[int] = None,
-    t:int = 0,
+    self,
+    bbox: BboxLikeType,
+    mip: MipType,
+    parallel: int = 1,
+    renumber: bool = False,
+    label: Optional[int] = None,
+    t: int = 0,
   ) -> VolumeCutout:
     if parallel != 1:
       raise ValueError("Only parallel=1 is supported for zarr.")
@@ -91,13 +93,13 @@ class Zarr2ImageSource(ImageSourceInterface):
 
     if self.autocrop:
       image, bounds = autocropfn(self.meta, image, bounds, mip)
-    
+
     if bounds.subvoxel():
       raise exceptions.EmptyRequestException(f'Requested less than one pixel of volume. {bounds}')
 
     cf = CloudFiles(
-      self.meta.cloudpath, 
-      progress=self.config.progress, 
+      self.meta.cloudpath,
+      progress=self.config.progress,
       secrets=self.config.secrets,
       green=self.config.green,
     )
@@ -125,7 +127,7 @@ class Zarr2ImageSource(ImageSourceInterface):
       renderbuffer = np.zeros(shape=shape, dtype=self.meta.dtype, order="F")
     else:
       renderbuffer = np.full(
-        shape=shape, fill_value=self.meta.background_color(mip), 
+        shape=shape, fill_value=self.meta.background_color(mip),
         dtype=self.meta.dtype, order="F",
       )
 
@@ -162,12 +164,12 @@ class Zarr2ImageSource(ImageSourceInterface):
     return data
 
   @readonlyguard
-  def upload(self, image, offset, mip, parallel=1, t=0):
+  def upload(self, image: Any, offset: Any, mip: int, parallel: int = 1, t: int = 0) -> None:
     import blosc
 
     if not np.issubdtype(image.dtype, np.dtype(self.meta.dtype).type):
       raise ValueError(f"""
-        The uploaded image data type must match the volume data type. 
+        The uploaded image data type must match the volume data type.
 
         Volume: {self.meta.dtype}
         Image: {image.dtype}
@@ -179,13 +181,13 @@ class Zarr2ImageSource(ImageSourceInterface):
     bounds = Bbox( offset, shape + offset)
 
     is_aligned = check_grid_aligned(
-      self.meta, image, bounds, mip, 
+      self.meta, image, bounds, mip,
       throw_error=True, # (self.non_aligned_writes == False)
     )
 
     expanded = bounds.expand_to_chunk_size(self.meta.chunk_size(mip), self.meta.voxel_offset(mip))
     all_chunknames = self._chunknames(
-      expanded, self.meta.bounds(mip), 
+      expanded, self.meta.bounds(mip),
       mip, self.meta.chunk_size(mip),
       t=t,
     )
@@ -193,7 +195,7 @@ class Zarr2ImageSource(ImageSourceInterface):
     all_chunks = generate_chunks(self.meta, image, offset, mip)
     order = self.meta.order(mip)
 
-    to_upload = []
+    to_upload: list[tuple[str, bytes]] = []
 
     axis_mapping = self.meta.cv_axes_to_zarr_axes()
 
@@ -205,7 +207,7 @@ class Zarr2ImageSource(ImageSourceInterface):
       compressor_args['clevel'] = compressor_args['level']
       del compressor_args['level']
 
-    def all_chunks_by_channel(all_chunks):
+    def all_chunks_by_channel(all_chunks: Any) -> Iterator[np.ndarray]:
       for ispt, iept, vol_spt, vol_ept in all_chunks:
         for c in range(self.meta.num_channels):
           yield image[ ispt.x:iept.x, ispt.y:iept.y, ispt.z:iept.z, c ]
@@ -223,7 +225,7 @@ class Zarr2ImageSource(ImageSourceInterface):
 
     CloudFiles(self.meta.cloudpath).puts(to_upload)
 
-  def _chunknames(self, bbox, volume_bbox, mip, chunk_size, t):
+  def _chunknames(self, bbox: Any, volume_bbox: Any, mip: int, chunk_size: Any, t: int) -> Any:
     meta = self.meta
     sep = self.meta.dimension_separator(mip)
     cf = CloudFiles(self.meta.cloudpath)
@@ -234,21 +236,21 @@ class Zarr2ImageSource(ImageSourceInterface):
     axes = [ (axis["type"], axis["name"]) for axis in self.meta.axes() ]
 
     class ZarrChunkNamesIterator():
-      def __len__(self):
+      def __len__(self) -> int:
         # round up and avoid conversion to float
         n_chunks = (bbox.dx + chunk_size[0] - 1) // chunk_size[0]
         n_chunks *= (bbox.dy + chunk_size[1] - 1) // chunk_size[1]
         n_chunks *= (bbox.dz + chunk_size[2] - 1) // chunk_size[2]
         return n_chunks
-      def __iter__(self):
+      def __iter__(self) -> Iterator[str]:
         nonlocal volume_bbox
         volume_bbox = Bbox.expand_to_chunk_size(volume_bbox, chunk_size, offset=voxel_offset)
         bbox_grid = (bbox - voxel_offset) // chunk_size
 
         for x,y,z in xyzrange(bbox_grid.minpt, bbox_grid.maxpt):
           for c in range(num_channels):
-            params = []
-            
+            params: list[str] = []
+
             for typ, name in axes:
               if typ == "time":
                 params.append(str(tchunk))
@@ -265,7 +267,7 @@ class Zarr2ImageSource(ImageSourceInterface):
 
     return ZarrChunkNamesIterator()
 
-  def exists(self, bbox, mip=None, t=0):
+  def exists(self, bbox: Any, mip: Optional[int] = None, t: int = 0) -> Any:
     if mip is None:
       mip = self.config.mip
 
@@ -273,7 +275,7 @@ class Zarr2ImageSource(ImageSourceInterface):
 
     if self.autocrop:
       image, bounds = autocropfn(self.meta, image, bounds, mip)
-    
+
     if bounds.subvoxel():
       raise exceptions.EmptyRequestException(f'Requested less than one pixel of volume. {bounds}')
 
@@ -281,14 +283,14 @@ class Zarr2ImageSource(ImageSourceInterface):
       self.meta.chunk_size(mip), self.meta.voxel_offset(mip)
     )
     all_chunknames = self._chunknames(
-      expanded, self.meta.bounds(mip), 
-      mip, self.meta.chunk_size(mip), 
+      expanded, self.meta.bounds(mip),
+      mip, self.meta.chunk_size(mip),
       t=t
     )
 
     cf = CloudFiles(
-      self.meta.cloudpath, 
-      progress=self.config.progress, 
+      self.meta.cloudpath,
+      progress=self.config.progress,
       secrets=self.config.secrets,
       green=self.config.green,
     )
@@ -296,7 +298,7 @@ class Zarr2ImageSource(ImageSourceInterface):
     return cf.exists(all_chunknames)
 
   @readonlyguard
-  def delete(self, bbox, mip=None, t=0):
+  def delete(self, bbox: Any, mip: Optional[int] = None, t: int = 0) -> None:
     if mip is None:
       mip = self.config.mip
 
@@ -311,7 +313,7 @@ class Zarr2ImageSource(ImageSourceInterface):
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
     )
     all_chunknames = self._chunknames(
-      realized_bbox, self.meta.bounds(mip), 
+      realized_bbox, self.meta.bounds(mip),
       mip, self.meta.chunk_size(mip),
       t=t
     )
@@ -321,15 +323,15 @@ class Zarr2ImageSource(ImageSourceInterface):
 
   def transfer_to(
     self,
-    cloudpath:str, 
-    bbox:BboxLikeType, 
-    mip:MipType, 
-    block_size:Optional[int] = None, 
-    compress:CompressType = True, 
-    compress_level:Optional[int] = None, 
-    encoding:Optional[str] = None,
-    sharded:Optional[bool] = None,
-  ):
+    cloudpath: str,
+    bbox: BboxLikeType,
+    mip: MipType,
+    block_size: Optional[int] = None,
+    compress: CompressType = True,
+    compress_level: Optional[int] = None,
+    encoding: Optional[str] = None,
+    sharded: Optional[bool] = None,
+  ) -> Any:
     pth = extract(cloudpath)
 
     if pth.format != self.meta.path.format and encoding is None:

@@ -1,4 +1,6 @@
-from typing import Optional, Union
+from __future__ import annotations
+
+from typing import Any, Optional, Union
 
 from .mesh import GrapheneMeshSource
 from .metadata import GrapheneMetadata
@@ -17,22 +19,22 @@ from ...paths import strict_extract
 from requests import HTTPError
 
 def create_graphene(
-    cloudpath:str, mip:int=0, bounded:bool=True, autocrop:bool=False,
-    fill_missing:bool=False, cache:CacheType=False, compress_cache:CompressType=None,
-    cdn_cache:bool=True, progress:bool=False, info:dict=None, provenance:dict=None,
-    compress:CompressType=None, parallel:ParallelType=1,
-    delete_black_uploads:bool=False, background_color:int=0,
-    green_threads:bool=False, use_https:bool=False,
-    mesh_dir:Optional[str]=None, skel_dir:Optional[str]=None, 
-    agglomerate:bool=False, secrets:SecretsType=None, 
-    spatial_index_db:Optional[str]=None, 
-    lru_bytes:int = 0, cache_locking:bool = True,
-    timestamp:Optional[int] = None,
-    codec_threads:ParallelType = 1,
-    **kwargs
-  ):
+    cloudpath: str, mip: int = 0, bounded: bool = True, autocrop: bool = False,
+    fill_missing: bool = False, cache: CacheType = False, compress_cache: CompressType = None,
+    cdn_cache: bool = True, progress: bool = False, info: Optional[dict] = None, provenance: Optional[dict] = None,
+    compress: CompressType = None, parallel: ParallelType = 1,
+    delete_black_uploads: bool = False, background_color: int = 0,
+    green_threads: bool = False, use_https: bool = False,
+    mesh_dir: Optional[str] = None, skel_dir: Optional[str] = None,
+    agglomerate: bool = False, secrets: SecretsType = None,
+    spatial_index_db: Optional[str] = None,
+    lru_bytes: int = 0, cache_locking: bool = True,
+    timestamp: Optional[int] = None,
+    codec_threads: ParallelType = 1,
+    **kwargs: Any
+  ) -> Any:
     from ...frontends import CloudVolumeGraphene
-    
+
     path = strict_extract(cloudpath)
     config = SharedConfiguration(
       cdn_cache=cdn_cache,
@@ -48,7 +50,7 @@ def create_graphene(
       codec_threads=codec_threads,
     )
 
-    def mkcache(cloudpath):
+    def mkcache(cloudpath: str) -> CacheService:
       return CacheService(
         cloudpath=get_cache_path(cache, cloudpath),
         enabled=bool(cache),
@@ -57,14 +59,14 @@ def create_graphene(
       )
     meta = GrapheneMetadata(
       cloudpath, config=config, cache=mkcache(cloudpath),
-      info=info, provenance=provenance, 
+      info=info, provenance=provenance,
       use_https=use_https, agglomerate=agglomerate,
       auth_token=config.secrets, timestamp=timestamp,
     )
     # Resetting the cache is necessary because
     # graphene retrieves a data_dir from the info file
     # that reflects the real cache location.
-    cache_service = mkcache(meta.cloudpath) 
+    cache_service = mkcache(meta.cloudpath)
     meta.cache = cache_service
     cache_service.meta = meta
 
@@ -88,10 +90,10 @@ def create_graphene(
     skeleton = PrecomputedSkeletonSource(meta, cache_service, config)
 
     return CloudVolumeGraphene(
-      meta, cache_service, config, 
+      meta, cache_service, config,
       image, mesh, skeleton,
       mip=mip
     )
 
-def register():
+def register() -> None:
   register_plugin('graphene', create_graphene)

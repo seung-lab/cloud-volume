@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any, Optional, Sequence, Tuple, Union
+
 from collections import defaultdict
 import errno
 import mmap
@@ -23,7 +27,7 @@ class SharedMemoryReadError(Exception):
 class SharedMemoryAllocationError(Exception):
   pass
 
-def ndarray(shape, dtype, location, order='F', readonly=False, lock=None, **kwargs):
+def ndarray(shape: Sequence[int], dtype: Any, location: str, order: str = 'F', readonly: bool = False, lock: Optional[Any] = None, **kwargs: Any) -> Tuple[mmap.mmap, np.ndarray]:
   """
   Create a shared memory numpy array. 
   Lock is only necessary while doing multiprocessing on 
@@ -54,10 +58,10 @@ def ndarray(shape, dtype, location, order='F', readonly=False, lock=None, **kwar
   return ndarray_shm(shape, dtype, location, readonly, order, **kwargs)
 
 def ndarray_fs(
-    shape, dtype, location, lock, 
-    readonly=False, order='F', emulate_shm=False,
-    **kwargs
-  ):
+    shape: Sequence[int], dtype: Any, location: str, lock: Optional[Any],
+    readonly: bool = False, order: str = 'F', emulate_shm: bool = False,
+    **kwargs: Any
+  ) -> Tuple[mmap.mmap, np.ndarray]:
   """Emulate shared memory using the filesystem."""
   dbytes = np.dtype(dtype).itemsize
   nbytes = Vec(*shape).rectVolume() * dbytes
@@ -84,7 +88,7 @@ def ndarray_fs(
   renderbuffer.setflags(write=(not readonly))
   return array_like, renderbuffer
 
-def allocate_shm_file(filename, nbytes, dbytes, readonly):
+def allocate_shm_file(filename: str, nbytes: int, dbytes: int, readonly: bool) -> None:
   try:
     size = os.path.getsize(filename)
     exists = True
@@ -125,7 +129,7 @@ def allocate_shm_file(filename, nbytes, dbytes, readonly):
     with open(filename, 'wb') as f:
       os.ftruncate(f.fileno(), nbytes)
 
-def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
+def ndarray_shm(shape: Sequence[int], dtype: Any, location: str, readonly: bool = False, order: str = 'F', **kwargs: Any) -> Tuple[mmap.mmap, np.ndarray]:
   """Create a shared memory numpy array. Requires /dev/shm to exist."""
   import posix_ipc
   from posix_ipc import O_CREAT
@@ -186,12 +190,12 @@ def ndarray_shm(shape, dtype, location, readonly=False, order='F', **kwargs):
   renderbuffer.setflags(write=(not readonly))
   return array_like, renderbuffer
 
-def unlink(location):
+def unlink(location: str) -> bool:
   if EMULATE_SHM:
     return unlink_fs(location)
   return unlink_shm(location)
 
-def unlink_shm(location):
+def unlink_shm(location: str) -> bool:
   import posix_ipc
   try:
     posix_ipc.unlink_shared_memory(location)
@@ -199,7 +203,7 @@ def unlink_shm(location):
     return False
   return True
 
-def unlink_fs(location):
+def unlink_fs(location: str) -> bool:
   directory = mkdir(EMULATED_SHM_DIRECTORY)
   try:
     filename = os.path.join(directory, location)

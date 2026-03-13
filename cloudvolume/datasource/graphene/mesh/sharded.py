@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 import itertools
 import json
@@ -5,6 +7,7 @@ import os
 import posixpath
 import re
 import requests
+from typing import Any, Optional, Union
 
 import numpy as np
 from tqdm import tqdm
@@ -21,59 +24,59 @@ from ....mesh import is_draco_chunk_aligned
 from .unsharded import GrapheneUnshardedMeshSource
 
 class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
-  def __init__(self, mesh_meta, cache, config, readonly):
+  def __init__(self, mesh_meta: Any, cache: Any, config: Any, readonly: bool) -> None:
     super(GrapheneShardedMeshSource, self).__init__(mesh_meta, cache, config, readonly)
 
-    self.readers = {}
+    self.readers: dict[int, GrapheneShardReader] = {}
     for level, sharding in self.meta.info['sharding'].items(): # { level: std sharding, ... }
       spec = ShardingSpecification.from_dict(sharding)
       self.readers[int(level)] = GrapheneShardReader(
-        mesh_meta, 
-        self.meta.cloudpath, 
-        self.cache, 
+        mesh_meta,
+        self.meta.cloudpath,
+        self.cache,
         spec
       )
 
-  def initial_path(self, level):
+  def initial_path(self, level: Any) -> str:
     return self.meta.join(self.meta.mesh_path, self.meta.sharded_mesh_dir, str(level))
 
-  def dynamic_path(self):
+  def dynamic_path(self) -> str:
     return self.meta.join(self.meta.mesh_path, self.meta.unsharded_mesh_dir)
 
   # 1. determine if the segid is before or after the shard time point
   # 2. assuming it is sharded, fetch the draco encoded file from the
   #    correct level
 
-  def dynamic_exists(self, labels, progress=None):
+  def dynamic_exists(self, labels: Any, progress: Optional[bool] = None) -> dict[int, Optional[str]]:
     """
     Checks for dynamic mesh existence.
-  
+
     Returns: { label: path or None, ... }
     """
     labels = toiter(labels)
 
     checks = [ self.compute_filename(label) for label in labels ]
-    
-    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path()) 
+
+    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
     progress = progress if progress is not None else self.config.progress
 
     results = CloudFiles(
-      cloudpath, progress=progress, 
+      cloudpath, progress=progress,
       green=self.config.green, secrets=self.config.secrets
     ).exists(checks)
 
-    output = {}
+    output: dict[int, Optional[str]] = {}
     for filepath, exists in results.items():
       label = int(os.path.basename(filepath).split(':')[0]) # strip :0
       output[label] = filepath if exists else None
 
     return output
 
-  def initial_exists(self, labels, return_byte_range=False, progress=None):
+  def initial_exists(self, labels: Any, return_byte_range: bool = False, progress: Optional[bool] = None) -> dict[int, Any]:
     """
     Checks for initial mesh existence.
-  
-    Returns: 
+
+    Returns:
       If return_byte_range:
         { label: [ path, byte offset, byte size ] or None, ... }
       Else:
@@ -82,27 +85,27 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     labels = toiter(labels)
     progress = progress if progress is not None else self.config.progress
 
-    layers = defaultdict(list)
+    layers: dict[Any, list] = defaultdict(list)
     for label in labels:
       if label == 0:
         continue
       layer = self.meta.meta.decode_layer_id(label)
       layers[layer].append(label)
 
-    all_results = {}
+    all_results: dict[int, Any] = {}
     for layer, layer_labels in layers.items():
       path = self.initial_path(layer)
       results = self.readers[int(layer)].exists(
-        layer_labels, 
-        path=path, 
-        return_byte_range=return_byte_range, 
+        layer_labels,
+        path=path,
+        return_byte_range=return_byte_range,
         progress=progress
       )
       all_results.update(results)
 
     return all_results
 
-  def exists(self, labels, progress=None):
+  def exists(self, labels: Any, progress: Optional[bool] = None) -> dict[int, Any]:
     """
     Checks dynamic then initial meshes for existence.
 
@@ -118,8 +121,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     dynamic_labels.update(initial_labels)
     return dynamic_labels
 
-  def parse_manifest_filenames(self, manifest):
-    lists = defaultdict(list)
+  def parse_manifest_filenames(self, manifest: dict) -> dict[str, list]:
+    lists: dict[str, list] = defaultdict(list)
     initial_regexp = re.compile(r'~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
 
     filenames, segids = manifest['fragments'], manifest['seg_ids']
@@ -128,7 +131,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       if not filename:
         continue
 
-      # eg. ~2/344239114-0.shard:224659:442 
+      # eg. ~2/344239114-0.shard:224659:442
       # tilde means initial, missing tilde means dynamic
       initial = filename[0] == '~'
 
@@ -139,15 +142,15 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
         lists['initial'].append((layer_id, parsed_filename, int(byte_start), int(size), int(segid)))
       else:
         lists['dynamic'].append(filename)
-        
+
     return lists
 
-  def get_meshes_via_manifest_byte_offsets(self, seg_id, bounding_box):
-    """    
+  def get_meshes_via_manifest_byte_offsets(self, seg_id: Any, bounding_box: Optional[Any]) -> list[Mesh]:
+    """
     The manifest for sharded is a bit strange in that exists(..., return_byte_offset=True)
     is being called on the server side. To avoid duplicative delay by recomputing the offset
     locations, the manifest breaks encapsulation by returning the shard filename and byte
-    offsets. This breaks enapsulation of the shard fetching logic rather severely but 
+    offsets. This breaks enapsulation of the shard fetching logic rather severely but
     it is probably worth it.
     """
     level = self.meta.meta.decode_layer_id(seg_id)
@@ -157,24 +160,24 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     manifest = self.fetch_manifest(seg_id, level=level, bbox=bounding_box, return_segids=True)
     lists = self.parse_manifest_filenames(manifest)
 
-    files = []
+    files: list[Any] = []
     if lists['dynamic']:
       files = CloudFiles(
-        dynamic_cloudpath, 
-        green=self.config.green, 
+        dynamic_cloudpath,
+        green=self.config.green,
         secrets=self.config.secrets,
         parallel=self.config.parallel,
       ).get(lists['dynamic'])
-    
-    dynamic_meshes = []
+
+    dynamic_meshes: list[Mesh] = []
     while files:
       f = files.pop()
       mesh = Mesh.from_draco(f['content'])
       mesh.segid = int(os.path.basename(f['path']).split(':')[0])
       dynamic_meshes.append(mesh)
 
-    fetches = []
-    segid_map = {}
+    fetches: list[dict[str, Any]] = []
+    segid_map: dict[tuple, int] = {}
     for layer_id, filename, byte_start, size, segid in lists['initial']:
       path = self.meta.join(layer_id, filename)
       byte_end = byte_start + size
@@ -187,23 +190,23 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, self.meta.sharded_mesh_dir)
     files = CloudFiles(
-      cloudpath, 
-      green=self.config.green, 
+      cloudpath,
+      green=self.config.green,
       secrets=self.config.secrets,
       parallel=self.config.parallel,
     ).get(fetches)
-    initial_meshes = []
+    initial_meshes: list[Mesh] = []
     while files:
       f = files.pop()
       mesh = Mesh.from_draco(f['content'])
       start, end = f['byte_range']
       key = (f['path'], start, end)
       mesh.segid = segid_map[key]
-      initial_meshes.append(mesh)    
+      initial_meshes.append(mesh)
 
     return dynamic_meshes + initial_meshes
 
-  def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
+  def get_meshes_via_manifest_labels(self, seg_id: Any, bounding_box: Optional[Any]) -> list[Mesh]:
     level = None
     if bounding_box is not None:
       level=2
@@ -211,12 +214,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     meshes = self.get_meshes_on_bypass(labels, allow_missing=True) # sometimes a tiny label won't get meshed
     return list(meshes.values())
 
-  def get_meshes_via_manifest(self, seg_id, bounding_box, use_byte_offsets):
+  def get_meshes_via_manifest(self, seg_id: Any, bounding_box: Optional[Any], use_byte_offsets: bool) -> list[Mesh]:
     if use_byte_offsets:
       return self.get_meshes_via_manifest_byte_offsets(seg_id, bounding_box)
     return self.get_meshes_via_manifest_labels(seg_id, bounding_box)
 
-  def get_chunk_aligned_mask(self, meshes):
+  def get_chunk_aligned_mask(self, meshes: Any) -> np.ndarray:
     meta = self.meta.meta
     first_mesh = first(meshes)
     if first_mesh is None:
@@ -231,11 +234,11 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     voxel_offset = Vec(0,0,0)
     if meta.chunks_start_at_voxel_offset:
       voxel_offset = meta.voxel_offset(self.meta.mip)
-      
+
     offset = voxel_offset * lvl2_resolution
     lvl_2_size_nm = meta.chunk_size(self.meta.mip) * base_resolution
 
-    chunk_aligned_masks = []
+    chunk_aligned_masks: list[np.ndarray] = []
     for mesh in meshes:
       level = meta.decode_layer_id(mesh.segid)
       chunk_size = lvl_2_size_nm * (2 ** (level-2))
@@ -245,16 +248,16 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
         verts, chunk_size, draco_grid_size=draco_grid_size
       )
       chunk_aligned_masks.append(is_chunk_aligned)
-    
+
     return np.concatenate(chunk_aligned_masks)
 
-  def stitch_multi_level_draco_mesh_fragments(self, meshes, segid):
+  def stitch_multi_level_draco_mesh_fragments(self, meshes: list[Mesh], segid: Any) -> Mesh:
     chunk_aligned_mask = self.get_chunk_aligned_mask(meshes)
     mesh = Mesh.concatenate(*meshes)
     mesh.segid = segid
     return mesh.deduplicate_vertices(chunk_aligned_mask)
 
-  def get_meshes_on_bypass(self, segids, allow_missing=False):
+  def get_meshes_on_bypass(self, segids: Any, allow_missing: bool = False) -> dict[int, Mesh]:
     """
     Attempt to fetch a mesh directly from storage without going through
     the chunk graph server. This capability should only be used in special
@@ -266,8 +269,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     filenames = [ self.compute_filename(segid) for segid in segids ]
 
     cf = CloudFiles(
-      dynamic_cloudpath, 
-      progress=self.config.progress, 
+      dynamic_cloudpath,
+      progress=self.config.progress,
       green=self.config.green,
       secrets=self.config.secrets,
       parallel=self.config.parallel,
@@ -278,8 +281,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     # e.g. 387463568301300850:0:24576-25088_17920-18432_2048-3072
     label_regexp = re.compile(r'(\d+):\d:[\d_-]+$')
 
-    output = {}
-    remaining = []
+    output: dict[int, Any] = {}
+    remaining: list[int] = []
     for res in raw_binaries:
       if res['error']:
         raise res['error']
@@ -292,7 +295,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       else:
         output[label] = res['content']
 
-    layers = defaultdict(list)
+    layers: dict[Any, list] = defaultdict(list)
     for segid in remaining:
       layer_id = self.meta.meta.decode_layer_id(segid)
       layers[layer_id].append(segid)
@@ -300,7 +303,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     for layer_id, labels in layers.items():
       subdirectory = self.meta.join(self.meta.mesh_path, self.meta.sharded_mesh_dir, str(layer_id))
       initial_output = self.readers[layer_id].get_data(
-        labels, path=subdirectory, 
+        labels, path=subdirectory,
         progress=self.config.progress,
         parallel=self.config.parallel,
       )
@@ -313,12 +316,12 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
         else:
           output[label] = raw_binary
 
-    return { 
-      label: Mesh.from_draco(raw_binary, segid=label) 
-      for label, raw_binary in output.items() 
+    return {
+      label: Mesh.from_draco(raw_binary, segid=label)
+      for label, raw_binary in output.items()
     }
 
-  def download_segid(self, seg_id, bounding_box, bypass=False, use_byte_offsets=True):    
+  def download_segid(self, seg_id: Any, bounding_box: Optional[Any], bypass: bool = False, use_byte_offsets: bool = True) -> tuple[Mesh, bool]:
     """See GrapheneUnshardedMeshSource.get for the user facing function."""
     level = self.meta.meta.decode_layer_id(seg_id)
     level = min(level, self.meta.meta.max_meshed_layer)

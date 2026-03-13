@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import posixpath
 from collections import namedtuple
 import json
 import re
 import requests
 import urllib
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -13,7 +16,7 @@ from ... import paths
 from ...secrets import cave_credentials
 from ..precomputed import PrecomputedMetadata
 
-VERSION_ORDERING = [  
+VERSION_ORDERING = [
   '1.0', 'v1'
 ]
 VERSION_MAP = {
@@ -25,69 +28,73 @@ GrapheneLabel = namedtuple('GrapheneLabel', ('level', 'x', 'y', 'z', 'segid'))
 
 
 class GrapheneApiVersion():
-  def __init__(self, version):
+  def __init__(self, version: str) -> None:
     self.version = version.lower()
     if self.version == 'table':
       self.version = VERSION_ORDERING[-1]
     elif self.version not in VERSION_MAP:
       raise ValueError("Unknown Graphene API version {}".format(self.version))
 
-  def __eq__(self, rhs):
+  def __eq__(self, rhs: object) -> bool:
+    if not isinstance(rhs, GrapheneApiVersion):
+      return NotImplemented
     return self.version == rhs.version
-  def __ne__(self, rhs):
+  def __ne__(self, rhs: object) -> bool:
+    if not isinstance(rhs, GrapheneApiVersion):
+      return NotImplemented
     return self.version != rhs.version
-  def __lt__(self, rhs):
+  def __lt__(self, rhs: GrapheneApiVersion) -> bool:
     return self.sequence_number() < rhs.sequence_number()
-  def __gt__(self, rhs):
+  def __gt__(self, rhs: GrapheneApiVersion) -> bool:
     return self.sequence_number() > rhs.sequence_number()
-  def __le__(self, rhs):
+  def __le__(self, rhs: GrapheneApiVersion) -> bool:
     return self.sequence_number() <= rhs.sequence_number()
-  def __ge__(self, rhs):
+  def __ge__(self, rhs: GrapheneApiVersion) -> bool:
     return self.sequence_number() >= rhs.sequence_number()
-  def __str__(self):
+  def __str__(self) -> str:
     return self.version
-  def __repr__(self):
+  def __repr__(self) -> str:
     return "GrapheneApiVersion('{}')".format(self.version)
 
-  def sequence_number(self):
+  def sequence_number(self) -> int:
     return VERSION_MAP[self.version]
 
-  def path(self, graphene_path):
+  def path(self, graphene_path: GraphenePath) -> str:
     if self.version == '1.0':
       return self.legacy_path(graphene_path)
     return self.api_vx_path(graphene_path)
 
-  def table_path(self, graphene_path):
+  def table_path(self, graphene_path: GraphenePath) -> str:
     return posixpath.join(graphene_path.modality, 'table', graphene_path.dataset)
 
-  def legacy_path(self, graphene_path):
+  def legacy_path(self, graphene_path: GraphenePath) -> str:
     """All /segmentation/1.0/$DATASET paths"""
     return posixpath.join(graphene_path.modality, '1.0', graphene_path.dataset)
 
-  def api_vx_path(self, graphene_path):
+  def api_vx_path(self, graphene_path: GraphenePath) -> str:
     """
     All /segmentation/api/v1/$DATASET paths.
 
     As of Feb. 2020, these were the latest paths.
     """
-    return posixpath.join( 
+    return posixpath.join(
       graphene_path.modality, 'api', self.version, 'table', graphene_path.dataset
     )
 
 class GrapheneMetadata(PrecomputedMetadata):
   def __init__(
-    self, cloudpath, use_https=False, 
-    use_auth=True, auth_token=None, 
-    agglomerate=False, timestamp=None,
-    *args, **kwargs
-  ):
+    self, cloudpath: str, use_https: bool = False,
+    use_auth: bool = True, auth_token: Optional[str] = None,
+    agglomerate: bool = False, timestamp: Optional[int] = None,
+    *args: Any, **kwargs: Any
+  ) -> None:
     self.server_url = cloudpath.replace('graphene://', '')
     self.server_url = self.server_url.replace("middleauth+", "")
     self.server_path = extract_graphene_path(self.server_url)
     self.use_https = use_https
     self.agglomerate = agglomerate
     self.timestamp = timestamp
-    self.auth_header = None
+    self.auth_header: Optional[dict[str, str]] = None
     self.spatial_index = None
     if use_auth:
       self.auth_header = {
@@ -102,7 +109,7 @@ class GrapheneMetadata(PrecomputedMetadata):
 
     self.api_version = GrapheneApiVersion(version)
 
-  def parse_token(self, auth_token):
+  def parse_token(self, auth_token: Optional[str]) -> str:
     token = None
     if auth_token:
       token = auth_token
@@ -127,33 +134,33 @@ class GrapheneMetadata(PrecomputedMetadata):
       raise exceptions.AuthenticationError("Graphene authentication token was not formatted correctly. It should either be a hexadecimal or base64 string.")
     return token
 
-  def supports_api(self, version):
+  def supports_api(self, version: str) -> bool:
     return GrapheneApiVersion(version) in self.supported_api_versions
 
-  @property  
-  def supported_api_versions(self):
-    versions = [ 
+  @property
+  def supported_api_versions(self) -> list[GrapheneApiVersion]:
+    versions = [
       GrapheneApiVersion(VERSION_ORDERING[i]) \
-      for i in self.info['app']['supported_api_versions'] 
+      for i in self.info['app']['supported_api_versions']
     ]
     versions.sort(key=lambda ver: ver.sequence_number())
     return versions
 
   @property
-  def base_path(self):
+  def base_path(self) -> str:
     path = self.server_path
     return f"{path.scheme}://{path.fqdn}/"
 
   @property
-  def table_path(self):
+  def table_path(self) -> str:
     return posixpath.join(self.base_path, self.server_path.modality, 'table', self.server_path.dataset)
 
   @property
-  def info_path(self):
+  def info_path(self) -> str:
     """e.g. https://SUBDOMAIN.dynamicannotationframework.com/segmentation/table/DATASET/info"""
     return posixpath.join(self.table_path, 'info')
 
-  def fetch_info(self):
+  def fetch_info(self) -> dict:
     """
     Reads info from chunkedgraph endpoint and extracts relevant information
     """
@@ -162,40 +169,40 @@ class GrapheneMetadata(PrecomputedMetadata):
     return r.json()
 
   @property
-  def mesh_path(self):
+  def mesh_path(self) -> str:
     if 'mesh' in self.info:
       return self.info['mesh']
     return 'mesh'
 
   @property
-  def cloudpath(self):
+  def cloudpath(self) -> str:
     data_dir = self.info['data_dir']
     if self.use_https:
       data_dir = paths.to_https_protocol(data_dir)
     return data_dir
 
   @property
-  def fan_out(self):
+  def fan_out(self) -> int:
     """Number of chunks agglomerated into a new chunk per a level increase in the graph."""
     graph_object = self.info['graph']
     return int(graph_object.get('fan_out', 2))
 
-  def decode_label(self, label):
+  def decode_label(self, label: Any) -> GrapheneLabel:
     level = self.decode_layer_id(label)
     x,y,z = self.decode_chunk_position(label)
     segid = self.decode_segid(label)
     return GrapheneLabel(level, x, y, z, segid)
 
-  def decode_segid(self, label):
+  def decode_segid(self, label: Any) -> np.uint64:
     label = uint64(label)
     level = self.decode_layer_id(label)
     segid_bits = self.segid_bits(level)
 
     mask = uint64(2 ** segid_bits) - uint64(1)
-    
+
     return label & mask
 
-  def decode_chunk_id(self, label):
+  def decode_chunk_id(self, label: Any) -> np.uint64:
     """The chunk id is a graphene label with the segid portion zeroed out."""
     label = uint64(label)
     level = self.decode_layer_id(label)
@@ -203,7 +210,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     mask = uint64(2 ** bits) - uint64(1)
     return label & ~mask
 
-  def decode_chunk_position_number(self, label):
+  def decode_chunk_position_number(self, label: Any) -> np.uint64:
     """Returns the chunk position X,Y,Z as a packed uint64."""
     label = uint64(label)
     level = self.decode_layer_id(label)
@@ -211,7 +218,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     label = label & uint64(0x00ffffffffffffff)
     return label >> uint64(self.segid_bits(level))
 
-  def decode_chunk_position(self, label):
+  def decode_chunk_position(self, label: Any) -> Vec:
     """Returns the chunk position as a tuple (X,Y,Z)"""
     label = uint64(label)
     level = self.decode_layer_id(label)
@@ -226,12 +233,12 @@ class GrapheneMetadata(PrecomputedMetadata):
 
     return Vec(x,y,z)
 
-  def point_to_chunk_position(self, pt, mip=None):
+  def point_to_chunk_position(self, pt: Any, mip: Optional[int] = None) -> Vec:
     """
     Convert a point into the chunk position.
 
     pt: x,y,z triple
-    mip: 
+    mip:
       if None, pt is in physical coordinates
       else pt is in the coordinates of the indicated mip level
 
@@ -249,13 +256,13 @@ class GrapheneMetadata(PrecomputedMetadata):
 
     return (pt // self.graph_chunk_size).astype(np.int32)
 
-  def point_to_chunk_bbox(self, pt, mip=None):
+  def point_to_chunk_bbox(self, pt: Any, mip: Optional[int] = None) -> Bbox:
     """
-    For a given point, get the Bbox of the containing 
+    For a given point, get the Bbox of the containing
     chunk.
 
     pt: x,y,z triple
-    mip: 
+    mip:
       if None, pt is in physical coordinates
       else pt is in the coordinates of the indicated mip level
 
@@ -268,14 +275,14 @@ class GrapheneMetadata(PrecomputedMetadata):
 
     return Bbox(pos, pos + self.graph_chunk_size)
 
-  def segid_bits(self, level):
+  def segid_bits(self, level: Any) -> np.uint64:
     ct = self.spatial_bit_count(level)
     return uint64(64 - self.n_bits_for_layer_id - 3 * ct)
 
-  def decode_layer_id(self, label):
+  def decode_layer_id(self, label: Any) -> np.uint64:
     return uint64(label) >> uint64(64 - self.n_bits_for_layer_id)
 
-  def encode_label(self, layer, x, y, z, segid):
+  def encode_label(self, layer: int, x: int, y: int, z: int, segid: int) -> np.uint64:
     """
     Create a graphene label from the specified values.
 
@@ -317,7 +324,7 @@ class GrapheneMetadata(PrecomputedMetadata):
       layer << layer_offset | x << x_offset | y << y_offset | z << z_offset | segid
     )
 
-  def spatial_bit_masks(self, level):
+  def spatial_bit_masks(self, level: Any) -> list[np.uint64]:
     ct = self.spatial_bit_count(level)
 
     mask = uint64(2 ** ct) - uint64(1)
@@ -329,7 +336,7 @@ class GrapheneMetadata(PrecomputedMetadata):
       mask << uint64(segid_bits + 0 * ct)
     ]
 
-  def spatial_bit_count(self, level):
+  def spatial_bit_count(self, level: Any) -> int:
     """
     64-bit labels
 
@@ -341,29 +348,29 @@ class GrapheneMetadata(PrecomputedMetadata):
     return int(self.info['graph']['spatial_bit_masks'][str(level)])
 
   @property
-  def n_bits_for_layer_id(self):
+  def n_bits_for_layer_id(self) -> int:
     return int(self.info['graph'].get('n_bits_for_layer_id', 8))
 
   @property
-  def n_layers(self):
+  def n_layers(self) -> int:
     return int(self.info['graph']['n_layers'])
 
   @property
-  def graph_chunk_size(self):
+  def graph_chunk_size(self) -> Any:
     return self.info['graph']['chunk_size']
 
   @property
-  def uses_new_draco_bin_size(self):
+  def uses_new_draco_bin_size(self) -> int:
     graph_object = self.info['graph']
     return int(graph_object.get('uses_new_draco_bin_size', False))
-  
+
   @property
-  def mesh_chunk_size(self):
+  def mesh_chunk_size(self) -> Any:
     # TODO: add this as new parameter to the info as it can be different from the chunkedgraph chunksize
     return self.graph_chunk_size
 
   @property
-  def manifest_endpoint(self):
+  def manifest_endpoint(self) -> str:
     pth = self.server_path
     pth = GraphenePath(
       pth.scheme, pth.fqdn,
@@ -374,7 +381,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     return posixpath.join(self.base_path, url, 'manifest')
 
   @property
-  def chunks_start_at_voxel_offset(self):
+  def chunks_start_at_voxel_offset(self) -> bool:
     """
     Boolean property specifying whether ChunkedGraph chunks begin
     at voxel offset or at origin.
@@ -384,13 +391,13 @@ class GrapheneMetadata(PrecomputedMetadata):
     return False
 
   @property
-  def mesh_metadata(self):
+  def mesh_metadata(self) -> Optional[dict]:
     if 'mesh_metadata' in self.info:
       return self.info["mesh_metadata"]
     return None
 
   @property
-  def uniform_draco_grid_size(self):
+  def uniform_draco_grid_size(self) -> Optional[int]:
     """
     If not None, a number that specifies the draco_grid_size at every ChunkedGraph level.
     """
@@ -399,7 +406,7 @@ class GrapheneMetadata(PrecomputedMetadata):
     return None
 
   @property
-  def max_meshed_layer(self):
+  def max_meshed_layer(self) -> int:
     """
     The highest level in the ChunkedGraph that we create meshes for in this dataset.
     """
@@ -408,16 +415,16 @@ class GrapheneMetadata(PrecomputedMetadata):
     return self.n_layers
 
   @property
-  def unsharded_mesh_dir(self):
+  def unsharded_mesh_dir(self) -> str:
     mesh_meta = self.info.get("mesh_metadata", {})
     return mesh_meta.get("unsharded_mesh_dir", "dynamic")
 
   @property
-  def watershed_mip(self):
+  def watershed_mip(self) -> int:
     """mip level of the base segmentation that all chunk graph operations remap."""
     return self.info["graph"]["cv_mip"]
 
-  def get_draco_grid_size(self, level):
+  def get_draco_grid_size(self, level: Any) -> Any:
     """
     Returns the draco_grid_size for specified ChunkedGraph level.
     """
@@ -437,7 +444,7 @@ LEGACY_EXTRACTION_RE = re.compile(r'/?(\w+)/([\d\.]+)/([\w\d\.\_\-]+)/?')
 API_VX_EXTRACTION_RE = re.compile(r'/?(\w+)/api/(v[\d\.]+)/([\w\d\.\_\-]+)/?')
 LATEST_API_EXTRACTION_RE = re.compile(r'/?(\w+)/(table)/([\w\d\.\_\-]+)/?')
 
-def extract_graphene_path(url):
+def extract_graphene_path(url: str) -> GraphenePath:
   """
   Examples:
   Legacy endpoint:
@@ -449,8 +456,8 @@ def extract_graphene_path(url):
   """
   parse = urllib.parse.urlparse(url)
 
-  schemes = [ 
-    LATEST_API_EXTRACTION_RE, API_VX_EXTRACTION_RE, LEGACY_EXTRACTION_RE 
+  schemes = [
+    LATEST_API_EXTRACTION_RE, API_VX_EXTRACTION_RE, LEGACY_EXTRACTION_RE
   ]
 
   for scheme in schemes:
@@ -462,4 +469,3 @@ def extract_graphene_path(url):
 
   modality, version, dataset = match.groups()
   return GraphenePath(parse.scheme, parse.netloc, modality, version, dataset)
-
