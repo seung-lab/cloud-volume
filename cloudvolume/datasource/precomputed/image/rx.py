@@ -496,27 +496,24 @@ def repopulate_lru_from_shm(
   ))
 
   encoding = lru_encoding
-  if encoding == "same":
-    # Since the parallel version populates the LRU via an image and
-    # you don't get the benefit of accessing the raw downloaded bytes,
-    # there will be a performance regression for "same" since e.g.
-    # jpeg -> img -> jpeg will instead of decode -> img,lru you'll
-    # have decode -> img -> encode -> lru. Therefore, this is hacky,
-    # but backwards compatible and strictly expands the capabilities
-    # of the LRU.
-    encoding = "raw" # would ordinarily be: meta.encoding(mip)
-
-  for chunkname in core_chunks[-lru.size:]:
-    bbx = Bbox.from_filename(chunkname)
-    bbx -= requested_bbox.minpt
-    img3d = renderbuffer[ bbx.to_slices() ]
-    binary = chunks.encode(
-      img3d, encoding,
-      meta.compressed_segmentation_block_size(mip),
-      compression_params=meta.compression_params(mip),
-      num_threads=meta.config.codec_threads,
-    )
-    lru[chunkname] = (encoding, binary)
+  if encoding in ("same", "raw"):
+    for chunkname in core_chunks[-lru.size:]:
+      bbx = Bbox.from_filename(chunkname)
+      bbx -= requested_bbox.minpt
+      img3d = np.copy(renderbuffer[ bbx.to_slices() ])
+      lru[chunkname] = ("numpy", img3d)
+  else:
+    for chunkname in core_chunks[-lru.size:]:
+      bbx = Bbox.from_filename(chunkname)
+      bbx -= requested_bbox.minpt
+      img3d = renderbuffer[ bbx.to_slices() ]
+      binary = chunks.encode(
+        img3d, encoding,
+        meta.compressed_segmentation_block_size(mip),
+        compression_params=meta.compression_params(mip),
+        num_threads=meta.config.codec_threads,
+      )
+      lru[chunkname] = (encoding, binary)
 
 def child_process_download(
     meta, cache, 
@@ -611,18 +608,22 @@ def download_chunk(
     if lru is not None:
       lru[filename] = (encoding, content)
 
-  if no_deserialize:
+  if encoding == "numpy":
+    img3d = content
+  elif no_deserialize:
     img3d = content
   else:
     img3d = decode_fn(
-      meta, filename, content, 
-      fill_missing, mip, 
+      meta, filename, content,
+      fill_missing, mip,
       background_color=background_color,
       encoding=encoding,
     )
 
   if lru is not None and full_decode:
-    if lru_encoding not in [ "same", encoding ]:
+    if lru_encoding == "raw" and encoding != "numpy":
+      lru[filename] = ("numpy", img3d)
+    elif lru_encoding not in [ "same", "raw", encoding ]:
       content = None
       if img3d is not None:
         block_size = meta.compressed_segmentation_block_size(mip)
@@ -630,12 +631,12 @@ def download_chunk(
           block_size = (8,8,8)
 
         content = chunks.encode(
-          img3d, lru_encoding, 
+          img3d, lru_encoding,
           block_size,
           compression_params=meta.compression_params(mip),
           num_threads=meta.config.codec_threads,
         )
-        
+
       lru[filename] = (lru_encoding, content)
 
   return img3d, bbox
