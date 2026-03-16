@@ -141,6 +141,7 @@ def transfer_unsharded_to_sharded(
     dest_block_size=cv.meta.compressed_segmentation_block_size(mip),
     background_color=source.background_color,
     num_threads=codec_threads,
+    compression_params=cv.meta.compression_params(mip),
   )
   for code, binary in itr:
     files[code] = binary
@@ -210,6 +211,7 @@ def transfer_any_to_unsharded(
     dest_block_size=cv.meta.compressed_segmentation_block_size(mip),
     background_color=source.background_color,
     num_threads=codec_threads,
+    compression_params=cv.meta.compression_params(mip),
   )
   # tricky loops done to perform in-place
   # re-encoding without changing the dict
@@ -307,7 +309,7 @@ def transfer_sharded_to_sharded(
         dest_block_size=destvol.meta.compressed_segmentation_block_size(mip),
         background_color=source.background_color,
         num_threads=codec_threads,
-        compression_prarams=destvol.meta.compression_params(mip),
+        compression_params=destvol.meta.compression_params(mip),
       )
       for label, binary in itr:
         img_chunks[label] = binary
@@ -446,6 +448,7 @@ def transfer_unsharded_to_unsharded(
           dest_block_size=destvol.meta.compressed_segmentation_block_size(mip),
           background_color=source.background_color,
           num_threads=codec_threads,
+          compression_params=destvol.meta.compression_params(mip),
         )
         cfdest.puts(
           itr, 
