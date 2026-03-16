@@ -307,6 +307,7 @@ def transfer_sharded_to_sharded(
         dest_block_size=destvol.meta.compressed_segmentation_block_size(mip),
         background_color=source.background_color,
         num_threads=codec_threads,
+        compression_prarams=destvol.meta.compression_params(mip),
       )
       for label, binary in itr:
         img_chunks[label] = binary
