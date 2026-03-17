@@ -138,6 +138,7 @@ def transfer_unsharded_to_sharded(
   )
   for code in morton_codes:
     bbx = morton_code_to_bbox(code, cv.bounds, cv.chunk_size)
+    bbx = Bbox.clamp(bbx, cv.bounds)
     path = cv.meta.join(cv.key, bbx.to_filename())
     files[code] = files[path]
     del files[path]
