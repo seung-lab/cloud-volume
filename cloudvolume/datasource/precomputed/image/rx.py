@@ -647,7 +647,20 @@ def download_chunks_threaded(
     decompress=True, full_decode=True,
   ):
   """fn is the postprocess callback. decode_fn is a decode fn."""
-  locations = cache.compute_data_locations(cloudpaths)
+
+  # If every chunk is an LRU hit, skip compute_data_locations
+  # which does os.listdir on the cache directory.
+  are_all_lru_hits = False
+  if lru is not None and lru.size > 0:
+    if not isinstance(cloudpaths, list):
+      cloudpaths = list(cloudpaths)
+    are_all_lru_hits = all(fname in lru for fname in cloudpaths)
+
+  if are_all_lru_hits:
+    locations = { 'local': [], 'remote': cloudpaths }
+  else:
+    locations = cache.compute_data_locations(cloudpaths)
+
   cachedir = 'file://' + cache.path
 
   def process(cloudpath, filename, enable_cache, locking):
@@ -660,16 +673,11 @@ def download_chunks_threaded(
     )
     fn(labels, bbox)
 
-  # If there's an LRU sort the fetches so that the LRU ones are first
-  # otherwise the new downloads can kick out the cached ones and make the
-  # lru useless.
-  are_all_lru_hits = False
-  if lru is not None and lru.size > 0:
+  if lru is not None and lru.size > 0 and not are_all_lru_hits:
     if not isinstance(locations['remote'], list):
-      locations['remote'] = list(locations['remote'])  
-    locations['local'].sort(key=lambda fname: fname in lru, reverse=True)  
+      locations['remote'] = list(locations['remote'])
+    locations['local'].sort(key=lambda fname: fname in lru, reverse=True)
     locations['remote'].sort(key=lambda fname: fname in lru, reverse=True)
-    are_all_lru_hits = all(( fname in lru for fname in locations['remote'] ))
 
   qualify = lambda fname: os.path.join(meta.key(mip), os.path.basename(fname))
 
