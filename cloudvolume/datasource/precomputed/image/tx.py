@@ -444,7 +444,8 @@ def threaded_upload_chunks(
       if background_color == 0:
         has_data = np.any(imgchunk)
       else:
-        has_data = not np.array_equal(imgchunk, background_color)
+        has_data = np.any(imgchunk != background_color)
+
       if has_data:
         do_upload(i, imgchunk, cloudpath)
       else:
