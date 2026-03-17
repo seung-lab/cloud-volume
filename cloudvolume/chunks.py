@@ -541,16 +541,18 @@ def transcode(
 
   itr = tqdm(inner_itr, disable=(not progress), desc="Transcoding", total=total)
 
+  level = compression_params.get("level", 100)
+
   if src_encoding.lower() == dest_encoding.lower() and not force:
     yield from itr
-  elif src_encoding == "jpeg" and dest_encoding == "jxl":
+  elif src_encoding == "jpeg" and dest_encoding == "jxl" and level >= 100:
     from imagecodecs import jpegxl_encode_jpeg
 
     for label, binary in itr:
       new_binary = jpegxl_encode_jpeg(binary, numthreads=num_threads)
 
       yield (label, new_binary)
-  elif src_encoding == "jxl" and dest_encoding == "jpeg":
+  elif src_encoding == "jxl" and dest_encoding == "jpeg" and level >= 100:
     from imagecodecs import jpegxl_decode_jpeg
 
     for label, binary in itr:
