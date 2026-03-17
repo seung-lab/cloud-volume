@@ -455,6 +455,9 @@ Hops:
   def scale(self, mip):
     return self.info['scales'][mip]
 
+  def sharding(self, mip):
+    return self.scale(mip).get("sharding", None)
+
   def join(self, *paths):
     if self.path.protocol == 'file':
       return os.path.join(*paths)

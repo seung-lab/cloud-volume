@@ -17,6 +17,17 @@ from ..common import compressed_morton_code, morton_code_to_bbox
 from .common import chunknames, gridpoints
 from . import tx
 
+def normalize_compression(compress:CompressType, encoding:str) -> CompressType:
+  if compress == "auto":
+    if encoding.lower() in ("jpeg", "png", "jxl"):
+      return False
+    else:
+      return None
+  elif compress == True:
+    return "gzip"
+  else:
+    return compress
+
 def create_destination(source, cloudpath, mip, encoding):
   from cloudvolume import CloudVolume
 
@@ -60,7 +71,7 @@ def transfer_by_rerendering(
   dest_cv = create_destination(source, cloudpath, mip, encoding)
   dest_cv.commit_info()
   dest_cv.progress = False
-  dest_cv.compress = compress
+  dest_cv.compress = normalize_compression(compress, dest_cv.meta.encoding(mip))
   dest_cv.config.codec_threads = codec_threads
   mip = dest_cv.mip
 
@@ -111,6 +122,7 @@ def transfer_unsharded_to_sharded(
   dest_encoding = cv.meta.encoding(mip)
   shard_shape = cv.image.shard_shape(mip)
 
+  compress = normalize_compression(compress, dest_encoding)
   decompress = (src_encoding != dest_encoding) or (compress is not None)
 
   # To get the decompress info at this level will require
@@ -153,7 +165,7 @@ def transfer_unsharded_to_sharded(
   cf = CloudFiles(basepath, progress=cv.config.progress, secrets=cv.config.secrets)
   cf.puts(
     shard_binaries.items(), 
-    compress=cv.config.compress, 
+    compress=False, 
     cache_control=cv.config.cdn_cache
   )
   return cv
@@ -182,6 +194,7 @@ def transfer_any_to_unsharded(
   src_encoding = source.meta.encoding(mip)
   dest_encoding = cv.meta.encoding(mip)
 
+  compress = normalize_compression(compress, dest_encoding)
   decompress = (src_encoding != dest_encoding) or (compress is not None)
 
   # To get the decompress info at this level will require
@@ -286,7 +299,20 @@ def transfer_sharded_to_sharded(
   src_encoding = source.meta.encoding(mip)
   dest_encoding = destvol.meta.encoding(mip)
 
-  if src_encoding == dest_encoding:
+  compress = normalize_compression(compress, dest_encoding)
+  if compress == False:
+    compress = "raw"
+  elif compress is None:
+    compress = source.meta.sharding(mip)["data_encoding"]
+  else:
+    compress = "gzip" # only gzip is allowed
+
+  destvol.meta.sharding(mip)["data_encoding"] = compress
+
+  src_spec = sharding.ShardingSpecification.from_dict(source.meta.sharding(mip))
+  dest_spec = sharding.ShardingSpecification.from_dict(destvol.meta.sharding(mip))
+
+  if src_encoding == dest_encoding and src_spec.data_encoding == dest_spec.data_encoding:
     cfsrc.transfer_to(
       cfdest, 
       paths=shard_filenames,
@@ -314,7 +340,7 @@ def transfer_sharded_to_sharded(
       for label, binary in itr:
         img_chunks[label] = binary
 
-      shard_binary = spec.synthesize_shard(img_chunks)
+      shard_binary = dest_spec.synthesize_shard(img_chunks)
       del img_chunks
       cfdest.put(filename, shard_binary, raw=True)
 
@@ -383,6 +409,7 @@ def transfer_unsharded_to_unsharded(
     step = int(default_block_size_MB // chunk_MB) + 1
 
   destvol = create_destination(source, cloudpath, mip, encoding)
+  compress = normalize_compression(compress, destvol.meta.encoding(mip))
 
   if destvol.image.is_sharded(mip):
     raise exceptions.UnsupportedFormatError(f"Sharded destinations are not supported. got: {destvol.cloudpath}")

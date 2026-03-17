@@ -610,7 +610,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     bbox:BboxLikeType, 
     mip:MipType, 
     block_size:Optional[int] = None, 
-    compress:CompressType = True, 
+    compress:CompressType = "auto", 
     compress_level:Optional[int] = None, 
     encoding:Optional[str] = None,
     sharded:Optional[bool] = None,
