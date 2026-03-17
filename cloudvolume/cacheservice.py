@@ -26,6 +26,7 @@ def no_compression_ext(list_dir:str):
   for fname in fnames:
     dot = fname.rfind(".", -10)
     if dot == -1:
+      results.append(fname)
       continue
     (name, ext) = fname[:dot], fname[dot:]
     if ext in COMPRESSION_EXTENSIONS:
