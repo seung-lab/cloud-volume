@@ -496,17 +496,14 @@ def repopulate_lru_from_shm(
   ))
 
   encoding = lru_encoding
-  if encoding in ("same", "raw"):
-    for chunkname in core_chunks[-lru.size:]:
-      bbx = Bbox.from_filename(chunkname)
-      bbx -= requested_bbox.minpt
-      img3d = np.copy(renderbuffer[ bbx.to_slices() ])
-      lru[chunkname] = ("numpy", img3d)
-  else:
-    for chunkname in core_chunks[-lru.size:]:
-      bbx = Bbox.from_filename(chunkname)
-      bbx -= requested_bbox.minpt
-      img3d = renderbuffer[ bbx.to_slices() ]
+  store_as_numpy = encoding in ("same", "raw")
+  for chunkname in core_chunks[-lru.size:]:
+    bbx = Bbox.from_filename(chunkname)
+    bbx -= requested_bbox.minpt
+    img3d = renderbuffer[ bbx.to_slices() ]
+    if store_as_numpy:
+      lru[chunkname] = ("numpy", np.copy(img3d, order="F"))
+    else:
       binary = chunks.encode(
         img3d, encoding,
         meta.compressed_segmentation_block_size(mip),
