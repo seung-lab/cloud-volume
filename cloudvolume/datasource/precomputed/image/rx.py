@@ -574,6 +574,7 @@ def download_chunk(
   cf = CloudFiles(cloudpath, secrets=secrets, locking=locking)
   no_deserialize = (cf.protocol == "mem" and encoding == "raw" and not enable_cache)
 
+  lru_miss = False
   try:
     encoding, content = lru[filename]
   except (TypeError, KeyError):
@@ -602,8 +603,7 @@ def download_chunk(
     if content is not None and decompress and not no_deserialize:
       content = compression.decompress(content, file['compress'])
 
-    if lru is not None:
-      lru[filename] = (encoding, content)
+    lru_miss = True
 
   if encoding == "numpy":
     img3d = content
@@ -617,10 +617,10 @@ def download_chunk(
       encoding=encoding,
     )
 
-  if lru is not None and full_decode:
-    if lru_encoding == "raw" and encoding != "numpy":
+  if lru is not None and lru_miss:
+    if full_decode and lru_encoding == "raw":
       lru[filename] = ("numpy", img3d)
-    elif lru_encoding not in [ "same", "raw", encoding ]:
+    elif full_decode and lru_encoding not in [ "same", "raw", encoding ]:
       content = None
       if img3d is not None:
         block_size = meta.compressed_segmentation_block_size(mip)
@@ -635,6 +635,8 @@ def download_chunk(
         )
 
       lru[filename] = (lru_encoding, content)
+    else:
+      lru[filename] = (encoding, content)
 
   return img3d, bbox
 
