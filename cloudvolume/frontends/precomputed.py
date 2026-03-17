@@ -525,7 +525,9 @@ class CloudVolumePrecomputed(object):
 
   def transfer_to(
     self, cloudpath, bbox, 
-    block_size=None, compress=True, encoding=None,
+    block_size=None,
+    compress="auto",
+    encoding=None,
     sharded=None,
   ):
     """

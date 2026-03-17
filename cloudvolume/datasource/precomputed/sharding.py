@@ -1,4 +1,4 @@
-from typing import Optional, Any, Tuple
+from typing import Optional, Any, Tuple, Literal
 
 from collections import namedtuple, defaultdict
 import copy
@@ -37,13 +37,15 @@ ShapeType = Tuple[int, int, int]
 
 class ShardingSpecification(object):
   def __init__(
-    self, type, preshift_bits, 
-    hash, minishard_bits, 
-    shard_bits, 
-    minishard_index_encoding='raw', 
-    data_encoding='raw'
+    self,
+    type:str,
+    preshift_bits:int, 
+    hash:Literal["identity", "murmurhash3_x86_128"], 
+    minishard_bits:int, 
+    shard_bits:int, 
+    minishard_index_encoding:Literal["raw", "gzip"] = 'raw', 
+    data_encoding:Literal["raw", "gzip"] = 'raw',
   ):
-
     self.type = type 
     self.preshift_bits = uint64(preshift_bits)
     self.hash = hash 
