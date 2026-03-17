@@ -541,7 +541,7 @@ def transcode(
 
   itr = tqdm(inner_itr, disable=(not progress), desc="Transcoding", total=total)
 
-  level = compression_params.get("level", 100)
+  level = compression_params.get("level", 100) or 100
 
   if src_encoding.lower() == dest_encoding.lower() and not force:
     yield from itr
