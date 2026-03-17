@@ -375,6 +375,8 @@ def threaded_upload_chunks(
     if lru is not None:
       if lru_encoding in ["same", encoding]:
         lru[cloudpath] = (encoding, encoded)
+      elif lru_encoding == "raw":
+        lru[cloudpath] = ("numpy", np.copy(imgchunk, order="F"))
       else:
         lru_encoded = chunks.encode(
           imgchunk, lru_encoding,
