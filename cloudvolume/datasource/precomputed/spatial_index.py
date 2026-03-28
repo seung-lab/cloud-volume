@@ -23,6 +23,7 @@ import numpy as np
 from tqdm import tqdm
 
 from cloudfiles import CloudFiles
+import fastremap
 
 from ...secrets import mysql_credentials, psql_credentials
 from ...exceptions import SpatialIndexGapError
@@ -55,17 +56,6 @@ def tostr(x):
 # See: https://www.postgresql.org/docs/current/sql-copy.html#SQL-COPY-FILE-FORMATS
 PG_BINARY_COPY_SIGNATURE = b'PGCOPY\n\377\r\n\0'
 
-# SQL template for parallel range-partitioned distinct label queries.
-# Each thread fills in {low}/{high} to scan a non-overlapping slice
-# of the PK B-tree index on file_lookup(label, fid).
-# Hash aggregation handles dedup within each range.
-PG_RANGE_DISTINCT_SQL = """
-  COPY (
-    SELECT DISTINCT label FROM file_lookup
-    WHERE label >= {low} AND label < {high}
-    ORDER BY label
-  ) TO STDOUT WITH BINARY
-"""
 
 def _parse_pg_binary_copy_bigint(data: bytes):
   """Parse PostgreSQL binary COPY output for a single BIGINT column
@@ -137,57 +127,32 @@ def _build_pg_binary_copy_two_bigints(col1, col2):
   buf.seek(0)
   return buf
 
-def _pg_parallel_distinct_labels(db_path, n_threads=8):
-  """Query distinct labels from file_lookup using parallel range scans.
+def _pg_distinct_labels(db_path):
+  """Query distinct labels from file_lookup using a single fast binary dump.
 
-  Splits the label keyspace into n_threads non-overlapping ranges,
-  queries each on a separate Postgres connection (= separate backend
-  process = separate CPU core), then concatenates the sorted results.
+  Bypasses PostgreSQL's slow DISTINCT evaluation by sequentially scanning
+  the table, streaming the binary column to Python, and deduplicating
+  in-memory using fastremap.unique. The n_threads parameter is ignored
+  as this executes a single sequential scan.
   """
   conn = connect(db_path)
   cur = conn.cursor()
-  cur.execute("SELECT MIN(label), MAX(label) FROM file_lookup")
-  row = cur.fetchone()
+  buf = io.BytesIO()
+
+  # A single full-table COPY to avoid PostgreSQL HashAggregate bottlenecks.
+  # Deduplication is performed locally using fastremap.
+  sql = "COPY (SELECT label FROM file_lookup) TO STDOUT WITH BINARY"
+  cur.copy_expert(sql, buf)
   cur.close()
   conn.close()
 
-  if row is None or row[0] is None:
+  labels = _parse_pg_binary_copy_bigint(buf.getvalue())
+  if len(labels) == 0:
     return np.array([], dtype=np.uint64)
 
-  min_label, max_label = int(row[0]), int(row[1])
-
-  if min_label == max_label:
-    return np.array([min_label], dtype=np.uint64)
-
-  # Split into non-overlapping [low, high) ranges.
-  boundaries = np.linspace(min_label, max_label + 1, n_threads + 1, dtype=np.int64)
-  # Deduplicate in case range is smaller than n_threads
-  boundaries = np.unique(boundaries)
-  actual_threads = len(boundaries) - 1
-
-  def _worker(low, high):
-    wconn = connect(db_path)
-    wcur = wconn.cursor()
-    wcur.execute("SET work_mem = '256MB'")
-    buf = io.BytesIO()
-    sql = PG_RANGE_DISTINCT_SQL.format(low=int(low), high=int(high))
-    wcur.copy_expert(sql, buf)
-    wcur.close()
-    wconn.close()
-    return _parse_pg_binary_copy_bigint(buf.getvalue())
-
-  with ThreadPoolExecutor(max_workers=actual_threads) as executor:
-    futures = [
-      executor.submit(_worker, boundaries[i], boundaries[i + 1])
-      for i in range(actual_threads)
-    ]
-    arrays = [f.result() for f in futures]
-
-  non_empty = [a for a in arrays if len(a) > 0]
-  if not non_empty:
-    return np.array([], dtype=np.uint64)
-
-  return np.concatenate(non_empty)
+  labels = fastremap.unique(labels)
+  labels.sort()
+  return labels
 
 def parse_db_path(path):
   """
@@ -916,7 +881,7 @@ class SpatialIndex(object):
         # Splits the label space into ranges, each queried on a
         # separate connection (separate PG backend = separate core).
         conn.close()
-        return _pg_parallel_distinct_labels(self.sql_db, n_threads=nthread)
+        return _pg_distinct_labels(self.sql_db)
       else:
         if nthread > 1:
           print(
