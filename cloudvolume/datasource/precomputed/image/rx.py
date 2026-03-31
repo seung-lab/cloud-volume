@@ -605,9 +605,7 @@ def download_chunk(
 
     lru_miss = True
 
-  if encoding == "numpy":
-    img3d = content
-  elif no_deserialize:
+  if no_deserialize:
     img3d = content
   else:
     img3d = decode_fn(
@@ -618,9 +616,9 @@ def download_chunk(
     )
 
   if lru is not None and lru_miss:
-    if full_decode and lru_encoding == "raw":
+    if full_decode and lru_encoding == "raw" and isinstance(img3d, np.ndarray):
       lru[filename] = ("numpy", img3d)
-    elif full_decode and lru_encoding not in [ "same", "raw", encoding ]:
+    elif full_decode and lru_encoding not in [ "same", encoding ]:
       content = None
       if img3d is not None:
         block_size = meta.compressed_segmentation_block_size(mip)
@@ -673,6 +671,9 @@ def download_chunks_threaded(
     )
     fn(labels, bbox)
 
+  # If there's an LRU sort the fetches so that the LRU ones are first
+  # otherwise the new downloads can kick out the cached ones and make the
+  # lru useless.
   if lru is not None and lru.size > 0 and not are_all_lru_hits:
     if not isinstance(locations['remote'], list):
       locations['remote'] = list(locations['remote'])
