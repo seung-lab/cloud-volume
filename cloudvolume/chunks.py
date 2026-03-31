@@ -151,7 +151,7 @@ def decode(
       return np.zeros(shape=shape, dtype=dtype, order="F")
     else:
       return np.full(shape=shape, fill_value=background_color, dtype=dtype, order="F")
-  elif isinstance(filedata, np.ndarray):
+  elif encoding == "numpy" or isinstance(filedata, np.ndarray):
     return filedata
   elif encoding == "raw":
     return decode_raw(filedata, shape=shape, dtype=dtype)
