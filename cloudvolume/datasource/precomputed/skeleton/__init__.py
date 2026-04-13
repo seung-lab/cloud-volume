@@ -41,6 +41,7 @@ class PrecomputedSkeletonSource(object):
       secrets=secrets,
       spatial_index_db=spatial_index_db,
       cache_locking=cache_locking,
+      codec_threads=1, # not relevant for skeletons
     )
     
     cache = CacheService(
