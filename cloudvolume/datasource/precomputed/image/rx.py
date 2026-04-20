@@ -615,10 +615,13 @@ def download_chunk(
       encoding=encoding,
     )
 
-  if lru is not None and lru_miss:
-    if full_decode and lru_encoding == "raw" and isinstance(img3d, np.ndarray):
+  if lru is not None:
+    # Transcode on hit too: a prior call with full_decode=False may have
+    # populated the LRU with the original encoding, which we can now upgrade
+    # to lru_encoding now that we have a decoded image.
+    if full_decode and lru_encoding == "raw" and encoding != "numpy" and isinstance(img3d, np.ndarray):
       lru[filename] = ("numpy", img3d)
-    elif full_decode and lru_encoding not in [ "same", encoding ]:
+    elif full_decode and lru_encoding not in [ "same", "raw", encoding ]:
       content = None
       if img3d is not None:
         block_size = meta.compressed_segmentation_block_size(mip)
@@ -633,7 +636,7 @@ def download_chunk(
         )
 
       lru[filename] = (lru_encoding, content)
-    else:
+    elif lru_miss:
       lru[filename] = (encoding, content)
 
   return img3d, bbox
