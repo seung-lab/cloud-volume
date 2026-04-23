@@ -63,12 +63,17 @@ def parallel_execution(
 ):
   global error_queue
 
-  error_queue = mp.Queue()
-  progress_queue = mp.Queue()
-  fs_lock = mp.Lock()
+  # Ensure processes do not accidentally inherit
+  # locks from forking and deadlock. Instead launch
+  # new interpreters.
+  ctx = mp.get_context("spawn")
+
+  error_queue = ctx.Queue()
+  progress_queue = ctx.Queue()
+  fs_lock = ctx.Lock()
 
   if parallel is True:
-    parallel = mp.cpu_count()
+    parallel = ctx.cpu_count()
   elif parallel <= 0:
     raise ValueError(f"Parallel must be a positive number or boolean (True: all cpus). Got: {parallel}")
 
@@ -103,11 +108,6 @@ def parallel_execution(
         args=(progress_queue,total,desc)
       )
       proc.start()
-
-    # Ensure processes do not accidentally inherit
-    # locks from forking and deadlock. Instead launch
-    # new interpreters.
-    ctx = mp.get_context("spawn")
 
     with concurrent.futures.ProcessPoolExecutor(
       max_workers=parallel,
