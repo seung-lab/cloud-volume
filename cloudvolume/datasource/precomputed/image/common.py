@@ -72,7 +72,7 @@ def parallel_execution(
   fs_lock = ctx.Lock()
 
   if parallel is True:
-    parallel = mp.cpu_count()
+    parallel = ctx.cpu_count()
   elif parallel <= 0:
     raise ValueError(f"Parallel must be a positive number or boolean (True: all cpus). Got: {parallel}")
 
@@ -102,8 +102,8 @@ def parallel_execution(
 
   try:
     if progress:
-      proc = mp.Process(
-        target=progress_queue_listener, 
+      proc = ctx.Process(
+        target=progress_queue_listener,
         args=(progress_queue,total,desc)
       )
       proc.start()
