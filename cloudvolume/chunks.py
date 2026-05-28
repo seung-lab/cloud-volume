@@ -575,7 +575,9 @@ def transcode(
         image = image[..., np.newaxis]
       
       if dest_chunk_size_fn is not None:
-        dest_shape = dest_chunk_size_fn(label)
+        dest_shape = tuple(dest_chunk_size_fn(label))
+        while len(dest_shape) < 4:
+          dest_shape += (1,)
         cur_shape = np.array(image.shape)
 
         if not np.array_equal(cur_shape, dest_shape):
