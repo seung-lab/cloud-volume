@@ -136,11 +136,13 @@ def transfer_unsharded_to_sharded(
     same_shard=False, 
     require_aligned=True,
   )
+  mapping = {}
   for code in morton_codes:
     bbx = morton_code_to_bbox(code, cv.bounds, cv.chunk_size)
     bbx = Bbox.clamp(bbx, cv.bounds)
     path = cv.meta.join(cv.key, bbx.to_filename())
     files[code] = files[path]
+    mapping[code] = path
     del files[path]
 
   itr = chunks.transcode(
@@ -148,7 +150,7 @@ def transfer_unsharded_to_sharded(
     progress=False, 
     src_encoding=src_encoding,
     dest_encoding=dest_encoding,
-    src_chunk_size_fn=lambda path: Bbox.from_filename(path).size(),
+    src_chunk_size_fn=lambda code: Bbox.from_filename(mapping[code]).size(),
     dest_chunk_size_fn=lambda _: cv.chunk_size,
     dtype=source.meta.dtype,
     src_block_size=source.meta.compressed_segmentation_block_size(mip),
@@ -159,6 +161,7 @@ def transfer_unsharded_to_sharded(
   )
   for code, binary in itr:
     files[code] = binary
+  del mapping
 
   shard_binaries = spec.synthesize_shards(files)
   
