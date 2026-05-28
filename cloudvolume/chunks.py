@@ -490,7 +490,7 @@ def transcode(
   ], 
   src_encoding:str, 
   dest_encoding:str,
-  chunk_size_fn:Callable[[Union[str,int]], ShapeType],
+  src_chunk_size_fn:Callable[[Union[str,int]], ShapeType],
   dtype:Union[str,np.dtype],
   background_color:int = 0,
   progress:bool = False,
@@ -501,6 +501,7 @@ def transcode(
   force:bool = False,
   total:Optional[int] = None,
   num_threads:int = 1,
+  dest_chunk_size_fn:Optional[Callable[[Union[str,int]], ShapeType]] = None,
 ):
   """
   Convert one image encoding into another in the most efficient way
@@ -513,8 +514,9 @@ def transcode(
   }
   src_encoding: the binary's current encoding (e.g. "raw", "jpeg", "compressed_segmentation", etc.)
   dest_encoding: the desired encoding
-  chunk_size_fn: function that takes the chunks's ID and returns its chunk_size
+  src_chunk_size_fn: function that takes the chunks's ID and returns its chunk_size
     This is a constant for sharded format, and the path->chunk_size for unsharded.
+  dest_chunk_size_fn: if specified, clamp or pad the destination chunk to this size.
   dtype: data type of both source and dest
   background_color: what to color missing chunks
   progress: display progress bar
@@ -563,7 +565,7 @@ def transcode(
       image = decode(
         binary, 
         encoding=src_encoding,
-        shape=chunk_size_fn(label),
+        shape=src_chunk_size_fn(label),
         dtype=dtype,
         block_size=src_block_size,
         background_color=background_color,
@@ -571,6 +573,21 @@ def transcode(
       )
       while image.ndim < 4:
         image = image[..., np.newaxis]
+      
+      if dest_chunk_size_fn is not None:
+        dest_shape = dest_chunk_size_fn(label)
+        cur_shape = np.array(image.shape)
+
+        if not np.array_equal(cur_shape, dest_shape):
+          slices = tuple(
+              slice(0, min(c, d)) 
+              for c, d in zip(cur_shape, dest_shape)
+          )
+          image = image[slices]
+          diff = dest_shape - cur_shape
+          pad_width = [(0, max(0, int(d))) for d in diff]
+          image = np.pad(image, pad_width, 'constant', constant_values=background_color)
+
       new_binary = encode(
         image, 
         encoding=dest_encoding,
