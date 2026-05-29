@@ -111,9 +111,10 @@ def download_sharded(
       background_color=background_color,
       encoding=data_encoding,
     )
-    img_bbx = cutout_bbox.clone()
-    img_bbx -= cutout_bbox.minpt
-    img3d = img3d[img_bbx.to_slices()]
+    if img3d is not None and not np.array_equal(chunk_size, cutout_bbox.size()):
+      img_bbx = cutout_bbox.clone()
+      img_bbx -= cutout_bbox.minpt
+      img3d = img3d[img_bbx.to_slices()]
     
     # For the first option, decode_binary_image already
     # performs the comparison, it also extracts the single voxel
