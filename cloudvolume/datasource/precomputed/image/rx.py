@@ -106,11 +106,14 @@ def download_sharded(
   for zcode, (data_encoding, chunkdata) in itertools.chain(io_chunkdata.items(), lru_chunkdata):
     cutout_bbox = code_map[zcode]
     img3d = decode_fn(
-      meta, cutout_bbox, 
+      meta, chunk_size, 
       chunkdata, fill_missing, mip,
       background_color=background_color,
       encoding=data_encoding,
     )
+    img_bbx = cutout_bbox.clone()
+    img_bbx -= cutout_bbox.minpt
+    img3d = img3d[img_bbox.to_slices()]
     
     # For the first option, decode_binary_image already
     # performs the comparison, it also extracts the single voxel
