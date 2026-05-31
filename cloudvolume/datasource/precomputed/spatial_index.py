@@ -500,14 +500,6 @@ class SpatialIndex(object):
         cur.execute("CREATE UNIQUE INDEX pk_label_fid ON file_lookup (label, fid)")
         conn.commit()
 
-      if db_type not in (DbType.POSTGRES, DbType.MYSQL):
-        # For Postgres and MySQL, the PK (label, fid) leading column
-        # already covers label-only lookups. The separate index is
-        # redundant and wastes disk/RAM.
-        if progress:
-          print("Creating labels index...")
-        cur.execute("CREATE INDEX file_lbl ON file_lookup (label)")
-
       if progress:
         print("Creating filename index...")
       cur.execute("CREATE INDEX fname ON file_lookup (fid)")
