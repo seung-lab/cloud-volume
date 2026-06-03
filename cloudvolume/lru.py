@@ -2,12 +2,20 @@ from typing import Union
 import sys
 import threading
 
+import numpy as np
+
 def getsizeof(val:Union[int,str,bytes,list,tuple]) -> int:
   """does sizeof at arbitrary depth for tuples and lists"""
   nbytes = 0
   if isinstance(val, (tuple, list)):
     for elem in val:
       nbytes += getsizeof(elem)
+  elif isinstance(val, np.ndarray):
+    # sys.getsizeof only reports an array's data buffer when it owns it
+    # (base is None). A view (e.g. np.frombuffer().reshape()) reports just
+    # the object header even though it keeps its full buffer alive, which
+    # makes the LRU undercount and never evict. Charge .nbytes explicitly.
+    return val.nbytes + sys.getsizeof(val)
   return nbytes + sys.getsizeof(val)
 
 class DoublyLinkedListIterator:
