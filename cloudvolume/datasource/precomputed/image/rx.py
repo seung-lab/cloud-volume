@@ -62,6 +62,9 @@ def download_sharded(
 
   if not meta.overlaps_roi(requested_bbox, mip):
     return renderbuffer
+  elif not Bbox.intersects(requested_bbox, meta.bounds(mip)):
+    if fill_missing:
+      return renderbuffer
 
   chunk_size = meta.chunk_size(mip)
   grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
@@ -253,7 +256,7 @@ def download(
   full_bbox = requested_bbox.expand_to_chunk_size(
     meta.chunk_size(mip), offset=meta.voxel_offset(mip)
   )
-  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip))
+  full_bbox = Bbox.clamp(full_bbox, meta.bounds(mip)) # what if bounded is false?
   cloudpaths = chunknames(
     full_bbox, meta.bounds(mip), 
     meta.key(mip), meta.chunk_size(mip), 
@@ -284,6 +287,12 @@ def download(
       shape=shape, fill_value=background_color,
       dtype=dtype, order=order
     )
+  elif not Bbox.intersects(requested_bbox, meta.bounds(mip)):
+    if fill_missing:
+      return np.full(
+        shape=shape, fill_value=background_color,
+        dtype=dtype, order=order
+      )
 
   if requested_bbox.volume() == 1:
     return download_single_voxel_unsharded(

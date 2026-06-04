@@ -302,6 +302,13 @@ def test_point_reads_sharded(
   for pt in pts:
     assert cv[tuple(pt)] == data[tuple(pt)]
 
+  # test near edge point
+  cv.fill_missing = True
+  cv.bounded = False
+  pt = shard_vol.bounds.maxpt + 1
+  assert cv[pt[0], pt[1], pt[2]] == 0
+  cv.fill_missing = False
+
 @pytest.mark.parametrize('green', (True, False))
 @pytest.mark.parametrize('encoding', ('raw', 'compresso', 'compressed_segmentation'))
 @pytest.mark.parametrize('lru_bytes', (0,1e6,10e6))
@@ -336,6 +343,12 @@ def test_point_reads_unsharded(green, encoding, lru_bytes, lru_encoding):
 
   for pt in pts:
     assert cv[tuple(pt)] == 17
+
+  # test near edge point
+  cv.fill_missing = True
+  cv.bounded = False
+  assert cv[100,100,101] == 0
+  cv.fill_missing = False
 
 def test_save_images():
   delete_layer()
