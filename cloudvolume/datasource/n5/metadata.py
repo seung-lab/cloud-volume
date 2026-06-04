@@ -93,15 +93,11 @@ class N5Metadata(PrecomputedMetadata):
     # should all be the same
     data_type = scale_attrs[0]["dataType"] 
 
-    encoding = scale_attrs[0]["compression"]["type"]
-    if encoding in ["gzip", "br", "lzma", "xz", "bz2"]:
-      encoding = "raw"
-
     info = PrecomputedMetadata.create_info(
       num_channels=1,
       layer_type="image",
       data_type=data_type,
-      encoding=encoding,
+      encoding="raw",
       resolution=resolution,
       voxel_offset=[0,0,0],
       volume_size=scale_attrs[0]["dimensions"][:3],
@@ -117,11 +113,21 @@ class N5Metadata(PrecomputedMetadata):
       self.add_scale(
         ds_factor,
         chunk_size=scale["blockSize"],
-        encoding=scale["compression"]["type"],
+        encoding="raw",
         info=info
       )
 
     return info
+
+  def compression_type(self, mip:int) -> str:
+    """
+    Encoding in n5 is overloaded compared to precomputed.
+    This includes bitstream compression. The reason is
+    that the file has an uncompressed header whereas precomputed,
+    the compression is handled by content-encoding.
+    """
+    compression_dict = self.attributes["scales"][mip].get("compression", { "type": "raw" })
+    return compression_dict.get("type", "raw")
 
   def commit_provenance(self):
     """N5 doesn't support provenance files."""
