@@ -73,8 +73,9 @@ class N5ImageSource(ImageSourceInterface):
       import blosc
       compressed_stream = blosc.decompress(compressed_stream)
     else:
+      encoding = encoding if encoding != "raw" else None
       compressed_stream = compression.decompress(
-        compressed_stream, self.meta.encoding(mip), filename
+        compressed_stream, encoding, filename
       )
 
     data = chunks.decode(

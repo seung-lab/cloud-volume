@@ -94,8 +94,6 @@ class N5Metadata(PrecomputedMetadata):
     data_type = scale_attrs[0]["dataType"] 
 
     encoding = scale_attrs[0]["compression"]["type"]
-    if encoding in ["gzip", "br", "lzma", "xz", "bz2"]:
-      encoding = "raw"
 
     info = PrecomputedMetadata.create_info(
       num_channels=1,
