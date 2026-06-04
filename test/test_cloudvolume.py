@@ -337,6 +337,17 @@ def test_point_reads_unsharded(green, encoding, lru_bytes, lru_encoding):
   for pt in pts:
     assert cv[tuple(pt)] == 17
 
+  # test near point
+  cv.fill_missing = True
+  cv.bounded = False
+  assert cv[100,100,101] == 0
+  cv.fill_missing = False
+  try:
+    cv[100,100,101]
+    assert False
+  except exceptions.OutOfBoundsError:
+    pass
+
 def test_save_images():
   delete_layer()
   cv, data = create_layer(size=(50,50,50,1), offset=(0,0,0))  
