@@ -11,7 +11,7 @@ from tqdm import tqdm
 from cloudfiles import reset_connection_pools, CloudFiles, compression
 import fastremap
 
-from ....exceptions import EmptyVolumeException, EmptyFileException
+from ....exceptions import EmptyVolumeException, EmptyFileException, OutOfBoundsError
 from ....lib import (  
   mkdir, clamp, xyzrange, Vec, 
   Bbox, min2, max2, 
@@ -62,6 +62,11 @@ def download_sharded(
 
   if not meta.overlaps_roi(requested_bbox, mip):
     return renderbuffer
+  elif not Bbox.intersects(requested_bbox, meta.bounds(mip)):
+    if fill_missing:
+      return renderbuffer
+    else:
+      raise OutOfBoundsError(f"Requested bbox {requested_bbox} was entirely outside of the data boundary: {meta.bounds(mip)}.")
 
   chunk_size = meta.chunk_size(mip)
   grid_size = np.ceil(meta.bounds(mip).size3() / chunk_size).astype(np.uint32)
@@ -284,6 +289,14 @@ def download(
       shape=shape, fill_value=background_color,
       dtype=dtype, order=order
     )
+  elif not Bbox.intersects(requested_bbox, meta.bounds(mip)):
+    if fill_missing:
+      return np.full(
+        shape=shape, fill_value=background_color,
+        dtype=dtype, order=order
+      )
+    else:
+      raise OutOfBoundsError(f"Requested bbox {requested_bbox} was entirely outside of the data boundary: {meta.bounds(mip)}.")
 
   if requested_bbox.volume() == 1:
     return download_single_voxel_unsharded(
