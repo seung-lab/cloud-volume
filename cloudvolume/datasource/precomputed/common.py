@@ -7,6 +7,10 @@ from ...lib import Vec, Bbox
 def content_type(encoding):
   if encoding == 'jpeg':
     return 'image/jpeg'
+  elif encoding == 'png':
+    return 'image/png'
+  elif encoding == 'jxl':
+    return 'image/jxl'
   elif encoding in ('compresso', 'compressed_segmentation', 'fpzip', 'kempressed', 'zfpc', 'crackle'):
     return 'image/x.' + encoding 
   return 'application/octet-stream'
