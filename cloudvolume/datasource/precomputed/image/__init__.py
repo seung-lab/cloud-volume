@@ -621,8 +621,10 @@ class PrecomputedImageSource(ImageSourceInterface):
     if sharded is None:
       sharded = self.is_sharded(mip)
 
+    is_chunk_aligned = bbox.is_chunk_aligned(self.meta.chunk_size(mip), self.meta.voxel_offset(mip))
+
     pth = paths.extract(cloudpath)
-    if self.meta.path.format != pth.format:
+    if self.meta.path.format != pth.format or not is_chunk_aligned:
       return xfer.transfer_by_rerendering(
         self, cloudpath,
         bbox=bbox,
