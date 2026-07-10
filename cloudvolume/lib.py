@@ -784,6 +784,13 @@ class Bbox(object):
   def grow(self, amt: Union[int, tuple, list]):
     return self.adjust(amt)
 
+  def is_chunk_aligned(self, chunk_size, offset=Vec(0,0,0, dtype=int)) -> bool:
+    """
+    Returns whether the current bbox is chunk aligned.
+    """
+    expanded_bbox = self.expand_to_chunk_size(chunk_size, offset)
+    return expanded_bbox == self
+
   def expand_to_chunk_size(self, chunk_size, offset=Vec(0,0,0, dtype=int)):
     """
     Align a potentially non-axis aligned bbox to the grid by growing it
