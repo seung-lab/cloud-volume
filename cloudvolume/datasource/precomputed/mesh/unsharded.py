@@ -96,7 +96,7 @@ class UnshardedLegacyPrecomputedMeshSource(object):
       (filename, content, path_id_map[os.path.basename(filename)]) 
       for filename, content in fragments.items() 
     ]
-    fragments = sorted(fragments, key=lambda frag: frag[0]) # make decoding deterministic
+    fragments.sort(key=lambda frag: frag[0]) # make decoding deterministic
     return fragments
 
   def exists(self, segids, progress=None):
