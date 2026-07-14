@@ -1,6 +1,6 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import itertools
-import json
+import orjson
 import os
 import posixpath
 import re
@@ -18,6 +18,180 @@ from ....scheduler import schedule_jobs
 
 from ...precomputed.mesh import UnshardedLegacyPrecomputedMeshSource, PrecomputedMeshMetadata
 
+ACCEPT_HEADER = {
+  "Accept": "application/x.cave;manifest_version=2",
+}
+
+GrapheneMeshRequestParams = namedtuple("GrapheneMeshRequestParams", ["segid", "key", "byte_start", "length" ])
+
+class GrapheneMeshManifest:
+  def __init__(self, content:dict):
+    """Parses the manifest from the server into a normalized form"""
+    if content.get("manifest_version", 1) >= 2:
+      self.manifest = self.parse_v2_manifest(content)
+    else:
+      self.manifest = self.parse_v1_manifest(content)
+
+  def keys(self) -> list[str]:
+    all_segids = []
+    for cloudpath, params in self.manifest.items():
+      for req in params:
+        all_segids.append(req.key)
+    return all_segids
+
+  def segids(self) -> list[int]:
+    all_segids = []
+    for cloudpath, params in self.manifest.items():
+      for req in params:
+        all_segids.append(req.segid)
+    return all_segids
+
+  def to_manifest_v2(self) -> dict:
+    """Dumps the contents of the manifest into the v2 format."""
+    manifest_v2 = {
+      "manifest_version": 2,
+      "fragments": defaultdict(list),
+    }
+
+    for cloudpath, params in self.manifest.items():
+      sub = manifest_v2["fragments"][cloudpath]
+      for param in params:
+        if param.byte_start is None:
+          sub.append(param.key)
+        else:
+          sub.append(f"~{param.segid}:{param.key}:{param.byte_start}:{param.size}")
+
+    return manifest_v2
+
+  def cloudfiles_requests(self) -> dict[str, list[dict]]:
+    """Convert the manifests into the CloudFiles request format."""
+    cf_requests = defaultdict(list)
+    for cloudpath, params in self.manifest.items():
+      req = cf_requests[cloudpath]
+      for param in params:
+        if param.byte_start is None:
+          req.append({
+            "path": param.key,
+            "tag": param.segid,
+          })
+        else:
+          req.append({
+            "path": param.key,
+            "start": param.byte_start,
+            "end": param.byte_start + param.size,
+            "tag": param.segid,
+          })
+    return cf_requests
+
+  def parse_v2_manifest(self, manifest:dict) -> dict[int,list[GrapheneMeshRequestParams]]:
+    """
+    {
+       "manifest_version": 2,
+       "fragments":{
+         "gs://pcg_ws/initial_meshes": [
+            "~170521060133831369:2/393478156-0.shard:420288:535",
+            "~170520991414354512:2/393477132-0.shard:156168:233"
+         ],
+         "gs://pcg_ws/dynamic_meshes": [
+            "~170521060133831369:2/393478156-0.shard:420288:535",
+            "~170520991414354512:2/393477132-0.shard:156168:233",
+            "182189093902354880:0:34560-34816_17408-17664_2048-2560",
+            "182189093902355396:0:34560-34816_17408-17664_2048-2560"
+         ]
+       }
+    }
+    """
+    cf_requests = defaultdict(list)
+
+    shard_regexp = re.compile(r'~(\d+):(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
+
+    fragments = manifest['fragments']
+
+    for cloudpath in fragments.keys():
+      for filename in fragments[cloudpath]:
+        if not filename:
+          continue
+
+        # eg. ~2/344239114-0.shard:224659:442 
+        # tilde means initial (i.e. sharded), missing tilde means dynamic (i.e. unsharded)
+        sharded = filename[0] == '~'
+
+        if sharded:
+          (segid, layer_id, parsed_filename, byte_start, size) = re.search(
+            shard_regexp, filename
+          ).groups()
+
+          cf_requests[cloudpath].append(
+            GrapheneMeshRequestParams(
+              int(segid),
+              self.meta.join(str(layer_id), parsed_filename),
+              byte_start,
+              size
+            )
+          )
+
+        else:
+          segid = int(filename.split(":")[0])
+          cf_requests[cloudpath].append(
+            GrapheneMeshRequestParams(segid, filename, None, None)
+          )
+
+    return cf_requests
+
+  def parse_v1_manifest(self, manifest:dict) -> dict[int,list[GrapheneMeshRequestParams]]:
+    """
+    {
+      "fragments": [
+        "~2/344239114-0.shard:224659:442",
+        "396809348417946934:0:32768-34816_14336-16384_0-4096",
+        "181621745902421420:0:34048-34304_16384-16640_2048-2560",
+        "182189093902354880:0:34560-34816_17408-17664_2048-2560",
+        "182189093902355396:0:34560-34816_17408-17664_2048-2560",
+        "325684415118191036:0:33792-34816_17408-18432_2048-4096"
+      ],
+      "seg_ids": [
+        2383274832232,
+        ...
+      ]
+    }
+    """
+    cf_requests = {}
+
+    initial_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, self.meta.sharded_mesh_dir)
+    dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
+
+    initial_regexp = re.compile(r'~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
+
+    filenames, segids = manifest['fragments'], manifest['seg_ids']
+
+    for filename, segid in zip(filenames, segids):
+      if not filename:
+        continue
+
+      # eg. ~2/344239114-0.shard:224659:442 
+      # tilde means initial (i.e. sharded), missing tilde means dynamic (i.e. unsharded)
+      initial = filename[0] == '~'
+
+      if initial:
+        (layer_id, parsed_filename, byte_start, size) = re.search(
+          initial_regexp, filename
+        ).groups()
+
+        cf_requests[initial_cloudpath].append(
+          GrapheneMeshRequestParams(
+            segid,
+            self.meta.join(str(layer_id), parsed_filename),
+            byte_start,
+            size
+          )
+        )
+      else:
+        segid = int(filename.split(":")[0])
+        cf_requests[dynamic_cloudpath].append(
+          GrapheneMeshRequestParams(segid, filename, None, None)
+        )
+        
+    return cf_requests
 
 class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
@@ -49,14 +223,14 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       return [ segid ]
 
     manifest = self.fetch_manifest(segid, lod, level, bbox, return_segids=True, verify=False)
-    return manifest["seg_ids"]
+    return manifest.segids()
 
   def get_fragment_filenames(self, segid, lod=0, level=2, bbox=None, bypass=False):
     if bypass:
       return [ self.compute_filename(segid) ]
 
     manifest = self.fetch_manifest(segid, lod, level, bbox, verify=True)
-    return manifest["fragments"]
+    return manifest.keys()
 
   def fetch_manifest(self, segid, lod=0, level=2, bbox=None, return_segids=False, verify=True):
     """
@@ -71,18 +245,12 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     if self.cache.enabled and cacheable:
       manifest = self.cache.get_json(cache_path)
       if manifest is not None:
-        if "seg_ids" in manifest and not return_segids:
-          del manifest["seg_ids"]
-          return manifest
-        elif "seg_ids" not in manifest and return_segids:
-          pass
-        else:
-          return manifest
+        return GrapheneMeshManifest(manifest)
 
     manifest = self.fetch_manifest_remote(segid, lod, level, bbox, return_segids, verify)
 
     if self.cache.enabled and cacheable:
-      self.cache.put_json(cache_path, manifest)
+      self.cache.put_json(cache_path, manifest.to_manifest_v2())
 
     return manifest
 
@@ -99,20 +267,32 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
 
     level = min(level, self.meta.meta.max_meshed_layer)
 
+    # In July 2026, to avoid egress fees Forrest Collman, Will Silversmith,
+    # and Akhilesh Halageri decided to make it possible
+    # to store supervoxels, initial meshes, and dynamic meshes in separate
+    # locations. The Accept header (not previously present) signals 
+    # to the server that the new format is supported by this client. 
+    # The new format allows splitting these locations while the old format
+    # has a built-in assumption that all three are co-located.
+
+    headers = dict(self.meta.meta.auth_header)
+    headers.update(ACCEPT_HEADER)
+
     url = "%s/%s:%s" % (self.meta.meta.manifest_endpoint, segid, lod)
     if level is not None:
       res = requests.get(
         url,
         data=jsonify({ "start_layer": level }),
         params=query_d,
-        headers=self.meta.meta.auth_header
+        headers=headers
       )
     else:
-      res = requests.get(url, params=query_d, headers=self.meta.meta.auth_header)
+      res = requests.get(url, params=query_d, headers=headers)
 
     res.raise_for_status()
 
-    return json.loads(res.content.decode('utf8'))
+    content = orjson.loads(res.content.decode('utf8'))
+    return GrapheneMeshManifest(content)
 
   def download_segid(self, seg_id, bounding_box, bypass, use_byte_offsets=True):
     """
@@ -139,7 +319,6 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       seg_id, level=level, bbox=bounding_box, bypass=bypass
     )
     fragments = self._get_mesh_fragments({ fname: seg_id for fname in fragment_filenames })
-    fragments = sorted(fragments, key=lambda frag: frag[0])  # make decoding deterministic
 
     fragiter = tqdm(fragments, disable=(not self.config.progress), desc="Decoding Mesh Buffer")
     is_draco = False
