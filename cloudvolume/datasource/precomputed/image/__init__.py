@@ -778,9 +778,6 @@ class PrecomputedImageSource(ImageSourceInterface):
     pt_anchor = gpts[0] * chunk_size
     for pt_abs, morton_code in zip(gpts, morton_codes):
       cutout_bbx = Bbox(pt_abs * chunk_size, (pt_abs + 1) * chunk_size)
-
-      # Neuroglancer expects border chunks not to extend beyond dataset bounds
-      cutout_bbx.maxpt = cutout_bbx.maxpt.clip(None, self.meta.volume_size(mip))
       cutout_bbx -= pt_anchor
 
       chunk = img[ cutout_bbx.to_slices() ]
