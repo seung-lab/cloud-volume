@@ -712,6 +712,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     aligned_bbox = bbox.expand_to_chunk_size(
       self.meta.chunk_size(mip), offset=self.meta.voxel_offset(mip)
     )
+    aligned_bbox = Bbox.clamp(aligned_bbox, self.meta.bounds(mip))
     if require_aligned and bbox != aligned_bbox:
       raise exceptions.AlignmentError(
         "Unable to create shard from a non-chunk aligned bounding box. Requested: {}, Aligned: {}".format(
@@ -719,7 +720,6 @@ class PrecomputedImageSource(ImageSourceInterface):
       ))
 
     # 2. Covers the dataset at least partially
-    aligned_bbox = Bbox.clamp(aligned_bbox, self.meta.bounds(mip))
     if aligned_bbox.subvoxel():
       raise exceptions.OutOfBoundsError("Shard completely outside dataset: Requested: {}, Dataset: {}".format(
         bbox, self.meta.bounds(mip)
