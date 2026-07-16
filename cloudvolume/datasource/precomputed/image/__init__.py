@@ -780,6 +780,8 @@ class PrecomputedImageSource(ImageSourceInterface):
       cutout_bbx = Bbox(pt_abs * chunk_size, (pt_abs + 1) * chunk_size)
       cutout_bbx -= pt_anchor
 
+      cutout_bbx.maxpt = cutout_bbx.maxpt.clip(None, self.meta.volume_size(mip))
+
       chunk = img[ cutout_bbx.to_slices() ]
 
       if (not self.delete_black_uploads) or testfn(chunk):
