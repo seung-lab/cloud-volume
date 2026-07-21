@@ -65,7 +65,7 @@ from .skeleton import Skeleton, PrecomputedSkeleton
 from . import exceptions
 from . import secrets
 
-__version__ = '12.14.1'
+__version__ = '12.14.2'
 
 # Register plugins
 from .datasource.precomputed import (
