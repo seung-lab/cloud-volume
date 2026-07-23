@@ -28,17 +28,17 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     for level, sharding in self.meta.info['sharding'].items(): # { level: std sharding, ... }
       spec = ShardingSpecification.from_dict(sharding)
       self.readers[int(level)] = GrapheneShardReader(
-        mesh_meta, 
-        self.meta.cloudpath, 
+        mesh_meta,
+        self.meta.initial_mesh_cloudpath, 
         self.cache, 
         spec
       )
 
   def initial_path(self, level):
-    return self.meta.join(self.meta.mesh_path, self.meta.sharded_mesh_dir, str(level))
+    return self.meta.join(self.meta.initial_mesh_cloudpath, str(level))
 
   def dynamic_path(self):
-    return self.meta.join(self.meta.mesh_path, self.meta.unsharded_mesh_dir)
+    return self.meta.join(self.meta.dynamic_mesh_cloudpath, self.meta.unsharded_mesh_dir)
 
   # 1. determine if the segid is before or after the shard time point
   # 2. assuming it is sharded, fetch the draco encoded file from the
@@ -54,7 +54,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
 
     checks = [ self.compute_filename(label) for label in labels ]
     
-    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path()) 
+    cloudpath = self.meta.dyamic_mesh_cloudpath
     progress = progress if progress is not None else self.config.progress
 
     results = CloudFiles(
@@ -118,30 +118,6 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     dynamic_labels.update(initial_labels)
     return dynamic_labels
 
-  def parse_manifest_filenames(self, manifest):
-    lists = defaultdict(list)
-    initial_regexp = re.compile(r'~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
-
-    filenames, segids = manifest['fragments'], manifest['seg_ids']
-
-    for filename, segid in zip(filenames, segids):
-      if not filename:
-        continue
-
-      # eg. ~2/344239114-0.shard:224659:442 
-      # tilde means initial, missing tilde means dynamic
-      initial = filename[0] == '~'
-
-      if initial:
-        (layer_id, parsed_filename, byte_start, size) = re.search(
-          initial_regexp, filename
-        ).groups()
-        lists['initial'].append((layer_id, parsed_filename, int(byte_start), int(size), int(segid)))
-      else:
-        lists['dynamic'].append(filename)
-        
-    return lists
-
   def get_meshes_via_manifest_byte_offsets(self, seg_id, bounding_box):
     """    
     The manifest for sharded is a bit strange in that exists(..., return_byte_offset=True)
@@ -151,62 +127,34 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     it is probably worth it.
     """
     level = self.meta.meta.decode_layer_id(seg_id)
-    dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
     if bounding_box is not None:
-      level=2
+      level = 2
+    
     manifest = self.fetch_manifest(seg_id, level=level, bbox=bounding_box, return_segids=True)
-    lists = self.parse_manifest_filenames(manifest)
 
-    files = []
-    if lists['dynamic']:
+    cf_requests = manifest.cloudfiles_requests()
+
+    all_meshes = []
+    for cloudpath, requests in cf_requests.items():
       files = CloudFiles(
-        dynamic_cloudpath, 
+        cloudpath, 
         green=self.config.green, 
         secrets=self.config.secrets,
         parallel=self.config.parallel,
-      ).get(lists['dynamic'])
-    
-    dynamic_meshes = []
-    while files:
-      f = files.pop()
-      mesh = Mesh.from_draco(f['content'])
-      mesh.segid = int(os.path.basename(f['path']).split(':')[0])
-      dynamic_meshes.append(mesh)
+      ).get(requests)
 
-    fetches = []
-    segid_map = {}
-    for layer_id, filename, byte_start, size, segid in lists['initial']:
-      path = self.meta.join(layer_id, filename)
-      byte_end = byte_start + size
-      fetches.append({
-        'path': path,
-        'start': byte_start,
-        'end': byte_end,
-      })
-      segid_map[(path, byte_start, byte_end)] = segid
+      while files:
+        f = files.pop()
+        mesh = Mesh.from_draco(f['content'])
+        mesh.segid = int(f["tags"])
+        all_meshes.append(mesh)
 
-    cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, self.meta.sharded_mesh_dir)
-    files = CloudFiles(
-      cloudpath, 
-      green=self.config.green, 
-      secrets=self.config.secrets,
-      parallel=self.config.parallel,
-    ).get(fetches)
-    initial_meshes = []
-    while files:
-      f = files.pop()
-      mesh = Mesh.from_draco(f['content'])
-      start, end = f['byte_range']
-      key = (f['path'], start, end)
-      mesh.segid = segid_map[key]
-      initial_meshes.append(mesh)    
-
-    return dynamic_meshes + initial_meshes
+    return all_meshes
 
   def get_meshes_via_manifest_labels(self, seg_id, bounding_box):
     level = None
     if bounding_box is not None:
-      level=2
+      level = 2
     labels = self.get_fragment_labels(seg_id, level=level, bbox=bounding_box)
     meshes = self.get_meshes_on_bypass(labels, allow_missing=True) # sometimes a tiny label won't get meshed
     return list(meshes.values())
@@ -262,11 +210,10 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     """
     segids = toiter(segids)
 
-    dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
     filenames = [ self.compute_filename(segid) for segid in segids ]
 
     cf = CloudFiles(
-      dynamic_cloudpath, 
+      self.meta.dyamic_mesh_cloudpath, 
       progress=self.config.progress, 
       green=self.config.green,
       secrets=self.config.secrets,

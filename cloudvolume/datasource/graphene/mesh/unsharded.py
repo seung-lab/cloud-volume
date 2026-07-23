@@ -1,3 +1,5 @@
+from typing import Union, Iterable
+
 from collections import defaultdict, namedtuple
 import itertools
 import orjson
@@ -72,14 +74,14 @@ class GrapheneMeshManifest:
         if param.byte_start is None:
           req.append({
             "path": param.key,
-            "tag": param.segid,
+            "tags": param.segid,
           })
         else:
           req.append({
             "path": param.key,
             "start": param.byte_start,
-            "end": param.byte_start + param.size,
-            "tag": param.segid,
+            "end": param.byte_start + param.length,
+            "tags": param.segid,
           })
     return cf_requests
 
@@ -87,7 +89,7 @@ class GrapheneMeshManifest:
     """
     {
        "manifest_version": 2,
-       "fragments":{
+       "fragments": {
          "gs://pcg_ws/initial_meshes": [
             "~170521060133831369:2/393478156-0.shard:420288:535",
             "~170520991414354512:2/393477132-0.shard:156168:233"
@@ -103,12 +105,16 @@ class GrapheneMeshManifest:
     """
     cf_requests = defaultdict(list)
 
-    shard_regexp = re.compile(r'~(\d+):(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
+    # NOTE: REMOVE SECOND TILDE BEFORE CHECKING IN PR!!!!!!
+    # THIS IS TO COVER A BUG IN THE DEV SERVER
+    shard_regexp = re.compile(r'~(\d+):~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
 
     fragments = manifest['fragments']
 
     for cloudpath in fragments.keys():
-      for filename in fragments[cloudpath]:
+      cf = CloudFiles(cloudpath)
+
+      for filename in fragments[cloudpath]['fragments']:
         if not filename:
           continue
 
@@ -124,9 +130,9 @@ class GrapheneMeshManifest:
           cf_requests[cloudpath].append(
             GrapheneMeshRequestParams(
               int(segid),
-              self.meta.join(str(layer_id), parsed_filename),
-              byte_start,
-              size
+              cf.join(str(layer_id), parsed_filename),
+              int(byte_start),
+              int(size)
             )
           )
 
@@ -257,6 +263,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
   def fetch_manifest_remote(self, segid, lod=0, level=2, bbox=None, return_segids=False, verify=True):
     query_d = {
       'verify': bool(verify),
+      'prepend_seg_ids': 1,
     }
     if return_segids:
       query_d['return_seg_ids'] = 1
@@ -344,12 +351,15 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     return mesh, is_draco
 
   def get(
-      self, segids, 
-      remove_duplicate_vertices=False, 
-      fuse=False, bounding_box=None,
-      bypass=False, use_byte_offsets=True,
-      deduplicate_chunk_boundaries=True,
-      allow_missing=False,
+      self,
+      segids:Union[Iterable[int],int], 
+      remove_duplicate_vertices:bool = False, 
+      fuse:bool = False,
+      bounding_box:bool = None,
+      bypass:bool = False,
+      use_byte_offsets:bool = True,
+      deduplicate_chunk_boundaries:bool = True,
+      allow_missing:bool = False,
     ):
     """
     Merge fragments derived from these segids into a single vertex and face list.
