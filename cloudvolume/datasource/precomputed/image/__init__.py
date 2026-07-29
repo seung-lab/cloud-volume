@@ -788,6 +788,7 @@ class PrecomputedImageSource(ImageSourceInterface):
           chunk, self.meta.encoding(mip),
           block_size=self.meta.compressed_segmentation_block_size(mip),
           compression_params=self.meta.compression_params(mip),
+          num_threads=self.meta.config.codec_threads,
         )
 
     return labels
