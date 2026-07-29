@@ -85,7 +85,7 @@ def encode(
   encoding:str,
   block_size:Optional[Sequence[int]] = None,
   compression_params:dict = {},
-  num_threads:int = 0,
+  num_threads:int = 1,
 ) -> bytes:
   level = compression_params.get("level", None)
 
@@ -136,7 +136,7 @@ def decode(
   dtype:Any = None, 
   block_size:Optional[Sequence[int]] = None, 
   background_color:int = 0,
-  num_threads:int = 0,
+  num_threads:int = 1,
 ) -> np.ndarray:
   if (shape is None or dtype is None) and encoding not in ('npz', 'fpzip', 'kempressed', 'crackle', 'compresso'):
     raise ValueError(
