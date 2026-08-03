@@ -204,7 +204,7 @@ class CacheService(object):
     global DIRECTORY_CACHE
     self.cloudfiles().clear_locks()
 
-    DIRECTORY_CACHE.pop(self.path)
+    DIRECTORY_CACHE.pop(self.path, None)
 
     if not os.path.exists(self.path):
       return
@@ -248,7 +248,7 @@ class CacheService(object):
     Return: void
     """
     global DIRECTORY_CACHE
-    DIRECTORY_CACHE.pop(self.path)
+    DIRECTORY_CACHE.pop(self.path, None)
 
     if not os.path.exists(self.path):
       return
@@ -610,7 +610,7 @@ class CacheService(object):
     if compress is None:
       compress = self.config.compress
 
-    DIRECTORY_CACHE.pop(self.path)
+    DIRECTORY_CACHE.pop(self.path, None)
     
     save_location = 'file://' + self.path
     progress = 'to Cache' if progress else None
