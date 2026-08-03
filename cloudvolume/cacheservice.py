@@ -1,4 +1,4 @@
-from functools import partial, lru_cache
+from functools import partial
 import json
 import os
 import posixpath
@@ -18,9 +18,24 @@ from .lib import (
 def warn(text):
   print(colorize('yellow', text))
 
-@lru_cache
+DIRECTORY_CACHE = {}
+
 def no_compression_ext(list_dir:str):
-  fnames = os.listdir(mkdir(list_dir))
+  global DIRECTORY_CACHE
+
+  try:
+    last_modified = os.stat(list_dir).st_mtime
+
+    if list_dir in DIRECTORY_CACHE:
+      stored_last_modified, results = DIRECTORY_CACHE[list_dir]
+
+      if stored_last_modified == last_modified:
+        return results
+  except FileNotFoundError:
+    mkdir(list_dir)
+    last_modified = os.stat(list_dir).st_mtime
+
+  fnames = os.listdir(list_dir)
 
   results = []
   for fname in fnames:
@@ -33,6 +48,8 @@ def no_compression_ext(list_dir:str):
       results.append(name)
     else:
       results.append(fname)
+
+  DIRECTORY_CACHE[list_dir] = (last_modified, results)
   return results
 
 class CacheService(object):
@@ -184,7 +201,10 @@ class CacheService(object):
     
     Return: void
     """
+    global DIRECTORY_CACHE
     self.cloudfiles().clear_locks()
+
+    DIRECTORY_CACHE.pop(self.path)
 
     if not os.path.exists(self.path):
       return
@@ -227,6 +247,9 @@ class CacheService(object):
     
     Return: void
     """
+    global DIRECTORY_CACHE
+    DIRECTORY_CACHE.pop(self.path)
+
     if not os.path.exists(self.path):
       return
   
@@ -576,6 +599,8 @@ class CacheService(object):
 
   def put(self, files, progress=None, compress=None, compress_level=None):
     """files: [ (filename, content) ]"""
+    global DIRECTORY_CACHE
+
     if progress is None:
       progress = self.config.progress
 
@@ -584,6 +609,8 @@ class CacheService(object):
 
     if compress is None:
       compress = self.config.compress
+
+    DIRECTORY_CACHE.pop(self.path)
     
     save_location = 'file://' + self.path
     progress = 'to Cache' if progress else None
