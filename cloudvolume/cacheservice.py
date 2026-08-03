@@ -266,7 +266,7 @@ class CacheService(object):
       region_mip = self.meta.bbox_to_mip(region, mip=0, to_mip=mip)
       for filename in os.listdir(mip_path):
         bbox = Bbox.from_filename(filename)
-        if not Bbox.intersects(region, bbox):
+        if Bbox.intersects(region, bbox):
           os.remove(os.path.join(mip_path, filename))
 
   def check_info_validity(self):
