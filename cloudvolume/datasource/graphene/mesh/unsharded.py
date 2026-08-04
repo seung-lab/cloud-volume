@@ -27,12 +27,12 @@ ACCEPT_HEADER = {
 GrapheneMeshRequestParams = namedtuple("GrapheneMeshRequestParams", ["segid", "key", "byte_start", "length" ])
 
 class GrapheneMeshManifest:
-  def __init__(self, content:dict):
+  def __init__(self, content:dict, meta:PrecomputedMeshMetadata):
     """Parses the manifest from the server into a normalized form"""
     if content.get("manifest_version", 1) >= 2:
       self.manifest = self.parse_v2_manifest(content)
     else:
-      self.manifest = self.parse_v1_manifest(content)
+      self.manifest = self.parse_v1_manifest(content, meta)
 
   def keys(self) -> list[str]:
     all_segids = []
@@ -144,7 +144,7 @@ class GrapheneMeshManifest:
 
     return cf_requests
 
-  def parse_v1_manifest(self, manifest:dict) -> dict[int,list[GrapheneMeshRequestParams]]:
+  def parse_v1_manifest(self, manifest:dict, meta:PrecomputedMeshMetadata) -> dict[int,list[GrapheneMeshRequestParams]]:
     """
     {
       "fragments": [
@@ -161,10 +161,13 @@ class GrapheneMeshManifest:
       ]
     }
     """
-    cf_requests = {}
+    initial_cloudpath = meta.join(meta.meta.cloudpath, meta.mesh_path, meta.sharded_mesh_dir)
+    dynamic_cloudpath = meta.join(meta.meta.cloudpath, meta.mesh_path, meta.unsharded_mesh_dir)
 
-    initial_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.meta.mesh_path, self.meta.sharded_mesh_dir)
-    dynamic_cloudpath = self.meta.join(self.meta.meta.cloudpath, self.dynamic_path())
+    cf_requests = {
+      initial_cloudpath: [],
+      dynamic_cloudpath: [],
+    }
 
     initial_regexp = re.compile(r'~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
 
@@ -186,9 +189,9 @@ class GrapheneMeshManifest:
         cf_requests[initial_cloudpath].append(
           GrapheneMeshRequestParams(
             segid,
-            self.meta.join(str(layer_id), parsed_filename),
-            byte_start,
-            size
+            meta.join(str(layer_id), parsed_filename),
+            int(byte_start),
+            int(size)
           )
         )
       else:
@@ -251,7 +254,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     if self.cache.enabled and cacheable:
       manifest = self.cache.get_json(cache_path)
       if manifest is not None:
-        return GrapheneMeshManifest(manifest)
+        return GrapheneMeshManifest(manifest, self.meta)
 
     manifest = self.fetch_manifest_remote(segid, lod, level, bbox, return_segids, verify)
 
@@ -299,7 +302,7 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
     res.raise_for_status()
 
     content = orjson.loads(res.content.decode('utf8'))
-    return GrapheneMeshManifest(content)
+    return GrapheneMeshManifest(content, self.meta)
 
   def download_segid(self, seg_id, bounding_box, bypass, use_byte_offsets=True):
     """
