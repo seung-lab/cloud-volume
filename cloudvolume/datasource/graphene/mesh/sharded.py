@@ -213,7 +213,7 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
     filenames = [ self.compute_filename(segid) for segid in segids ]
 
     cf = CloudFiles(
-      self.meta.dyamic_mesh_cloudpath, 
+      self.meta.dynamic_mesh_cloudpath, 
       progress=self.config.progress, 
       green=self.config.green,
       secrets=self.config.secrets,
