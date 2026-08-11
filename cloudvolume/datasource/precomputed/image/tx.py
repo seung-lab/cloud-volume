@@ -461,7 +461,8 @@ def threaded_upload_chunks(
     if callable(progress):
       progress()
 
-  if remote.protocol == "mem":
+  # Greenlets cannot overlap C-level compression.
+  if remote.protocol == "mem" or (remote.protocol == "file" and green):
     n_threads = 0
 
   schedule_jobs(

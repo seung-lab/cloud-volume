@@ -215,7 +215,7 @@ class ThreadedQueue(object):
     with tqdm(total=self._inserted, disable=(not progress), desc=desc) as pbar:
       # Allow queue to consume, but check up on
       # progress and errors every tenth of a second
-      while not self._queue.empty():
+      while progress and not self._queue.empty():
         size = self._queue.qsize()
         delta = last - size
         if delta != 0: # We should crash on negative numbers
