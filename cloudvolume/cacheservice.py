@@ -12,7 +12,7 @@ from cloudfiles.interfaces import COMPRESSION_EXTENSIONS
 
 from .lib import (
   Bbox, colorize, jsonify, mkdir, 
-  toabs, Vec, nvl
+  toabs, toiter, Vec, nvl
 )
 
 def warn(text):
