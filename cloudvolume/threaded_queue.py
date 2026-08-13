@@ -142,7 +142,8 @@ class ThreadedQueue(object):
       try:
         fn = self._queue.get(block=True, timeout=0.01)
       except Queue.Empty:
-        continue # periodically check if the thread is supposed to die
+        terminate_evt.set()
+        break
 
       fn = partial(fn, interface)
 
@@ -150,6 +151,7 @@ class ThreadedQueue(object):
         self._consume_queue_execution(fn)
       except Exception as err:
         self._error_queue.put(err)
+        terminate_evt.set()
 
     self._close_interface(interface)
 
@@ -211,28 +213,31 @@ class ThreadedQueue(object):
     if type(progress) is str:
       desc = progress
 
-    last = self._inserted
-    with tqdm(total=self._inserted, disable=(not progress), desc=desc) as pbar:
-      # Allow queue to consume, but check up on
-      # progress and errors every tenth of a second
-      while not self._queue.empty():
-        size = self._queue.qsize()
-        delta = last - size
-        if delta != 0: # We should crash on negative numbers
-          pbar.update(delta)
-        last = size
+    if not progress:
+      self._terminate.wait()
+    else:
+      last = self._inserted
+      with tqdm(total=self._inserted, disable=(not progress), desc=desc) as pbar:
+        # Allow queue to consume, but check up on
+        # progress and errors every tenth of a second
+        while not self._queue.empty():
+          size = self._queue.qsize()
+          delta = last - size
+          if delta != 0: # We should crash on negative numbers
+            pbar.update(delta)
+          last = size
+          self._check_errors()
+          time.sleep(0.015)
+
+        # Wait until all tasks in the queue are 
+        # fully processed. queue.task_done must be
+        # called for each task.
+        self._queue.join() 
         self._check_errors()
-        time.sleep(0.015)
 
-      # Wait until all tasks in the queue are 
-      # fully processed. queue.task_done must be
-      # called for each task.
-      self._queue.join() 
-      self._check_errors()
-
-      final = self._inserted - last
-      if final:
-        pbar.update(final)
+        final = self._inserted - last
+        if final:
+          pbar.update(final)
 
     if self._queue.empty():
       self._inserted = 0
