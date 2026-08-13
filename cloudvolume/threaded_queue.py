@@ -233,11 +233,12 @@ class ThreadedQueue(object):
         # fully processed. queue.task_done must be
         # called for each task.
         self._queue.join() 
-        self._check_errors()
 
         final = self._inserted - last
         if final:
           pbar.update(final)
+
+    self._check_errors()
 
     if self._queue.empty():
       self._inserted = 0
