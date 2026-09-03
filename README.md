@@ -693,7 +693,8 @@ CloudVolume includes a built-in dependency free viewer for 3D volumetric dataset
 You can launch a viewer using the `.viewer()` method of a VolumeCutout object or by using the `view(...)` or `hyperview(...)` functions that come with the cloudvolume module. This launches a web server on `http://localhost:8080`. You can read more [on the wiki](https://github.com/seung-lab/cloud-volume/wiki/%CE%BCViewer).
 
 ```python3
-from cloudvolume import CloudVolume, view, hyperview
+from cloudvolume import CloudVolume
+from microviewer import view, hyperview
 
 channel_vol = CloudVolume(...)
 seg_vol = CloudVolume(...)
