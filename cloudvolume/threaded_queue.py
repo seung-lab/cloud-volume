@@ -18,6 +18,8 @@ class ThreadedQueue(object):
     self._terminate = threading.Event()
 
     self._processed_lock = threading.Lock()
+    self._done_cond = threading.Condition(self._processed_lock)
+    self._outstanding = 0
     self.processed = 0
     self._inserted = 0
 
@@ -45,6 +47,8 @@ class ThreadedQueue(object):
 
     Returns: self
     """
+    with self._processed_lock:
+      self._outstanding += 1
     self._inserted += 1
     self._queue.put(fn, block=True)
     return self
@@ -150,6 +154,8 @@ class ThreadedQueue(object):
         self._consume_queue_execution(fn)
       except Exception as err:
         self._error_queue.put(err)
+        with self._done_cond:
+          self._done_cond.notify_all()
 
     self._close_interface(interface)
 
@@ -178,7 +184,10 @@ class ThreadedQueue(object):
     finally:
       with self._processed_lock:
         self.processed += 1
+        self._outstanding -= 1
         self._queue.task_done()
+        if self._outstanding == 0:
+          self._done_cond.notify_all()
 
   def _check_errors(self):
     try:
@@ -210,6 +219,16 @@ class ThreadedQueue(object):
     desc = None
     if type(progress) is str:
       desc = progress
+
+    if not progress:
+      # Woken by the last task completing, or by a thread posting an error.
+      with self._done_cond:
+        while self._outstanding and self._error_queue.empty():
+          self._done_cond.wait()
+      self._check_errors()
+      if self._queue.empty():
+        self._inserted = 0
+      return self
 
     last = self._inserted
     with tqdm(total=self._inserted, disable=(not progress), desc=desc) as pbar:
