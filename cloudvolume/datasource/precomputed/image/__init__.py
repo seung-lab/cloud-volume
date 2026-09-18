@@ -774,6 +774,16 @@ class PrecomputedImageSource(ImageSourceInterface):
     if self.background_color != 0:
       testfn = lambda image: np.any(image != self.background_color)
 
+    def encodefn(chunk:np.ndarray) -> bytes:
+      return chunks.encode(
+        chunk, self.meta.encoding(mip),
+        block_size=self.meta.compressed_segmentation_block_size(mip),
+        compression_params=self.meta.compression_params(mip),
+        num_threads=self.meta.config.codec_threads,
+      )
+
+    bg_encoded = None
+
     labels = {}
     pt_anchor = gpts[0] * chunk_size
     for pt_abs, morton_code in zip(gpts, morton_codes):
@@ -783,13 +793,19 @@ class PrecomputedImageSource(ImageSourceInterface):
 
       chunk = img[ cutout_bbx.to_slices() ]
 
-      if (not self.delete_black_uploads) or testfn(chunk):
-        labels[morton_code] = chunks.encode(
-          chunk, self.meta.encoding(mip),
-          block_size=self.meta.compressed_segmentation_block_size(mip),
-          compression_params=self.meta.compression_params(mip),
-          num_threads=self.meta.config.codec_threads,
-        )
+      if self.delete_black_uploads:
+        if testfn(chunk):
+          labels[morton_code] = encodefn(chunk)
+        else:
+          continue
+      else:
+        if testfn(chunk):
+          labels[morton_code] = encodefn(chunk)
+        elif bg_encoded is not None:
+          labels[morton_code] = bg_encoded
+        else:
+          bg_encoded = encodefn(chunk)
+          labels[morton_code] = bg_encoded
 
     return labels
 
