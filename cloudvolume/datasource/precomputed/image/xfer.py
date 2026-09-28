@@ -171,7 +171,7 @@ def transfer_unsharded_to_sharded(
   cf.puts(
     shard_binaries.items(), 
     compress=False, 
-    cache_control=cv.config.cdn_cache
+    cache_control=tx.cdn_cache_control(cv.config.cdn_cache),
   )
   return cv
 
