@@ -91,12 +91,12 @@ class GrapheneMeshManifest:
        "manifest_version": 2,
        "fragments": {
          "gs://pcg_ws/initial_meshes": [
-            "~170521060133831369:2/393478156-0.shard:420288:535",
-            "~170520991414354512:2/393477132-0.shard:156168:233"
+            "170521060133831369:2/393478156-0.shard:420288:535",
+            "170520991414354512:2/393477132-0.shard:156168:233"
          ],
          "gs://pcg_ws/dynamic_meshes": [
-            "~170521060133831369:2/393478156-0.shard:420288:535",
-            "~170520991414354512:2/393477132-0.shard:156168:233",
+            "170521060133831369:2/393478156-0.shard:420288:535",
+            "170520991414354512:2/393477132-0.shard:156168:233",
             "182189093902354880:0:34560-34816_17408-17664_2048-2560",
             "182189093902355396:0:34560-34816_17408-17664_2048-2560"
          ]
@@ -105,22 +105,19 @@ class GrapheneMeshManifest:
     """
     cf_requests = defaultdict(list)
 
-    # NOTE: REMOVE SECOND TILDE BEFORE CHECKING IN PR!!!!!!
-    # THIS IS TO COVER A BUG IN THE DEV SERVER
-    shard_regexp = re.compile(r'~(\d+):~(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
+    shard_regexp = re.compile(r'(\d+):(\d+)/([\d\-]+\.shard):(\d+):(\d+)')
 
     fragments = manifest['fragments']
 
     for cloudpath in fragments.keys():
       cf = CloudFiles(cloudpath)
 
-      for filename in fragments[cloudpath]['fragments']:
+      for filename in fragments[cloudpath]:
         if not filename:
           continue
 
-        # eg. ~2/344239114-0.shard:224659:442 
-        # tilde means initial (i.e. sharded), missing tilde means dynamic (i.e. unsharded)
-        sharded = filename[0] == '~'
+        # eg. 170521060133831369:2/393478156-0.shard:420288:535
+        sharded = filename.rfind(".shard") != -1
 
         if sharded:
           (segid, layer_id, parsed_filename, byte_start, size) = re.search(
@@ -275,7 +272,8 @@ class GrapheneUnshardedMeshSource(UnshardedLegacyPrecomputedMeshSource):
       bbox = Bbox.create(bbox)
       query_d['bounds'] = bbox.to_filename()
 
-    level = min(level, self.meta.meta.max_meshed_layer)
+    if level is not None:
+      level = min(level, self.meta.meta.max_meshed_layer)
 
     # In July 2026, to avoid egress fees Forrest Collman, Will Silversmith,
     # and Akhilesh Halageri decided to make it possible
