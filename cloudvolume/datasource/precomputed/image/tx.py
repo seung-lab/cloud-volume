@@ -42,6 +42,7 @@ def upload_with_overwrite_partial_chunks(
   """
   background_color = options.get('background_color', 0)
   expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
+  expanded = Bbox.clamp(expanded, meta.bounds(mip))
 
   padded_shape = list(expanded.size3())
   if image.ndim > 3:
