@@ -42,6 +42,7 @@ def upload_with_overwrite_partial_chunks(
   """
   background_color = options.get('background_color', 0)
   expanded = bounds.expand_to_chunk_size(meta.chunk_size(mip), meta.voxel_offset(mip))
+  expanded = Bbox.clamp(expanded, meta.bounds(mip))
 
   padded_shape = list(expanded.size3())
   if image.ndim > 3:
@@ -61,21 +62,26 @@ def upload_with_overwrite_partial_chunks(
   )
 
 def upload(
-    meta, cache, lru, lru_encoding,
-    image, offset, mip,
-    compress=None,
-    compress_level=None,
-    cdn_cache=None,
-    parallel=1,
-    progress=False,
-    delete_black_uploads=False,
-    background_color=0,
-    non_aligned_writes=False,
-    overwrite_partial_chunks=False,
-    location=None, location_bbox=None, location_order='F',
-    use_shared_memory=False, use_file=False,
-    green=False, fill_missing=False, secrets=None
-  ):
+  meta, cache, lru, lru_encoding,
+  image, offset, mip,
+  compress=None,
+  compress_level=None,
+  cdn_cache=None,
+  parallel=1,
+  progress=False,
+  delete_black_uploads=False,
+  background_color=0,
+  non_aligned_writes=False,
+  overwrite_partial_chunks=False,
+  location=None,
+  location_bbox=None,
+  location_order='F',
+  use_shared_memory=False,
+  use_file=False,
+  green=False,
+  fill_missing=False,
+  secrets=None,
+):
   """Upload img to vol with offset. This is the primary entry point for uploads."""
 
   if not np.issubdtype(image.dtype, np.dtype(meta.dtype).type):
