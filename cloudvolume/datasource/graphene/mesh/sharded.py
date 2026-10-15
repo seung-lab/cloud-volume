@@ -245,9 +245,8 @@ class GrapheneShardedMeshSource(GrapheneUnshardedMeshSource):
       layers[layer_id].append(segid)
 
     for layer_id, labels in layers.items():
-      subdirectory = self.meta.join(self.meta.mesh_path, self.meta.sharded_mesh_dir, str(layer_id))
       initial_output = self.readers[layer_id].get_data(
-        labels, path=subdirectory, 
+        labels, path=str(layer_id), 
         progress=self.config.progress,
         parallel=self.config.parallel,
       )
