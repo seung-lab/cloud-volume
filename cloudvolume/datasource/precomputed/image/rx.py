@@ -347,7 +347,7 @@ def download(
         shade(renderbuffer, requested_bbox, img3d, bbox)
 
     fn = process
-    if renumber and not (use_file or use_shared_memory):
+    if renumber and not (use_file or use_shared_memory or (label is not None)):
       fn = process_renumber  
 
     download_chunks_threaded(
