@@ -127,7 +127,7 @@ def download_sharded(
         renderbuffer[:] = int(img3d[0,0,0,0]) != background_color
       else:
         renderbuffer[:] = img3d
-    elif renumber:
+    elif renumber and renderbuffer.dtype != bool:
       if img3d is None:
         img_labels = [ background_color ]
       else:
