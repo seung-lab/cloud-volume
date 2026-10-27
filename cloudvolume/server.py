@@ -1,6 +1,6 @@
 import os
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import json
 import re
@@ -22,7 +22,7 @@ def view(cloudpath, hostname="localhost", port=DEFAULT_PORT):
   def handler(*args):
     return ViewerServerHandler(cloudpath, *args)
 
-  myServer = HTTPServer((hostname, port), handler)
+  myServer = ThreadingHTTPServer((hostname, port), handler)
   print("Neuroglancer server listening to http://{}:{}".format(hostname, port))
   try:
     myServer.serve_forever()
