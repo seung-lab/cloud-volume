@@ -336,16 +336,26 @@ class Zarr2Metadata(PrecomputedMetadata):
       self.zarrays.append({})
 
     for mip, scale in enumerate(self.scales):
+      spatial_resolution = dict(zip(("x", "y", "z"), scale["resolution"]))
+      spatial_chunk_size = dict(zip(("x", "y", "z"), scale["chunk_sizes"][0]))
+      coordinate_scale = []
+      chunks = []
+      for axis in self.axes():
+        if axis["type"] == "time":
+          coordinate_scale.append(1)
+          chunks.append(1)
+        elif axis["type"] == "channel":
+          coordinate_scale.append(1)
+          chunks.append(self.num_channels)
+        elif axis["type"] == "space":
+          name = axis["name"]
+          coordinate_scale.append(spatial_resolution[name] / 1000)
+          chunks.append(spatial_chunk_size[name])
+
       dataset = {
         "coordinateTransformations": [
           {
-            "scale": [
-              1,
-              self.num_channels,
-              scale["resolution"][2] / 1000,
-              scale["resolution"][1] / 1000,
-              scale["resolution"][0] / 1000
-            ],
+            "scale": coordinate_scale,
             "type": "scale"
           }
         ],
@@ -356,7 +366,7 @@ class Zarr2Metadata(PrecomputedMetadata):
       zscale = self.zarrays[mip] or {}
 
       zscale["dtype"] = CV_TO_ZARR_DTYPE[self.data_type]
-      zscale["chunks"] = [ 1, self.num_channels ] + list(scale["chunk_sizes"][0][::-1])
+      zscale["chunks"] = chunks
       zscale["shape"] = self.to_zarr_volume_size(mip)
 
       zscale["fill_value"] = zscale.get("fill_value", 0)
