@@ -11,6 +11,7 @@ import re
 import requests
 import sys
 
+from crackle import CrackleArray
 import dateutil.parser
 import fastremap
 import numpy as np
@@ -500,6 +501,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     renumber:bool = False, 
     coord_resolution:Optional[Sequence[int]] = None,
     label:Optional[int] = None,
+    crackle:bool = False,
   ):
     """
     Downloads base segmentation and optionally agglomerates
@@ -542,6 +544,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         contained by the image data type and leave zero as is.
     label: similar to segids, but for compatibility with Precomputed
       decodes a to binary image.
+    crackle: return the result as a crackle compressed array
 
     Returns: img as a VolumeCutout
     """
@@ -591,7 +594,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       mip=mip, 
       parallel=parallel, 
       renumber=renumber,
-      label=(label if direct_binary_image else None)
+      label=(label if direct_binary_image else None),
+      crackle=crackle,
     )
     if direct_binary_image:
       if renumber_return:
@@ -611,7 +615,8 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
         label=label,
         bbox=mip0_bbox,
       )
-      img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
+      if not isinstance(img, CrackleArray):
+        img = VolumeCutout.from_volume(self.meta, mip, img, bbox)
       if label is not None and not preserve_zeros:
         return img
 
@@ -627,10 +632,13 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       leaves = self.get_leaves(segid, mip0_bbox, 0)
       remapping.update({ leaf: segid for leaf in leaves })
     
-    # Issue #434: Do not write img = fastremap.FN(in_place=True) as this allows
-    # the underlying buffer to get garbage collected. Make sure to carefully
-    # manage the buffer's references when making any changes.
-    fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
+    if isinstance(img, CrackleArray):
+      img.remap(remapping, preserve_missing_labels=True, in_place=True)
+    else:
+      # Issue #434: Do not write img = fastremap.FN(in_place=True) as this allows
+      # the underlying buffer to get garbage collected. Make sure to carefully
+      # manage the buffer's references when making any changes.
+      fastremap.remap(img, remapping, preserve_missing_labels=True, in_place=True)
 
     mask_value = 0
     if preserve_zeros:
@@ -640,7 +648,11 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
 
       segids.append(0)
 
-    fastremap.mask_except(img, segids, in_place=True, value=mask_value)
+    if isinstance(img, CrackleArray):
+      img.mask_except(img, segids, in_place=True, value=mask_value)
+    else:
+      fastremap.mask_except(img, segids, in_place=True, value=mask_value)
+
     if renumber_return:
       return img, renumber_remap
     return img
@@ -654,7 +666,7 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
     label:Optional[int] = None,
     bbox:Optional[Bbox] = None,
     mip:Optional[int] = None, # mip 0 bbox
-  ):
+  ) -> np.ndarray|CrackleArray:
     """
     Remap a graphene volume to the indicidated layer ids (default root ids). 
     This creates a flat segmentation.
@@ -667,19 +679,37 @@ class CloudVolumeGraphene(CloudVolumePrecomputed):
       else:
         return img
 
-    labels = fastremap.unique(img)
+    if isinstance(img, CrackleArray):
+      labels = img.labels()
+    else:
+      labels = fastremap.unique(img)
+
     if labels.size and labels[0] == 0:
       labels = labels[1:]
 
     if label is not None:
       watershed_domains = list(self.get_leaves(label, bbox, mip=0, stop_layer=None))
-      fastremap.mask_except(img, watershed_domains, in_place=True, value=0)
+
+      if isinstance(img, CrackleArray):
+        img = img.mask_except(watershed_domains, value=0)
+      else:
+        fastremap.mask_except(img, watershed_domains, in_place=True, value=0)
+      
       del watershed_domains
       return img > 0
     else:
       roots = self.get_roots(labels, timestamp=timestamp, binary=True, stop_layer=stop_layer)
       mapping = { segid: root for segid, root in zip(labels, roots) }
-      return fastremap.remap(img, mapping, preserve_missing_labels=True, in_place=in_place)
+      
+      if isinstance(img, CrackleArray):
+        return img.remap(mapping, preserve_missing_labels=True)
+      else:
+        return fastremap.remap(
+          img,
+          mapping, 
+          preserve_missing_labels=True,
+          in_place=in_place,
+        )
 
   def coordinate_indexing(self, slices):
     res = super().coordinate_indexing(slices)
