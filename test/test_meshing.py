@@ -147,6 +147,60 @@ def test_duplicate_vertices():
   assert mesh != mesh2
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 3
 
+def _deduplicate_vertices_np_unique(mesh, is_chunk_aligned):
+  """The np.unique(..., axis=0) implementation deduplicate_vertices replaced."""
+  verts = mesh.vertices
+  unique_vertices, unique_inverse, counts = np.unique(
+    verts, return_inverse=True, return_counts=True, axis=0
+  )
+  is_doubled = np.isin(unique_inverse, np.where(counts == 2)[0])
+  do_merge = np.array(is_doubled & is_chunk_aligned)
+  new_vertices = np.hstack((verts, np.arange(verts.shape[0])[:, np.newaxis]))
+  new_vertices[do_merge, 3] = -1
+  faces = mesh.faces.flatten()
+  vertices, newfaces = np.unique(new_vertices[faces], return_inverse=True, axis=0)
+  newfaces = newfaces.astype(np.uint32).reshape( (len(newfaces) // 3, 3) )
+  return Mesh(vertices[:,0:3], newfaces, None, segid=mesh.segid)
+
+@pytest.mark.parametrize("seed", range(50))
+def test_deduplicate_vertices_matches_np_unique(seed):
+  # Vertices on a small lattice repeat once, twice or more often, some as
+  # -0.0; some are used by no face, and some meshes have no faces at all.
+  rng = np.random.default_rng(seed)
+  n = int(rng.integers(1, 400))
+  span = int(rng.integers(1, 6))
+  verts = rng.integers(-span, span, size=(n, 3)).astype(np.float32)
+  verts[rng.random(n) < 0.2] *= -0.0
+  faces = rng.integers(0, n, size=(int(rng.integers(0, 600)), 3)).astype(np.uint32)
+  is_chunk_aligned = rng.random(n) < rng.random()
+  mesh = Mesh(verts, faces, segid=seed)
+
+  mesh2 = mesh.deduplicate_vertices(is_chunk_aligned)
+  assert mesh2 == _deduplicate_vertices_np_unique(mesh, is_chunk_aligned)
+  assert mesh2.segid == seed
+
+def test_deduplicate_vertices_empty():
+  mesh = Mesh(np.zeros((0,3)), np.zeros((0,3)), segid=1)
+  mesh2 = mesh.deduplicate_vertices(np.zeros(0, dtype=bool))
+  assert mesh2.vertices.shape == (0,3)
+  assert mesh2.faces.shape == (0,3)
+
+@pytest.mark.parametrize("is_chunk_aligned", [True, False])
+def test_deduplicate_vertices_scalar_mask(is_chunk_aligned):
+  # a single bool stands for every vertex, as it did with np.unique
+  verts = np.array([[0,0,0], [0,0,0], [1,0,0], [2,0,0]], dtype=np.float32)
+  faces = np.array([[0,2,3], [1,2,3]], dtype=np.uint32)
+  mesh = Mesh(verts, faces, segid=1)
+
+  mesh2 = mesh.deduplicate_vertices(is_chunk_aligned)
+  assert mesh2 == _deduplicate_vertices_np_unique(mesh, is_chunk_aligned)
+  assert mesh2.vertices.shape[0] == (3 if is_chunk_aligned else 4)
+
+def test_deduplicate_vertices_mask_length_mismatch():
+  mesh = Mesh(np.zeros((5,3)), np.array([[0,1,2]]), segid=1)
+  with pytest.raises(ValueError):
+    mesh.deduplicate_vertices(np.ones(7, dtype=bool))
+
 def test_get_mesh_caching(unsharded_vol):
   unsharded_vol.cache.enabled = True
   unsharded_vol.cache.flush()
