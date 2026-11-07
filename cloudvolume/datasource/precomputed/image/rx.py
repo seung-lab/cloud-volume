@@ -36,6 +36,9 @@ from .. import sharding
 progress_queue = None # defined in common.initialize_synchronization
 fs_lock = None # defined in common.initialize_synchronization
 
+# Below this many chunks, a threaded local disk read is slower than a serial one.
+MIN_THREADED_DISK_READS = 16
+
 def download_sharded(
   requested_bbox, mip,
   meta, cache, lru, lru_encoding, spec,
@@ -707,14 +710,23 @@ def download_chunks_threaded(
     progress = "Downloading"
 
   total = len(locations["local"]) + len(locations["remote"])
+
+  def disk_concurrency(num_files):
+    """Threads worth spending on num_files reads off local disk. Greenlets stay serial."""
+    if green or are_all_lru_hits or num_files < MIN_THREADED_DISK_READS:
+      return 0
+    return DEFAULT_THREADS
+
   n_threads = DEFAULT_THREADS
-  if meta.path.protocol in ("file", "mem") or are_all_lru_hits:
+  if meta.path.protocol == "mem" or are_all_lru_hits:
     n_threads = 0
+  elif meta.path.protocol == "file":
+    n_threads = disk_concurrency(total)
 
   with tqdm(desc=progress, total=total, disable=(not progress)) as pbar:
     schedule_jobs(
-      fns=local_downloads, 
-      concurrency=0, 
+      fns=local_downloads,
+      concurrency=disk_concurrency(len(locations['local'])),
       progress=pbar,
       total=len(locations['local']),
       green=green,
