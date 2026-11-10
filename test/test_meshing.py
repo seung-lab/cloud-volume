@@ -148,7 +148,17 @@ def test_duplicate_vertices():
   assert mesh2.vertices.shape[0] == mesh.vertices.shape[0] - 3
 
 def _deduplicate_vertices_np_unique(mesh, is_chunk_aligned):
-  """The np.unique(..., axis=0) implementation deduplicate_vertices replaced."""
+  """
+  The np.unique(..., axis=0) implementation deduplicate_vertices replaced,
+  except when no vertex is chunk aligned: then the new code skips the sort
+  and keeps the input order, where the old code sorted the vertices.
+  """
+  if not np.any(is_chunk_aligned):
+    # only drop the vertices no face uses
+    used, inv = np.unique(mesh.faces, return_inverse=True)
+    newfaces = inv.reshape(-1, 3).astype(np.uint32)
+    return Mesh(mesh.vertices[used], newfaces, None, segid=mesh.segid)
+
   verts = mesh.vertices
   unique_vertices, unique_inverse, counts = np.unique(
     verts, return_inverse=True, return_counts=True, axis=0
@@ -178,6 +188,16 @@ def test_deduplicate_vertices_matches_np_unique(seed):
   mesh2 = mesh.deduplicate_vertices(is_chunk_aligned)
   assert mesh2 == _deduplicate_vertices_np_unique(mesh, is_chunk_aligned)
   assert mesh2.segid == seed
+
+def test_deduplicate_vertices_none_aligned_keeps_order():
+  verts = np.array([[2,0,0], [0,0,0], [9,9,9], [0,0,0], [1,0,0]], dtype=np.float32)
+  faces = np.array([[0,1,4], [3,4,0]], dtype=np.uint32)
+  mesh = Mesh(verts, faces, segid=1)
+
+  mesh2 = mesh.deduplicate_vertices(np.zeros(5, dtype=bool))
+  # vertex 2 is unused and dropped; the rest keep their order
+  assert np.array_equal(mesh2.vertices, verts[[0,1,3,4]])
+  assert np.array_equal(mesh2.faces, [[0,1,3], [2,3,0]])
 
 def test_deduplicate_vertices_empty():
   mesh = Mesh(np.zeros((0,3)), np.zeros((0,3)), segid=1)
