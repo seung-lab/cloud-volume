@@ -551,14 +551,19 @@ def transcode(
     from imagecodecs import jpegxl_encode_jpeg
 
     for label, binary in itr:
-      new_binary = jpegxl_encode_jpeg(binary, numthreads=num_threads)
-
+      if binary:
+        new_binary = jpegxl_encode_jpeg(binary, numthreads=num_threads)
+      else:
+        new_binary = b''
       yield (label, new_binary)
   elif src_encoding == "jxl" and dest_encoding == "jpeg" and level >= 100:
     from imagecodecs import jpegxl_decode_jpeg
 
     for label, binary in itr:
-      new_binary = jpegxl_decode_jpeg(binary, numthreads=num_threads)
+      if binary:
+        new_binary = jpegxl_decode_jpeg(binary, numthreads=num_threads)
+      else:
+        new_binary = b''
       yield (label, new_binary)
   else:
     for label, binary in itr:

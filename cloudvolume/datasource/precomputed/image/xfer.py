@@ -160,7 +160,10 @@ def transfer_unsharded_to_sharded(
     compression_params=cv.meta.compression_params(mip),
   )
   for code, binary in itr:
-    files[code] = binary
+    if not binary:
+      files.pop(code, None)
+    else:
+      files[code] = binary
   del mapping
 
   shard_binaries = spec.synthesize_shards(files)
