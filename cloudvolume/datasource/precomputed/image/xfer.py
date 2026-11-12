@@ -160,10 +160,12 @@ def transfer_unsharded_to_sharded(
     compression_params=cv.meta.compression_params(mip),
   )
   for code, binary in itr:
-    if not binary:
-      files.pop(code, None)
-    else:
-      files[code] = binary
+    files[code] = binary
+
+  files = {
+    k: v for k,v in files.items() if v
+  }
+
   del mapping
 
   shard_binaries = spec.synthesize_shards(files)
@@ -242,7 +244,8 @@ def transfer_any_to_unsharded(
   for label in list(files.keys()):
     bbx = get_bbx(label)
     binary = files[label]
-    files[bbx.to_filename()] = binary
+    if binary:
+      files[bbx.to_filename()] = binary
     del files[label]
 
   CloudFiles(
