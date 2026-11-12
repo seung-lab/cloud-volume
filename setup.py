@@ -19,7 +19,7 @@ EM_CODECS = [
 SEGMENTATION_CODECS = [ 
   "compressed-segmentation>=2.1.1",
   "compresso>=3.3.3",
-  "crackle-codec>=0.8.0,<2.0.0",
+  "crackle-codec>=0.55.0,<2.0.0",
 ]
 
 FP_CODECS = [ 
@@ -121,13 +121,12 @@ setuptools.setup(
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
     "Operating System :: POSIX",
