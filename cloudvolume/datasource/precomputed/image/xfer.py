@@ -28,7 +28,7 @@ def normalize_compression(compress:CompressType, encoding:str) -> CompressType:
   else:
     return compress
 
-def create_destination(source, cloudpath, mip, encoding):
+def create_destination(source, cloudpath, mip, encoding, update_info:bool = True):
   from cloudvolume import CloudVolume
 
   commit = False
@@ -50,7 +50,7 @@ def create_destination(source, cloudpath, mip, encoding):
     destvol.meta.encoding(mip, encoding)
     commit = commit or (destvol.meta.encoding(mip) != source.meta.encoding(mip))
 
-  if commit:
+  if commit and update_info:
     destvol.commit_info()
     destvol.commit_provenance()
 
@@ -65,11 +65,13 @@ def transfer_by_rerendering(
   compress_level:Optional[int] = None,
   encoding:Optional[str] = None,
   codec_threads:int = 1,
+  update_info:bool = True,
 ):
   from cloudvolume import CloudVolume
 
-  dest_cv = create_destination(source, cloudpath, mip, encoding)
-  dest_cv.commit_info()
+  dest_cv = create_destination(source, cloudpath, mip, encoding, update_info)
+  if update_info:
+    dest_cv.commit_info()
   dest_cv.progress = False
   dest_cv.compress = normalize_compression(compress, dest_cv.meta.encoding(mip))
   dest_cv.config.codec_threads = codec_threads
@@ -110,12 +112,14 @@ def transfer_unsharded_to_sharded(
   compress_level:Optional[int] = None,
   encoding:Optional[str] = None,
   codec_threads:int = 1,
+  update_info:bool = True,
 ):
   from cloudvolume import CloudVolume
 
-  cv = create_destination(source, cloudpath, mip, encoding)
+  cv = create_destination(source, cloudpath, mip, encoding, update_info)
   cv.image.to_sharded(mip=mip)
-  cv.commit_info()
+  if update_info:
+    cv.commit_info()
   mip = cv.mip
 
   src_encoding = source.meta.encoding(mip)
@@ -189,6 +193,7 @@ def transfer_any_to_unsharded(
   compress_level:Optional[int] = None,
   encoding:Optional[str] = None,
   codec_threads:int = 1,
+  update_info:bool = True,
 ):
   """
   You can specify an alternative encoding and compression 
@@ -196,9 +201,10 @@ def transfer_any_to_unsharded(
   """
   from cloudvolume import CloudVolume
 
-  cv = create_destination(source, cloudpath, mip, encoding)
+  cv = create_destination(source, cloudpath, mip, encoding, update_info)
   cv.scale.pop("sharding", None)
-  cv.commit_info()
+  if update_info:
+    cv.commit_info()
   mip = cv.mip
 
   src_encoding = source.meta.encoding(mip)
@@ -266,6 +272,7 @@ def transfer_sharded_to_sharded(
   compress_level:Optional[int] = None, 
   encoding:Optional[str] = None,
   codec_threads:int = 1,
+  update_info:bool = True,
 ):
   from cloudvolume import CloudVolume
   if mip is None:
@@ -297,7 +304,7 @@ def transfer_sharded_to_sharded(
     reader.get_filename(code) for code in morton_codes 
   ]))
 
-  destvol = create_destination(source, cloudpath, mip, encoding)
+  destvol = create_destination(source, cloudpath, mip, encoding, update_info)
 
   cfsrc = CloudFiles(
     source.meta.join(source.meta.cloudpath, source.meta.key(mip)),
@@ -367,6 +374,7 @@ def transfer_unsharded_to_unsharded(
   compress_level:Optional[int] = None, 
   encoding:Optional[str] = None,
   codec_threads:int = 1,
+  update_info:bool = True,
 ):
   """
   Transfer files from one storage location to another, bypassing
@@ -419,7 +427,7 @@ def transfer_unsharded_to_unsharded(
   else:
     step = int(default_block_size_MB // chunk_MB) + 1
 
-  destvol = create_destination(source, cloudpath, mip, encoding)
+  destvol = create_destination(source, cloudpath, mip, encoding, update_info)
   compress = normalize_compression(compress, destvol.meta.encoding(mip))
 
   if destvol.image.is_sharded(mip):

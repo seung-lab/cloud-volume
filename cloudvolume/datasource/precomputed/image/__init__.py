@@ -614,6 +614,7 @@ class PrecomputedImageSource(ImageSourceInterface):
     compress_level:Optional[int] = None, 
     encoding:Optional[str] = None,
     sharded:Optional[bool] = None,
+    update_info:bool = True,
   ):
     if isinstance(bbox, Bbox):
       bbox = bbox.convert_units('vx', self.meta.resolution(mip))
@@ -633,6 +634,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress_level=compress_level,
         encoding=encoding,
         codec_threads=self.config.codec_threads,
+        update_info=update_info,
       )
     elif not sharded and self.is_sharded(mip):
       return xfer.transfer_any_to_unsharded(
@@ -643,6 +645,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress_level=compress_level,
         encoding=encoding,
         codec_threads=self.config.codec_threads,
+        update_info=update_info,
       )
     elif sharded and self.is_sharded(mip):
       return xfer.transfer_sharded_to_sharded(
@@ -654,6 +657,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress_level=compress_level, 
         encoding=encoding,
         codec_threads=self.config.codec_threads,
+        update_info=update_info,
       )
     elif not sharded and not self.is_sharded(mip):
       return xfer.transfer_unsharded_to_unsharded(
@@ -665,6 +669,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress_level=compress_level, 
         encoding=encoding,
         codec_threads=self.config.codec_threads,
+        update_info=update_info,
       )
     else:
       return xfer.transfer_unsharded_to_sharded(
@@ -675,6 +680,7 @@ class PrecomputedImageSource(ImageSourceInterface):
         compress_level=compress_level, 
         encoding=encoding,
         codec_threads=self.config.codec_threads,
+        update_info=update_info,
       )
 
   def shard_reader(self, mip=None):
